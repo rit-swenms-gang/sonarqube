@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JakartaHttpRequest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.http</a> &gt; <span class="el_source">JakartaHttpRequest.java</span></div><h1>JakartaHttpRequest.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.http;
+
+import jakarta.servlet.http.HttpServletRequest;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Enumeration;
+import org.sonar.api.server.http.Cookie;
+import org.sonar.api.server.http.HttpRequest;
+
+/**
+ * Implementation of {@link HttpRequest} based on a delegate of {@link HttpServletRequest} from the Javax Servlet API.
+ */
+public class JakartaHttpRequest implements HttpRequest {
+
+  private final HttpServletRequest delegate;
+
+<span class="fc" id="L37">  public JakartaHttpRequest(HttpServletRequest delegate) {</span>
+<span class="fc" id="L38">    this.delegate = delegate;</span>
+<span class="fc" id="L39">  }</span>
+
+  public HttpServletRequest getDelegate() {
+<span class="fc" id="L42">    return delegate;</span>
+  }
+
+  @Override
+  public int getServerPort() {
+<span class="fc" id="L47">    return delegate.getServerPort();</span>
+  }
+
+  @Override
+  public boolean isSecure() {
+<span class="fc" id="L52">    return delegate.isSecure();</span>
+  }
+
+  @Override
+  public String getScheme() {
+<span class="fc" id="L57">    return delegate.getScheme();</span>
+  }
+
+  @Override
+  public String getServerName() {
+<span class="fc" id="L62">    return delegate.getServerName();</span>
+  }
+
+  @Override
+  public String getRequestURL() {
+<span class="fc" id="L67">    return delegate.getRequestURL().toString();</span>
+  }
+
+  @Override
+  public String getRequestURI() {
+<span class="fc" id="L72">    return delegate.getRequestURI();</span>
+  }
+
+  @Override
+  public String getQueryString() {
+<span class="fc" id="L77">    return delegate.getQueryString();</span>
+  }
+
+  @Override
+  public String getContextPath() {
+<span class="fc" id="L82">    return delegate.getContextPath();</span>
+  }
+
+  @Override
+  public String getParameter(String name) {
+<span class="fc" id="L87">    return delegate.getParameter(name);</span>
+  }
+
+  @Override
+  public String[] getParameterValues(String name) {
+<span class="fc" id="L92">    return delegate.getParameterValues(name);</span>
+  }
+
+  @Override
+  public String getHeader(String name) {
+<span class="fc" id="L97">    return delegate.getHeader(name);</span>
+  }
+
+  @Override
+  public Enumeration&lt;String&gt; getHeaderNames() {
+<span class="fc" id="L102">    return delegate.getHeaderNames();</span>
+  }
+
+  @Override
+  public Enumeration&lt;String&gt; getHeaders(String name) {
+<span class="fc" id="L107">    return delegate.getHeaders(name);</span>
+  }
+
+  @Override
+  public String getMethod() {
+<span class="fc" id="L112">    return delegate.getMethod();</span>
+  }
+
+  @Override
+  public String getRemoteAddr() {
+<span class="fc" id="L117">    return delegate.getRemoteAddr();</span>
+  }
+
+  @Override
+  public void setAttribute(String name, Object value) {
+<span class="fc" id="L122">    delegate.setAttribute(name, value);</span>
+<span class="fc" id="L123">  }</span>
+
+  @Override
+  public String getServletPath() {
+<span class="fc" id="L127">    return delegate.getServletPath();</span>
+  }
+
+  @Override
+  public BufferedReader getReader() throws IOException {
+<span class="fc" id="L132">    return delegate.getReader();</span>
+  }
+
+  @Override
+  public Cookie[] getCookies() {
+<span class="fc" id="L137">    jakarta.servlet.http.Cookie[] cookies = delegate.getCookies();</span>
+<span class="pc bpc" id="L138" title="1 of 2 branches missed.">    if (cookies != null) {</span>
+<span class="fc" id="L139">      return Arrays.stream(cookies)</span>
+<span class="fc" id="L140">        .map(JakartaCookie::new)</span>
+<span class="fc" id="L141">        .toArray(Cookie[]::new);</span>
+    }
+<span class="nc" id="L143">    return new Cookie[0];</span>
+  }
+
+  public static class JakartaCookie implements Cookie {
+    private final jakarta.servlet.http.Cookie delegate;
+
+<span class="fc" id="L149">    public JakartaCookie(jakarta.servlet.http.Cookie delegate) {</span>
+<span class="fc" id="L150">      this.delegate = delegate;</span>
+<span class="fc" id="L151">    }</span>
+
+    @Override
+    public String getName() {
+<span class="fc" id="L155">      return delegate.getName();</span>
+    }
+
+    @Override
+    public String getValue() {
+<span class="fc" id="L160">      return delegate.getValue();</span>
+    }
+
+    @Override
+    public String getPath() {
+<span class="fc" id="L165">      return delegate.getPath();</span>
+    }
+
+    @Override
+    public boolean isSecure() {
+<span class="fc" id="L170">      return delegate.getSecure();</span>
+    }
+
+    @Override
+    public boolean isHttpOnly() {
+<span class="fc" id="L175">      return delegate.isHttpOnly();</span>
+    }
+
+    @Override
+    public int getMaxAge() {
+<span class="fc" id="L180">      return delegate.getMaxAge();</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

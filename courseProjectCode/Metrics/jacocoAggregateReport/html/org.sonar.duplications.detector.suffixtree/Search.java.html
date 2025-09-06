@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Search.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.duplications.detector.suffixtree</a> &gt; <span class="el_source">Search.java</span></div><h1>Search.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.duplications.detector.suffixtree;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Deque;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.ListIterator;
+
+public final class Search {
+
+  private final SuffixTree tree;
+  private final TextSet text;
+  private final Collector reporter;
+
+<span class="fc" id="L36">  private final List&lt;Integer&gt; list = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L37">  private final List&lt;Node&gt; innerNodes = new ArrayList&lt;&gt;();</span>
+  
+<span class="fc" id="L39">  private static final Comparator&lt;Node&gt; DEPTH_COMPARATOR = (o1, o2) -&gt; o2.depth - o1.depth;</span>
+
+<span class="fc" id="L41">  private Search(SuffixTree tree, TextSet text, Collector reporter) {</span>
+<span class="fc" id="L42">    this.tree = tree;</span>
+<span class="fc" id="L43">    this.text = text;</span>
+<span class="fc" id="L44">    this.reporter = reporter;</span>
+<span class="fc" id="L45">  }</span>
+  
+  public static void perform(TextSet text, Collector reporter) {
+<span class="fc" id="L48">    new Search(SuffixTree.create(text), text, reporter).compute();</span>
+<span class="fc" id="L49">  }</span>
+
+  private void compute() {
+    // O(N)
+<span class="fc" id="L53">    dfs();</span>
+
+    // O(N * log(N))
+<span class="fc" id="L56">    Collections.sort(innerNodes, DEPTH_COMPARATOR);</span>
+
+    // O(N)
+<span class="fc" id="L59">    visitInnerNodes();</span>
+<span class="fc" id="L60">  }</span>
+
+  /**
+   * Depth-first search (DFS).
+   */
+  private void dfs() {
+<span class="fc" id="L66">    Deque&lt;Node&gt; stack = new LinkedList&lt;&gt;();</span>
+<span class="fc" id="L67">    stack.add(tree.getRootNode());</span>
+<span class="fc bfc" id="L68" title="All 2 branches covered.">    while (!stack.isEmpty()) {</span>
+<span class="fc" id="L69">      Node node = stack.removeLast();</span>
+<span class="fc" id="L70">      node.startSize = list.size();</span>
+<span class="fc bfc" id="L71" title="All 2 branches covered.">      if (node.getEdges().isEmpty()) {</span>
+        // leaf
+<span class="fc" id="L73">        list.add(node.depth);</span>
+<span class="fc" id="L74">        node.endSize = list.size();</span>
+      } else {
+<span class="fc bfc" id="L76" title="All 2 branches covered.">        if (!node.equals(tree.getRootNode())) {</span>
+          // inner node = not leaf and not root
+<span class="fc" id="L78">          innerNodes.add(node);</span>
+        }
+<span class="fc bfc" id="L80" title="All 2 branches covered.">        for (Edge edge : node.getEdges()) {</span>
+<span class="fc" id="L81">          Node endNode = edge.getEndNode();</span>
+<span class="fc" id="L82">          endNode.depth = node.depth + edge.getSpan() + 1;</span>
+<span class="fc" id="L83">          stack.addLast(endNode);</span>
+<span class="fc" id="L84">        }</span>
+      }
+<span class="fc" id="L86">    }</span>
+    // At this point all inner nodes are ordered by the time of entering, so we visit them from last to first
+<span class="fc" id="L88">    ListIterator&lt;Node&gt; iterator = innerNodes.listIterator(innerNodes.size());</span>
+<span class="fc bfc" id="L89" title="All 2 branches covered.">    while (iterator.hasPrevious()) {</span>
+<span class="fc" id="L90">      Node node = iterator.previous();</span>
+<span class="fc" id="L91">      int max = -1;</span>
+<span class="fc bfc" id="L92" title="All 2 branches covered.">      for (Edge edge : node.getEdges()) {</span>
+<span class="fc" id="L93">        max = Math.max(edge.getEndNode().endSize, max);</span>
+<span class="fc" id="L94">      }</span>
+<span class="fc" id="L95">      node.endSize = max;</span>
+<span class="fc" id="L96">    }</span>
+<span class="fc" id="L97">  }</span>
+
+  /**
+   * Each inner-node represents prefix of some suffixes, thus substring of text.
+   */
+  private void visitInnerNodes() {
+<span class="fc bfc" id="L103" title="All 2 branches covered.">    for (Node node : innerNodes) {</span>
+<span class="fc bfc" id="L104" title="All 2 branches covered.">      if (containsOrigin(node)) {</span>
+<span class="fc" id="L105">        report(node);</span>
+      }
+<span class="fc" id="L107">    }</span>
+<span class="fc" id="L108">  }</span>
+
+  /**
+   * TODO Godin: in fact computations here are the same as in {@link #report(Node)},
+   * so maybe would be better to remove this duplication,
+   * however it should be noted that this check can't be done in {@link Collector#endOfGroup()},
+   * because it might lead to creation of unnecessary new objects
+   */
+  private boolean containsOrigin(Node node) {
+<span class="fc bfc" id="L117" title="All 2 branches covered.">    for (int i = node.startSize; i &lt; node.endSize; i++) {</span>
+<span class="fc" id="L118">      int start = tree.text.length() - list.get(i);</span>
+<span class="fc" id="L119">      int end = start + node.depth;</span>
+<span class="fc bfc" id="L120" title="All 2 branches covered.">      if (text.isInsideOrigin(end)) {</span>
+<span class="fc" id="L121">        return true;</span>
+      }
+    }
+<span class="fc" id="L124">    return false;</span>
+  }
+
+  private void report(Node node) {
+<span class="fc" id="L128">    reporter.startOfGroup(node.endSize - node.startSize, node.depth);</span>
+<span class="fc bfc" id="L129" title="All 2 branches covered.">    for (int i = node.startSize; i &lt; node.endSize; i++) {</span>
+<span class="fc" id="L130">      int start = tree.text.length() - list.get(i);</span>
+<span class="fc" id="L131">      int end = start + node.depth;</span>
+<span class="fc" id="L132">      reporter.part(start, end);</span>
+    }
+<span class="fc" id="L134">    reporter.endOfGroup();</span>
+<span class="fc" id="L135">  }</span>
+
+<span class="fc" id="L137">  public abstract static class Collector {</span>
+
+    /**
+     * Invoked at the beginning of processing for current node.
+     * &lt;p&gt;
+     * Length - is a depth of node. And nodes are visited in descending order of depth,
+     * thus we guaranty that length will not increase between two sequential calls of this method
+     * (can be equal or less than previous value).
+     * &lt;/p&gt;
+     *
+     * @param size number of parts in group
+     * @param length length of each part in group
+     */
+    abstract void startOfGroup(int size, int length);
+
+    /**
+     * Invoked as many times as leaves in the subtree, where current node is root.
+     *
+     * @param start start position in generalised text
+     * @param end end position in generalised text
+     */
+    abstract void part(int start, int end);
+
+    /**
+     * Invoked at the end of processing for current node.
+     */
+    abstract void endOfGroup();
+
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

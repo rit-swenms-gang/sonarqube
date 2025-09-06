@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StartupMetadataPersister.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform</a> &gt; <span class="el_source">StartupMetadataPersister.java</span></div><h1>StartupMetadataPersister.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform;
+
+import java.util.Date;
+import org.sonar.api.CoreProperties;
+import org.sonar.api.Startable;
+import org.sonar.api.server.ServerSide;
+import org.sonar.api.utils.DateUtils;
+import org.sonar.db.DbClient;
+import org.sonar.db.property.PropertyDto;
+
+/**
+ * The server node marked as &quot;startup leader&quot; generates some information about startup. These
+ * information are loaded by &quot;startup follower&quot; servers and all Compute Engine nodes.
+ *
+ * @see StartupMetadataProvider#load(DbClient)
+ */
+@ServerSide
+public class StartupMetadataPersister implements Startable {
+
+  private final StartupMetadata metadata;
+  // PersistentSettings can not be used as it has to be
+  // instantiated in level 4 of container, whereas
+  // StartupMetadataPersister is level 3.
+  private final DbClient dbClient;
+
+<span class="fc" id="L45">  public StartupMetadataPersister(StartupMetadata metadata, DbClient dbClient) {</span>
+<span class="fc" id="L46">    this.metadata = metadata;</span>
+<span class="fc" id="L47">    this.dbClient = dbClient;</span>
+<span class="fc" id="L48">  }</span>
+
+  @Override
+  public void start() {
+<span class="fc" id="L52">    String startedAt = DateUtils.formatDateTime(new Date(metadata.getStartedAt()));</span>
+<span class="fc" id="L53">    save(CoreProperties.SERVER_STARTTIME, startedAt);</span>
+<span class="fc" id="L54">  }</span>
+
+  private void save(String key, String value) {
+<span class="fc" id="L57">    dbClient.propertiesDao().saveProperty(new PropertyDto().setKey(key).setValue(value));</span>
+<span class="fc" id="L58">  }</span>
+
+  @Override
+  public void stop() {
+    // nothing to do
+<span class="fc" id="L63">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

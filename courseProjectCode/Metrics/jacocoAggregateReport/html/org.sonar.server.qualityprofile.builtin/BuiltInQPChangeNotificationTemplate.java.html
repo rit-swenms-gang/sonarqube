@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BuiltInQPChangeNotificationTemplate.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.qualityprofile.builtin</a> &gt; <span class="el_source">BuiltInQPChangeNotificationTemplate.java</span></div><h1>BuiltInQPChangeNotificationTemplate.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.qualityprofile.builtin;
+
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
+import java.util.Comparator;
+import java.util.Date;
+import javax.annotation.CheckForNull;
+import org.sonar.api.notifications.Notification;
+import org.sonar.api.platform.Server;
+import org.sonar.server.issue.notification.EmailMessage;
+import org.sonar.server.issue.notification.EmailTemplate;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.sonar.api.utils.DateUtils.formatDate;
+import static org.sonar.server.qualityprofile.builtin.BuiltInQPChangeNotificationBuilder.Profile;
+import static org.sonar.server.qualityprofile.builtin.BuiltInQPChangeNotificationBuilder.parse;
+
+public class BuiltInQPChangeNotificationTemplate implements EmailTemplate {
+
+  private final Server server;
+
+<span class="fc" id="L41">  public BuiltInQPChangeNotificationTemplate(Server server) {</span>
+<span class="fc" id="L42">    this.server = server;</span>
+<span class="fc" id="L43">  }</span>
+
+  @Override
+  @CheckForNull
+  public EmailMessage format(Notification notification) {
+<span class="pc bpc" id="L48" title="1 of 2 branches missed.">    if (!BuiltInQPChangeNotification.TYPE.equals(notification.getType())) {</span>
+<span class="nc" id="L49">      return null;</span>
+    }
+
+<span class="fc" id="L52">    BuiltInQPChangeNotificationBuilder profilesNotification = parse(notification);</span>
+<span class="fc" id="L53">    StringBuilder message = new StringBuilder(&quot;The following built-in profiles have been updated:\n\n&quot;);</span>
+<span class="fc" id="L54">    profilesNotification.getProfiles().stream()</span>
+<span class="fc" id="L55">      .sorted(Comparator.comparing(Profile::getLanguageName).thenComparing(Profile::getProfileName))</span>
+<span class="fc" id="L56">      .forEach(profile -&gt; {</span>
+<span class="fc" id="L57">        message.append(&quot;\&quot;&quot;)</span>
+<span class="fc" id="L58">          .append(profile.getProfileName())</span>
+<span class="fc" id="L59">          .append(&quot;\&quot; - &quot;)</span>
+<span class="fc" id="L60">          .append(profile.getLanguageName())</span>
+<span class="fc" id="L61">          .append(&quot;: &quot;)</span>
+<span class="fc" id="L62">          .append(server.getPublicRootUrl()).append(&quot;/profiles/changelog?language=&quot;)</span>
+<span class="fc" id="L63">          .append(profile.getLanguageKey())</span>
+<span class="fc" id="L64">          .append(&quot;&amp;name=&quot;)</span>
+<span class="fc" id="L65">          .append(encode(profile.getProfileName()))</span>
+<span class="fc" id="L66">          .append(&quot;&amp;since=&quot;)</span>
+<span class="fc" id="L67">          .append(formatDate(new Date(profile.getStartDate())))</span>
+<span class="fc" id="L68">          .append(&quot;&amp;to=&quot;)</span>
+<span class="fc" id="L69">          .append(formatDate(new Date(profile.getEndDate())))</span>
+<span class="fc" id="L70">          .append(&quot;\n&quot;);</span>
+<span class="fc" id="L71">        int newRules = profile.getNewRules();</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">        if (newRules &gt; 0) {</span>
+<span class="fc" id="L73">          message.append(&quot; &quot;).append(newRules).append(&quot; new rule&quot;)</span>
+<span class="fc" id="L74">            .append(plural(newRules))</span>
+<span class="fc" id="L75">            .append('\n');</span>
+        }
+<span class="fc" id="L77">        int updatedRules = profile.getUpdatedRules();</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">        if (updatedRules &gt; 0) {</span>
+<span class="fc" id="L79">          message.append(&quot; &quot;).append(updatedRules).append(&quot; rule&quot;)</span>
+<span class="fc bfc" id="L80" title="All 2 branches covered.">            .append(updatedRules &gt; 1 ? &quot;s have been updated&quot; : &quot; has been updated&quot;)</span>
+<span class="fc" id="L81">            .append(&quot;\n&quot;);</span>
+        }
+<span class="fc" id="L83">        int removedRules = profile.getRemovedRules();</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">        if (removedRules &gt; 0) {</span>
+<span class="fc" id="L85">          message.append(&quot; &quot;).append(removedRules).append(&quot; rule&quot;)</span>
+<span class="fc" id="L86">            .append(plural(removedRules))</span>
+<span class="fc" id="L87">            .append(&quot; removed\n&quot;);</span>
+        }
+<span class="fc" id="L89">        message.append(&quot;\n&quot;);</span>
+<span class="fc" id="L90">      });</span>
+
+<span class="fc" id="L92">    message.append(&quot;This is a good time to review your quality profiles and update them to benefit from the latest evolutions: &quot;);</span>
+<span class="fc" id="L93">    message.append(server.getPublicRootUrl()).append(&quot;/profiles&quot;);</span>
+
+    // And finally return the email that will be sent
+<span class="fc" id="L96">    return new EmailMessage()</span>
+<span class="fc" id="L97">      .setMessageId(BuiltInQPChangeNotification.TYPE)</span>
+<span class="fc" id="L98">      .setSubject(&quot;Built-in quality profiles have been updated&quot;)</span>
+<span class="fc" id="L99">      .setPlainTextMessage(message.toString());</span>
+  }
+
+  private static String plural(int count) {
+<span class="fc bfc" id="L103" title="All 2 branches covered.">    return count &gt; 1 ? &quot;s&quot; : &quot;&quot;;</span>
+  }
+
+  public String encode(String text) {
+    try {
+<span class="fc" id="L108">      return URLEncoder.encode(text, UTF_8.name());</span>
+<span class="nc" id="L109">    } catch (UnsupportedEncodingException e) {</span>
+<span class="nc" id="L110">      throw new IllegalStateException(String.format(&quot;Cannot encode %s&quot;, text), e);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EmailConfigurationUpdateRestRequest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.v2.api.email.config.request</a> &gt; <span class="el_source">EmailConfigurationUpdateRestRequest.java</span></div><h1>EmailConfigurationUpdateRestRequest.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.v2.api.email.config.request;
+
+import io.swagger.v3.oas.annotations.media.Schema;
+import org.sonar.server.v2.api.email.config.resource.EmailConfigurationAuthMethod;
+import org.sonar.server.v2.api.email.config.resource.EmailConfigurationSecurityProtocol;
+import org.sonar.server.v2.common.model.NullOrNotEmpty;
+import org.sonar.server.v2.common.model.UpdateField;
+
+<span class="fc" id="L28">public class EmailConfigurationUpdateRestRequest {</span>
+
+<span class="fc" id="L30">  private UpdateField&lt;@NullOrNotEmpty String&gt; host = UpdateField.undefined();</span>
+<span class="fc" id="L31">  private UpdateField&lt;@NullOrNotEmpty String&gt; port = UpdateField.undefined();</span>
+<span class="fc" id="L32">  private UpdateField&lt;EmailConfigurationSecurityProtocol&gt; securityProtocol = UpdateField.undefined();</span>
+<span class="fc" id="L33">  private UpdateField&lt;@NullOrNotEmpty String&gt; fromAddress = UpdateField.undefined();</span>
+<span class="fc" id="L34">  private UpdateField&lt;@NullOrNotEmpty String&gt; fromName = UpdateField.undefined();</span>
+<span class="fc" id="L35">  private UpdateField&lt;@NullOrNotEmpty String&gt; subjectPrefix = UpdateField.undefined();</span>
+<span class="fc" id="L36">  private UpdateField&lt;EmailConfigurationAuthMethod&gt; authMethod = UpdateField.undefined();</span>
+<span class="fc" id="L37">  private UpdateField&lt;@NullOrNotEmpty String&gt; username = UpdateField.undefined();</span>
+<span class="fc" id="L38">  private UpdateField&lt;String&gt; basicPassword = UpdateField.undefined();</span>
+<span class="fc" id="L39">  private UpdateField&lt;String&gt; oauthAuthenticationHost = UpdateField.undefined();</span>
+<span class="fc" id="L40">  private UpdateField&lt;String&gt; oauthClientId = UpdateField.undefined();</span>
+<span class="fc" id="L41">  private UpdateField&lt;String&gt; oauthClientSecret = UpdateField.undefined();</span>
+<span class="fc" id="L42">  private UpdateField&lt;String&gt; oauthTenant = UpdateField.undefined();</span>
+
+  @Schema(implementation = String.class, description = &quot;URL of your SMTP server&quot;)
+  public UpdateField&lt;String&gt; getHost() {
+<span class="fc" id="L46">    return host;</span>
+  }
+
+  public void setHost(String host) {
+<span class="fc" id="L50">    this.host = UpdateField.withValue(host);</span>
+<span class="fc" id="L51">  }</span>
+
+  @Schema(implementation = String.class, description = &quot;Port of your SMTP server (usually 25, 587 or 465)&quot;)
+  public UpdateField&lt;String&gt; getPort() {
+<span class="fc" id="L55">    return port;</span>
+  }
+
+  public void setPort(String port) {
+<span class="fc" id="L59">    this.port = UpdateField.withValue(port);</span>
+<span class="fc" id="L60">  }</span>
+
+  @Schema(implementation = EmailConfigurationSecurityProtocol.class, description = &quot;Security protocol used to connect to your SMTP server (SSLTLS is recommended)&quot;)
+  public UpdateField&lt;EmailConfigurationSecurityProtocol&gt; getSecurityProtocol() {
+<span class="fc" id="L64">    return securityProtocol;</span>
+  }
+
+  public void setSecurityProtocol(EmailConfigurationSecurityProtocol securityProtocol) {
+<span class="fc" id="L68">    this.securityProtocol = UpdateField.withValue(securityProtocol);</span>
+<span class="fc" id="L69">  }</span>
+
+  @Schema(implementation = String.class, description = &quot;Address emails will come from&quot;)
+  public UpdateField&lt;String&gt; getFromAddress() {
+<span class="fc" id="L73">    return fromAddress;</span>
+  }
+
+  public void setFromAddress(String fromAddress) {
+<span class="fc" id="L77">    this.fromAddress = UpdateField.withValue(fromAddress);</span>
+<span class="fc" id="L78">  }</span>
+
+  @Schema(implementation = String.class, description = &quot;Name emails will come from (usually \&quot;SonarQube\&quot;)&quot;)
+  public UpdateField&lt;String&gt; getFromName() {
+<span class="fc" id="L82">    return fromName;</span>
+  }
+
+  public void setFromName(String fromName) {
+<span class="fc" id="L86">    this.fromName = UpdateField.withValue(fromName);</span>
+<span class="fc" id="L87">  }</span>
+
+  @Schema(implementation = String.class, description = &quot;Prefix added to email so they can be easily recognized (usually \&quot;[SonarQube]\&quot;)&quot;)
+  public UpdateField&lt;String&gt; getSubjectPrefix() {
+<span class="fc" id="L91">    return subjectPrefix;</span>
+  }
+
+  public void setSubjectPrefix(String subjectPrefix) {
+<span class="fc" id="L95">    this.subjectPrefix = UpdateField.withValue(subjectPrefix);</span>
+<span class="fc" id="L96">  }</span>
+
+  @Schema(implementation = EmailConfigurationAuthMethod.class,
+    description = &quot;Authentication method used to connect to the SMTP server. OAuth is only supported for Microsoft Exchange&quot;)
+  public UpdateField&lt;EmailConfigurationAuthMethod&gt; getAuthMethod() {
+<span class="fc" id="L101">    return authMethod;</span>
+  }
+
+  public void setAuthMethod(EmailConfigurationAuthMethod authMethod) {
+<span class="fc" id="L105">    this.authMethod = UpdateField.withValue(authMethod);</span>
+<span class="fc" id="L106">  }</span>
+
+  @Schema(implementation = String.class, description = &quot;For Basic and OAuth authentication: username used to authenticate to the SMTP server&quot;)
+  public UpdateField&lt;String&gt; getUsername() {
+<span class="fc" id="L110">    return username;</span>
+  }
+
+  public void setUsername(String username) {
+<span class="fc" id="L114">    this.username = UpdateField.withValue(username);</span>
+<span class="fc" id="L115">  }</span>
+
+  @Schema(implementation = String.class, description = &quot;For basic authentication: password used to authenticate to the SMTP server&quot;)
+  public UpdateField&lt;String&gt; getBasicPassword() {
+<span class="fc" id="L119">    return basicPassword;</span>
+  }
+
+  public void setBasicPassword(String basicPassword) {
+<span class="fc" id="L123">    this.basicPassword = UpdateField.withValue(basicPassword);</span>
+<span class="fc" id="L124">  }</span>
+
+  @Schema(implementation = String.class, description = &quot;For OAuth authentication: host of the Identity Provider issuing access tokens&quot;)
+  public UpdateField&lt;String&gt; getOauthAuthenticationHost() {
+<span class="fc" id="L128">    return oauthAuthenticationHost;</span>
+  }
+
+  public void setOauthAuthenticationHost(String oauthAuthenticationHost) {
+<span class="fc" id="L132">    this.oauthAuthenticationHost = UpdateField.withValue(oauthAuthenticationHost);</span>
+<span class="fc" id="L133">  }</span>
+
+  @Schema(implementation = String.class, description = &quot;For OAuth authentication: Client ID provided by Microsoft Exchange when registering the application&quot;)
+  public UpdateField&lt;String&gt; getOauthClientId() {
+<span class="fc" id="L137">    return oauthClientId;</span>
+  }
+
+  public void setOauthClientId(String oauthClientId) {
+<span class="fc" id="L141">    this.oauthClientId = UpdateField.withValue(oauthClientId);</span>
+<span class="fc" id="L142">  }</span>
+
+  @Schema(implementation = String.class, description = &quot;For OAuth authentication: Client password provided by Microsoft Exchange when registering the application&quot;)
+  public UpdateField&lt;String&gt; getOauthClientSecret() {
+<span class="fc" id="L146">    return oauthClientSecret;</span>
+  }
+
+  public void setOauthClientSecret(String oauthClientSecret) {
+<span class="fc" id="L150">    this.oauthClientSecret = UpdateField.withValue(oauthClientSecret);</span>
+<span class="fc" id="L151">  }</span>
+
+  @Schema(implementation = String.class, description = &quot;For OAuth authentication: Microsoft tenant&quot;)
+  public UpdateField&lt;String&gt; getOauthTenant() {
+<span class="fc" id="L155">    return oauthTenant;</span>
+  }
+
+  public void setOauthTenant(String oauthTenant) {
+<span class="fc" id="L159">    this.oauthTenant = UpdateField.withValue(oauthTenant);</span>
+<span class="fc" id="L160">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

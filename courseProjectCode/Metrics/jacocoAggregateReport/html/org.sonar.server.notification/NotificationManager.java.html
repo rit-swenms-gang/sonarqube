@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NotificationManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.notification</a> &gt; <span class="el_source">NotificationManager.java</span></div><h1>NotificationManager.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.notification;
+
+import java.util.Objects;
+import java.util.Set;
+import org.sonar.api.notifications.Notification;
+import org.sonar.db.permission.ProjectPermission;
+
+import static java.util.Objects.requireNonNull;
+
+/**
+ * The notification manager receives notifications and is in charge of storing them so that they are processed by the notification service.
+ * &lt;p&gt;
+ * The ioc container provides an instance of this class, and plugins just need to create notifications and pass them to this manager with
+ * the {@link NotificationManager#scheduleForSending(Notification)} method.
+ * &lt;/p&gt;
+ */
+public interface NotificationManager {
+
+  /**
+   * Receives a notification and stores it so that it is processed by the notification service.
+   *
+   * @param notification the notification.
+   */
+  &lt;T extends Notification&gt; void scheduleForSending(T notification);
+
+  record EmailRecipient(String login, String email) {
+<span class="fc" id="L46">    public EmailRecipient(String login, String email) {</span>
+<span class="fc" id="L47">      this.login = requireNonNull(login, &quot;login can't be null&quot;);</span>
+<span class="fc" id="L48">      this.email = requireNonNull(email, &quot;email can't be null&quot;);</span>
+<span class="fc" id="L49">    }</span>
+
+    @Override
+    public String toString() {
+<span class="fc" id="L53">      return &quot;EmailRecipient{&quot; + &quot;'&quot; + login + '\'' + &quot;:'&quot; + email + '\'' + '}';</span>
+    }
+
+    @Override
+    public boolean equals(Object o) {
+<span class="pc bpc" id="L58" title="1 of 2 branches missed.">      if (this == o) {</span>
+<span class="nc" id="L59">        return true;</span>
+      }
+<span class="pc bpc" id="L61" title="1 of 4 branches missed.">      if (o == null || getClass() != o.getClass()) {</span>
+<span class="fc" id="L62">        return false;</span>
+      }
+<span class="fc" id="L64">      EmailRecipient that = (EmailRecipient) o;</span>
+<span class="fc bfc" id="L65" title="All 4 branches covered.">      return login.equals(that.login) &amp;&amp; email.equals(that.email);</span>
+    }
+
+  }
+
+  /**
+   * Find login and email of users which have subscribed to the email notification of the specified {@code dispatcherKey}.
+   * &lt;p&gt;
+   * Obviously, only subscribers which have an email are returned.
+   */
+  Set&lt;EmailRecipient&gt; findSubscribedEmailRecipients(String dispatcherKey, String projectKey, SubscriberPermissionsOnProject subscriberPermissionsOnProject);
+
+  /**
+   * Find email of users with the specified {@code logins} which have subscribed to the email notification of the
+   * specified {@code dispatcherKey}.
+   * &lt;p&gt;
+   * Obviously, only subscribers which have an email are returned.
+   */
+  Set&lt;EmailRecipient&gt; findSubscribedEmailRecipients(String dispatcherKey, String projectKey, Set&lt;String&gt; logins, SubscriberPermissionsOnProject subscriberPermissionsOnProject);
+
+  final class SubscriberPermissionsOnProject {
+<span class="fc" id="L86">    public static final SubscriberPermissionsOnProject ALL_MUST_HAVE_ROLE_USER = new SubscriberPermissionsOnProject(ProjectPermission.USER);</span>
+
+    private final String globalSubscribers;
+    private final String projectSubscribers;
+
+    public SubscriberPermissionsOnProject(ProjectPermission globalAndProjectSubscribers) {
+<span class="fc" id="L92">      this(globalAndProjectSubscribers, globalAndProjectSubscribers);</span>
+<span class="fc" id="L93">    }</span>
+
+    public SubscriberPermissionsOnProject(ProjectPermission globalSubscribers, ProjectPermission projectSubscribers) {
+<span class="fc" id="L96">      this(globalSubscribers.getKey(), projectSubscribers.getKey());</span>
+<span class="fc" id="L97">    }</span>
+
+<span class="fc" id="L99">    public SubscriberPermissionsOnProject(String globalSubscribers, String projectSubscribers) {</span>
+<span class="fc" id="L100">      this.globalSubscribers = requireNonNull(globalSubscribers, &quot;global subscribers's required permission can't be null&quot;);</span>
+<span class="fc" id="L101">      this.projectSubscribers = requireNonNull(projectSubscribers, &quot;project subscribers's required permission can't be null&quot;);</span>
+<span class="fc" id="L102">    }</span>
+
+    public String getGlobalSubscribers() {
+<span class="fc" id="L105">      return globalSubscribers;</span>
+    }
+
+    public String getProjectSubscribers() {
+<span class="fc" id="L109">      return projectSubscribers;</span>
+    }
+
+    @Override
+    public boolean equals(Object o) {
+<span class="pc bpc" id="L114" title="1 of 2 branches missed.">      if (this == o) {</span>
+<span class="nc" id="L115">        return true;</span>
+      }
+<span class="pc bpc" id="L117" title="2 of 4 branches missed.">      if (o == null || getClass() != o.getClass()) {</span>
+<span class="nc" id="L118">        return false;</span>
+      }
+<span class="fc" id="L120">      SubscriberPermissionsOnProject that = (SubscriberPermissionsOnProject) o;</span>
+<span class="pc bpc" id="L121" title="2 of 4 branches missed.">      return globalSubscribers.equals(that.globalSubscribers) &amp;&amp; projectSubscribers.equals(that.projectSubscribers);</span>
+    }
+
+    @Override
+    public int hashCode() {
+<span class="nc" id="L126">      return Objects.hash(globalSubscribers, projectSubscribers);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

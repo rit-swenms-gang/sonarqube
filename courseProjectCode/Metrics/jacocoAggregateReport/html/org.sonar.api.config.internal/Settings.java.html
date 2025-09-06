@@ -1,0 +1,464 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Settings.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.api.config.internal</a> &gt; <span class="el_source">Settings.java</span></div><h1>Settings.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.api.config.internal;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Properties;
+import java.util.stream.Collectors;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.sonar.api.config.PropertyDefinition;
+import org.sonar.api.config.PropertyDefinitions;
+import org.sonar.api.utils.DateUtils;
+
+import static java.util.Objects.requireNonNull;
+import static org.apache.commons.lang3.StringUtils.trim;
+
+/**
+ * Implementation of the deprecated Settings interface
+ */
+public abstract class Settings extends org.sonar.api.config.Settings {
+
+  private final PropertyDefinitions definitions;
+  private final Encryption encryption;
+
+<span class="fc" id="L49">  protected Settings(PropertyDefinitions definitions, Encryption encryption) {</span>
+<span class="fc" id="L50">    this.definitions = requireNonNull(definitions);</span>
+<span class="fc" id="L51">    this.encryption = requireNonNull(encryption);</span>
+<span class="fc" id="L52">  }</span>
+
+  protected abstract Optional&lt;String&gt; get(String key);
+
+  /**
+   * Add the settings with the specified key and value, both are trimmed and neither can be null.
+   *
+   * @throws NullPointerException if {@code key} and/or {@code value} is {@code null}.
+   */
+  protected abstract void set(String key, String value);
+
+  protected abstract void remove(String key);
+
+  /**
+   * Immutable map of the properties that have non-default values.
+   * The default values defined by {@link PropertyDefinitions} are ignored,
+   * so the returned values are not the effective values. Basically only
+   * the non-empty results of {@link #getRawString(String)} are returned.
+   * &lt;p&gt;
+   * Values are not decrypted if they are encrypted with a secret key.
+   * &lt;/p&gt;
+   */
+  public abstract Map&lt;String, String&gt; getProperties();
+
+  public Encryption getEncryption() {
+<span class="fc" id="L77">    return encryption;</span>
+  }
+
+  /**
+   * The value that overrides the default value. It
+   * may be encrypted with a secret key. Use {@link #getString(String)} to get
+   * the effective and decrypted value.
+   *
+   * @since 6.1
+   */
+  public Optional&lt;String&gt; getRawString(String key) {
+<span class="fc" id="L88">    return get(definitions.validKey(requireNonNull(key)));</span>
+  }
+
+  /**
+   * All the property definitions declared by core and plugins.
+   */
+  public PropertyDefinitions getDefinitions() {
+<span class="fc" id="L95">    return definitions;</span>
+  }
+
+  /**
+   * The definition related to the specified property. It may
+   * be empty.
+   *
+   * @since 6.1
+   */
+  public Optional&lt;PropertyDefinition&gt; getDefinition(String key) {
+<span class="fc" id="L105">    return Optional.ofNullable(definitions.get(key));</span>
+  }
+
+  /**
+   * @return {@code true} if the property has a non-default value, else {@code false}.
+   */
+  @Override
+  public boolean hasKey(String key) {
+<span class="fc" id="L113">    return getRawString(key).isPresent();</span>
+  }
+
+  @CheckForNull
+  public String getDefaultValue(String key) {
+<span class="fc" id="L118">    return definitions.getDefaultValue(key);</span>
+  }
+
+  public boolean hasDefaultValue(String key) {
+<span class="nc" id="L122">    return StringUtils.isNotEmpty(getDefaultValue(key));</span>
+  }
+
+  /**
+   * The effective value of the specified property. Can return
+   * {@code null} if the property is not set and has no
+   * defined default value.
+   * &lt;p&gt;
+   * If the property is encrypted with a secret key,
+   * then the returned value is decrypted.
+   * &lt;/p&gt;
+   *
+   * @throws IllegalStateException if value is encrypted but fails to be decrypted.
+   */
+  @CheckForNull
+  @Override
+  public String getString(String key) {
+<span class="fc" id="L139">    String effectiveKey = definitions.validKey(key);</span>
+<span class="fc" id="L140">    Optional&lt;String&gt; value = getRawString(effectiveKey);</span>
+<span class="fc bfc" id="L141" title="All 2 branches covered.">    if (!value.isPresent()) {</span>
+      // default values cannot be encrypted, so return value as-is.
+<span class="fc" id="L143">      return getDefaultValue(effectiveKey);</span>
+    }
+<span class="pc bpc" id="L145" title="1 of 2 branches missed.">    if (encryption.isEncrypted(value.get())) {</span>
+      try {
+<span class="nc" id="L147">        return encryption.decrypt(value.get());</span>
+<span class="nc" id="L148">      } catch (Exception e) {</span>
+<span class="nc" id="L149">        throw new IllegalStateException(&quot;Fail to decrypt the property &quot; + effectiveKey + &quot;. Please check your secret key.&quot;, e);</span>
+      }
+    }
+<span class="fc" id="L152">    return value.get();</span>
+  }
+
+  /**
+   * Effective value as boolean. It is {@code false} if {@link #getString(String)}
+   * does not return {@code &quot;true&quot;}, even if it's not a boolean representation.
+   *
+   * @return {@code true} if the effective value is {@code &quot;true&quot;}, else {@code false}.
+   */
+  @Override
+  public boolean getBoolean(String key) {
+<span class="fc" id="L163">    String value = getString(key);</span>
+<span class="fc bfc" id="L164" title="All 4 branches covered.">    return StringUtils.isNotEmpty(value) &amp;&amp; Boolean.parseBoolean(value);</span>
+  }
+
+  /**
+   * Effective value as {@code int}.
+   *
+   * @return the value as {@code int}. If the property does not have value nor default value, then {@code 0} is returned.
+   * @throws NumberFormatException if value is not empty and is not a parsable integer
+   */
+  @Override
+  public int getInt(String key) {
+<span class="fc" id="L175">    String value = getString(key);</span>
+<span class="fc bfc" id="L176" title="All 2 branches covered.">    if (StringUtils.isNotEmpty(value)) {</span>
+<span class="fc" id="L177">      return Integer.parseInt(value);</span>
+    }
+<span class="fc" id="L179">    return 0;</span>
+  }
+
+  /**
+   * Effective value as {@code long}.
+   *
+   * @return the value as {@code long}. If the property does not have value nor default value, then {@code 0L} is returned.
+   * @throws NumberFormatException if value is not empty and is not a parsable {@code long}
+   */
+  @Override
+  public long getLong(String key) {
+<span class="fc" id="L190">    String value = getString(key);</span>
+<span class="pc bpc" id="L191" title="1 of 2 branches missed.">    if (StringUtils.isNotEmpty(value)) {</span>
+<span class="nc" id="L192">      return Long.parseLong(value);</span>
+    }
+<span class="fc" id="L194">    return 0L;</span>
+  }
+
+  /**
+   * Effective value as {@link Date}, without time fields. Format is {@link DateUtils#DATE_FORMAT}.
+   *
+   * @return the value as a {@link Date}. If the property does not have value nor default value, then {@code null} is returned.
+   * @throws RuntimeException if value is not empty and is not in accordance with {@link DateUtils#DATE_FORMAT}.
+   */
+  @CheckForNull
+  @Override
+  public Date getDate(String key) {
+<span class="fc" id="L206">    String value = getString(key);</span>
+<span class="fc bfc" id="L207" title="All 2 branches covered.">    if (StringUtils.isNotEmpty(value)) {</span>
+<span class="fc" id="L208">      return DateUtils.parseDate(value);</span>
+    }
+<span class="fc" id="L210">    return null;</span>
+  }
+
+  /**
+   * Effective value as {@link Date}, with time fields. Format is {@link DateUtils#DATETIME_FORMAT}.
+   *
+   * @return the value as a {@link Date}. If the property does not have value nor default value, then {@code null} is returned.
+   * @throws RuntimeException if value is not empty and is not in accordance with {@link DateUtils#DATETIME_FORMAT}.
+   */
+  @CheckForNull
+  @Override
+  public Date getDateTime(String key) {
+<span class="fc" id="L222">    String value = getString(key);</span>
+<span class="fc bfc" id="L223" title="All 2 branches covered.">    if (StringUtils.isNotEmpty(value)) {</span>
+<span class="fc" id="L224">      return DateUtils.parseDateTime(value);</span>
+    }
+<span class="fc" id="L226">    return null;</span>
+  }
+
+  /**
+   * Effective value as {@code Float}.
+   *
+   * @return the value as {@code Float}. If the property does not have value nor default value, then {@code null} is returned.
+   * @throws NumberFormatException if value is not empty and is not a parsable number
+   */
+  @CheckForNull
+  @Override
+  public Float getFloat(String key) {
+<span class="fc" id="L238">    String value = getString(key);</span>
+<span class="fc bfc" id="L239" title="All 2 branches covered.">    if (StringUtils.isNotEmpty(value)) {</span>
+      try {
+<span class="nc" id="L241">        return Float.valueOf(value);</span>
+<span class="fc" id="L242">      } catch (NumberFormatException e) {</span>
+<span class="fc" id="L243">        throw new IllegalStateException(String.format(&quot;The property '%s' is not a float value&quot;, key));</span>
+      }
+    }
+<span class="fc" id="L246">    return null;</span>
+  }
+
+  /**
+   * Effective value as {@code Double}.
+   *
+   * @return the value as {@code Double}. If the property does not have value nor default value, then {@code null} is returned.
+   * @throws NumberFormatException if value is not empty and is not a parsable number
+   */
+  @CheckForNull
+  @Override
+  public Double getDouble(String key) {
+<span class="fc" id="L258">    String value = getString(key);</span>
+<span class="fc bfc" id="L259" title="All 2 branches covered.">    if (StringUtils.isNotEmpty(value)) {</span>
+      try {
+<span class="fc" id="L261">        return Double.valueOf(value);</span>
+<span class="fc" id="L262">      } catch (NumberFormatException e) {</span>
+<span class="fc" id="L263">        throw new IllegalStateException(String.format(&quot;The property '%s' is not a double value&quot;, key));</span>
+      }
+    }
+<span class="fc" id="L266">    return null;</span>
+  }
+
+  /**
+   * Value is split by comma and trimmed. Never returns null.
+   * &lt;br&gt;
+   * Examples :
+   * &lt;ul&gt;
+   * &lt;li&gt;&quot;one,two,three &quot; -&amp;gt; [&quot;one&quot;, &quot;two&quot;, &quot;three&quot;]&lt;/li&gt;
+   * &lt;li&gt;&quot;  one, two, three &quot; -&amp;gt; [&quot;one&quot;, &quot;two&quot;, &quot;three&quot;]&lt;/li&gt;
+   * &lt;li&gt;&quot;one, , three&quot; -&amp;gt; [&quot;one&quot;, &quot;&quot;, &quot;three&quot;]&lt;/li&gt;
+   * &lt;/ul&gt;
+   */
+  @Override
+  public String[] getStringArray(String key) {
+<span class="fc" id="L281">    String effectiveKey = definitions.validKey(key);</span>
+<span class="fc" id="L282">    Optional&lt;PropertyDefinition&gt; def = getDefinition(effectiveKey);</span>
+<span class="fc bfc" id="L283" title="All 4 branches covered.">    if ((def.isPresent()) &amp;&amp; (def.get().multiValues())) {</span>
+<span class="fc" id="L284">      String value = getString(key);</span>
+<span class="fc bfc" id="L285" title="All 2 branches covered.">      if (value == null) {</span>
+<span class="fc" id="L286">        return ArrayUtils.EMPTY_STRING_ARRAY;</span>
+      }
+
+<span class="fc" id="L289">      return Arrays.stream(value.split(&quot;,&quot;, -1)).map(String::trim)</span>
+<span class="fc" id="L290">        .map(s -&gt; s.replace(&quot;%2C&quot;, &quot;,&quot;))</span>
+<span class="fc" id="L291">        .toArray(String[]::new);</span>
+    }
+
+<span class="fc" id="L294">    return getStringArrayBySeparator(key, &quot;,&quot;);</span>
+  }
+
+  /**
+   * Value is split by carriage returns.
+   *
+   * @return non-null array of lines. The line termination characters are excluded.
+   * @since 3.2
+   */
+  @Override
+  public String[] getStringLines(String key) {
+<span class="fc" id="L305">    String value = getString(key);</span>
+<span class="fc bfc" id="L306" title="All 2 branches covered.">    if (StringUtils.isEmpty(value)) {</span>
+<span class="fc" id="L307">      return new String[0];</span>
+    }
+<span class="fc" id="L309">    return value.split(&quot;\r?\n|\r&quot;, -1);</span>
+  }
+
+  /**
+   * Value is split and trimmed.
+   */
+  @Override
+  public String[] getStringArrayBySeparator(String key, String separator) {
+<span class="fc" id="L317">    String value = getString(key);</span>
+<span class="fc bfc" id="L318" title="All 2 branches covered.">    if (value != null) {</span>
+<span class="fc" id="L319">      String[] strings = StringUtils.splitByWholeSeparator(value, separator);</span>
+<span class="fc" id="L320">      String[] result = new String[strings.length];</span>
+<span class="fc bfc" id="L321" title="All 2 branches covered.">      for (int index = 0; index &lt; strings.length; index++) {</span>
+<span class="fc" id="L322">        result[index] = trim(strings[index]);</span>
+      }
+<span class="fc" id="L324">      return result;</span>
+    }
+<span class="fc" id="L326">    return ArrayUtils.EMPTY_STRING_ARRAY;</span>
+  }
+
+  public Settings appendProperty(String key, @Nullable String value) {
+<span class="fc" id="L330">    Optional&lt;String&gt; existingValue = getRawString(definitions.validKey(key));</span>
+    String newValue;
+<span class="pc bpc" id="L332" title="1 of 2 branches missed.">    if (!existingValue.isPresent()) {</span>
+<span class="fc" id="L333">      newValue = trim(value);</span>
+    } else {
+<span class="nc" id="L335">      newValue = existingValue.get() + &quot;,&quot; + trim(value);</span>
+    }
+<span class="fc" id="L337">    return setProperty(key, newValue);</span>
+  }
+
+  public Settings setProperty(String key, @Nullable String[] values) {
+<span class="fc" id="L341">    requireNonNull(key, &quot;key can't be null&quot;);</span>
+<span class="fc" id="L342">    String effectiveKey = key.trim();</span>
+<span class="fc" id="L343">    Optional&lt;PropertyDefinition&gt; def = getDefinition(effectiveKey);</span>
+<span class="pc bpc" id="L344" title="1 of 4 branches missed.">    if (!def.isPresent() || (!def.get().multiValues())) {</span>
+<span class="fc" id="L345">      throw new IllegalStateException(&quot;Fail to set multiple values on a single value property &quot; + key);</span>
+    }
+
+<span class="fc" id="L348">    String text = null;</span>
+<span class="fc bfc" id="L349" title="All 2 branches covered.">    if (values != null) {</span>
+<span class="fc" id="L350">      List&lt;String&gt; escaped = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L351" title="All 2 branches covered.">      for (String value : values) {</span>
+<span class="fc bfc" id="L352" title="All 2 branches covered.">        if (null != value) {</span>
+<span class="fc" id="L353">          escaped.add(value.replace(&quot;,&quot;, &quot;%2C&quot;));</span>
+        } else {
+<span class="fc" id="L355">          escaped.add(&quot;&quot;);</span>
+        }
+      }
+
+<span class="fc" id="L359">      String escapedValue = escaped.stream().collect(Collectors.joining(&quot;,&quot;));</span>
+<span class="fc" id="L360">      text = trim(escapedValue);</span>
+    }
+<span class="fc" id="L362">    return setProperty(key, text);</span>
+  }
+
+  /**
+   * Change a property value in a restricted scope only, depending on execution context. New value
+   * is &lt;b&gt;never&lt;/b&gt; persisted. New value is ephemeral and kept in memory only:
+   * &lt;ul&gt;
+   * &lt;li&gt;during current analysis in the case of scanner stack&lt;/li&gt;
+   * &lt;li&gt;during processing of current HTTP request in the case of web server stack&lt;/li&gt;
+   * &lt;li&gt;during execution of current task in the case of Compute Engine stack&lt;/li&gt;
+   * &lt;/ul&gt;
+   * Property is temporarily removed if the parameter {@code value} is {@code null}
+   */
+  public Settings setProperty(String key, @Nullable String value) {
+<span class="fc" id="L376">    String validKey = definitions.validKey(key);</span>
+<span class="fc bfc" id="L377" title="All 2 branches covered.">    if (value == null) {</span>
+<span class="fc" id="L378">      removeProperty(validKey);</span>
+    } else {
+<span class="fc" id="L380">      set(validKey, trim(value));</span>
+    }
+<span class="fc" id="L382">    return this;</span>
+  }
+
+  /**
+   * @see #setProperty(String, String)
+   */
+  public Settings setProperty(String key, @Nullable Boolean value) {
+<span class="pc bpc" id="L389" title="1 of 2 branches missed.">    return setProperty(key, value == null ? null : String.valueOf(value));</span>
+  }
+
+  /**
+   * @see #setProperty(String, String)
+   */
+  public Settings setProperty(String key, @Nullable Integer value) {
+<span class="fc bfc" id="L396" title="All 2 branches covered.">    return setProperty(key, value == null ? null : String.valueOf(value));</span>
+  }
+
+  /**
+   * @see #setProperty(String, String)
+   */
+  public Settings setProperty(String key, @Nullable Long value) {
+<span class="pc bpc" id="L403" title="1 of 2 branches missed.">    return setProperty(key, value == null ? null : String.valueOf(value));</span>
+  }
+
+  /**
+   * @see #setProperty(String, String)
+   */
+  public Settings setProperty(String key, @Nullable Double value) {
+<span class="fc bfc" id="L410" title="All 2 branches covered.">    return setProperty(key, value == null ? null : String.valueOf(value));</span>
+  }
+
+  /**
+   * @see #setProperty(String, String)
+   */
+  public Settings setProperty(String key, @Nullable Float value) {
+<span class="fc bfc" id="L417" title="All 2 branches covered.">    return setProperty(key, value == null ? null : String.valueOf(value));</span>
+  }
+
+  /**
+   * @see #setProperty(String, String)
+   */
+  public Settings setProperty(String key, @Nullable Date date) {
+<span class="fc" id="L424">    return setProperty(key, date, false);</span>
+  }
+
+  public Settings addProperties(Map&lt;String, String&gt; props) {
+<span class="nc bnc" id="L428" title="All 2 branches missed.">    for (Map.Entry&lt;String, String&gt; entry : props.entrySet()) {</span>
+<span class="nc" id="L429">      setProperty(entry.getKey(), entry.getValue());</span>
+<span class="nc" id="L430">    }</span>
+<span class="nc" id="L431">    return this;</span>
+  }
+
+  public Settings addProperties(Properties props) {
+<span class="fc bfc" id="L435" title="All 2 branches covered.">    for (Map.Entry&lt;Object, Object&gt; entry : props.entrySet()) {</span>
+<span class="fc" id="L436">      setProperty(entry.getKey().toString(), entry.getValue().toString());</span>
+<span class="fc" id="L437">    }</span>
+<span class="fc" id="L438">    return this;</span>
+  }
+
+  /**
+   * @see #setProperty(String, String)
+   */
+  public Settings setProperty(String key, @Nullable Date date, boolean includeTime) {
+<span class="pc bpc" id="L445" title="1 of 2 branches missed.">    if (date == null) {</span>
+<span class="nc" id="L446">      return removeProperty(key);</span>
+    }
+<span class="fc bfc" id="L448" title="All 2 branches covered.">    return setProperty(key, includeTime ? DateUtils.formatDateTime(date) : DateUtils.formatDate(date));</span>
+  }
+
+  public Settings removeProperty(String key) {
+<span class="fc" id="L452">    remove(key);</span>
+<span class="fc" id="L453">    return this;</span>
+  }
+
+  @Override
+  public List&lt;String&gt; getKeysStartingWith(String prefix) {
+<span class="fc" id="L458">    return getProperties().keySet().stream()</span>
+<span class="fc" id="L459">      .filter(key -&gt; StringUtils.startsWith(key, prefix))</span>
+<span class="fc" id="L460">      .toList();</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

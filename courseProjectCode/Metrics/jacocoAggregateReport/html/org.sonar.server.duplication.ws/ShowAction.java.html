@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ShowAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.duplication.ws</a> &gt; <span class="el_source">ShowAction.java</span></div><h1>ShowAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.duplication.ws;
+
+import java.util.List;
+import java.util.Optional;
+import javax.annotation.CheckForNull;
+import org.sonar.api.measures.CoreMetrics;
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.db.permission.ProjectPermission;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.BranchDto;
+import org.sonar.db.component.ComponentDto;
+import org.sonar.server.component.ComponentFinder;
+import org.sonar.server.user.UserSession;
+
+import static org.sonar.server.ws.KeyExamples.KEY_BRANCH_EXAMPLE_001;
+import static org.sonar.server.ws.KeyExamples.KEY_PULL_REQUEST_EXAMPLE_001;
+import static org.sonar.server.ws.WsUtils.writeProtobuf;
+
+public class ShowAction implements DuplicationsWsAction {
+
+  private static final String PARAM_KEY = &quot;key&quot;;
+  private static final String PARAM_BRANCH = &quot;branch&quot;;
+  private static final String PARAM_PULL_REQUEST = &quot;pullRequest&quot;;
+  private final DbClient dbClient;
+  private final DuplicationsParser parser;
+  private final ShowResponseBuilder responseBuilder;
+  private final UserSession userSession;
+  private final ComponentFinder componentFinder;
+
+<span class="fc" id="L53">  public ShowAction(DbClient dbClient, DuplicationsParser parser, ShowResponseBuilder responseBuilder, UserSession userSession, ComponentFinder componentFinder) {</span>
+<span class="fc" id="L54">    this.dbClient = dbClient;</span>
+<span class="fc" id="L55">    this.parser = parser;</span>
+<span class="fc" id="L56">    this.responseBuilder = responseBuilder;</span>
+<span class="fc" id="L57">    this.userSession = userSession;</span>
+<span class="fc" id="L58">    this.componentFinder = componentFinder;</span>
+<span class="fc" id="L59">  }</span>
+
+  @Override
+  public void define(WebService.NewController controller) {
+<span class="fc" id="L63">    WebService.NewAction action = controller.createAction(&quot;show&quot;)</span>
+<span class="fc" id="L64">      .setDescription(&quot;Get duplications. Require Browse permission on file's project&quot;)</span>
+<span class="fc" id="L65">      .setSince(&quot;4.4&quot;)</span>
+<span class="fc" id="L66">      .setHandler(this)</span>
+<span class="fc" id="L67">      .setResponseExample(getClass().getResource(&quot;show-example.json&quot;));</span>
+
+<span class="fc" id="L69">    action.setChangelog(</span>
+      new Change(&quot;9.6&quot;, &quot;The fields 'subProject', 'subProjectName' were removed from the response.&quot;),
+      new Change(&quot;8.8&quot;, &quot;Deprecated parameter 'uuid' was removed.&quot;),
+      new Change(&quot;8.8&quot;, &quot;The fields 'uuid', 'projectUuid', 'subProjectUuid' were removed from the response.&quot;),
+      new Change(&quot;6.5&quot;, &quot;Parameter 'uuid' is now deprecated.&quot;),
+      new Change(&quot;6.5&quot;, &quot;The fields 'uuid', 'projectUuid', 'subProjectUuid' are now deprecated in the response.&quot;));
+
+<span class="fc" id="L76">    action</span>
+<span class="fc" id="L77">      .createParam(PARAM_KEY)</span>
+<span class="fc" id="L78">      .setDescription(&quot;File key&quot;)</span>
+<span class="fc" id="L79">      .setRequired(true)</span>
+<span class="fc" id="L80">      .setExampleValue(&quot;my_project:/src/foo/Bar.php&quot;);</span>
+
+<span class="fc" id="L82">    action</span>
+<span class="fc" id="L83">      .createParam(PARAM_BRANCH)</span>
+<span class="fc" id="L84">      .setDescription(&quot;Branch key&quot;)</span>
+<span class="fc" id="L85">      .setInternal(true)</span>
+<span class="fc" id="L86">      .setExampleValue(KEY_BRANCH_EXAMPLE_001);</span>
+
+<span class="fc" id="L88">    action</span>
+<span class="fc" id="L89">      .createParam(PARAM_PULL_REQUEST)</span>
+<span class="fc" id="L90">      .setDescription(&quot;Pull request id&quot;)</span>
+<span class="fc" id="L91">      .setInternal(true)</span>
+<span class="fc" id="L92">      .setSince(&quot;7.1&quot;)</span>
+<span class="fc" id="L93">      .setExampleValue(KEY_PULL_REQUEST_EXAMPLE_001);</span>
+<span class="fc" id="L94">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) {
+<span class="fc" id="L98">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L99">      ComponentDto component = loadComponent(dbSession, request);</span>
+<span class="fc" id="L100">      BranchDto branchDto = loadBranch(dbSession, component);</span>
+<span class="fc bfc" id="L101" title="All 2 branches covered.">      String branch = branchDto.isMain() ? null : branchDto.getBranchKey();</span>
+<span class="fc" id="L102">      String pullRequest = branchDto.getPullRequestKey();</span>
+<span class="fc" id="L103">      userSession.checkComponentPermission(ProjectPermission.CODEVIEWER, component);</span>
+<span class="fc" id="L104">      String duplications = findDataFromComponent(dbSession, component);</span>
+<span class="fc" id="L105">      List&lt;DuplicationsParser.Block&gt; blocks = parser.parse(dbSession, component, branch, pullRequest, duplications);</span>
+<span class="fc" id="L106">      writeProtobuf(responseBuilder.build(dbSession, blocks, branch, pullRequest), request, response);</span>
+    }
+<span class="fc" id="L108">  }</span>
+
+  private BranchDto loadBranch(DbSession dbSession, ComponentDto component) {
+<span class="fc" id="L111">    Optional&lt;BranchDto&gt; branchDto = dbClient.branchDao().selectByUuid(dbSession, component.branchUuid());</span>
+<span class="pc bpc" id="L112" title="1 of 2 branches missed.">    if (branchDto.isEmpty()) {</span>
+<span class="nc" id="L113">      throw new IllegalStateException(&quot;Could not find a branch for component with &quot; + component.uuid());</span>
+    }
+<span class="fc" id="L115">    return branchDto.get();</span>
+  }
+
+  private ComponentDto loadComponent(DbSession dbSession, Request request) {
+<span class="fc" id="L119">    String key = request.mandatoryParam(PARAM_KEY);</span>
+<span class="fc" id="L120">    String branch = request.param(PARAM_BRANCH);</span>
+<span class="fc" id="L121">    String pullRequest = request.param(PARAM_PULL_REQUEST);</span>
+<span class="fc bfc" id="L122" title="All 4 branches covered.">    if (branch == null &amp;&amp; pullRequest == null) {</span>
+<span class="fc" id="L123">      return componentFinder.getByKey(dbSession, key);</span>
+    }
+<span class="fc" id="L125">    return componentFinder.getByKeyAndOptionalBranchOrPullRequest(dbSession, key, branch, pullRequest);</span>
+  }
+
+  @CheckForNull
+  private String findDataFromComponent(DbSession dbSession, ComponentDto component) {
+<span class="fc" id="L130">    return dbClient.measureDao().selectByComponentUuid(dbSession, component.uuid())</span>
+<span class="fc" id="L131">      .map(m -&gt; m.getString(CoreMetrics.DUPLICATIONS_DATA_KEY))</span>
+<span class="fc" id="L132">      .orElse(null);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

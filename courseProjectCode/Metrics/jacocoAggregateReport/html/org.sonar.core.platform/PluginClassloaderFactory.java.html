@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PluginClassloaderFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.core.platform</a> &gt; <span class="el_source">PluginClassloaderFactory.java</span></div><h1>PluginClassloaderFactory.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.core.platform;
+
+import java.io.File;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import org.sonar.api.ce.ComputeEngineSide;
+import org.sonar.api.scanner.ScannerSide;
+import org.sonar.api.server.ServerSide;
+import org.sonar.classloader.ClassloaderBuilder;
+import org.sonar.classloader.Mask;
+
+import static org.sonar.classloader.ClassloaderBuilder.LoadingOrder.PARENT_FIRST;
+import static org.sonar.classloader.ClassloaderBuilder.LoadingOrder.SELF_FIRST;
+
+/**
+ * Builds the graph of classloaders to be used to instantiate plugins. It deals with:
+ * &lt;ul&gt;
+ *   &lt;li&gt;isolation of plugins against core classes (except api)&lt;/li&gt;
+ *   &lt;li&gt;sharing of some packages between plugins&lt;/li&gt;
+ *   &lt;li&gt;loading of the libraries embedded in plugin JAR files (directory META-INF/libs)&lt;/li&gt;
+ * &lt;/ul&gt;
+ */
+@ScannerSide
+@ServerSide
+@ComputeEngineSide
+<span class="fc" id="L49">public class PluginClassloaderFactory {</span>
+
+  // underscores are used to not conflict with plugin keys (if someday a plugin key is &quot;api&quot;)
+  private static final String API_CLASSLOADER_KEY = &quot;_api_&quot;;
+
+  /**
+   * Creates as many classloaders as requested by the input parameter.
+   */
+  public Map&lt;PluginClassLoaderDef, ClassLoader&gt; create(Map&lt;PluginClassLoaderDef, ClassLoader&gt; previouslyCreatedClassloaders,
+    Collection&lt;PluginClassLoaderDef&gt; newDefs) {
+<span class="fc" id="L59">    ClassLoader baseClassLoader = baseClassLoader();</span>
+
+<span class="fc" id="L61">    Collection&lt;PluginClassLoaderDef&gt; allDefs = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L62">    allDefs.addAll(newDefs);</span>
+<span class="fc" id="L63">    allDefs.addAll(previouslyCreatedClassloaders.keySet());</span>
+
+<span class="fc" id="L65">    ClassloaderBuilder builder = new ClassloaderBuilder(previouslyCreatedClassloaders.values());</span>
+<span class="fc" id="L66">    builder.newClassloader(API_CLASSLOADER_KEY, baseClassLoader);</span>
+<span class="fc" id="L67">    builder.setMask(API_CLASSLOADER_KEY, apiMask());</span>
+
+<span class="fc bfc" id="L69" title="All 2 branches covered.">    for (PluginClassLoaderDef def : newDefs) {</span>
+<span class="fc" id="L70">      builder.newClassloader(def.getBasePluginKey());</span>
+<span class="fc" id="L71">      builder.setParent(def.getBasePluginKey(), API_CLASSLOADER_KEY, Mask.ALL);</span>
+<span class="pc bpc" id="L72" title="1 of 2 branches missed.">      builder.setLoadingOrder(def.getBasePluginKey(), def.isSelfFirstStrategy() ? SELF_FIRST : PARENT_FIRST);</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">      for (File jar : def.getFiles()) {</span>
+<span class="fc" id="L74">        builder.addURL(def.getBasePluginKey(), fileToUrl(jar));</span>
+<span class="fc" id="L75">      }</span>
+<span class="fc" id="L76">      exportResources(def, builder, allDefs);</span>
+<span class="fc" id="L77">    }</span>
+
+<span class="fc" id="L79">    return build(newDefs, builder);</span>
+  }
+
+  /**
+   * A plugin can export some resources to other plugins
+   */
+  private static void exportResources(PluginClassLoaderDef newDef, ClassloaderBuilder builder,
+    Collection&lt;PluginClassLoaderDef&gt; allPlugins) {
+    // export the resources to all other plugins
+<span class="fc" id="L88">    builder.setExportMask(newDef.getBasePluginKey(), newDef.getExportMask().build());</span>
+<span class="fc bfc" id="L89" title="All 2 branches covered.">    for (PluginClassLoaderDef other : allPlugins) {</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">      if (!other.getBasePluginKey().equals(newDef.getBasePluginKey())) {</span>
+<span class="fc" id="L91">        builder.addSibling(newDef.getBasePluginKey(), other.getBasePluginKey(), Mask.ALL);</span>
+      }
+<span class="fc" id="L93">    }</span>
+<span class="fc" id="L94">  }</span>
+
+  /**
+   * Builds classloaders and verifies that all of them are correctly defined
+   */
+  private static Map&lt;PluginClassLoaderDef, ClassLoader&gt; build(Collection&lt;PluginClassLoaderDef&gt; defs, ClassloaderBuilder builder) {
+<span class="fc" id="L100">    Map&lt;PluginClassLoaderDef, ClassLoader&gt; result = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L101">    Map&lt;String, ClassLoader&gt; classloadersByBasePluginKey = builder.build();</span>
+<span class="fc bfc" id="L102" title="All 2 branches covered.">    for (PluginClassLoaderDef def : defs) {</span>
+<span class="fc" id="L103">      ClassLoader classloader = classloadersByBasePluginKey.get(def.getBasePluginKey());</span>
+<span class="pc bpc" id="L104" title="1 of 2 branches missed.">      if (classloader == null) {</span>
+<span class="nc" id="L105">        throw new IllegalStateException(String.format(&quot;Fail to create classloader for plugin [%s]&quot;, def.getBasePluginKey()));</span>
+      }
+<span class="fc" id="L107">      result.put(def, classloader);</span>
+<span class="fc" id="L108">    }</span>
+<span class="fc" id="L109">    return result;</span>
+  }
+
+  ClassLoader baseClassLoader() {
+<span class="fc" id="L113">    return getClass().getClassLoader();</span>
+  }
+
+  private static URL fileToUrl(File file) {
+    try {
+<span class="fc" id="L118">      return file.toURI().toURL();</span>
+<span class="nc" id="L119">    } catch (MalformedURLException e) {</span>
+<span class="nc" id="L120">      throw new IllegalArgumentException(e);</span>
+    }
+  }
+
+  /**
+   * The resources (packages) that API exposes to plugins. Other core classes (SonarQube, MyBatis, ...)
+   * can't be accessed.
+   * &lt;p&gt;To sum-up, these are the classes packaged in sonar-plugin-api.jar or available as
+   * a transitive dependency of sonar-plugin-api&lt;/p&gt;
+   */
+  private static Mask apiMask() {
+<span class="fc" id="L131">    return Mask.builder()</span>
+<span class="fc" id="L132">      .include(&quot;org/sonar/api/&quot;,</span>
+        &quot;org/sonar/check/&quot;,
+        &quot;org/codehaus/stax2/&quot;,
+        &quot;org/codehaus/staxmate/&quot;,
+        &quot;com/ctc/wstx/&quot;,
+        &quot;org/slf4j/&quot;,
+
+        // SLF4J bridges. Do not let plugins re-initialize and configure their logging system
+        &quot;org/apache/commons/logging/&quot;,
+        &quot;org/apache/log4j/&quot;,
+        &quot;ch/qos/logback/&quot;,
+
+        // Exposed by org.sonar.api.server.authentication.IdentityProvider
+        &quot;javax/servlet/&quot;,
+
+        // required for some internal SonarSource plugins (billing, orchestrator, ...)
+        &quot;org/sonar/server/platform/&quot;,
+
+        // required for commercial plugins at SonarSource
+        &quot;com/sonarsource/plugins/license/api/&quot;)
+
+      // API exclusions
+<span class="fc" id="L154">      .exclude(&quot;org/sonar/api/internal/&quot;)</span>
+<span class="fc" id="L155">      .build();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

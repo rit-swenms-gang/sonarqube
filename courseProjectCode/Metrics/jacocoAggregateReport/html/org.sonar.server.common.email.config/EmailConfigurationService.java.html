@@ -1,0 +1,285 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EmailConfigurationService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.common.email.config</a> &gt; <span class="el_source">EmailConfigurationService.java</span></div><h1>EmailConfigurationService.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.common.email.config;
+
+import java.util.List;
+import java.util.Optional;
+import javax.annotation.Nullable;
+import org.apache.commons.lang.StringUtils;
+import org.sonar.api.server.ServerSide;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.server.common.NonNullUpdatedValue;
+import org.sonar.server.common.UpdatedValue;
+import org.sonar.server.exceptions.BadRequestException;
+import org.sonar.server.exceptions.NotFoundException;
+
+import static java.lang.String.format;
+import static org.sonar.server.email.EmailSmtpConfiguration.EMAIL_CONFIG_FROM;
+import static org.sonar.server.email.EmailSmtpConfiguration.EMAIL_CONFIG_FROM_NAME;
+import static org.sonar.server.email.EmailSmtpConfiguration.EMAIL_CONFIG_PREFIX;
+import static org.sonar.server.email.EmailSmtpConfiguration.EMAIL_CONFIG_SMTP_AUTH_METHOD;
+import static org.sonar.server.email.EmailSmtpConfiguration.EMAIL_CONFIG_SMTP_HOST;
+import static org.sonar.server.email.EmailSmtpConfiguration.EMAIL_CONFIG_SMTP_OAUTH_CLIENTID;
+import static org.sonar.server.email.EmailSmtpConfiguration.EMAIL_CONFIG_SMTP_OAUTH_CLIENTSECRET;
+import static org.sonar.server.email.EmailSmtpConfiguration.EMAIL_CONFIG_SMTP_OAUTH_GRANT;
+import static org.sonar.server.email.EmailSmtpConfiguration.EMAIL_CONFIG_SMTP_OAUTH_GRANT_DEFAULT;
+import static org.sonar.server.email.EmailSmtpConfiguration.EMAIL_CONFIG_SMTP_OAUTH_HOST;
+import static org.sonar.server.email.EmailSmtpConfiguration.EMAIL_CONFIG_SMTP_OAUTH_SCOPE;
+import static org.sonar.server.email.EmailSmtpConfiguration.EMAIL_CONFIG_SMTP_OAUTH_SCOPE_DEFAULT;
+import static org.sonar.server.email.EmailSmtpConfiguration.EMAIL_CONFIG_SMTP_OAUTH_TENANT;
+import static org.sonar.server.email.EmailSmtpConfiguration.EMAIL_CONFIG_SMTP_PASSWORD;
+import static org.sonar.server.email.EmailSmtpConfiguration.EMAIL_CONFIG_SMTP_PORT;
+import static org.sonar.server.email.EmailSmtpConfiguration.EMAIL_CONFIG_SMTP_SECURE_CONNECTION;
+import static org.sonar.server.email.EmailSmtpConfiguration.EMAIL_CONFIG_SMTP_USERNAME;
+import static org.sonarqube.ws.WsUtils.checkArgument;
+
+@ServerSide
+public class EmailConfigurationService {
+
+<span class="fc" id="L57">  private static final List&lt;String&gt; EMAIL_CONFIGURATION_PROPERTIES = List.of(</span>
+    EMAIL_CONFIG_SMTP_HOST,
+    EMAIL_CONFIG_SMTP_PORT,
+    EMAIL_CONFIG_SMTP_SECURE_CONNECTION,
+    EMAIL_CONFIG_FROM,
+    EMAIL_CONFIG_FROM_NAME,
+    EMAIL_CONFIG_PREFIX,
+    EMAIL_CONFIG_SMTP_AUTH_METHOD,
+    EMAIL_CONFIG_SMTP_USERNAME,
+    EMAIL_CONFIG_SMTP_PASSWORD,
+    EMAIL_CONFIG_SMTP_OAUTH_HOST,
+    EMAIL_CONFIG_SMTP_OAUTH_CLIENTID,
+    EMAIL_CONFIG_SMTP_OAUTH_CLIENTSECRET,
+    EMAIL_CONFIG_SMTP_OAUTH_TENANT,
+    EMAIL_CONFIG_SMTP_OAUTH_SCOPE,
+    EMAIL_CONFIG_SMTP_OAUTH_GRANT
+    );
+
+  public static final String UNIQUE_EMAIL_CONFIGURATION_ID = &quot;email-configuration&quot;;
+
+  private final DbClient dbClient;
+
+<span class="fc" id="L79">  public EmailConfigurationService(DbClient dbClient) {</span>
+<span class="fc" id="L80">    this.dbClient = dbClient;</span>
+<span class="fc" id="L81">  }</span>
+
+  public EmailConfiguration createConfiguration(EmailConfiguration configuration) {
+<span class="fc" id="L84">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L85">      throwIfConfigurationAlreadyExists(dbSession);</span>
+<span class="fc" id="L86">      throwIfParamsConstraintsAreNotMetForCreation(configuration);</span>
+
+<span class="fc" id="L88">      setInternalProperty(dbSession, EMAIL_CONFIG_SMTP_HOST, configuration.host());</span>
+<span class="fc" id="L89">      setInternalProperty(dbSession, EMAIL_CONFIG_SMTP_PORT, configuration.port());</span>
+<span class="fc" id="L90">      setInternalProperty(dbSession, EMAIL_CONFIG_SMTP_SECURE_CONNECTION, configuration.securityProtocol().name());</span>
+<span class="fc" id="L91">      setInternalProperty(dbSession, EMAIL_CONFIG_FROM, configuration.fromAddress());</span>
+<span class="fc" id="L92">      setInternalProperty(dbSession, EMAIL_CONFIG_FROM_NAME, configuration.fromName());</span>
+<span class="fc" id="L93">      setInternalProperty(dbSession, EMAIL_CONFIG_PREFIX, configuration.subjectPrefix());</span>
+<span class="fc" id="L94">      setInternalProperty(dbSession, EMAIL_CONFIG_SMTP_AUTH_METHOD, configuration.authMethod().name());</span>
+<span class="fc" id="L95">      setInternalProperty(dbSession, EMAIL_CONFIG_SMTP_USERNAME, configuration.username());</span>
+<span class="fc" id="L96">      setInternalProperty(dbSession, EMAIL_CONFIG_SMTP_PASSWORD, configuration.basicPassword());</span>
+<span class="fc" id="L97">      setInternalProperty(dbSession, EMAIL_CONFIG_SMTP_OAUTH_HOST, configuration.oauthAuthenticationHost());</span>
+<span class="fc" id="L98">      setInternalProperty(dbSession, EMAIL_CONFIG_SMTP_OAUTH_CLIENTID, configuration.oauthClientId());</span>
+<span class="fc" id="L99">      setInternalProperty(dbSession, EMAIL_CONFIG_SMTP_OAUTH_CLIENTSECRET, configuration.oauthClientSecret());</span>
+<span class="fc" id="L100">      setInternalProperty(dbSession, EMAIL_CONFIG_SMTP_OAUTH_TENANT, configuration.oauthTenant());</span>
+<span class="fc" id="L101">      setInternalProperty(dbSession, EMAIL_CONFIG_SMTP_OAUTH_SCOPE, EMAIL_CONFIG_SMTP_OAUTH_SCOPE_DEFAULT);</span>
+<span class="fc" id="L102">      setInternalProperty(dbSession, EMAIL_CONFIG_SMTP_OAUTH_GRANT, EMAIL_CONFIG_SMTP_OAUTH_GRANT_DEFAULT);</span>
+
+<span class="fc" id="L104">      EmailConfiguration createdConfiguration = getConfiguration(UNIQUE_EMAIL_CONFIGURATION_ID, dbSession);</span>
+<span class="fc" id="L105">      dbSession.commit();</span>
+<span class="fc" id="L106">      return createdConfiguration;</span>
+    }
+  }
+
+  private static void throwIfParamsConstraintsAreNotMetForCreation(EmailConfiguration configuration) {
+<span class="fc bfc" id="L111" title="All 2 branches covered.">    if (configuration.authMethod().equals(EmailConfigurationAuthMethod.OAUTH)) {</span>
+<span class="fc" id="L112">      checkArgument(StringUtils.isNotEmpty(configuration.oauthAuthenticationHost()), &quot;OAuth authentication host is required.&quot;);</span>
+<span class="fc" id="L113">      checkArgument(StringUtils.isNotEmpty(configuration.oauthClientId()), &quot;OAuth client id is required.&quot;);</span>
+<span class="fc" id="L114">      checkArgument(StringUtils.isNotEmpty(configuration.oauthClientSecret()), &quot;OAuth client secret is required.&quot;);</span>
+<span class="fc" id="L115">      checkArgument(StringUtils.isNotEmpty(configuration.oauthTenant()), &quot;OAuth tenant is required.&quot;);</span>
+<span class="pc bpc" id="L116" title="1 of 2 branches missed.">    } else if (configuration.authMethod().equals(EmailConfigurationAuthMethod.BASIC)) {</span>
+<span class="fc" id="L117">      checkArgument(StringUtils.isNotEmpty(configuration.basicPassword()), &quot;Password is required.&quot;);</span>
+    }
+<span class="fc" id="L119">  }</span>
+
+  private void throwIfConfigurationAlreadyExists(DbSession dbSession) {
+<span class="fc bfc" id="L122" title="All 2 branches covered.">    if (configurationExists(dbSession)) {</span>
+<span class="fc" id="L123">      throw BadRequestException.create(&quot;Email configuration already exists. Only one Email configuration is supported.&quot;);</span>
+    }
+<span class="fc" id="L125">  }</span>
+
+  public EmailConfiguration getConfiguration(String id) {
+<span class="fc" id="L128">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L129">      throwIfNotUniqueConfigurationId(id);</span>
+<span class="fc" id="L130">      throwIfConfigurationDoesntExist(dbSession);</span>
+<span class="fc" id="L131">      return getConfiguration(id, dbSession);</span>
+    }
+  }
+
+  private EmailConfiguration getConfiguration(String id, DbSession dbSession) {
+<span class="fc" id="L136">    throwIfNotUniqueConfigurationId(id);</span>
+<span class="fc" id="L137">    throwIfConfigurationDoesntExist(dbSession);</span>
+<span class="fc" id="L138">    return new EmailConfiguration(</span>
+      UNIQUE_EMAIL_CONFIGURATION_ID,
+<span class="fc" id="L140">      getStringInternalPropertyOrEmpty(dbSession, EMAIL_CONFIG_SMTP_HOST),</span>
+<span class="fc" id="L141">      getStringInternalPropertyOrEmpty(dbSession, EMAIL_CONFIG_SMTP_PORT),</span>
+<span class="fc" id="L142">      EmailConfigurationSecurityProtocol.valueOf(getStringInternalPropertyOrEmpty(dbSession, EMAIL_CONFIG_SMTP_SECURE_CONNECTION)),</span>
+<span class="fc" id="L143">      getStringInternalPropertyOrEmpty(dbSession, EMAIL_CONFIG_FROM),</span>
+<span class="fc" id="L144">      getStringInternalPropertyOrEmpty(dbSession, EMAIL_CONFIG_FROM_NAME),</span>
+<span class="fc" id="L145">      getStringInternalPropertyOrEmpty(dbSession, EMAIL_CONFIG_PREFIX),</span>
+<span class="fc" id="L146">      EmailConfigurationAuthMethod.valueOf(getStringInternalPropertyOrEmpty(dbSession, EMAIL_CONFIG_SMTP_AUTH_METHOD)),</span>
+<span class="fc" id="L147">      getStringInternalPropertyOrEmpty(dbSession, EMAIL_CONFIG_SMTP_USERNAME),</span>
+<span class="fc" id="L148">      getStringInternalPropertyOrEmpty(dbSession, EMAIL_CONFIG_SMTP_PASSWORD),</span>
+<span class="fc" id="L149">      getStringInternalPropertyOrEmpty(dbSession, EMAIL_CONFIG_SMTP_OAUTH_HOST),</span>
+<span class="fc" id="L150">      getStringInternalPropertyOrEmpty(dbSession, EMAIL_CONFIG_SMTP_OAUTH_CLIENTID),</span>
+<span class="fc" id="L151">      getStringInternalPropertyOrEmpty(dbSession, EMAIL_CONFIG_SMTP_OAUTH_CLIENTSECRET),</span>
+<span class="fc" id="L152">      getStringInternalPropertyOrEmpty(dbSession, EMAIL_CONFIG_SMTP_OAUTH_TENANT),</span>
+<span class="fc" id="L153">      getStringInternalPropertyOrEmpty(dbSession, EMAIL_CONFIG_SMTP_OAUTH_SCOPE),</span>
+<span class="fc" id="L154">      getStringInternalPropertyOrEmpty(dbSession, EMAIL_CONFIG_SMTP_OAUTH_GRANT));</span>
+  }
+
+  private static void throwIfNotUniqueConfigurationId(String id) {
+<span class="fc bfc" id="L158" title="All 2 branches covered.">    if (!UNIQUE_EMAIL_CONFIGURATION_ID.equals(id)) {</span>
+<span class="fc" id="L159">      throw new NotFoundException(format(&quot;Email configuration with id %s not found&quot;, id));</span>
+    }
+<span class="fc" id="L161">  }</span>
+
+  private String getStringInternalPropertyOrEmpty(DbSession dbSession, String property) {
+<span class="fc" id="L164">    return dbClient.internalPropertiesDao().selectByKey(dbSession, property).orElse(&quot;&quot;);</span>
+  }
+
+  public Optional&lt;EmailConfiguration&gt; findConfigurations() {
+<span class="fc" id="L168">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc bfc" id="L169" title="All 2 branches covered.">      if (configurationExists(dbSession)) {</span>
+<span class="fc" id="L170">        return Optional.of(getConfiguration(UNIQUE_EMAIL_CONFIGURATION_ID, dbSession));</span>
+      }
+<span class="fc" id="L172">      return Optional.empty();</span>
+<span class="pc bpc" id="L173" title="1 of 2 branches missed.">    }</span>
+  }
+
+  public EmailConfiguration updateConfiguration(UpdateEmailConfigurationRequest updateRequest) {
+<span class="fc" id="L177">    try (DbSession dbSession = dbClient.openSession(true)) {</span>
+<span class="fc" id="L178">      throwIfConfigurationDoesntExist(dbSession);</span>
+<span class="fc" id="L179">      EmailConfiguration existingConfig = getConfiguration(UNIQUE_EMAIL_CONFIGURATION_ID, dbSession);</span>
+<span class="fc" id="L180">      throwIfUrlIsUpdatedWithoutCredentials(existingConfig, updateRequest);</span>
+<span class="fc" id="L181">      throwIfParamsConstraintsAreNotMetForUpdate(existingConfig, updateRequest);</span>
+
+<span class="fc" id="L183">      setInternalIfDefined(dbSession, EMAIL_CONFIG_SMTP_HOST, updateRequest.host());</span>
+<span class="fc" id="L184">      setInternalIfDefined(dbSession, EMAIL_CONFIG_SMTP_PORT, updateRequest.port());</span>
+<span class="fc" id="L185">      setInternalIfDefined(dbSession, EMAIL_CONFIG_SMTP_SECURE_CONNECTION, updateRequest.securityProtocol().map(EmailConfigurationSecurityProtocol::name));</span>
+<span class="fc" id="L186">      setInternalIfDefined(dbSession, EMAIL_CONFIG_FROM, updateRequest.fromAddress());</span>
+<span class="fc" id="L187">      setInternalIfDefined(dbSession, EMAIL_CONFIG_FROM_NAME, updateRequest.fromName());</span>
+<span class="fc" id="L188">      setInternalIfDefined(dbSession, EMAIL_CONFIG_PREFIX, updateRequest.subjectPrefix());</span>
+<span class="fc" id="L189">      setInternalIfDefined(dbSession, EMAIL_CONFIG_SMTP_AUTH_METHOD, updateRequest.authMethod().map(EmailConfigurationAuthMethod::name));</span>
+<span class="fc" id="L190">      setInternalIfDefined(dbSession, EMAIL_CONFIG_SMTP_USERNAME, updateRequest.username());</span>
+<span class="fc" id="L191">      setInternalIfDefined(dbSession, EMAIL_CONFIG_SMTP_PASSWORD, updateRequest.basicPassword());</span>
+<span class="fc" id="L192">      setInternalIfDefined(dbSession, EMAIL_CONFIG_SMTP_OAUTH_HOST, updateRequest.oauthAuthenticationHost());</span>
+<span class="fc" id="L193">      setInternalIfDefined(dbSession, EMAIL_CONFIG_SMTP_OAUTH_CLIENTID, updateRequest.oauthClientId());</span>
+<span class="fc" id="L194">      setInternalIfDefined(dbSession, EMAIL_CONFIG_SMTP_OAUTH_CLIENTSECRET, updateRequest.oauthClientSecret());</span>
+<span class="fc" id="L195">      setInternalIfDefined(dbSession, EMAIL_CONFIG_SMTP_OAUTH_TENANT, updateRequest.oauthTenant());</span>
+
+<span class="fc" id="L197">      dbSession.commit();</span>
+
+<span class="fc" id="L199">      return getConfiguration(UNIQUE_EMAIL_CONFIGURATION_ID, dbSession);</span>
+    }
+  }
+
+  private static void throwIfUrlIsUpdatedWithoutCredentials(EmailConfiguration existingConfig, UpdateEmailConfigurationRequest request) {
+<span class="fc bfc" id="L204" title="All 2 branches covered.">    if (isOauthDefinedByExistingConfigOrRequest(existingConfig, request)) {</span>
+      // For OAuth config, we make sure that the client secret is provided when the host or authentication host is updated
+<span class="fc bfc" id="L206" title="All 4 branches covered.">      if (isRequestParameterDefined(request.host()) || isRequestParameterDefined(request.oauthAuthenticationHost())) {</span>
+<span class="fc" id="L207">        checkArgument(isRequestParameterDefined(request.oauthClientSecret()), &quot;For security reasons, OAuth urls can't be updated without providing the client secret.&quot;);</span>
+      }
+    } else {
+      // For Basic config, we make sure that the password is provided when the host is updated
+<span class="fc bfc" id="L211" title="All 2 branches covered.">      if (isRequestParameterDefined(request.host())) {</span>
+<span class="fc" id="L212">        checkArgument(isRequestParameterDefined(request.basicPassword()), &quot;For security reasons, the host can't be updated without providing the password.&quot;);</span>
+      }
+    }
+<span class="fc" id="L215">  }</span>
+
+  private static void throwIfParamsConstraintsAreNotMetForUpdate(EmailConfiguration existingConfig, UpdateEmailConfigurationRequest updateRequest) {
+<span class="fc" id="L218">    checkArgument(isFieldDefinedByExistingConfigOrRequest(existingConfig.username(), updateRequest.username()),</span>
+      &quot;Username is required.&quot;);
+<span class="fc bfc" id="L220" title="All 2 branches covered.">    if (isOauthDefinedByExistingConfigOrRequest(existingConfig, updateRequest)) {</span>
+<span class="fc" id="L221">      checkArgument(isFieldDefinedByExistingConfigOrRequest(existingConfig.oauthAuthenticationHost(), updateRequest.oauthAuthenticationHost()),</span>
+        &quot;OAuth authentication host is required.&quot;);
+<span class="fc" id="L223">      checkArgument(isFieldDefinedByExistingConfigOrRequest(existingConfig.oauthClientId(), updateRequest.oauthClientId()),</span>
+        &quot;OAuth client id is required.&quot;);
+<span class="fc" id="L225">      checkArgument(isFieldDefinedByExistingConfigOrRequest(existingConfig.oauthClientSecret(), updateRequest.oauthClientSecret()),</span>
+        &quot;OAuth client secret is required.&quot;);
+<span class="fc" id="L227">      checkArgument(isFieldDefinedByExistingConfigOrRequest(existingConfig.oauthTenant(), updateRequest.oauthTenant()),</span>
+        &quot;OAuth tenant is required.&quot;);
+    } else {
+<span class="fc" id="L230">      checkArgument(isFieldDefinedByExistingConfigOrRequest(existingConfig.basicPassword(), updateRequest.basicPassword()),</span>
+        &quot;Password is required.&quot;);
+    }
+<span class="fc" id="L233">  }</span>
+
+  private static boolean isFieldDefinedByExistingConfigOrRequest(@Nullable String existingParam, NonNullUpdatedValue&lt;String&gt; requestParam) {
+<span class="fc bfc" id="L236" title="All 6 branches covered.">    return StringUtils.isNotEmpty(existingParam) || (requestParam.isDefined() &amp;&amp; !requestParam.contains(&quot;&quot;));</span>
+  }
+
+  private static boolean isOauthDefinedByExistingConfigOrRequest(EmailConfiguration existingConfig, UpdateEmailConfigurationRequest request) {
+    // Either the request update the config to OAuth, or the existing config is OAuth
+<span class="pc bpc" id="L241" title="1 of 2 branches missed.">    if (isRequestParameterDefined(request.authMethod())) {</span>
+<span class="fc" id="L242">      return request.authMethod().contains(EmailConfigurationAuthMethod.OAUTH);</span>
+    }
+<span class="nc" id="L244">    return existingConfig.authMethod().equals(EmailConfigurationAuthMethod.OAUTH);</span>
+  }
+
+  private static boolean isRequestParameterDefined(@Nullable NonNullUpdatedValue&lt;?&gt; parameter) {
+<span class="pc bpc" id="L248" title="1 of 4 branches missed.">    return parameter != null &amp;&amp; parameter.isDefined();</span>
+  }
+
+  public void deleteConfiguration(String id) {
+<span class="fc" id="L252">    throwIfNotUniqueConfigurationId(id);</span>
+<span class="fc" id="L253">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L254">      throwIfConfigurationDoesntExist(dbSession);</span>
+<span class="fc" id="L255">      EMAIL_CONFIGURATION_PROPERTIES.forEach(propertyKey -&gt; dbClient.internalPropertiesDao().delete(dbSession, propertyKey));</span>
+<span class="fc" id="L256">      dbSession.commit();</span>
+    }
+<span class="fc" id="L258">  }</span>
+
+  private void throwIfConfigurationDoesntExist(DbSession dbSession) {
+<span class="fc bfc" id="L261" title="All 2 branches covered.">    if (!configurationExists(dbSession)) {</span>
+<span class="fc" id="L262">      throw new NotFoundException(&quot;Email configuration doesn't exist.&quot;);</span>
+    }
+<span class="fc" id="L264">  }</span>
+
+  private boolean configurationExists(DbSession dbSession) {
+<span class="fc" id="L267">    String property = getStringInternalPropertyOrEmpty(dbSession, EMAIL_CONFIG_SMTP_HOST);</span>
+<span class="fc" id="L268">    return StringUtils.isNotEmpty(property);</span>
+  }
+
+  private void setInternalIfDefined(DbSession dbSession, String propertyKey, @Nullable UpdatedValue&lt;String&gt; value) {
+<span class="pc bpc" id="L272" title="1 of 2 branches missed.">    if (value != null) {</span>
+<span class="fc" id="L273">      value.applyIfDefined(propertyValue -&gt; setInternalProperty(dbSession, propertyKey, propertyValue));</span>
+    }
+<span class="fc" id="L275">  }</span>
+
+  private void setInternalProperty(DbSession dbSession, String propertyKey, @Nullable String value) {
+<span class="pc bpc" id="L278" title="1 of 2 branches missed.">    if (StringUtils.isNotEmpty(value)) {</span>
+<span class="fc" id="L279">      dbClient.internalPropertiesDao().save(dbSession, propertyKey, value);</span>
+    } else {
+<span class="nc" id="L281">      dbClient.internalPropertiesDao().delete(dbSession, propertyKey);</span>
+    }
+<span class="fc" id="L283">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

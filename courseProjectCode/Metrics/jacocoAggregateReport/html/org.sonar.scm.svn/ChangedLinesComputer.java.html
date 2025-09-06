@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ChangedLinesComputer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scm.svn</a> &gt; <span class="el_source">ChangedLinesComputer.java</span></div><h1>ChangedLinesComputer.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scm.svn;
+
+import java.io.OutputStream;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+class ChangedLinesComputer {
+
+  private final Tracker tracker;
+
+<span class="fc" id="L36">  private final OutputStream receiver = new OutputStream() {</span>
+<span class="fc" id="L37">    StringBuilder sb = new StringBuilder();</span>
+
+    @Override
+    public void write(int b) {
+<span class="fc" id="L41">      sb.append((char) b);</span>
+<span class="fc bfc" id="L42" title="All 2 branches covered.">      if (b == '\n') {</span>
+<span class="fc" id="L43">        tracker.parseLine(sb.toString());</span>
+<span class="fc" id="L44">        sb.setLength(0);</span>
+      }
+<span class="fc" id="L46">    }</span>
+  };
+
+<span class="fc" id="L49">  ChangedLinesComputer(Path rootBaseDir, Set&lt;Path&gt; included) {</span>
+<span class="fc" id="L50">    this.tracker = new Tracker(rootBaseDir, included);</span>
+<span class="fc" id="L51">  }</span>
+
+  /**
+   * The OutputStream to pass to svnkit's diff command.
+   */
+  OutputStream receiver() {
+<span class="fc" id="L57">    return receiver;</span>
+  }
+
+  /**
+   * From a stream of svn-style unified diff lines,
+   * compute the line numbers that should be considered changed.
+   *
+   * Example input:
+   * &lt;pre&gt;
+   * Index: path/to/file
+   * ===================================================================
+   * --- lao 2002-02-21 23:30:39.942229878 -0800
+   * +++ tzu 2002-02-21 23:30:50.442260588 -0800
+   * @@ -1,7 +1,6 @@
+   * -The Way that can be told of is not the eternal Way;
+   * -The name that can be named is not the eternal name.
+   *  The Nameless is the origin of Heaven and Earth;
+   * -The Named is the mother of all things.
+   * +The named is the mother of all things.
+   * +
+   *  Therefore let there always be non-being,
+   *    so we may see their subtlety,
+   *  And let there always be being,
+   * @@ -9,3 +8,6 @@
+   *  The two are the same,
+   *  But after they are produced,
+   *    they have different names.
+   * +They both may be called deep and profound.
+   * +Deeper and more profound,
+   * +The door of all subtleties!
+   * &lt;/pre&gt;
+   *
+   * See also: http://www.gnu.org/software/diffutils/manual/html_node/Example-Unified.html#Example-Unified
+   */
+  Map&lt;Path, Set&lt;Integer&gt;&gt; changedLines() {
+<span class="fc" id="L92">    return tracker.changedLines();</span>
+  }
+
+  private static class Tracker {
+
+<span class="fc" id="L97">    private static final Pattern START_LINE_IN_TARGET = Pattern.compile(&quot; \\+(\\d+)&quot;);</span>
+    private static final String ENTRY_START_PREFIX = &quot;Index: &quot;;
+
+<span class="fc" id="L100">    private final Map&lt;Path, Set&lt;Integer&gt;&gt; changedLines = new HashMap&lt;&gt;();</span>
+    private final Set&lt;Path&gt; included;
+    private final Path rootBaseDir;
+
+    private int lineNumInTarget;
+<span class="fc" id="L105">    private Path currentPath = null;</span>
+<span class="fc" id="L106">    private int skipCount = 0;</span>
+
+<span class="fc" id="L108">    Tracker(Path rootBaseDir, Set&lt;Path&gt; included) {</span>
+<span class="fc" id="L109">      this.rootBaseDir = rootBaseDir;</span>
+<span class="fc" id="L110">      this.included = included;</span>
+<span class="fc" id="L111">    }</span>
+
+    private void parseLine(String line) {
+<span class="fc bfc" id="L114" title="All 2 branches covered.">      if (line.startsWith(ENTRY_START_PREFIX)) {</span>
+<span class="fc" id="L115">        currentPath = Paths.get(line.substring(ENTRY_START_PREFIX.length()).trim());</span>
+<span class="fc bfc" id="L116" title="All 2 branches covered.">        if (!currentPath.isAbsolute()) {</span>
+<span class="fc" id="L117">          currentPath = rootBaseDir.resolve(currentPath);</span>
+        }
+<span class="fc bfc" id="L119" title="All 2 branches covered.">        if (!included.contains(currentPath)) {</span>
+<span class="fc" id="L120">          return;</span>
+        }
+<span class="fc" id="L122">        skipCount = 3;</span>
+<span class="fc" id="L123">        return;</span>
+      }
+
+<span class="fc bfc" id="L126" title="All 2 branches covered.">      if (!included.contains(currentPath)) {</span>
+<span class="fc" id="L127">        return;</span>
+      }
+
+<span class="fc bfc" id="L130" title="All 2 branches covered.">      if (skipCount &gt; 0) {</span>
+<span class="fc" id="L131">        skipCount--;</span>
+<span class="fc" id="L132">        return;</span>
+      }
+
+<span class="fc bfc" id="L135" title="All 2 branches covered.">      if (line.startsWith(&quot;@@ &quot;)) {</span>
+<span class="fc" id="L136">        Matcher matcher = START_LINE_IN_TARGET.matcher(line);</span>
+<span class="fc bfc" id="L137" title="All 2 branches covered.">        if (!matcher.find()) {</span>
+<span class="fc" id="L138">          throw new IllegalStateException(&quot;Invalid block header: &quot; + line);</span>
+        }
+<span class="fc" id="L140">        lineNumInTarget = Integer.parseInt(matcher.group(1));</span>
+<span class="fc" id="L141">        return;</span>
+      }
+
+<span class="fc" id="L144">      parseContent(line);</span>
+<span class="fc" id="L145">    }</span>
+
+    private void parseContent(String line) {
+<span class="fc" id="L148">      char firstChar = line.charAt(0);</span>
+<span class="fc bfc" id="L149" title="All 2 branches covered.">      if (firstChar == ' ') {</span>
+<span class="fc" id="L150">        lineNumInTarget++;</span>
+<span class="fc bfc" id="L151" title="All 2 branches covered.">      } else if (firstChar == '+') {</span>
+<span class="fc" id="L152">        changedLines</span>
+<span class="fc" id="L153">          .computeIfAbsent(currentPath, path -&gt; new HashSet&lt;&gt;())</span>
+<span class="fc" id="L154">          .add(lineNumInTarget);</span>
+<span class="fc" id="L155">        lineNumInTarget++;</span>
+      }
+<span class="fc" id="L157">    }</span>
+
+    Map&lt;Path, Set&lt;Integer&gt;&gt; changedLines() {
+<span class="fc" id="L160">      return changedLines;</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

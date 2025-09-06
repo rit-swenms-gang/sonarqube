@@ -1,0 +1,288 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GithubApplicationClient.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.auth.github</a> &gt; <span class="el_source">GithubApplicationClient.java</span></div><h1>GithubApplicationClient.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.auth.github;
+
+import com.google.gson.annotations.SerializedName;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
+import org.sonar.api.server.ServerSide;
+import org.sonar.auth.github.security.AccessToken;
+import org.sonar.auth.github.security.UserAccessToken;
+
+@ServerSide
+public interface GithubApplicationClient {
+
+  /**
+   * Create a user access token for the enterprise app installation.
+   *
+   * See https://developer.github.com/enterprise/2.20/apps/building-github-apps/identifying-and-authorizing-users-for-github-apps/#identifying-users-on-your-site
+   *
+   * @throws IllegalStateException if an internal error occured: network issue, invalid response, etc
+   * @throws IllegalArgumentException if the request failed due to one of the parameters being invalid.
+   */
+  UserAccessToken createUserAccessToken(String appUrl, String clientId, String clientSecret, String code);
+
+  /**
+   * Create an installation access token for the specified installation ID.
+   *
+   * IMPORTANT: each call consumes one hit of the App GLOBAL quotas (5'000 hits per hour).
+   *
+   * Token expires after one hour.
+   * See https://developer.github.com/apps/building-github-apps/authenticating-with-github-apps/#authenticating-as-an-installation
+   *
+   * @return {@code Optional.empty()} if Github is not configured or if token failed to be
+   *         created (network issue, parsing error, Github error, ...).
+   */
+  Optional&lt;ExpiringAppInstallationToken&gt; createAppInstallationToken(GithubAppConfiguration githubAppConfiguration, long installationId);
+
+  GithubBinding.GsonApp getApp(GithubAppConfiguration githubAppConfiguration);
+
+  /**
+   * Retrieve the installation id for the given accountName.
+   * @throws IllegalArgumentException if one of the arguments is invalid (for example, wrong private key)
+   */
+  Optional&lt;Long&gt; getInstallationId(GithubAppConfiguration githubAppConfiguration, String repositorySlug);
+
+  /**
+   * Lists all the organizations accessible to the access token provided.
+   */
+  Organizations listOrganizations(String appUrl, AccessToken accessToken, int page, int pageSize);
+
+  /**
+   * Retrieve all installations of the GitHub app, filtering out the ones not whitelisted in GitHub Settings (if set)
+   * @throws IllegalArgumentException if one of the arguments is invalid (for example, wrong private key)
+   */
+  List&lt;GithubAppInstallation&gt; getWhitelistedGithubAppInstallations(GithubAppConfiguration githubAppConfiguration);
+
+  /**
+   * Lists all the repositories of the provided organization accessible to the access token provided.
+   */
+  Repositories listRepositories(String appUrl, AccessToken accessToken, String organization, @Nullable String query, int page, int pageSize);
+
+  void checkApiEndpoint(GithubAppConfiguration githubAppConfiguration);
+
+  /**
+   * Checks if an app has all the permissions required.
+   */
+  void checkAppPermissions(GithubAppConfiguration githubAppConfiguration);
+
+  /**
+   * Returns the repository identified by the repositoryKey owned by the provided organization.
+   */
+  Optional&lt;Repository&gt; getRepository(String appUrl, AccessToken accessToken, String repositoryKey);
+
+  Set&lt;GsonRepositoryTeam&gt; getRepositoryTeams(String appUrl, AccessToken accessToken, String orgName, String repoName);
+
+  Set&lt;GsonRepositoryCollaborator&gt; getRepositoryCollaborators(String appUrl, AccessToken accessToken, String orgName, String repoName);
+
+  class Repositories {
+    private int total;
+    private List&lt;Repository&gt; repositories;
+
+<span class="fc" id="L103">    public Repositories() {</span>
+      // nothing to do
+<span class="fc" id="L105">    }</span>
+
+    public int getTotal() {
+<span class="fc" id="L108">      return total;</span>
+    }
+
+    public Repositories setTotal(int total) {
+<span class="fc" id="L112">      this.total = total;</span>
+<span class="fc" id="L113">      return this;</span>
+    }
+
+    @CheckForNull
+    public List&lt;Repository&gt; getRepositories() {
+<span class="fc" id="L118">      return repositories;</span>
+    }
+
+    public Repositories setRepositories(List&lt;Repository&gt; repositories) {
+<span class="fc" id="L122">      this.repositories = repositories;</span>
+<span class="fc" id="L123">      return this;</span>
+    }
+  }
+
+  @Immutable
+  final class Repository {
+    private final long id;
+    private final String name;
+    private final boolean isPrivate;
+    private final String fullName;
+    private final String url;
+    private final String defaultBranch;
+
+<span class="fc" id="L136">    public Repository(long id, String name, boolean isPrivate, String fullName, String url, String defaultBranch) {</span>
+<span class="fc" id="L137">      this.id = id;</span>
+<span class="fc" id="L138">      this.name = name;</span>
+<span class="fc" id="L139">      this.isPrivate = isPrivate;</span>
+<span class="fc" id="L140">      this.fullName = fullName;</span>
+<span class="fc" id="L141">      this.url = url;</span>
+<span class="fc" id="L142">      this.defaultBranch = defaultBranch;</span>
+<span class="fc" id="L143">    }</span>
+
+    public long getId() {
+<span class="fc" id="L146">      return id;</span>
+    }
+
+    public String getName() {
+<span class="fc" id="L150">      return name;</span>
+    }
+
+    public boolean isPrivate() {
+<span class="fc" id="L154">      return isPrivate;</span>
+    }
+
+    public String getFullName() {
+<span class="fc" id="L158">      return fullName;</span>
+    }
+
+    public String getUrl() {
+<span class="fc" id="L162">      return url;</span>
+    }
+
+    public String getDefaultBranch() {
+<span class="fc" id="L166">      return defaultBranch;</span>
+    }
+
+    @Override
+    public String toString() {
+<span class="nc" id="L171">      return &quot;Repository{&quot; +</span>
+        &quot;id=&quot; + id +
+        &quot;, name='&quot; + name + '\'' +
+        &quot;, isPrivate='&quot; + isPrivate + '\'' +
+        &quot;, fullName='&quot; + fullName + '\'' +
+        &quot;, url='&quot; + url + '\'' +
+        '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+<span class="nc bnc" id="L182" title="All 2 branches missed.">      if (this == o) {</span>
+<span class="nc" id="L183">        return true;</span>
+      }
+<span class="nc bnc" id="L185" title="All 4 branches missed.">      if (o == null || getClass() != o.getClass()) {</span>
+<span class="nc" id="L186">        return false;</span>
+      }
+<span class="nc" id="L188">      Repository that = (Repository) o;</span>
+<span class="nc bnc" id="L189" title="All 2 branches missed.">      return id == that.id;</span>
+    }
+
+    @Override
+    public int hashCode() {
+<span class="nc" id="L194">      return Long.hashCode(id);</span>
+    }
+  }
+
+  class Organizations {
+    private int total;
+    private List&lt;Organization&gt; organizations;
+
+<span class="fc" id="L202">    public Organizations() {</span>
+      // nothing to do
+<span class="fc" id="L204">    }</span>
+
+    public int getTotal() {
+<span class="fc" id="L207">      return total;</span>
+    }
+
+    public Organizations setTotal(int total) {
+<span class="fc" id="L211">      this.total = total;</span>
+<span class="fc" id="L212">      return this;</span>
+    }
+
+    @CheckForNull
+    public List&lt;Organization&gt; getOrganizations() {
+<span class="fc" id="L217">      return organizations;</span>
+    }
+
+    public Organizations setOrganizations(List&lt;Organization&gt; organizations) {
+<span class="fc" id="L221">      this.organizations = organizations;</span>
+<span class="fc" id="L222">      return this;</span>
+    }
+  }
+
+  class Organization {
+    private final long id;
+    private final String login;
+    private final String name;
+    private final String bio;
+    private final String blog;
+    @SerializedName(&quot;html_url&quot;)
+    private final String htmlUrl;
+    @SerializedName(&quot;avatar_url&quot;)
+    private final String avatarUrl;
+    private final String type;
+
+    public Organization(long id, String login, @Nullable String name, @Nullable String bio, @Nullable String blog, @Nullable String htmlUrl, @Nullable String avatarUrl,
+<span class="fc" id="L239">      String type) {</span>
+<span class="fc" id="L240">      this.id = id;</span>
+<span class="fc" id="L241">      this.login = login;</span>
+<span class="fc" id="L242">      this.name = name;</span>
+<span class="fc" id="L243">      this.bio = bio;</span>
+<span class="fc" id="L244">      this.blog = blog;</span>
+<span class="fc" id="L245">      this.htmlUrl = htmlUrl;</span>
+<span class="fc" id="L246">      this.avatarUrl = avatarUrl;</span>
+<span class="fc" id="L247">      this.type = type;</span>
+<span class="fc" id="L248">    }</span>
+
+    public long getId() {
+<span class="nc" id="L251">      return id;</span>
+    }
+
+    public String getLogin() {
+<span class="fc" id="L255">      return login;</span>
+    }
+
+    @CheckForNull
+    public String getName() {
+<span class="nc" id="L260">      return name;</span>
+    }
+
+    @CheckForNull
+    public String getBio() {
+<span class="nc" id="L265">      return bio;</span>
+    }
+
+    @CheckForNull
+    public String getBlog() {
+<span class="nc" id="L270">      return blog;</span>
+    }
+
+    public String getHtmlUrl() {
+<span class="nc" id="L274">      return htmlUrl;</span>
+    }
+
+    @CheckForNull
+    public String getAvatarUrl() {
+<span class="nc" id="L279">      return avatarUrl;</span>
+    }
+
+    public String getType() {
+<span class="nc" id="L283">      return type;</span>
+    }
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

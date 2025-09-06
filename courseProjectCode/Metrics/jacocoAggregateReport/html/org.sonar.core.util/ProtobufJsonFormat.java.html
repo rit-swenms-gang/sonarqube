@@ -1,0 +1,266 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ProtobufJsonFormat.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.core.util</a> &gt; <span class="el_source">ProtobufJsonFormat.java</span></div><h1>ProtobufJsonFormat.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.core.util;
+
+import com.google.protobuf.Descriptors;
+import com.google.protobuf.MapEntry;
+import com.google.protobuf.Message;
+import java.io.StringWriter;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
+import org.sonar.api.utils.text.JsonWriter;
+
+/**
+ * Converts a Protocol Buffers message to JSON. Unknown fields, binary fields and groups
+ * are not supported. Absent fields are ignored, so it's possible to distinguish
+ * null strings (field is absent) and empty strings (field is present with value {@code &quot;&quot;}).
+ *
+ * &lt;h3&gt;Example&lt;/h3&gt;
+ * &lt;pre&gt;
+ *   // protobuf specification
+ *   message Foo {
+ *     string name = 1;
+ *     int32 count = 2;
+ *     repeated string colors = 3;
+ *   }
+ *
+ *   // generated JSON
+ *   {
+ *     &quot;name&quot;: &quot;hello&quot;,
+ *     &quot;count&quot;: 32,
+ *     &quot;colors&quot;: [&quot;blue&quot;, &quot;red&quot;]
+ *   }
+ * &lt;/pre&gt;
+ *
+ * &lt;h3&gt;Absent versus empty arrays&lt;/h3&gt;
+ * &lt;p&gt;
+ * Protobuf does not support absent repeated field. The default value is empty. A pattern
+ * is defined by {@link ProtobufJsonFormat} to support the difference between absent and
+ * empty arrays when generating JSON. An intermediary message wrapping the array must be defined.
+ * It is automatically inlined and does not appear in the generated JSON. This wrapper message must:
+ * &lt;/p&gt;
+ * &lt;ul&gt;
+ *   &lt;li&gt;contain a single repeated field&lt;/li&gt;
+ *   &lt;li&gt;has the same name (case-insensitive) as the field&lt;/li&gt;
+ * &lt;/ul&gt;
+ *
+ *
+ * &lt;p&gt;Example:&lt;/p&gt;
+ * &lt;pre&gt;
+ *   // protobuf specification
+ *   message Continent {
+ *     string name = 1;
+ *     Countries countries = 2;
+ *   }
+ *
+ *   // the message name (&quot;Countries&quot;) is the same as the field 1 (&quot;countries&quot;)
+ *   message Countries {
+ *     repeated string countries = 1;
+ *   }
+ *
+ *   // example of generated JSON if field 2 is not present
+ *   {
+ *     &quot;name&quot;: &quot;Europe&quot;,
+ *   }
+ *
+ *   // example of generated JSON if field 2 is present but inner array is empty.
+ *   // The intermediary &quot;countries&quot; message is inline.
+ *   {
+ *     &quot;name&quot;: &quot;Europe&quot;,
+ *     &quot;countries&quot;: []
+ *   }
+ *
+ *   // example of generated JSON if field 2 is present and inner array is not empty
+ *   // The intermediary &quot;countries&quot; message is inline.
+ *   {
+ *     &quot;name&quot;: &quot;Europe&quot;,
+ *     &quot;countries&quot;: [&quot;Spain&quot;, &quot;Denmark&quot;]
+ *   }
+ * &lt;/pre&gt;
+ *
+ * &lt;h3&gt;Array or map in map values&lt;/h3&gt;
+ * &lt;p&gt;
+ *   Map fields cannot be repeated. Values are scalar types or messages, but not arrays nor maps. In order
+ * to support multimaps (maps of lists) and maps of maps in JSON, the same pattern as for absent arrays
+ * can be used:
+ * &lt;/p&gt;
+ * &lt;p&gt;Example:&lt;/p&gt;
+ * &lt;pre&gt;
+ *   // protobuf specification
+ *   message Continent {
+ *     string name = 1;
+ *     map&amp;lt;string,Countries&amp;gt; countries_by_currency = 2;
+ *   }
+ *
+ *   // the message name (&quot;Countries&quot;) is the same as the field 1 (&quot;countries&quot;)
+ *   message Countries {
+ *     repeated string countries = 1;
+ *   }
+ *
+ *   // example of generated JSON. The intermediary &quot;countries&quot; message is inline.
+ *   {
+ *     &quot;name&quot;: &quot;Europe&quot;,
+ *     &quot;countries_by_currency&quot;: {
+ *       &quot;eur&quot;: [&quot;Spain&quot;, &quot;France&quot;],
+ *       &quot;dkk&quot;: [&quot;Denmark&quot;]
+ *     }
+ *   }
+ * &lt;/pre&gt;
+ */
+public class ProtobufJsonFormat {
+
+  private ProtobufJsonFormat() {
+    // only statics
+  }
+
+  static class MessageType {
+<span class="fc" id="L135">    private static final Map&lt;Class&lt;? extends Message&gt;, MessageType&gt; TYPES_BY_CLASS = new HashMap&lt;&gt;();</span>
+
+    private final Descriptors.FieldDescriptor[] fieldDescriptors;
+    private final boolean doesWrapRepeated;
+
+<span class="fc" id="L140">    private MessageType(Descriptors.Descriptor descriptor) {</span>
+<span class="fc" id="L141">      this.fieldDescriptors = descriptor.getFields().toArray(new Descriptors.FieldDescriptor[descriptor.getFields().size()]);</span>
+<span class="fc bfc" id="L142" title="All 6 branches covered.">      this.doesWrapRepeated = fieldDescriptors.length == 1 &amp;&amp; fieldDescriptors[0].isRepeated() &amp;&amp; descriptor.getName().equalsIgnoreCase(fieldDescriptors[0].getName());</span>
+<span class="fc" id="L143">    }</span>
+
+    static MessageType of(Message message) {
+<span class="fc" id="L146">      MessageType type = TYPES_BY_CLASS.get(message.getClass());</span>
+<span class="fc bfc" id="L147" title="All 2 branches covered.">      if (type == null) {</span>
+<span class="fc" id="L148">        type = new MessageType(message.getDescriptorForType());</span>
+<span class="fc" id="L149">        TYPES_BY_CLASS.put(message.getClass(), type);</span>
+      }
+<span class="fc" id="L151">      return type;</span>
+    }
+  }
+
+  public static void write(Message message, JsonWriter writer) {
+<span class="fc" id="L156">    writer.setSerializeNulls(false).setSerializeEmptys(true);</span>
+<span class="fc" id="L157">    writer.beginObject();</span>
+<span class="fc" id="L158">    writeMessage(message, writer);</span>
+<span class="fc" id="L159">    writer.endObject();</span>
+<span class="fc" id="L160">  }</span>
+
+  public static String toJson(Message message) {
+<span class="fc" id="L163">    StringWriter json = new StringWriter();</span>
+<span class="fc" id="L164">    try (JsonWriter jsonWriter = JsonWriter.of(json)) {</span>
+<span class="fc" id="L165">      write(message, jsonWriter);</span>
+    }
+<span class="fc" id="L167">    return json.toString();</span>
+  }
+
+  private static void writeMessage(Message message, JsonWriter writer) {
+<span class="fc" id="L171">    MessageType type = MessageType.of(message);</span>
+<span class="fc bfc" id="L172" title="All 2 branches covered.">    for (Descriptors.FieldDescriptor fieldDescriptor : type.fieldDescriptors) {</span>
+<span class="fc bfc" id="L173" title="All 2 branches covered.">      if (fieldDescriptor.isRepeated()) {</span>
+<span class="fc" id="L174">        writer.name(fieldDescriptor.getName());</span>
+<span class="fc bfc" id="L175" title="All 2 branches covered.">        if (fieldDescriptor.isMapField()) {</span>
+<span class="fc" id="L176">          writeMap((Collection&lt;MapEntry&gt;) message.getField(fieldDescriptor), writer);</span>
+        } else {
+<span class="fc" id="L178">          writeArray(writer, fieldDescriptor, (Collection) message.getField(fieldDescriptor));</span>
+        }
+<span class="fc bfc" id="L180" title="All 2 branches covered.">      } else if (message.hasField(fieldDescriptor)) {</span>
+<span class="fc" id="L181">        writer.name(fieldDescriptor.getName());</span>
+<span class="fc" id="L182">        Object fieldValue = message.getField(fieldDescriptor);</span>
+<span class="fc" id="L183">        writeFieldValue(fieldDescriptor, fieldValue, writer);</span>
+      }
+    }
+<span class="fc" id="L186">  }</span>
+
+  private static void writeArray(JsonWriter writer, Descriptors.FieldDescriptor fieldDescriptor, Collection array) {
+<span class="fc" id="L189">    writer.beginArray();</span>
+<span class="fc bfc" id="L190" title="All 2 branches covered.">    for (Object o : array) {</span>
+<span class="fc" id="L191">      writeFieldValue(fieldDescriptor, o, writer);</span>
+<span class="fc" id="L192">    }</span>
+<span class="fc" id="L193">    writer.endArray();</span>
+<span class="fc" id="L194">  }</span>
+
+  private static void writeMap(Collection&lt;MapEntry&gt; mapEntries, JsonWriter writer) {
+<span class="fc" id="L197">    writer.beginObject();</span>
+<span class="fc bfc" id="L198" title="All 2 branches covered.">    for (MapEntry mapEntry : mapEntries) {</span>
+      // Key fields are always double-quoted in json
+<span class="fc" id="L200">      writer.name(mapEntry.getKey().toString());</span>
+<span class="fc" id="L201">      Descriptors.FieldDescriptor valueDescriptor = mapEntry.getDescriptorForType().findFieldByName(&quot;value&quot;);</span>
+<span class="fc" id="L202">      writeFieldValue(valueDescriptor, mapEntry.getValue(), writer);</span>
+<span class="fc" id="L203">    }</span>
+<span class="fc" id="L204">    writer.endObject();</span>
+<span class="fc" id="L205">  }</span>
+
+  private static void writeFieldValue(Descriptors.FieldDescriptor fieldDescriptor, Object value, JsonWriter writer) {
+<span class="fc bfc" id="L208" title="All 8 branches covered.">    switch (fieldDescriptor.getJavaType()) {</span>
+      case INT:
+<span class="fc" id="L210">        writer.value((Integer) value);</span>
+<span class="fc" id="L211">        break;</span>
+      case LONG:
+<span class="fc" id="L213">        writer.value((Long) value);</span>
+<span class="fc" id="L214">        break;</span>
+      case DOUBLE:
+<span class="fc" id="L216">        writer.value((Double) value);</span>
+<span class="fc" id="L217">        break;</span>
+      case BOOLEAN:
+<span class="fc" id="L219">        writer.value((Boolean) value);</span>
+<span class="fc" id="L220">        break;</span>
+      case STRING:
+<span class="fc" id="L222">        writer.value((String) value);</span>
+<span class="fc" id="L223">        break;</span>
+      case ENUM:
+<span class="fc" id="L225">        String enumValue = formatEnumValue(fieldDescriptor, (Descriptors.EnumValueDescriptor) value);</span>
+<span class="fc" id="L226">        writer.value(enumValue);</span>
+<span class="fc" id="L227">        break;</span>
+      case MESSAGE:
+<span class="fc" id="L229">        writeMessageValue((Message) value, writer);</span>
+<span class="fc" id="L230">        break;</span>
+      default:
+<span class="fc" id="L232">        throw new IllegalStateException(String.format(&quot;JSON format does not support type '%s' of field '%s'&quot;, fieldDescriptor.getJavaType(), fieldDescriptor.getName()));</span>
+    }
+<span class="fc" id="L234">  }</span>
+
+  /**
+   * As a limitation from protobuf, there can't be the same enum value defined twice in proto, even if they belong to different enums.
+   * To remove this constraint, we let the possibility to have the enum name as the prefix of the enum value to make it unique.
+   * The class will make sure to remove it when converted to JSON.
+   *  @see &lt;a href=&quot;https://github.com/protocolbuffers/protobuf/issues/5425&quot;&gt;https://github.com/protocolbuffers/protobuf/issues/5425&lt;/a&gt;
+   */
+  private static String formatEnumValue(Descriptors.FieldDescriptor fieldDescriptor, Descriptors.EnumValueDescriptor value) {
+<span class="fc" id="L243">    String enumValue = value.getName();</span>
+<span class="fc bfc" id="L244" title="All 2 branches covered.">    if (enumValue.startsWith(fieldDescriptor.getEnumType().getName())) {</span>
+<span class="fc" id="L245">      enumValue = enumValue.substring(fieldDescriptor.getEnumType().getName().length() + 1);</span>
+    }
+<span class="fc" id="L247">    return enumValue;</span>
+  }
+
+  private static void writeMessageValue(Message message, JsonWriter writer) {
+<span class="fc" id="L251">    MessageType messageType = MessageType.of(message);</span>
+<span class="fc bfc" id="L252" title="All 2 branches covered.">    if (messageType.doesWrapRepeated) {</span>
+<span class="fc" id="L253">      Descriptors.FieldDescriptor repeatedDescriptor = messageType.fieldDescriptors[0];</span>
+<span class="fc bfc" id="L254" title="All 2 branches covered.">      if (repeatedDescriptor.isMapField()) {</span>
+<span class="fc" id="L255">        writeMap((Collection&lt;MapEntry&gt;) message.getField(repeatedDescriptor), writer);</span>
+      } else {
+<span class="fc" id="L257">        writeArray(writer, repeatedDescriptor, (Collection) message.getField(repeatedDescriptor));</span>
+      }
+<span class="fc" id="L259">    } else {</span>
+<span class="fc" id="L260">      writer.beginObject();</span>
+<span class="fc" id="L261">      writeMessage(message, writer);</span>
+<span class="fc" id="L262">      writer.endObject();</span>
+    }
+<span class="fc" id="L264">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

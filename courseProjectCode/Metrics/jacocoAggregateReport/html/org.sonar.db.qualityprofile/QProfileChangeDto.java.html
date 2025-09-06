@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>QProfileChangeDto.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.qualityprofile</a> &gt; <span class="el_source">QProfileChangeDto.java</span></div><h1>QProfileChangeDto.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.qualityprofile;
+
+import java.util.Collections;
+import java.util.Map;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
+import org.sonar.api.utils.KeyValueFormat;
+import org.sonar.db.rule.RuleChangeDto;
+
+<span class="fc" id="L31">public class QProfileChangeDto {</span>
+
+  private String uuid;
+  private String rulesProfileUuid;
+  private String changeType;
+  private String userUuid;
+  private String data;
+  private long createdAt;
+  private RuleChangeDto ruleChange;
+  private String sqVersion;
+
+  public String getUuid() {
+<span class="fc" id="L43">    return uuid;</span>
+  }
+
+  public QProfileChangeDto setUuid(String s) {
+<span class="fc" id="L47">    this.uuid = s;</span>
+<span class="fc" id="L48">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getSqVersion() {
+<span class="fc" id="L53">    return sqVersion;</span>
+  }
+
+  public QProfileChangeDto setSqVersion(String sqVersion) {
+<span class="fc" id="L57">    this.sqVersion = sqVersion;</span>
+<span class="fc" id="L58">    return this;</span>
+  }
+
+  public String getRulesProfileUuid() {
+<span class="fc" id="L62">    return rulesProfileUuid;</span>
+  }
+
+  public QProfileChangeDto setRulesProfileUuid(String s) {
+<span class="fc" id="L66">    this.rulesProfileUuid = s;</span>
+<span class="fc" id="L67">    return this;</span>
+  }
+
+  public String getChangeType() {
+<span class="fc" id="L71">    return changeType;</span>
+  }
+
+  public QProfileChangeDto setChangeType(String s) {
+<span class="fc" id="L75">    this.changeType = s;</span>
+<span class="fc" id="L76">    return this;</span>
+  }
+
+  public long getCreatedAt() {
+<span class="fc" id="L80">    return createdAt;</span>
+  }
+
+  public QProfileChangeDto setCreatedAt(long l) {
+<span class="fc" id="L84">    this.createdAt = l;</span>
+<span class="fc" id="L85">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getUserUuid() {
+<span class="fc" id="L90">    return userUuid;</span>
+  }
+
+  public QProfileChangeDto setUserUuid(@Nullable String s) {
+<span class="fc" id="L94">    this.userUuid = s;</span>
+<span class="fc" id="L95">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getData() {
+<span class="fc" id="L100">    return data;</span>
+  }
+
+  public Map&lt;String, String&gt; getDataAsMap() {
+<span class="fc bfc" id="L104" title="All 2 branches covered.">    if (data == null) {</span>
+<span class="fc" id="L105">      return Collections.emptyMap();</span>
+    }
+<span class="fc" id="L107">    return KeyValueFormat.parse(data);</span>
+  }
+
+  public QProfileChangeDto setData(@Nullable String csv) {
+<span class="fc" id="L111">    this.data = csv;</span>
+<span class="fc" id="L112">    return this;</span>
+  }
+
+  public QProfileChangeDto setData(@Nullable Map m) {
+<span class="fc bfc" id="L116" title="All 4 branches covered.">    if (m == null || m.isEmpty()) {</span>
+<span class="fc" id="L117">      this.data = null;</span>
+    } else {
+<span class="fc" id="L119">      this.data = KeyValueFormat.format(m);</span>
+    }
+<span class="fc" id="L121">    return this;</span>
+  }
+
+  public RuleChangeDto getRuleChange() {
+<span class="fc" id="L125">    return ruleChange;</span>
+  }
+
+  public QProfileChangeDto setRuleChange(@Nullable RuleChangeDto ruleChange) {
+<span class="fc" id="L129">    this.ruleChange = ruleChange;</span>
+<span class="fc" id="L130">    return this;</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="nc" id="L135">    return ReflectionToStringBuilder.toString(this, ToStringStyle.SHORT_PREFIX_STYLE);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

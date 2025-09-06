@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NewRuleCreator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.rule.registration</a> &gt; <span class="el_source">NewRuleCreator.java</span></div><h1>NewRuleCreator.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.rule.registration;
+
+import java.util.stream.Collectors;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.api.rules.CleanCodeAttribute;
+import org.sonar.core.rule.RuleType;
+import org.sonar.api.server.debt.DebtRemediationFunction;
+import org.sonar.api.server.rule.RulesDefinition;
+import org.sonar.api.utils.System2;
+import org.sonar.core.rule.RuleTypeMapper;
+import org.sonar.core.util.UuidFactory;
+import org.sonar.db.issue.ImpactDto;
+import org.sonar.db.rule.RuleDto;
+import org.sonar.server.rule.RuleDescriptionSectionsGeneratorResolver;
+
+import static org.apache.commons.lang3.StringUtils.isNotEmpty;
+
+public class NewRuleCreator {
+
+  private final RuleDescriptionSectionsGeneratorResolver ruleDescriptionSectionsGeneratorResolver;
+  private final UuidFactory uuidFactory;
+  private final System2 system2;
+
+<span class="fc" id="L43">  public NewRuleCreator(RuleDescriptionSectionsGeneratorResolver ruleDescriptionSectionsGeneratorResolver, UuidFactory uuidFactory, System2 system2) {</span>
+<span class="fc" id="L44">    this.ruleDescriptionSectionsGeneratorResolver = ruleDescriptionSectionsGeneratorResolver;</span>
+<span class="fc" id="L45">    this.uuidFactory = uuidFactory;</span>
+<span class="fc" id="L46">    this.system2 = system2;</span>
+<span class="fc" id="L47">  }</span>
+
+  RuleDto createNewRule(RulesRegistrationContext context, RulesDefinition.Rule ruleDef) {
+<span class="fc" id="L50">    RuleDto newRule = createRuleWithSimpleFields(ruleDef, uuidFactory.create(), system2.now());</span>
+<span class="fc" id="L51">    ruleDescriptionSectionsGeneratorResolver.generateFor(ruleDef).forEach(newRule::addRuleDescriptionSectionDto);</span>
+<span class="fc" id="L52">    context.created(newRule);</span>
+<span class="fc" id="L53">    return newRule;</span>
+  }
+
+  RuleDto createRuleWithSimpleFields(RulesDefinition.Rule ruleDef, String uuid, long now) {
+<span class="fc" id="L57">    RuleDto ruleDto = new RuleDto()</span>
+<span class="fc" id="L58">      .setUuid(uuid)</span>
+<span class="fc" id="L59">      .setRuleKey(RuleKey.of(ruleDef.repository().key(), ruleDef.key()))</span>
+<span class="fc" id="L60">      .setPluginKey(ruleDef.pluginKey())</span>
+<span class="fc" id="L61">      .setIsTemplate(ruleDef.template())</span>
+<span class="fc" id="L62">      .setConfigKey(ruleDef.internalKey())</span>
+<span class="fc" id="L63">      .setLanguage(ruleDef.repository().language())</span>
+<span class="fc" id="L64">      .setName(ruleDef.name())</span>
+<span class="fc" id="L65">      .setSeverity(ruleDef.severity())</span>
+<span class="fc" id="L66">      .setStatus(ruleDef.status())</span>
+<span class="fc" id="L67">      .setGapDescription(ruleDef.gapDescription())</span>
+<span class="fc" id="L68">      .setSystemTags(ruleDef.tags())</span>
+<span class="fc" id="L69">      .setSecurityStandards(ruleDef.securityStandards())</span>
+<span class="fc" id="L70">      .setType(RuleType.valueOf(ruleDef.type().name()))</span>
+<span class="fc" id="L71">      .setScope(RuleDto.Scope.valueOf(ruleDef.scope().name()))</span>
+<span class="fc" id="L72">      .setIsExternal(ruleDef.repository().isExternal())</span>
+<span class="fc" id="L73">      .setIsAdHoc(false)</span>
+<span class="fc" id="L74">      .setCreatedAt(now)</span>
+<span class="fc" id="L75">      .setUpdatedAt(now)</span>
+<span class="fc" id="L76">      .setEducationPrinciples(ruleDef.educationPrincipleKeys());</span>
+
+<span class="fc bfc" id="L78" title="All 2 branches covered.">    if (RuleType.SECURITY_HOTSPOT != RuleTypeMapper.toRuleType(ruleDef.type())) {</span>
+<span class="fc" id="L79">      CleanCodeAttribute cleanCodeAttribute = ruleDef.cleanCodeAttribute();</span>
+<span class="fc bfc" id="L80" title="All 2 branches covered.">      ruleDto.setCleanCodeAttribute(cleanCodeAttribute != null ? cleanCodeAttribute : CleanCodeAttribute.defaultCleanCodeAttribute());</span>
+<span class="fc" id="L81">      ruleDto.replaceAllDefaultImpacts(ruleDef.defaultImpacts().entrySet()</span>
+<span class="fc" id="L82">        .stream()</span>
+<span class="fc" id="L83">        .map(e -&gt; new ImpactDto().setSoftwareQuality(e.getKey()).setSeverity(e.getValue()))</span>
+<span class="fc" id="L84">        .collect(Collectors.toSet()));</span>
+    }
+
+<span class="fc bfc" id="L87" title="All 2 branches covered.">    if (isNotEmpty(ruleDef.htmlDescription())) {</span>
+<span class="fc" id="L88">      ruleDto.setDescriptionFormat(RuleDto.Format.HTML);</span>
+<span class="pc bpc" id="L89" title="1 of 2 branches missed.">    } else if (isNotEmpty(ruleDef.markdownDescription())) {</span>
+<span class="nc" id="L90">      ruleDto.setDescriptionFormat(RuleDto.Format.MARKDOWN);</span>
+    }
+
+<span class="fc" id="L93">    DebtRemediationFunction debtRemediationFunction = ruleDef.debtRemediationFunction();</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">    if (debtRemediationFunction != null) {</span>
+<span class="fc" id="L95">      ruleDto.setDefRemediationFunction(debtRemediationFunction.type().name());</span>
+<span class="fc" id="L96">      ruleDto.setDefRemediationGapMultiplier(debtRemediationFunction.gapMultiplier());</span>
+<span class="fc" id="L97">      ruleDto.setDefRemediationBaseEffort(debtRemediationFunction.baseEffort());</span>
+<span class="fc" id="L98">      ruleDto.setGapDescription(ruleDef.gapDescription());</span>
+    }
+
+<span class="fc" id="L101">    return ruleDto;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

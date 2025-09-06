@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WebhookDeliveryDto.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.webhook</a> &gt; <span class="el_source">WebhookDeliveryDto.java</span></div><h1>WebhookDeliveryDto.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.webhook;
+
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+
+<span class="fc" id="L26">public class WebhookDeliveryDto extends WebhookDeliveryLiteDto&lt;WebhookDeliveryDto&gt; {</span>
+  /** Error message if HTTP request cannot be sent, else null */
+  private String errorStacktrace;
+  /** The payload that has been sent, cannot be null */
+  private String payload;
+
+  @CheckForNull
+  public String getErrorStacktrace() {
+<span class="fc" id="L34">    return errorStacktrace;</span>
+  }
+
+  public WebhookDeliveryDto setErrorStacktrace(@Nullable String s) {
+<span class="fc" id="L38">    this.errorStacktrace = s;</span>
+<span class="fc" id="L39">    return this;</span>
+  }
+
+  public String getPayload() {
+<span class="fc" id="L43">    return payload;</span>
+  }
+
+  public WebhookDeliveryDto setPayload(String s) {
+<span class="fc" id="L47">    this.payload = s;</span>
+<span class="fc" id="L48">    return this;</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="nc" id="L53">    return new ToStringBuilder(this)</span>
+<span class="nc" id="L54">      .append(&quot;uuid&quot;, uuid)</span>
+<span class="nc" id="L55">      .append(&quot;projectUuid&quot;, projectUuid)</span>
+<span class="nc" id="L56">      .append(&quot;name&quot;, name)</span>
+<span class="nc" id="L57">      .append(&quot;success&quot;, success)</span>
+<span class="nc" id="L58">      .append(&quot;httpStatus&quot;, httpStatus)</span>
+<span class="nc" id="L59">      .append(&quot;durationMs&quot;, durationMs)</span>
+<span class="nc" id="L60">      .append(&quot;url&quot;, url)</span>
+<span class="nc" id="L61">      .append(&quot;errorStacktrace&quot;, errorStacktrace)</span>
+<span class="nc" id="L62">      .append(&quot;createdAt&quot;, createdAt)</span>
+<span class="nc" id="L63">      .toString();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

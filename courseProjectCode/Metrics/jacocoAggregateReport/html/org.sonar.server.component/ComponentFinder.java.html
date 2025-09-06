@@ -1,0 +1,305 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ComponentFinder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.component</a> &gt; <span class="el_source">ComponentFinder.java</span></div><h1>ComponentFinder.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.component;
+
+import java.util.Collection;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import javax.annotation.Nullable;
+import org.sonar.db.component.ComponentQualifiers;
+import org.sonar.db.component.ComponentScopes;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.BranchDto;
+import org.sonar.db.component.ComponentDto;
+import org.sonar.db.entity.EntityDto;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.server.exceptions.NotFoundException;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.lang.String.format;
+import static org.sonar.server.exceptions.BadRequestException.checkRequest;
+
+public class ComponentFinder {
+  private static final String MSG_COMPONENT_ID_OR_KEY_TEMPLATE = &quot;Either '%s' or '%s' must be provided&quot;;
+  private static final String MSG_PARAMETER_MUST_NOT_BE_EMPTY = &quot;The '%s' parameter must not be empty&quot;;
+  private static final String LABEL_PROJECT = &quot;Project&quot;;
+  private static final String LABEL_COMPONENT = &quot;Component&quot;;
+  private static final String LABEL_PROJECT_NOT_FOUND = &quot;Project '%s' not found&quot;;
+  private static final String LABEL_ENTITY_NOT_FOUND = &quot;Component '%s' not found&quot;;
+
+  private final DbClient dbClient;
+  private final ComponentTypes componentTypes;
+
+<span class="fc" id="L52">  public ComponentFinder(DbClient dbClient, ComponentTypes componentTypes) {</span>
+<span class="fc" id="L53">    this.dbClient = dbClient;</span>
+<span class="fc" id="L54">    this.componentTypes = componentTypes;</span>
+<span class="fc" id="L55">  }</span>
+
+  public ComponentDto getByUuidOrKey(DbSession dbSession, @Nullable String componentUuid, @Nullable String componentKey, ParamNames parameterNames) {
+<span class="fc" id="L58">    checkByUuidOrKey(componentUuid, componentKey, parameterNames);</span>
+
+<span class="fc bfc" id="L60" title="All 2 branches covered.">    if (componentUuid != null) {</span>
+<span class="fc" id="L61">      return getByUuidFromMainBranch(dbSession, checkParamNotEmpty(componentUuid, parameterNames.getUuidParam()));</span>
+    }
+
+<span class="fc" id="L64">    return getByKey(dbSession, checkParamNotEmpty(componentKey, parameterNames.getKeyParam()));</span>
+  }
+
+  public EntityDto getEntityByUuidOrKey(DbSession dbSession, @Nullable String entityUuid, @Nullable String entityKey, ParamNames parameterNames) {
+<span class="nc" id="L68">    checkByUuidOrKey(entityUuid, entityKey, parameterNames);</span>
+
+<span class="nc bnc" id="L70" title="All 2 branches missed.">    if (entityUuid != null) {</span>
+<span class="nc" id="L71">      return getEntityByUuid(dbSession, checkParamNotEmpty(entityUuid, parameterNames.getUuidParam()));</span>
+    }
+<span class="nc" id="L73">    return getEntityByKey(dbSession, checkParamNotEmpty(entityKey, parameterNames.getKeyParam()));</span>
+  }
+
+  public EntityDto getEntityByKey(DbSession dbSession, String entityKey) {
+<span class="fc" id="L77">    return dbClient.entityDao().selectByKey(dbSession, entityKey)</span>
+<span class="fc" id="L78">      .orElseThrow(() -&gt; new NotFoundException(String.format(LABEL_ENTITY_NOT_FOUND, entityKey)));</span>
+  }
+
+  public EntityDto getEntityByUuid(DbSession dbSession, String entityUuid) {
+<span class="nc" id="L82">    return dbClient.entityDao().selectByUuid(dbSession, entityUuid)</span>
+<span class="nc" id="L83">      .orElseThrow(() -&gt; new NotFoundException(String.format(LABEL_ENTITY_NOT_FOUND, entityUuid)));</span>
+  }
+
+  public ProjectDto getProjectByKey(DbSession dbSession, String projectKey) {
+<span class="fc" id="L87">    return dbClient.projectDao().selectProjectByKey(dbSession, projectKey)</span>
+<span class="fc" id="L88">      .orElseThrow(() -&gt; new NotFoundException(String.format(LABEL_PROJECT_NOT_FOUND, projectKey)));</span>
+  }
+
+  public ProjectDto getApplicationByKey(DbSession dbSession, String applicationKey) {
+<span class="nc" id="L92">    return dbClient.projectDao().selectApplicationByKey(dbSession, applicationKey)</span>
+<span class="nc" id="L93">      .orElseThrow(() -&gt; new NotFoundException(String.format(&quot;Application '%s' not found&quot;, applicationKey)));</span>
+  }
+
+  public ProjectDto getProjectOrApplicationByKey(DbSession dbSession, String projectKey) {
+<span class="fc" id="L97">    return dbClient.projectDao().selectProjectOrAppByKey(dbSession, projectKey)</span>
+<span class="fc" id="L98">      .orElseThrow(() -&gt; new NotFoundException(String.format(LABEL_PROJECT_NOT_FOUND, projectKey)));</span>
+  }
+
+  public ProjectDto getProjectByUuid(DbSession dbSession, String projectUuid) {
+<span class="fc" id="L102">    return dbClient.projectDao().selectByUuid(dbSession, projectUuid)</span>
+<span class="fc" id="L103">      .filter(p -&gt; ComponentQualifiers.PROJECT.equals(p.getQualifier()))</span>
+<span class="fc" id="L104">      .orElseThrow(() -&gt; new NotFoundException(String.format(LABEL_PROJECT_NOT_FOUND, projectUuid)));</span>
+  }
+
+  public ProjectDto getProjectByUuidOrKey(DbSession dbSession, @Nullable String projectUuid, @Nullable String projectKey, ParamNames parameterNames) {
+<span class="fc" id="L108">    checkByUuidOrKey(projectUuid, projectKey, parameterNames);</span>
+
+<span class="fc bfc" id="L110" title="All 2 branches covered.">    if (projectUuid != null) {</span>
+<span class="fc" id="L111">      return getProjectByUuid(dbSession, checkParamNotEmpty(projectUuid, parameterNames.getUuidParam()));</span>
+    }
+
+<span class="fc" id="L114">    return getProjectByKey(dbSession, checkParamNotEmpty(projectKey, parameterNames.getKeyParam()));</span>
+  }
+
+  private static String checkParamNotEmpty(String value, String param) {
+<span class="fc bfc" id="L118" title="All 2 branches covered.">    checkArgument(!value.isEmpty(), MSG_PARAMETER_MUST_NOT_BE_EMPTY, param);</span>
+<span class="fc" id="L119">    return value;</span>
+  }
+
+  public BranchDto getBranchByUuid(DbSession dbSession, String branchUuid) {
+<span class="nc" id="L123">    return dbClient.branchDao().selectByUuid(dbSession, branchUuid)</span>
+<span class="nc" id="L124">      .orElseThrow(() -&gt; new NotFoundException(String.format(&quot;Branch uuid '%s' not found&quot;, branchUuid)));</span>
+  }
+
+  public BranchDto getBranchOrPullRequest(DbSession dbSession, EntityDto entity, @Nullable String branchKey, @Nullable String pullRequestKey) {
+<span class="fc" id="L128">    return getBranchOrPullRequest(dbSession, entity.getUuid(), entity.getKey(), branchKey, pullRequestKey);</span>
+  }
+
+  public ProjectAndBranch getAppOrProjectAndBranch(DbSession dbSession, String projectKey, @Nullable String branchKey, @Nullable String pullRequestKey) {
+<span class="fc" id="L132">    ProjectDto projectOrApp = getProjectOrApplicationByKey(dbSession, projectKey);</span>
+<span class="fc" id="L133">    BranchDto branch = getBranchOrPullRequest(dbSession, projectOrApp, branchKey, pullRequestKey);</span>
+<span class="fc" id="L134">    return new ProjectAndBranch(projectOrApp, branch);</span>
+  }
+
+  public ProjectAndBranch getProjectAndBranch(DbSession dbSession, String projectKey, @Nullable String branchKey, @Nullable String pullRequestKey) {
+<span class="fc" id="L138">    ProjectDto project = getProjectByKey(dbSession, projectKey);</span>
+<span class="fc" id="L139">    BranchDto branch = getBranchOrPullRequest(dbSession, project, branchKey, pullRequestKey);</span>
+<span class="fc" id="L140">    return new ProjectAndBranch(project, branch);</span>
+  }
+
+  public static class ProjectAndBranch {
+    private final ProjectDto project;
+    private final BranchDto branch;
+
+<span class="fc" id="L147">    public ProjectAndBranch(ProjectDto project, BranchDto branch) {</span>
+<span class="fc" id="L148">      this.project = project;</span>
+<span class="fc" id="L149">      this.branch = branch;</span>
+<span class="fc" id="L150">    }</span>
+
+    public ProjectDto getProject() {
+<span class="fc" id="L153">      return project;</span>
+    }
+
+    public BranchDto getBranch() {
+<span class="fc" id="L157">      return branch;</span>
+    }
+  }
+
+  public BranchDto getBranchOrPullRequest(DbSession dbSession, String projectUuid, String projectKey, @Nullable String branchKey, @Nullable String pullRequestKey) {
+<span class="fc bfc" id="L162" title="All 2 branches covered.">    if (branchKey != null) {</span>
+<span class="fc" id="L163">      return dbClient.branchDao().selectByBranchKey(dbSession, projectUuid, branchKey)</span>
+<span class="fc" id="L164">        .orElseThrow(() -&gt; new NotFoundException(String.format(&quot;Branch '%s' in project '%s' not found&quot;, branchKey, projectKey)));</span>
+<span class="fc bfc" id="L165" title="All 2 branches covered.">    } else if (pullRequestKey != null) {</span>
+<span class="fc" id="L166">      return dbClient.branchDao().selectByPullRequestKey(dbSession, projectUuid, pullRequestKey)</span>
+<span class="pc" id="L167">        .orElseThrow(() -&gt; new NotFoundException(String.format(&quot;Pull request '%s' in project '%s' not found&quot;, pullRequestKey, projectKey)));</span>
+    }
+<span class="fc" id="L169">    return dbClient.branchDao().selectMainBranchByProjectUuid(dbSession, projectUuid)</span>
+<span class="pc" id="L170">      .orElseThrow(() -&gt; new NotFoundException(String.format(&quot;Main branch in project '%s' not found&quot;, projectKey)));</span>
+  }
+
+  public BranchDto getMainBranch(DbSession dbSession, ProjectDto projectDto) {
+<span class="fc" id="L174">    return dbClient.branchDao().selectMainBranchByProjectUuid(dbSession, projectDto.getUuid())</span>
+<span class="fc" id="L175">      .orElseThrow(() -&gt; new IllegalStateException(String.format(&quot;Can't find main branch for project '%s'&quot;, projectDto.getKey())));</span>
+  }
+
+  private static void checkByUuidOrKey(@Nullable String componentUuid, @Nullable String componentKey, ParamNames parameterNames) {
+<span class="fc bfc" id="L179" title="All 4 branches covered.">    checkArgument(componentUuid != null ^ componentKey != null, MSG_COMPONENT_ID_OR_KEY_TEMPLATE, parameterNames.getUuidParam(), parameterNames.getKeyParam());</span>
+<span class="fc" id="L180">  }</span>
+
+  public ComponentDto getByKey(DbSession dbSession, String key) {
+<span class="fc" id="L183">    return getByKey(dbSession, key, LABEL_COMPONENT);</span>
+  }
+
+  private ComponentDto getByKey(DbSession dbSession, String key, String label) {
+<span class="fc" id="L187">    return checkComponent(dbSession, dbClient.componentDao().selectByKey(dbSession, key), &quot;%s key '%s' not found&quot;, label, key);</span>
+  }
+
+  public ComponentDto getByUuidFromMainBranch(DbSession dbSession, String uuid) {
+<span class="fc" id="L191">    return getByUuidFromMainBranch(dbSession, uuid, LABEL_COMPONENT);</span>
+  }
+
+  private ComponentDto getByUuidFromMainBranch(DbSession dbSession, String uuid, String label) {
+<span class="fc" id="L195">    return checkComponent(dbSession, dbClient.componentDao().selectByUuid(dbSession, uuid), &quot;%s id '%s' not found&quot;, label, uuid);</span>
+  }
+
+  private ComponentDto checkComponent(DbSession session, Optional&lt;ComponentDto&gt; componentDto, String message, Object... messageArguments) {
+<span class="fc bfc" id="L199" title="All 4 branches covered.">    if (componentDto.isPresent() &amp;&amp; componentDto.get().isEnabled()) {</span>
+<span class="fc bfc" id="L200" title="All 2 branches covered.">      if (dbClient.branchDao().selectByUuid(session, componentDto.get().branchUuid()).map(BranchDto::isMain).orElse(true)) {</span>
+<span class="fc" id="L201">        return componentDto.get();</span>
+      }
+    }
+<span class="fc" id="L204">    throw new NotFoundException(format(message, messageArguments));</span>
+  }
+
+  public ComponentDto getRootComponentByUuidOrKey(DbSession dbSession, @Nullable String projectUuid, @Nullable String projectKey) {
+    ComponentDto project;
+<span class="nc bnc" id="L209" title="All 2 branches missed.">    if (projectUuid != null) {</span>
+<span class="nc" id="L210">      project = getByUuidFromMainBranch(dbSession, projectUuid, LABEL_PROJECT);</span>
+    } else {
+<span class="nc" id="L212">      project = getByKey(dbSession, projectKey, LABEL_PROJECT);</span>
+    }
+<span class="nc" id="L214">    checkIsProject(project);</span>
+
+<span class="nc" id="L216">    return project;</span>
+  }
+
+  private ComponentDto checkIsProject(ComponentDto component) {
+<span class="nc" id="L220">    Set&lt;String&gt; rootQualifiers = getRootQualifiers(componentTypes);</span>
+
+<span class="nc bnc" id="L222" title="All 4 branches missed.">    checkRequest(component.scope().equals(ComponentScopes.PROJECT) &amp;&amp; rootQualifiers.contains(component.qualifier()),</span>
+<span class="nc" id="L223">      format(</span>
+        &quot;Component '%s' (id: %s) must be a project%s.&quot;,
+<span class="nc" id="L225">        component.getKey(), component.uuid(),</span>
+<span class="nc bnc" id="L226" title="All 2 branches missed.">        rootQualifiers.contains(ComponentQualifiers.VIEW) ? &quot; or a view&quot; : &quot;&quot;));</span>
+
+<span class="nc" id="L228">    return component;</span>
+  }
+
+  private static Set&lt;String&gt; getRootQualifiers(ComponentTypes componentTypes) {
+<span class="nc" id="L232">    Collection&lt;ComponentType&gt; rootTypes = componentTypes.getRoots();</span>
+<span class="nc" id="L233">    return rootTypes</span>
+<span class="nc" id="L234">      .stream()</span>
+<span class="nc" id="L235">      .map(ComponentType::getQualifier)</span>
+<span class="nc" id="L236">      .collect(Collectors.toSet());</span>
+  }
+
+  public ComponentDto getByKeyAndBranch(DbSession dbSession, String key, String branch) {
+<span class="fc" id="L240">    Optional&lt;ComponentDto&gt; componentDto = dbClient.componentDao().selectByKeyAndBranch(dbSession, key, branch);</span>
+<span class="pc bpc" id="L241" title="1 of 4 branches missed.">    if (componentDto.isPresent() &amp;&amp; componentDto.get().isEnabled()) {</span>
+<span class="fc" id="L242">      return componentDto.get();</span>
+    }
+<span class="fc" id="L244">    throw new NotFoundException(format(&quot;Component '%s' on branch '%s' not found&quot;, key, branch));</span>
+  }
+
+  public ComponentDto getByKeyAndPullRequest(DbSession dbSession, String key, String pullRequest) {
+<span class="fc" id="L248">    Optional&lt;ComponentDto&gt; componentDto = dbClient.componentDao().selectByKeyAndPullRequest(dbSession, key, pullRequest);</span>
+<span class="pc bpc" id="L249" title="2 of 4 branches missed.">    if (componentDto.isPresent() &amp;&amp; componentDto.get().isEnabled()) {</span>
+<span class="fc" id="L250">      return componentDto.get();</span>
+    }
+<span class="nc" id="L252">    throw new NotFoundException(format(&quot;Component '%s' of pull request '%s' not found&quot;, key, pullRequest));</span>
+  }
+
+  public ComponentDto getByKeyAndOptionalBranchOrPullRequest(DbSession dbSession, String key, @Nullable String branch, @Nullable String pullRequest) {
+<span class="fc bfc" id="L256" title="All 4 branches covered.">    checkArgument(branch == null || pullRequest == null, &quot;Either branch or pull request can be provided, not both&quot;);</span>
+<span class="fc bfc" id="L257" title="All 2 branches covered.">    if (branch != null) {</span>
+<span class="fc" id="L258">      return getByKeyAndBranch(dbSession, key, branch);</span>
+<span class="fc bfc" id="L259" title="All 2 branches covered.">    } else if (pullRequest != null) {</span>
+<span class="fc" id="L260">      return getByKeyAndPullRequest(dbSession, key, pullRequest);</span>
+    }
+<span class="fc" id="L262">    return getByKey(dbSession, key);</span>
+  }
+
+  public Optional&lt;ComponentDto&gt; getOptionalByKeyAndOptionalBranchOrPullRequest(DbSession dbSession, String key, @Nullable String branch, @Nullable String pullRequest) {
+<span class="pc bpc" id="L266" title="1 of 4 branches missed.">    checkArgument(branch == null || pullRequest == null, &quot;Either branch or pull request can be provided, not both&quot;);</span>
+<span class="fc bfc" id="L267" title="All 2 branches covered.">    if (branch != null) {</span>
+<span class="fc" id="L268">      return dbClient.componentDao().selectByKeyAndBranch(dbSession, key, branch);</span>
+<span class="fc bfc" id="L269" title="All 2 branches covered.">    } else if (pullRequest != null) {</span>
+<span class="fc" id="L270">      return dbClient.componentDao().selectByKeyAndPullRequest(dbSession, key, pullRequest);</span>
+    }
+<span class="fc" id="L272">    return dbClient.componentDao().selectByKey(dbSession, key);</span>
+  }
+
+<span class="fc" id="L275">  public enum ParamNames {</span>
+<span class="fc" id="L276">    PROJECT_ID_AND_KEY(&quot;projectId&quot;, &quot;projectKey&quot;),</span>
+<span class="fc" id="L277">    PROJECT_UUID_AND_KEY(&quot;projectUuid&quot;, &quot;projectKey&quot;),</span>
+<span class="fc" id="L278">    PROJECT_UUID_AND_PROJECT(&quot;projectUuid&quot;, &quot;project&quot;),</span>
+<span class="fc" id="L279">    UUID_AND_KEY(&quot;uuid&quot;, &quot;key&quot;),</span>
+<span class="fc" id="L280">    ID_AND_KEY(&quot;id&quot;, &quot;key&quot;),</span>
+<span class="fc" id="L281">    COMPONENT_ID_AND_KEY(&quot;componentId&quot;, &quot;componentKey&quot;),</span>
+<span class="fc" id="L282">    BASE_COMPONENT_ID_AND_KEY(&quot;baseComponentId&quot;, &quot;component&quot;),</span>
+<span class="fc" id="L283">    DEVELOPER_ID_AND_KEY(&quot;developerId&quot;, &quot;developerKey&quot;),</span>
+<span class="fc" id="L284">    COMPONENT_ID_AND_COMPONENT(&quot;componentId&quot;, &quot;component&quot;),</span>
+<span class="fc" id="L285">    PROJECT_ID_AND_PROJECT(&quot;projectId&quot;, &quot;project&quot;),</span>
+<span class="fc" id="L286">    PROJECT_ID_AND_FROM(&quot;projectId&quot;, &quot;from&quot;);</span>
+
+    private final String uuidParamName;
+    private final String keyParamName;
+
+<span class="fc" id="L291">    ParamNames(String uuidParamName, String keyParamName) {</span>
+<span class="fc" id="L292">      this.uuidParamName = uuidParamName;</span>
+<span class="fc" id="L293">      this.keyParamName = keyParamName;</span>
+<span class="fc" id="L294">    }</span>
+
+    public String getUuidParam() {
+<span class="fc" id="L297">      return uuidParamName;</span>
+    }
+
+    public String getKeyParam() {
+<span class="fc" id="L301">      return keyParamName;</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

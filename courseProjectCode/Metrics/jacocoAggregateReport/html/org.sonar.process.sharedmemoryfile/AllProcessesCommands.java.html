@@ -1,0 +1,325 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AllProcessesCommands.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.process.sharedmemoryfile</a> &gt; <span class="el_source">AllProcessesCommands.java</span></div><h1>AllProcessesCommands.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.process.sharedmemoryfile;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.nio.MappedByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.charset.StandardCharsets;
+import org.apache.commons.io.IOUtils;
+
+import static java.lang.String.format;
+import static org.apache.commons.lang3.StringUtils.rightPad;
+import static org.sonar.process.sharedmemoryfile.ProcessCommands.MAX_PROCESSES;
+
+/**
+ * Process inter-communication to :
+ * &lt;ul&gt;
+ *   &lt;li&gt;share status of child process&lt;/li&gt;
+ *   &lt;li&gt;stop/restart child process&lt;/li&gt;
+ * &lt;/ul&gt;
+ *
+ * &lt;p&gt;
+ * It relies on a single file accessed by all processes through a {@link MappedByteBuffer}.&lt;br/&gt;
+ * Following alternatives were considered but not selected :
+ * &lt;ul&gt;
+ *   &lt;li&gt;JMX beans over RMI: network issues (mostly because of Java reverse-DNS) + requires to configure and open a new port&lt;/li&gt;
+ *   &lt;li&gt;simple socket protocol: same drawbacks are RMI connection&lt;/li&gt;
+ *   &lt;li&gt;java.lang.Process#destroy(): shutdown hooks are not executed on some OS (mostly MSWindows)&lt;/li&gt;
+ *   &lt;li&gt;execute OS-specific commands (for instance kill on *nix): OS-specific, so hell to support. Moreover how to get identify a process ?&lt;/li&gt;
+ * &lt;/ul&gt;
+ * &lt;/p&gt;
+ *
+ * &lt;p&gt;
+ * The file contains {@link ProcessCommands#MAX_PROCESSES} groups of {@link #BYTE_LENGTH_FOR_ONE_PROCESS} bits.
+ * Each group of byte is used as follow:
+ * &lt;ul&gt;
+ *   &lt;li&gt;First byte contains {@link #EMPTY} until process is UP and writes {@link #UP}&lt;/li&gt;
+ *   &lt;li&gt;Second byte contains {@link #EMPTY} until any process requests current one to hard stop by writing value {@link #HARD_STOP}&lt;/li&gt;
+ *   &lt;li&gt;Third byte contains {@link #EMPTY} until any process requests current one to stop by writing value {@link #STOP}&lt;/li&gt;
+ *   &lt;li&gt;Fourth byte contains {@link #EMPTY} until any process requests current one to restart by writing value {@link #RESTART}.
+ *       Process acknowledges restart by writing back {@link #EMPTY}&lt;/li&gt;
+ *   &lt;li&gt;Fifth byte will always contain {@link #EMPTY} unless process declares that it is operational by writing {@link #OPERATIONAL}.
+ *       This does not imply that it is done starting.&lt;/li&gt;
+ *   &lt;li&gt;The next 8 bytes contains a long (value of {@link System#currentTimeMillis()}) which represents the date of the last ping&lt;/li&gt;
+ * &lt;/ul&gt;
+ * &lt;/p&gt;
+ */
+public class AllProcessesCommands implements AutoCloseable {
+  private static final int UP_BYTE_OFFSET = 0;
+  private static final int HARD_STOP_BYTE_OFFSET = 1;
+  private static final int STOP_BYTE_OFFSET = 2;
+  private static final int RESTART_BYTE_OFFSET = 3;
+  private static final int OPERATIONAL_BYTE_OFFSET = 4;
+  private static final int PING_BYTE_OFFSET = 5;
+  private static final int SYSTEM_INFO_URL_BYTE_OFFSET = PING_BYTE_OFFSET + 8;
+
+  private static final int SYSTEM_INFO_URL_SIZE_IN_BYTES = 500;
+
+  private static final int BYTE_LENGTH_FOR_ONE_PROCESS = 1 + 1 + 1 + 1 + 1 + 8 + SYSTEM_INFO_URL_SIZE_IN_BYTES;
+
+  // With this shared memory we can handle up to MAX_PROCESSES processes
+  private static final int MAX_SHARED_MEMORY = BYTE_LENGTH_FOR_ONE_PROCESS * MAX_PROCESSES;
+
+  private static final byte HARD_STOP = (byte) 0xFF;
+  private static final byte STOP = (byte) 0xD2;
+  private static final byte RESTART = (byte) 0xAA;
+  private static final byte OPERATIONAL = (byte) 0x59;
+  private static final byte UP = (byte) 0x01;
+  private static final byte EMPTY = (byte) 0x00;
+
+  // VisibleForTesting
+  final MappedByteBuffer mappedByteBuffer;
+  private final RandomAccessFile sharedMemory;
+
+<span class="fc" id="L94">  public AllProcessesCommands(File directory) {</span>
+<span class="pc bpc" id="L95" title="1 of 4 branches missed.">    if (!directory.isDirectory() || !directory.exists()) {</span>
+<span class="fc" id="L96">      throw new IllegalArgumentException(&quot;Not a valid directory: &quot; + directory);</span>
+    }
+
+    try {
+<span class="fc" id="L100">      sharedMemory = new RandomAccessFile(new File(directory, &quot;sharedmemory&quot;), &quot;rw&quot;);</span>
+<span class="fc" id="L101">      mappedByteBuffer = sharedMemory.getChannel().map(FileChannel.MapMode.READ_WRITE, 0, MAX_SHARED_MEMORY);</span>
+<span class="nc" id="L102">    } catch (IOException e) {</span>
+<span class="nc" id="L103">      throw new IllegalArgumentException(&quot;Unable to create shared memory : &quot;, e);</span>
+<span class="fc" id="L104">    }</span>
+<span class="fc" id="L105">  }</span>
+
+  public void clean() {
+<span class="fc bfc" id="L108" title="All 2 branches covered.">    for (int i = 0; i &lt; MAX_PROCESSES; i++) {</span>
+<span class="fc" id="L109">      cleanData(i);</span>
+    }
+<span class="fc" id="L111">  }</span>
+
+  public ProcessCommands create(int processNumber) {
+<span class="fc" id="L114">    return createForProcess(processNumber, false);</span>
+  }
+
+  public ProcessCommands createAfterClean(int processNumber) {
+<span class="fc" id="L118">    return createForProcess(processNumber, true);</span>
+  }
+
+  private ProcessCommands createForProcess(int processNumber, boolean clean) {
+<span class="fc" id="L122">    checkProcessNumber(processNumber);</span>
+<span class="fc" id="L123">    ProcessCommands processCommands = new ProcessCommandsImpl(processNumber);</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">    if (clean) {</span>
+<span class="fc" id="L125">      cleanData(processNumber);</span>
+    }
+<span class="fc" id="L127">    return processCommands;</span>
+  }
+
+  boolean isUp(int processNumber) {
+<span class="fc bfc" id="L131" title="All 2 branches covered.">    return readByte(processNumber, UP_BYTE_OFFSET) == UP;</span>
+  }
+
+  /**
+   * To be executed by child process to declare that it is done starting
+   */
+  void setUp(int processNumber) {
+<span class="fc" id="L138">    writeByte(processNumber, UP_BYTE_OFFSET, UP);</span>
+<span class="fc" id="L139">  }</span>
+
+  boolean isOperational(int processNumber) {
+<span class="fc bfc" id="L142" title="All 2 branches covered.">    return readByte(processNumber, OPERATIONAL_BYTE_OFFSET) == OPERATIONAL;</span>
+  }
+
+  /**
+   * To be executed by child process to declare that it is started and fully operational
+   */
+  void setOperational(int processNumber) {
+<span class="fc" id="L149">    writeByte(processNumber, OPERATIONAL_BYTE_OFFSET, OPERATIONAL);</span>
+<span class="fc" id="L150">  }</span>
+
+  String getSystemInfoUrl(int processNumber) {
+<span class="fc" id="L153">    byte[] urlBytes = readBytes(processNumber, SYSTEM_INFO_URL_BYTE_OFFSET, SYSTEM_INFO_URL_SIZE_IN_BYTES);</span>
+<span class="fc" id="L154">    return new String(urlBytes, StandardCharsets.US_ASCII).trim();</span>
+  }
+
+  void setSystemInfoUrl(int processNumber, String url) {
+<span class="fc" id="L158">    byte[] urlBytes = rightPad(url, SYSTEM_INFO_URL_SIZE_IN_BYTES).getBytes(StandardCharsets.US_ASCII);</span>
+<span class="pc bpc" id="L159" title="1 of 2 branches missed.">    if (urlBytes.length &gt; SYSTEM_INFO_URL_SIZE_IN_BYTES) {</span>
+<span class="nc" id="L160">      throw new IllegalArgumentException(format(&quot;System Info URL is too long. Max is %d bytes. Got: %s&quot;, SYSTEM_INFO_URL_SIZE_IN_BYTES, url));</span>
+    }
+<span class="fc" id="L162">    writeBytes(processNumber, SYSTEM_INFO_URL_BYTE_OFFSET, urlBytes);</span>
+<span class="fc" id="L163">  }</span>
+
+  /**
+   * To be executed by monitor process to ask for graceful child process termination
+   */
+  void askForStop(int processNumber) {
+<span class="fc" id="L169">    writeByte(processNumber, STOP_BYTE_OFFSET, STOP);</span>
+<span class="fc" id="L170">  }</span>
+
+  boolean askedForStop(int processNumber) {
+<span class="fc bfc" id="L173" title="All 2 branches covered.">    return readByte(processNumber, STOP_BYTE_OFFSET) == STOP;</span>
+  }
+
+  /**
+   * To be executed by monitor process to ask for quick child process termination
+   */
+  void askForHardStop(int processNumber) {
+<span class="fc" id="L180">    writeByte(processNumber, HARD_STOP_BYTE_OFFSET, HARD_STOP);</span>
+<span class="fc" id="L181">  }</span>
+
+  boolean askedForHardStop(int processNumber) {
+<span class="fc bfc" id="L184" title="All 2 branches covered.">    return readByte(processNumber, HARD_STOP_BYTE_OFFSET) == HARD_STOP;</span>
+  }
+
+  void askForRestart(int processNumber) {
+<span class="fc" id="L188">    writeByte(processNumber, RESTART_BYTE_OFFSET, RESTART);</span>
+<span class="fc" id="L189">  }</span>
+
+  boolean askedForRestart(int processNumber) {
+<span class="fc bfc" id="L192" title="All 2 branches covered.">    return readByte(processNumber, RESTART_BYTE_OFFSET) == RESTART;</span>
+  }
+
+  void acknowledgeAskForRestart(int processNumber) {
+<span class="fc" id="L196">    writeByte(processNumber, RESTART_BYTE_OFFSET, EMPTY);</span>
+<span class="fc" id="L197">  }</span>
+
+  @Override
+  public void close() {
+<span class="fc" id="L201">    IOUtils.closeQuietly(sharedMemory);</span>
+<span class="fc" id="L202">  }</span>
+
+  public void checkProcessNumber(int processNumber) {
+<span class="fc bfc" id="L205" title="All 4 branches covered.">    if (processNumber &lt; 0 || processNumber &gt;= MAX_PROCESSES) {</span>
+<span class="fc" id="L206">      throw new IllegalArgumentException(format(&quot;Process number %s is not valid&quot;, processNumber));</span>
+    }
+<span class="fc" id="L208">  }</span>
+
+  private void cleanData(int processNumber) {
+<span class="fc bfc" id="L211" title="All 2 branches covered.">    for (int i = 0; i &lt; BYTE_LENGTH_FOR_ONE_PROCESS; i++) {</span>
+<span class="fc" id="L212">      writeByte(processNumber, i, EMPTY);</span>
+    }
+<span class="fc" id="L214">  }</span>
+
+  private void writeByte(int processNumber, int offset, byte value) {
+<span class="fc" id="L217">    mappedByteBuffer.put(offset(processNumber) + offset, value);</span>
+<span class="fc" id="L218">  }</span>
+
+  private void writeBytes(int processNumber, int offset, byte[] value) {
+<span class="fc" id="L221">    int bufferOffset = offset(processNumber) + offset;</span>
+<span class="fc bfc" id="L222" title="All 2 branches covered.">    for (int i = 0; i &lt; value.length; i++) {</span>
+<span class="fc" id="L223">      mappedByteBuffer.put(bufferOffset + i, value[i]);</span>
+    }
+<span class="fc" id="L225">  }</span>
+
+  private byte readByte(int processNumber, int offset) {
+<span class="fc" id="L228">    return mappedByteBuffer.get(offset(processNumber) + offset);</span>
+  }
+
+  private byte[] readBytes(int processNumber, int offset, int length) {
+<span class="fc" id="L232">    int bufferOffset = offset(processNumber) + offset;</span>
+<span class="fc" id="L233">    byte[] bytes = new byte[length];</span>
+<span class="fc bfc" id="L234" title="All 2 branches covered.">    for (int i = 0; i &lt; length; i++) {</span>
+<span class="fc" id="L235">      bytes[i] = mappedByteBuffer.get(bufferOffset + i);</span>
+    }
+<span class="fc" id="L237">    return bytes;</span>
+  }
+
+  // VisibleForTesting
+  int offset(int processNumber) {
+<span class="fc" id="L242">    return BYTE_LENGTH_FOR_ONE_PROCESS * processNumber;</span>
+  }
+
+  private class ProcessCommandsImpl implements ProcessCommands {
+
+    private final int processNumber;
+
+<span class="fc" id="L249">    public ProcessCommandsImpl(int processNumber) {</span>
+<span class="fc" id="L250">      this.processNumber = processNumber;</span>
+<span class="fc" id="L251">    }</span>
+
+    @Override
+    public boolean isUp() {
+<span class="fc" id="L255">      return AllProcessesCommands.this.isUp(processNumber);</span>
+    }
+
+    @Override
+    public void setUp() {
+<span class="fc" id="L260">      AllProcessesCommands.this.setUp(processNumber);</span>
+<span class="fc" id="L261">    }</span>
+
+    @Override
+    public boolean isOperational() {
+<span class="fc" id="L265">      return AllProcessesCommands.this.isOperational(processNumber);</span>
+    }
+
+    @Override
+    public void setOperational() {
+<span class="fc" id="L270">      AllProcessesCommands.this.setOperational(processNumber);</span>
+<span class="fc" id="L271">    }</span>
+
+    @Override
+    public void setHttpUrl(String s) {
+<span class="fc" id="L275">      AllProcessesCommands.this.setSystemInfoUrl(processNumber, s);</span>
+<span class="fc" id="L276">    }</span>
+
+    @Override
+    public String getHttpUrl() {
+<span class="fc" id="L280">      return AllProcessesCommands.this.getSystemInfoUrl(processNumber);</span>
+    }
+
+    @Override
+    public void askForStop() {
+<span class="nc" id="L285">      AllProcessesCommands.this.askForStop(processNumber);</span>
+<span class="nc" id="L286">    }</span>
+
+    @Override
+    public boolean askedForStop() {
+<span class="nc" id="L290">      return AllProcessesCommands.this.askedForStop(processNumber);</span>
+    }
+
+    @Override
+    public void askForHardStop() {
+<span class="fc" id="L295">      AllProcessesCommands.this.askForHardStop(processNumber);</span>
+<span class="fc" id="L296">    }</span>
+
+    @Override
+    public boolean askedForHardStop() {
+<span class="fc" id="L300">      return AllProcessesCommands.this.askedForHardStop(processNumber);</span>
+    }
+
+    @Override
+    public void askForRestart() {
+<span class="fc" id="L305">      AllProcessesCommands.this.askForRestart(processNumber);</span>
+<span class="fc" id="L306">    }</span>
+
+    @Override
+    public boolean askedForRestart() {
+<span class="fc" id="L310">      return AllProcessesCommands.this.askedForRestart(processNumber);</span>
+    }
+
+    @Override
+    public void acknowledgeAskForRestart() {
+<span class="fc" id="L315">      AllProcessesCommands.this.acknowledgeAskForRestart(processNumber);</span>
+<span class="fc" id="L316">    }</span>
+
+    @Override
+    public void endWatch() {
+<span class="nc" id="L320">      throw new UnsupportedOperationException(&quot;ProcessCommands created from AllProcessesCommands can not be closed directly. Close AllProcessesCommands instead&quot;);</span>
+    }
+
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,242 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserSession.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.user</a> &gt; <span class="el_source">UserSession.java</span></div><h1>UserSession.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.user;
+
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
+import javax.annotation.CheckForNull;
+import org.sonar.db.component.ComponentDto;
+import org.sonar.db.entity.EntityDto;
+import org.sonar.db.permission.GlobalPermission;
+import org.sonar.db.permission.ProjectPermission;
+import org.sonar.db.user.GroupDto;
+
+import static java.util.Objects.requireNonNull;
+
+public interface UserSession {
+
+  /**
+   * Login of the authenticated user. Returns {@code null}
+   * if {@link #isLoggedIn()} is {@code false}.
+   */
+  @CheckForNull
+  String getLogin();
+
+  /**
+   * Uuid of the authenticated user. Returns {@code null}
+   * if {@link #isLoggedIn()} is {@code false}.
+   */
+  @CheckForNull
+  String getUuid();
+
+  /**
+   * Name of the authenticated user. Returns {@code null}
+   * if {@link #isLoggedIn()} is {@code false}.
+   */
+  @CheckForNull
+  String getName();
+
+  @CheckForNull
+  Long getLastSonarlintConnectionDate();
+
+  /**
+   * The groups that the logged-in user is member of. An empty
+   * collection is returned if {@link #isLoggedIn()} is {@code false}.
+   */
+  Collection&lt;GroupDto&gt; getGroups();
+
+  boolean shouldResetPassword();
+
+  /**
+   * This enum supports by name only the few providers for which specific code exists.
+   */
+<span class="fc" id="L72">  enum IdentityProvider {</span>
+<span class="fc" id="L73">    SONARQUBE(&quot;sonarqube&quot;), GITHUB(&quot;github&quot;), BITBUCKETCLOUD(&quot;bitbucket&quot;), OTHER(&quot;other&quot;);</span>
+
+    final String key;
+
+<span class="fc" id="L77">    IdentityProvider(String key) {</span>
+<span class="fc" id="L78">      this.key = key;</span>
+<span class="fc" id="L79">    }</span>
+
+    public String getKey() {
+<span class="fc" id="L82">      return key;</span>
+    }
+
+    public static IdentityProvider getFromKey(String key) {
+<span class="fc" id="L86">      return Arrays.stream(IdentityProvider.values())</span>
+<span class="fc" id="L87">        .filter(i -&gt; i.getKey().equals(key))</span>
+<span class="fc" id="L88">        .findAny()</span>
+<span class="fc" id="L89">        .orElse(OTHER);</span>
+    }
+  }
+
+  /**
+   * @return empty if user is anonymous
+   */
+  Optional&lt;IdentityProvider&gt; getIdentityProvider();
+
+  record ExternalIdentity(String id, String login) {
+<span class="fc" id="L99">    public ExternalIdentity(String id, String login) {</span>
+<span class="fc" id="L100">      this.id = requireNonNull(id, &quot;id can't be null&quot;);</span>
+<span class="fc" id="L101">      this.login = requireNonNull(login, &quot;login can't be null&quot;);</span>
+<span class="fc" id="L102">    }</span>
+
+    @Override
+    public String toString() {
+<span class="nc" id="L106">      return &quot;ExternalIdentity{&quot; +</span>
+        &quot;id='&quot; + id + '\'' +
+        &quot;, login='&quot; + login + '\'' +
+        '}';
+    }
+
+  }
+
+  /**
+   * @return empty if {@link #getIdentityProvider()} returns empty or {@link IdentityProvider#SONARQUBE}
+   */
+  Optional&lt;ExternalIdentity&gt; getExternalIdentity();
+
+  /**
+   * Whether the user is logged-in or anonymous.
+   */
+  boolean isLoggedIn();
+
+  /**
+   * Ensures that user is logged in otherwise throws {@link org.sonar.server.exceptions.UnauthorizedException}.
+   */
+  UserSession checkLoggedIn();
+
+  /**
+   * Returns {@code true} if the permission is granted, otherwise {@code false}.
+   */
+  boolean hasPermission(GlobalPermission permission);
+
+  /**
+   * Ensures that {@link #hasPermission(GlobalPermission)} is {@code true},
+   * otherwise throws a {@link org.sonar.server.exceptions.ForbiddenException}.
+   */
+  UserSession checkPermission(GlobalPermission permission);
+
+  /**
+   * Returns {@code true} if the permission is granted to user on the component,
+   * otherwise {@code false}.
+   * If the component does not exist, then returns {@code false}.
+   *
+   * @param component  non-null component.
+   * @param permission project permission as defined by {@link org.sonar.server.permission.PermissionService}
+   */
+  boolean hasComponentPermission(ProjectPermission permission, ComponentDto component);
+
+  boolean hasEntityPermission(ProjectPermission permission, EntityDto entity);
+
+  boolean hasEntityPermission(ProjectPermission permission, String entityUuid);
+
+  boolean hasChildProjectsPermission(ProjectPermission permission, ComponentDto component);
+
+  boolean hasChildProjectsPermission(ProjectPermission permission, EntityDto application);
+
+  boolean hasPortfolioChildProjectsPermission(ProjectPermission permission, ComponentDto component);
+
+  /**
+   * Using {@link #hasComponentPermission(ProjectPermission, ComponentDto)} is recommended
+   * because it does not have to load project if the referenced component
+   * is not a project.
+   *
+   * @deprecated use {@link #hasComponentPermission(ProjectPermission, ComponentDto)} instead
+   */
+  @Deprecated
+  boolean hasComponentUuidPermission(ProjectPermission permission, String componentUuid);
+
+  /**
+   * Return the subset of specified components which the user has granted permission.
+   * An empty list is returned if input is empty or if no components are allowed to be
+   * accessed.
+   * If the input is ordered, then the returned components are in the same order.
+   * The duplicated components are returned duplicated too.
+   */
+  List&lt;ComponentDto&gt; keepAuthorizedComponents(ProjectPermission permission, Collection&lt;ComponentDto&gt; components);
+
+  &lt;T extends EntityDto&gt; List&lt;T&gt; keepAuthorizedEntities(ProjectPermission permission, Collection&lt;T&gt; components);
+
+  /**
+   * Ensures that {@link #hasComponentPermission(ProjectPermission, ComponentDto)} is {@code true},
+   * otherwise throws a {@link org.sonar.server.exceptions.ForbiddenException}.
+   */
+  UserSession checkComponentPermission(ProjectPermission projectPermission, ComponentDto component);
+
+  /**
+   * Ensures that {@link #hasEntityPermission(String, EntityDto)} is {@code true},
+   * otherwise throws a {@link org.sonar.server.exceptions.ForbiddenException}.
+   */
+  UserSession checkEntityPermission(ProjectPermission projectPermission, EntityDto entity);
+
+  /**
+   * Ensures that {@link #hasEntityPermission(String, EntityDto)} is {@code true},
+   * otherwise throws a {@link org.sonar.server.exceptions.ResourceForbiddenException}.
+   * &lt;p&gt;
+   * Differs from {@link #checkEntityPermission(ProjectPermission, EntityDto)} by throwing a different exception (ensuring no resource listing is possible).
+   */
+  UserSession checkEntityPermissionOrElseThrowResourceForbiddenException(ProjectPermission projectPermission, EntityDto entity);
+
+  /**
+   * Ensures that {@link #hasChildProjectsPermission(ProjectPermission, ComponentDto)} is {@code true}
+   * otherwise throws a {@link org.sonar.server.exceptions.ForbiddenException}.
+   */
+  UserSession checkChildProjectsPermission(ProjectPermission projectPermission, ComponentDto project);
+
+  /**
+   * Ensures that {@link #hasChildProjectsPermission(ProjectPermission, EntityDto)} is {@code true}
+   * otherwise throws a {@link org.sonar.server.exceptions.ForbiddenException}.
+   */
+  UserSession checkChildProjectsPermission(ProjectPermission projectPermission, EntityDto application);
+
+  /**
+   * Ensures that {@link #hasComponentUuidPermission(ProjectPermission, String)} is {@code true},
+   * otherwise throws a {@link org.sonar.server.exceptions.ForbiddenException}.
+   *
+   * @deprecated use {@link #checkComponentPermission(ProjectPermission, ComponentDto)} instead
+   */
+  @Deprecated
+  UserSession checkComponentUuidPermission(ProjectPermission permission, String componentUuid);
+
+  /**
+   * Whether user can administrate system, for example for using cross-organizations services
+   * like update center, system info or management of users.
+   * Returns {@code true} if:
+   * &lt;ul&gt;
+   *   &lt;li&gt;user is administrator&lt;/li&gt;
+   * &lt;/ul&gt;
+   */
+  boolean isSystemAdministrator();
+
+  /**
+   * Ensures that {@link #isSystemAdministrator()} is {@code true},
+   * otherwise throws {@link org.sonar.server.exceptions.ForbiddenException}.
+   */
+  UserSession checkIsSystemAdministrator();
+
+  boolean isActive();
+
+  boolean isAuthenticatedBrowserSession();
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

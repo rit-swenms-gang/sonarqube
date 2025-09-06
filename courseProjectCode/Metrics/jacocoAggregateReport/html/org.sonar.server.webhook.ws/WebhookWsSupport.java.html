@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WebhookWsSupport.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.webhook.ws</a> &gt; <span class="el_source">WebhookWsSupport.java</span></div><h1>WebhookWsSupport.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.webhook.ws;
+
+import org.sonar.db.project.ProjectDto;
+import org.sonar.db.webhook.WebhookDeliveryDto;
+import org.sonar.db.webhook.WebhookDeliveryLiteDto;
+import org.sonarqube.ws.Webhooks;
+
+import static java.util.Optional.ofNullable;
+import static org.sonar.api.utils.DateUtils.formatDateTime;
+
+class WebhookWsSupport {
+  private WebhookWsSupport() {
+    // only statics
+  }
+
+  static Webhooks.Delivery.Builder copyDtoToProtobuf(ProjectDto project, WebhookDeliveryLiteDto dto, Webhooks.Delivery.Builder builder) {
+<span class="fc" id="L36">    builder</span>
+<span class="fc" id="L37">      .clear()</span>
+<span class="fc" id="L38">      .setId(dto.getUuid())</span>
+<span class="fc" id="L39">      .setAt(formatDateTime(dto.getCreatedAt()))</span>
+<span class="fc" id="L40">      .setName(dto.getName())</span>
+<span class="fc" id="L41">      .setUrl(dto.getUrl())</span>
+<span class="fc" id="L42">      .setSuccess(dto.isSuccess())</span>
+<span class="fc" id="L43">      .setComponentKey(project.getKey());</span>
+<span class="fc" id="L44">    ofNullable(dto.getCeTaskUuid()).ifPresent(builder::setCeTaskId);</span>
+<span class="fc" id="L45">    ofNullable(dto.getHttpStatus()).ifPresent(builder::setHttpStatus);</span>
+<span class="fc" id="L46">    ofNullable(dto.getDurationMs()).ifPresent(builder::setDurationMs);</span>
+<span class="fc" id="L47">    return builder;</span>
+  }
+
+  static Webhooks.Delivery.Builder copyDtoToProtobuf(ProjectDto project, WebhookDeliveryDto dto, Webhooks.Delivery.Builder builder) {
+<span class="fc" id="L51">    copyDtoToProtobuf(project, (WebhookDeliveryLiteDto) dto, builder);</span>
+<span class="fc" id="L52">    builder.setPayload(dto.getPayload());</span>
+<span class="fc" id="L53">    ofNullable(dto.getErrorStacktrace()).ifPresent(builder::setErrorStacktrace);</span>
+<span class="fc" id="L54">    return builder;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

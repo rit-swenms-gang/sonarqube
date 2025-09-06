@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Filter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.duplications.detector.original</a> &gt; <span class="el_source">Filter.java</span></div><h1>Filter.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.duplications.detector.original;
+
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import org.sonar.duplications.detector.ContainsInComparator;
+import org.sonar.duplications.index.CloneGroup;
+import org.sonar.duplications.index.ClonePart;
+import org.sonar.duplications.utils.SortedListsUtils;
+
+/**
+ * Performs incremental and brute force algorithm in order to filter clones, which are fully covered by other clones.
+ * All clones for filtering must be of the same origin - there is no sanity check on this.
+ * In a worst case it performs O(N*N) comparisons.
+ * &lt;p&gt;
+ * Godin: This implementation was chosen because it simple.
+ * And I wasn't able to find big difference in performance with an interval tree, which we had for the moment of testing.
+ * Whereas in fact I expected that interval tree would be better for this task.
+ * Moreover with interval tree we also can use incremental approach,
+ * but we did not had an implementation with remove operation for the moment of testing.
+ * &lt;/p&gt;
+ */
+<span class="fc" id="L42">final class Filter {</span>
+
+  /**
+   * Note that LinkedList should provide better performance here, because of use of operation remove.
+   * 
+   * @see #add(CloneGroup)
+   */
+<span class="fc" id="L49">  private final List&lt;CloneGroup&gt; filtered = new LinkedList&lt;&gt;();</span>
+
+  /**
+   * @return current results of filtering
+   */
+  public List&lt;CloneGroup&gt; getResult() {
+<span class="fc" id="L55">    return filtered;</span>
+  }
+
+  /**
+   * Running time - O(N*2*C), where N - number of clones, which was found earlier and C - time of {@link #containsIn(CloneGroup, CloneGroup)}.
+   */
+  public void add(CloneGroup current) {
+<span class="fc" id="L62">    Iterator&lt;CloneGroup&gt; i = filtered.iterator();</span>
+<span class="fc bfc" id="L63" title="All 2 branches covered.">    while (i.hasNext()) {</span>
+<span class="fc" id="L64">      CloneGroup earlier = i.next();</span>
+      // Note that following two conditions cannot be true together - proof by contradiction:
+      // let C be the current clone and A and B were found earlier
+      // then since relation is transitive - (A in C) and (C in B) =&gt; (A in B)
+      // so A should be filtered earlier
+<span class="pc bpc" id="L69" title="1 of 2 branches missed.">      if (Filter.containsIn(current, earlier)) {</span>
+        // current clone fully covered by clone, which was found earlier
+<span class="nc" id="L71">        return;</span>
+      }
+<span class="fc bfc" id="L73" title="All 2 branches covered.">      if (Filter.containsIn(earlier, current)) {</span>
+        // current clone fully covers clone, which was found earlier
+<span class="fc" id="L75">        i.remove();</span>
+      }
+<span class="fc" id="L77">    }</span>
+<span class="fc" id="L78">    filtered.add(current);</span>
+<span class="fc" id="L79">  }</span>
+
+  /**
+   * Checks that second clone contains first one.
+   * &lt;p&gt;
+   * Clone A is contained in another clone B, if every part pA from A has part pB in B,
+   * which satisfy the conditions:
+   * &lt;pre&gt;
+   * (pA.resourceId == pB.resourceId) and (pB.unitStart &lt;= pA.unitStart) and (pA.unitEnd &lt;= pB.unitEnd)
+   * &lt;/pre&gt;
+   * And all resourcesId from B exactly the same as all resourceId from A, which means that also every part pB from B has part pA in A,
+   * which satisfy the condition:
+   * &lt;pre&gt;
+   * pB.resourceId == pA.resourceId
+   * &lt;/pre&gt;
+   * So this relation is:
+   * &lt;ul&gt;
+   * &lt;li&gt;reflexive - A in A&lt;/li&gt;
+   * &lt;li&gt;transitive - (A in B) and (B in C) =&gt; (A in C)&lt;/li&gt;
+   * &lt;li&gt;antisymmetric - (A in B) and (B in A) &lt;=&gt; (A = B)&lt;/li&gt;
+   * &lt;/ul&gt;
+   * &lt;/p&gt;
+   * &lt;p&gt;
+   * &lt;strong&gt;Important: this method relies on fact that all parts were already sorted by resourceId and unitStart by using
+   * {@link BlocksGroup.BlockComparator}, which uses {@link org.sonar.duplications.utils.FastStringComparator} for comparison by resourceId.&lt;/strong&gt;
+   * &lt;/p&gt;
+   * &lt;p&gt;
+   * Running time - O(|A|+|B|).
+   * &lt;/p&gt;
+   */
+  static boolean containsIn(CloneGroup first, CloneGroup second) {
+<span class="fc bfc" id="L110" title="All 2 branches covered.">    if (first.getCloneUnitLength() &gt; second.getCloneUnitLength()) {</span>
+<span class="fc" id="L111">      return false;</span>
+    }
+<span class="fc" id="L113">    List&lt;ClonePart&gt; firstParts = first.getCloneParts();</span>
+<span class="fc" id="L114">    List&lt;ClonePart&gt; secondParts = second.getCloneParts();</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">    return SortedListsUtils.contains(secondParts, firstParts, new ContainsInComparator(second.getCloneUnitLength(), first.getCloneUnitLength()))</span>
+<span class="fc bfc" id="L116" title="All 2 branches covered.">      &amp;&amp; SortedListsUtils.contains(firstParts, secondParts, ContainsInComparator.RESOURCE_ID_COMPARATOR);</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

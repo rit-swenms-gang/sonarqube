@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultFileLinesContextFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner</a> &gt; <span class="el_source">DefaultFileLinesContextFactory.java</span></div><h1>DefaultFileLinesContextFactory.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner;
+
+import javax.annotation.concurrent.Immutable;
+import org.sonar.api.batch.fs.InputFile;
+import org.sonar.api.batch.measure.MetricFinder;
+import org.sonar.api.batch.sensor.internal.SensorStorage;
+import org.sonar.api.measures.FileLinesContext;
+import org.sonar.api.measures.FileLinesContextFactory;
+
+@Immutable
+public class DefaultFileLinesContextFactory implements FileLinesContextFactory {
+
+  private final SensorStorage sensorStorage;
+  private final MetricFinder metricFinder;
+
+<span class="fc" id="L35">  public DefaultFileLinesContextFactory(SensorStorage sensorStorage, MetricFinder metricFinder) {</span>
+<span class="fc" id="L36">    this.sensorStorage = sensorStorage;</span>
+<span class="fc" id="L37">    this.metricFinder = metricFinder;</span>
+<span class="fc" id="L38">  }</span>
+
+  @Override
+  public FileLinesContext createFor(InputFile inputFile) {
+<span class="fc" id="L42">    return new DefaultFileLinesContext(sensorStorage, inputFile, metricFinder);</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TreeRequest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonarqube.ws.client.components</a> &gt; <span class="el_source">TreeRequest.java</span></div><h1>TreeRequest.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonarqube.ws.client.components;
+
+import java.util.List;
+import jakarta.annotation.Generated;
+
+/**
+ * This is part of the internal API.
+ * This is a POST request.
+ * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/components/tree&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+ * @since 5.4
+ */
+@Generated(&quot;sonar-ws-generator&quot;)
+<span class="nc" id="L32">public class TreeRequest {</span>
+
+  private String asc;
+  private String branch;
+  private String component;
+  private String p;
+  private String ps;
+  private String pullRequest;
+  private String q;
+  private List&lt;String&gt; qualifiers;
+  private List&lt;String&gt; s;
+  private String strategy;
+
+  /**
+   * Possible values:
+   * &lt;ul&gt;
+   *   &lt;li&gt;&quot;true&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;false&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;yes&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;no&quot;&lt;/li&gt;
+   * &lt;/ul&gt;
+   */
+  public TreeRequest setAsc(String asc) {
+<span class="nc" id="L55">    this.asc = asc;</span>
+<span class="nc" id="L56">    return this;</span>
+  }
+
+  public String getAsc() {
+<span class="nc" id="L60">    return asc;</span>
+  }
+
+  /**
+   * This is part of the internal API.
+   * Example value: &quot;feature/my_branch&quot;
+   */
+  public TreeRequest setBranch(String branch) {
+<span class="nc" id="L68">    this.branch = branch;</span>
+<span class="nc" id="L69">    return this;</span>
+  }
+
+  public String getBranch() {
+<span class="nc" id="L73">    return branch;</span>
+  }
+
+  /**
+   * Example value: &quot;my_project&quot;
+   */
+  public TreeRequest setComponent(String component) {
+<span class="nc" id="L80">    this.component = component;</span>
+<span class="nc" id="L81">    return this;</span>
+  }
+
+  public String getComponent() {
+<span class="nc" id="L85">    return component;</span>
+  }
+
+  /**
+   * Example value: &quot;42&quot;
+   */
+  public TreeRequest setP(String p) {
+<span class="nc" id="L92">    this.p = p;</span>
+<span class="nc" id="L93">    return this;</span>
+  }
+
+  public String getP() {
+<span class="nc" id="L97">    return p;</span>
+  }
+
+  /**
+   * Example value: &quot;20&quot;
+   */
+  public TreeRequest setPs(String ps) {
+<span class="nc" id="L104">    this.ps = ps;</span>
+<span class="nc" id="L105">    return this;</span>
+  }
+
+  public String getPs() {
+<span class="nc" id="L109">    return ps;</span>
+  }
+
+  /**
+   * This is part of the internal API.
+   * Example value: &quot;5461&quot;
+   */
+  public TreeRequest setPullRequest(String pullRequest) {
+<span class="nc" id="L117">    this.pullRequest = pullRequest;</span>
+<span class="nc" id="L118">    return this;</span>
+  }
+
+  public String getPullRequest() {
+<span class="nc" id="L122">    return pullRequest;</span>
+  }
+
+  /**
+   * Example value: &quot;FILE_NAM&quot;
+   */
+  public TreeRequest setQ(String q) {
+<span class="nc" id="L129">    this.q = q;</span>
+<span class="nc" id="L130">    return this;</span>
+  }
+
+  public String getQ() {
+<span class="nc" id="L134">    return q;</span>
+  }
+
+  /**
+   * Possible values:
+   * &lt;ul&gt;
+   *   &lt;li&gt;&quot;DIR&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;FIL&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;TRK&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;UTS&quot;&lt;/li&gt;
+   * &lt;/ul&gt;
+   */
+  public TreeRequest setQualifiers(List&lt;String&gt; qualifiers) {
+<span class="nc" id="L147">    this.qualifiers = qualifiers;</span>
+<span class="nc" id="L148">    return this;</span>
+  }
+
+  public List&lt;String&gt; getQualifiers() {
+<span class="nc" id="L152">    return qualifiers;</span>
+  }
+
+  /**
+   * Example value: &quot;name, path&quot;
+   * Possible values:
+   * &lt;ul&gt;
+   *   &lt;li&gt;&quot;name&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;path&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;qualifier&quot;&lt;/li&gt;
+   * &lt;/ul&gt;
+   */
+  public TreeRequest setS(List&lt;String&gt; s) {
+<span class="nc" id="L165">    this.s = s;</span>
+<span class="nc" id="L166">    return this;</span>
+  }
+
+  public List&lt;String&gt; getS() {
+<span class="nc" id="L170">    return s;</span>
+  }
+
+  /**
+   * Possible values:
+   * &lt;ul&gt;
+   *   &lt;li&gt;&quot;all&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;children&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;leaves&quot;&lt;/li&gt;
+   * &lt;/ul&gt;
+   */
+  public TreeRequest setStrategy(String strategy) {
+<span class="nc" id="L182">    this.strategy = strategy;</span>
+<span class="nc" id="L183">    return this;</span>
+  }
+
+  public String getStrategy() {
+<span class="nc" id="L187">    return strategy;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

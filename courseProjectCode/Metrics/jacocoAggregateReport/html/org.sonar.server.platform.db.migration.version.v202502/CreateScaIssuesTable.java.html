@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CreateScaIssuesTable.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform.db.migration.version.v202502</a> &gt; <span class="el_source">CreateScaIssuesTable.java</span></div><h1>CreateScaIssuesTable.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform.db.migration.version.v202502;
+
+import java.sql.SQLException;
+import org.sonar.db.Database;
+import org.sonar.server.platform.db.migration.sql.CreateTableBuilder;
+import org.sonar.server.platform.db.migration.step.CreateTableChange;
+
+import static org.sonar.server.platform.db.migration.def.BigIntegerColumnDef.newBigIntegerColumnDefBuilder;
+import static org.sonar.server.platform.db.migration.def.VarcharColumnDef.UUID_SIZE;
+import static org.sonar.server.platform.db.migration.def.VarcharColumnDef.newVarcharColumnDefBuilder;
+
+public class CreateScaIssuesTable extends CreateTableChange {
+
+  private static final String TABLE_NAME = &quot;sca_issues&quot;;
+  private static final String COLUMN_UUID_NAME = &quot;uuid&quot;;
+  private static final String COLUMN_SCA_ISSUE_TYPE = &quot;sca_issue_type&quot;;
+  private static final int COLUMN_SCA_ISSUE_TYPE_SIZE = 40;
+  private static final String COLUMN_PACKAGE_URL = &quot;package_url&quot;;
+  private static final int COLUMN_PACKAGE_URL_SIZE = 400;
+  private static final String COLUMN_VULNERABILITY_ID = &quot;vulnerability_id&quot;;
+  // the max we have seen in the past as of 2025-02 is 35, though no spec guarantees that
+  private static final int COLUMN_VULNERABILITY_ID_SIZE = 63;
+  private static final String COLUMN_SPDX_LICENSE_ID = &quot;spdx_license_id&quot;;
+  // the max we have seen in the past as of 2025-02 is 68, though customers can type custom LicenseRef- names,
+  // and we'll probably need to restrict the length of those to this.
+  private static final int COLUMN_SPDX_LICENSE_ID_SIZE = 127;
+  private static final String COLUMN_CREATED_AT_NAME = &quot;created_at&quot;;
+  private static final String COLUMN_UPDATED_AT_NAME = &quot;updated_at&quot;;
+
+  protected CreateScaIssuesTable(Database db) {
+<span class="fc" id="L50">    super(db, TABLE_NAME);</span>
+<span class="fc" id="L51">  }</span>
+
+  @Override
+  public void execute(Context context, String tableName) throws SQLException {
+<span class="fc" id="L55">    context.execute(new CreateTableBuilder(getDialect(), tableName)</span>
+<span class="fc" id="L56">      .addPkColumn(newVarcharColumnDefBuilder().setColumnName(COLUMN_UUID_NAME).setIsNullable(false).setLimit(UUID_SIZE).build())</span>
+<span class="fc" id="L57">      .addColumn(newVarcharColumnDefBuilder().setColumnName(COLUMN_SCA_ISSUE_TYPE).setIsNullable(false).setLimit(COLUMN_SCA_ISSUE_TYPE_SIZE).build())</span>
+<span class="fc" id="L58">      .addColumn(newVarcharColumnDefBuilder().setColumnName(COLUMN_PACKAGE_URL).setIsNullable(false).setLimit(COLUMN_PACKAGE_URL_SIZE).build())</span>
+<span class="fc" id="L59">      .addColumn(newVarcharColumnDefBuilder().setColumnName(COLUMN_VULNERABILITY_ID).setIsNullable(false).setLimit(COLUMN_VULNERABILITY_ID_SIZE).build())</span>
+<span class="fc" id="L60">      .addColumn(newVarcharColumnDefBuilder().setColumnName(COLUMN_SPDX_LICENSE_ID).setIsNullable(false).setLimit(COLUMN_SPDX_LICENSE_ID_SIZE).build())</span>
+<span class="fc" id="L61">      .addColumn(newBigIntegerColumnDefBuilder().setColumnName(COLUMN_CREATED_AT_NAME).setIsNullable(false).build())</span>
+<span class="fc" id="L62">      .addColumn(newBigIntegerColumnDefBuilder().setColumnName(COLUMN_UPDATED_AT_NAME).setIsNullable(false).build())</span>
+<span class="fc" id="L63">      .build());</span>
+<span class="fc" id="L64">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

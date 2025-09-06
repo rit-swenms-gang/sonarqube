@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LineHashSequence.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.core.issue.tracking</a> &gt; <span class="el_source">LineHashSequence.java</span></div><h1>LineHashSequence.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.core.issue.tracking;
+
+import com.google.common.collect.SetMultimap;
+import com.google.common.collect.HashMultimap;
+import com.google.common.base.Strings;
+
+import java.util.List;
+import java.util.Set;
+
+import org.sonar.core.hash.SourceLineHashesComputer;
+
+/**
+ * Sequence of hash of lines for a given file
+ */
+public class LineHashSequence {
+
+  /**
+   * Hashes of lines. Line 1 is at index 0. No null elements.
+   */
+  private final List&lt;String&gt; hashes;
+  private final SetMultimap&lt;String, Integer&gt; lineByHash;
+
+<span class="fc" id="L42">  public LineHashSequence(List&lt;String&gt; hashes) {</span>
+<span class="fc" id="L43">    this.hashes = hashes;</span>
+<span class="fc" id="L44">    this.lineByHash = HashMultimap.create();</span>
+    
+<span class="fc" id="L46">    int lineNo = 1;</span>
+    
+<span class="fc bfc" id="L48" title="All 2 branches covered.">    for (String hash : hashes) {</span>
+<span class="fc" id="L49">      lineByHash.put(hash, lineNo);</span>
+<span class="fc" id="L50">      lineNo++;</span>
+<span class="fc" id="L51">    }</span>
+<span class="fc" id="L52">  }</span>
+
+  /**
+   * Number of lines
+   */
+  public int length() {
+<span class="fc" id="L58">    return hashes.size();</span>
+  }
+
+  /**
+   * Checks if the line, starting with 1, is defined.
+   */
+  public boolean hasLine(int line) {
+<span class="nc bnc" id="L65" title="All 4 branches missed.">    return 0 &lt; line &amp;&amp; line &lt;= hashes.size();</span>
+  }
+
+  /**
+   * The lines, starting with 1, that matches the given hash.
+   */
+  public Set&lt;Integer&gt; getLinesForHash(String hash) {
+<span class="nc" id="L72">    return lineByHash.get(hash);</span>
+  }
+
+  /**
+   * Hash of the given line, which starts with 1. Return empty string
+   * is the line does not exist.
+   */
+  public String getHashForLine(int line) {
+<span class="pc bpc" id="L80" title="1 of 4 branches missed.">    if (line &gt; 0 &amp;&amp; line &lt;= hashes.size()) {</span>
+<span class="fc" id="L81">      return Strings.nullToEmpty(hashes.get(line - 1));</span>
+    }
+<span class="fc" id="L83">    return &quot;&quot;;</span>
+  }
+
+  List&lt;String&gt; getHashes() {
+<span class="fc" id="L87">    return hashes;</span>
+  }
+
+  public static LineHashSequence createForLines(List&lt;String&gt; lines) {
+<span class="fc" id="L91">    SourceLineHashesComputer hashesComputer = new SourceLineHashesComputer(lines.size());</span>
+<span class="fc bfc" id="L92" title="All 2 branches covered.">    for (String line : lines) {</span>
+<span class="fc" id="L93">      hashesComputer.addLine(line);</span>
+<span class="fc" id="L94">    }</span>
+<span class="fc" id="L95">    return new LineHashSequence(hashesComputer.getLineHashes());</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

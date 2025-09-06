@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Transition.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.issue.workflow.statemachine</a> &gt; <span class="el_source">Transition.java</span></div><h1>Transition.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.issue.workflow.statemachine;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
+import org.apache.commons.lang3.StringUtils;
+
+import static com.google.common.base.Preconditions.checkArgument;
+
+/**
+ *
+ * @param &lt;E&gt; The entity the workflow is applied on. Conditions are applied on it.
+ * @param &lt;A&gt; The actions that the workflow can trigger during a transition.
+ */
+public class Transition&lt;E, A&gt; {
+  private final String key;
+  private final String from;
+  private final String to;
+  private final List&lt;Predicate&lt;E&gt;&gt; conditions;
+  private final List&lt;Consumer&lt;A&gt;&gt; actions;
+  private final boolean automatic;
+
+<span class="fc" id="L44">  private Transition(TransitionBuilder&lt;E, A&gt; builder) {</span>
+<span class="fc" id="L45">    key = builder.key;</span>
+<span class="fc" id="L46">    from = builder.from;</span>
+<span class="fc" id="L47">    to = builder.to;</span>
+<span class="fc" id="L48">    conditions = List.copyOf(builder.conditions);</span>
+<span class="fc" id="L49">    actions = List.copyOf(builder.actions);</span>
+<span class="fc" id="L50">    automatic = builder.automatic;</span>
+<span class="fc" id="L51">  }</span>
+
+  public String key() {
+<span class="fc" id="L54">    return key;</span>
+  }
+
+  String from() {
+<span class="fc" id="L58">    return from;</span>
+  }
+
+  public String to() {
+<span class="fc" id="L62">    return to;</span>
+  }
+
+  List&lt;Predicate&lt;E&gt;&gt; conditions() {
+<span class="fc" id="L66">    return conditions;</span>
+  }
+
+  public List&lt;Consumer&lt;A&gt;&gt; actions() {
+<span class="fc" id="L70">    return actions;</span>
+  }
+
+  public boolean automatic() {
+<span class="fc" id="L74">    return automatic;</span>
+  }
+
+  public boolean supports(E entity) {
+<span class="fc bfc" id="L78" title="All 2 branches covered.">    for (Predicate&lt;E&gt; condition : conditions) {</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">      if (!condition.test(entity)) {</span>
+<span class="fc" id="L80">        return false;</span>
+      }
+<span class="fc" id="L82">    }</span>
+<span class="fc" id="L83">    return true;</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="fc" id="L88">    return String.format(&quot;%s-&gt;%s-&gt;%s&quot;, from, key, to);</span>
+  }
+
+  public static &lt;E, A&gt; Transition&lt;E, A&gt; create(String key, String from, String to) {
+<span class="fc" id="L92">    return Transition.&lt;E, A&gt;builder(key).from(from).to(to).build();</span>
+  }
+
+  public static &lt;E, A&gt; TransitionBuilder&lt;E, A&gt; builder(String key) {
+<span class="fc" id="L96">    return new TransitionBuilder&lt;&gt;(key);</span>
+  }
+
+  public static class TransitionBuilder&lt;E, A&gt; {
+    private final String key;
+    private String from;
+    private String to;
+<span class="fc" id="L103">    private final List&lt;Predicate&lt;E&gt;&gt; conditions = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L104">    private final List&lt;Consumer&lt;A&gt;&gt; actions = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L105">    private boolean automatic = false;</span>
+
+<span class="fc" id="L107">    private TransitionBuilder(String key) {</span>
+<span class="fc" id="L108">      this.key = key;</span>
+<span class="fc" id="L109">    }</span>
+
+    public TransitionBuilder&lt;E, A&gt; from(String from) {
+<span class="fc" id="L112">      this.from = from;</span>
+<span class="fc" id="L113">      return this;</span>
+    }
+
+    public TransitionBuilder&lt;E, A&gt; to(String to) {
+<span class="fc" id="L117">      this.to = to;</span>
+<span class="fc" id="L118">      return this;</span>
+    }
+
+    @SafeVarargs
+    public final TransitionBuilder&lt;E, A&gt; conditions(Predicate&lt;E&gt;... conditions) {
+<span class="fc" id="L123">      this.conditions.addAll(Arrays.asList(conditions));</span>
+<span class="fc" id="L124">      return this;</span>
+    }
+
+    @SafeVarargs
+    public final TransitionBuilder&lt;E, A&gt; actions(Consumer&lt;A&gt;... actions) {
+<span class="fc" id="L129">      this.actions.addAll(Arrays.asList(actions));</span>
+<span class="fc" id="L130">      return this;</span>
+    }
+
+    public TransitionBuilder&lt;E, A&gt; automatic() {
+<span class="fc" id="L134">      this.automatic = true;</span>
+<span class="fc" id="L135">      return this;</span>
+    }
+
+    public Transition&lt;E, A&gt; build() {
+<span class="fc" id="L139">      checkArgument(StringUtils.isNotEmpty(key), &quot;Transition key must be set&quot;);</span>
+<span class="fc" id="L140">      checkArgument(StringUtils.isAllLowerCase(key), &quot;Transition key must be lower-case&quot;);</span>
+<span class="fc" id="L141">      checkArgument(StringUtils.isNotEmpty(from), &quot;Originating status must be set&quot;);</span>
+<span class="fc" id="L142">      checkArgument(StringUtils.isNotEmpty(to), &quot;Destination status must be set&quot;);</span>
+<span class="fc" id="L143">      return new Transition&lt;&gt;(this);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultFileLinesContext.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner</a> &gt; <span class="el_source">DefaultFileLinesContext.java</span></div><h1>DefaultFileLinesContext.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner;
+
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Map.Entry;
+import org.sonar.api.batch.fs.InputFile;
+import org.sonar.api.batch.measure.MetricFinder;
+import org.sonar.api.batch.sensor.internal.SensorStorage;
+import org.sonar.api.batch.sensor.measure.internal.DefaultMeasure;
+import org.sonar.api.measures.CoreMetrics;
+import org.sonar.api.measures.FileLinesContext;
+import org.sonar.api.utils.KeyValueFormat;
+
+import static java.util.stream.Collectors.toMap;
+import static org.sonar.api.utils.Preconditions.checkArgument;
+
+public class DefaultFileLinesContext implements FileLinesContext {
+  private final InputFile inputFile;
+  private final MetricFinder metricFinder;
+
+  /**
+   * metric key -&gt; line -&gt; value
+   */
+<span class="fc" id="L44">  private final Map&lt;String, Map&lt;Integer, Object&gt;&gt; map = new HashMap&lt;&gt;();</span>
+  private final SensorStorage sensorStorage;
+
+<span class="fc" id="L47">  public DefaultFileLinesContext(SensorStorage sensorStorage, InputFile inputFile, MetricFinder metricFinder) {</span>
+<span class="fc" id="L48">    this.sensorStorage = sensorStorage;</span>
+<span class="fc" id="L49">    this.inputFile = inputFile;</span>
+<span class="fc" id="L50">    this.metricFinder = metricFinder;</span>
+<span class="fc" id="L51">  }</span>
+
+  @Override
+  public void setIntValue(String metricKey, int line, int value) {
+<span class="fc" id="L55">    checkNotNull(metricKey);</span>
+<span class="fc" id="L56">    checkLineRange(line);</span>
+
+<span class="fc" id="L58">    setValue(metricKey, line, value);</span>
+<span class="fc" id="L59">  }</span>
+
+  private void checkLineRange(int line) {
+<span class="fc bfc" id="L62" title="All 2 branches covered.">    checkArgument(line &gt; 0, &quot;Line number should be positive for file %s.&quot;, inputFile);</span>
+<span class="fc bfc" id="L63" title="All 2 branches covered.">    checkArgument(line &lt;= inputFile.lines(), &quot;Line %s is out of range for file %s. File has %s lines.&quot;, line, inputFile, inputFile.lines());</span>
+<span class="fc" id="L64">  }</span>
+
+  @Override
+  public void setStringValue(String metricKey, int line, String value) {
+<span class="fc" id="L68">    checkNotNull(metricKey);</span>
+<span class="fc" id="L69">    checkLineRange(line);</span>
+<span class="fc" id="L70">    checkNotNull(value);</span>
+
+<span class="fc" id="L72">    setValue(metricKey, line, value);</span>
+<span class="fc" id="L73">  }</span>
+
+  private static void checkNotNull(Object object) {
+<span class="pc bpc" id="L76" title="1 of 2 branches missed.">    if (object == null) {</span>
+<span class="nc" id="L77">      throw new NullPointerException();</span>
+    }
+<span class="fc" id="L79">  }</span>
+
+  private void setValue(String metricKey, int line, Object value) {
+<span class="fc" id="L82">    map.computeIfAbsent(metricKey, k -&gt; new HashMap&lt;&gt;())</span>
+<span class="fc" id="L83">      .put(line, value);</span>
+<span class="fc" id="L84">  }</span>
+
+  @Override
+  public void save() {
+<span class="fc bfc" id="L88" title="All 2 branches covered.">    for (Map.Entry&lt;String, Map&lt;Integer, Object&gt;&gt; entry : map.entrySet()) {</span>
+<span class="fc" id="L89">      String metricKey = entry.getKey();</span>
+<span class="fc" id="L90">      Map&lt;Integer, Object&gt; lines = entry.getValue();</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">      if (shouldSave(lines)) {</span>
+<span class="fc" id="L92">        String data = KeyValueFormat.format(optimizeStorage(metricKey, lines));</span>
+<span class="fc" id="L93">        new DefaultMeasure&lt;String&gt;(sensorStorage)</span>
+<span class="fc" id="L94">          .on(inputFile)</span>
+<span class="fc" id="L95">          .forMetric(metricFinder.findByKey(metricKey))</span>
+<span class="fc" id="L96">          .withValue(data)</span>
+<span class="fc" id="L97">          .save();</span>
+<span class="fc" id="L98">        entry.setValue(Collections.unmodifiableMap(lines));</span>
+      }
+<span class="fc" id="L100">    }</span>
+<span class="fc" id="L101">  }</span>
+
+  private static Map&lt;Integer, Object&gt; optimizeStorage(String metricKey, Map&lt;Integer, Object&gt; lines) {
+    // SONAR-7464 Don't store 0 because this is default value anyway
+<span class="fc bfc" id="L105" title="All 4 branches covered.">    if (CoreMetrics.NCLOC_DATA_KEY.equals(metricKey) || CoreMetrics.EXECUTABLE_LINES_DATA_KEY.equals(metricKey)) {</span>
+<span class="fc" id="L106">      return lines.entrySet().stream()</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">        .filter(entry -&gt; !entry.getValue().equals(0))</span>
+<span class="fc" id="L108">        .collect(toMap(Entry::getKey, Entry::getValue));</span>
+    }
+<span class="fc" id="L110">    return lines;</span>
+  }
+
+  /**
+   * Checks that measure was not saved.
+   *
+   * @see #save()
+   */
+  private static boolean shouldSave(Map&lt;Integer, Object&gt; lines) {
+<span class="fc" id="L119">    return lines instanceof HashMap;</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="fc" id="L124">    return this.getClass().getSimpleName() + &quot;{&quot; + map.toString() + &quot;}&quot;;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

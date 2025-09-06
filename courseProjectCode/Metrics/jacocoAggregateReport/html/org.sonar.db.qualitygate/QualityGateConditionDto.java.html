@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>QualityGateConditionDto.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.qualitygate</a> &gt; <span class="el_source">QualityGateConditionDto.java</span></div><h1>QualityGateConditionDto.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.qualitygate;
+
+import java.util.Date;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+
+/**
+ * @since 4.3
+ */
+<span class="fc" id="L29">public class QualityGateConditionDto {</span>
+
+  public static final String OPERATOR_GREATER_THAN = &quot;GT&quot;;
+  public static final String OPERATOR_LESS_THAN = &quot;LT&quot;;
+
+  private String uuid;
+
+  private String qualityGateUuid;
+
+  private String metricUuid;
+
+  private String metricKey;
+
+  private String operator;
+
+  private String errorThreshold;
+
+  private Date createdAt;
+
+  private Date updatedAt;
+
+  public String getUuid() {
+<span class="fc" id="L51">    return uuid;</span>
+  }
+
+  public QualityGateConditionDto setUuid(String uuid) {
+<span class="fc" id="L55">    this.uuid = uuid;</span>
+<span class="fc" id="L56">    return this;</span>
+  }
+
+  public String getQualityGateUuid() {
+<span class="fc" id="L60">    return qualityGateUuid;</span>
+  }
+
+  public QualityGateConditionDto setQualityGateUuid(String qualityGateUuid) {
+<span class="fc" id="L64">    this.qualityGateUuid = qualityGateUuid;</span>
+<span class="fc" id="L65">    return this;</span>
+  }
+
+  public String getMetricUuid() {
+<span class="fc" id="L69">    return metricUuid;</span>
+  }
+
+  public QualityGateConditionDto setMetricUuid(String metricUuid) {
+<span class="fc" id="L73">    this.metricUuid = metricUuid;</span>
+<span class="fc" id="L74">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getMetricKey() {
+<span class="fc" id="L79">    return metricKey;</span>
+  }
+
+  public QualityGateConditionDto setMetricKey(@Nullable String metricKey) {
+<span class="fc" id="L83">    this.metricKey = metricKey;</span>
+<span class="fc" id="L84">    return this;</span>
+  }
+
+  public String getOperator() {
+<span class="fc" id="L88">    return operator;</span>
+  }
+
+  public QualityGateConditionDto setOperator(String operator) {
+<span class="fc" id="L92">    this.operator = operator;</span>
+<span class="fc" id="L93">    return this;</span>
+  }
+
+  public String getErrorThreshold() {
+<span class="fc" id="L97">    return errorThreshold;</span>
+  }
+
+  public QualityGateConditionDto setErrorThreshold(String errorThreshold) {
+<span class="fc" id="L101">    this.errorThreshold = errorThreshold;</span>
+<span class="fc" id="L102">    return this;</span>
+  }
+
+  public Date getCreatedAt() {
+<span class="fc" id="L106">    return createdAt;</span>
+  }
+
+  public QualityGateConditionDto setCreatedAt(Date createdAt) {
+<span class="fc" id="L110">    this.createdAt = createdAt;</span>
+<span class="fc" id="L111">    return this;</span>
+  }
+
+  public Date getUpdatedAt() {
+<span class="fc" id="L115">    return updatedAt;</span>
+  }
+
+  public QualityGateConditionDto setUpdatedAt(Date updatedAt) {
+<span class="fc" id="L119">    this.updatedAt = updatedAt;</span>
+<span class="fc" id="L120">    return this;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

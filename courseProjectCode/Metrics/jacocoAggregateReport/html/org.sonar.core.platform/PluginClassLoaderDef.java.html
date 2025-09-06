@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PluginClassLoaderDef.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.core.platform</a> &gt; <span class="el_source">PluginClassLoaderDef.java</span></div><h1>PluginClassLoaderDef.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.core.platform;
+
+import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import javax.annotation.Nullable;
+import org.sonar.classloader.Mask;
+
+/**
+ * Temporary information about the classLoader to be created for a plugin (or a group of plugins).
+ */
+public class PluginClassLoaderDef {
+
+  private final String basePluginKey;
+<span class="fc" id="L39">  private final Map&lt;String, String&gt; mainClassesByPluginKey = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L40">  private final List&lt;File&gt; files = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L41">  private final Mask.Builder mask = Mask.builder();</span>
+<span class="fc" id="L42">  private boolean selfFirstStrategy = false;</span>
+
+<span class="fc" id="L44">  PluginClassLoaderDef(String basePluginKey) {</span>
+<span class="pc bpc" id="L45" title="1 of 2 branches missed.">    Preconditions.checkArgument(!Strings.isNullOrEmpty(basePluginKey));</span>
+<span class="fc" id="L46">    this.basePluginKey = basePluginKey;</span>
+<span class="fc" id="L47">  }</span>
+
+  String getBasePluginKey() {
+<span class="fc" id="L50">    return basePluginKey;</span>
+  }
+
+  List&lt;File&gt; getFiles() {
+<span class="fc" id="L54">    return files;</span>
+  }
+
+  void addFiles(Collection&lt;File&gt; f) {
+<span class="fc" id="L58">    this.files.addAll(f);</span>
+<span class="fc" id="L59">  }</span>
+
+  Mask.Builder getExportMask() {
+<span class="fc" id="L62">    return mask;</span>
+  }
+
+  boolean isSelfFirstStrategy() {
+<span class="fc" id="L66">    return selfFirstStrategy;</span>
+  }
+
+  void setSelfFirstStrategy(boolean selfFirstStrategy) {
+<span class="fc" id="L70">    this.selfFirstStrategy = selfFirstStrategy;</span>
+<span class="fc" id="L71">  }</span>
+
+  Map&lt;String, String&gt; getMainClassesByPluginKey() {
+<span class="fc" id="L74">    return mainClassesByPluginKey;</span>
+  }
+
+  void addMainClass(String pluginKey, @Nullable String mainClass) {
+<span class="pc bpc" id="L78" title="1 of 2 branches missed.">    if (!Strings.isNullOrEmpty(mainClass)) {</span>
+<span class="fc" id="L79">      mainClassesByPluginKey.put(pluginKey, mainClass);</span>
+    }
+<span class="fc" id="L81">  }</span>
+
+  @Override
+  public boolean equals(@Nullable Object o) {
+<span class="fc bfc" id="L85" title="All 2 branches covered.">    if (this == o) {</span>
+<span class="fc" id="L86">      return true;</span>
+    }
+<span class="fc bfc" id="L88" title="All 4 branches covered.">    if (o == null || getClass() != o.getClass()) {</span>
+<span class="fc" id="L89">      return false;</span>
+    }
+<span class="fc" id="L91">    PluginClassLoaderDef that = (PluginClassLoaderDef) o;</span>
+<span class="fc" id="L92">    return basePluginKey.equals(that.basePluginKey);</span>
+  }
+
+  @Override
+  public int hashCode() {
+<span class="fc" id="L97">    return basePluginKey.hashCode();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContextHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.auth.ldap</a> &gt; <span class="el_source">ContextHelper.java</span></div><h1>ContextHelper.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.auth.ldap;
+
+import javax.annotation.Nullable;
+import javax.naming.Context;
+import javax.naming.NamingException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+/**
+ * @author Evgeny Mandrikov
+ */
+public final class ContextHelper {
+
+<span class="fc" id="L33">  private static final Logger LOG = LoggerFactory.getLogger(ContextHelper.class);</span>
+
+  private ContextHelper() {
+  }
+
+  /**
+   * &lt;pre&gt;
+   * public void useContextNicely() throws NamingException {
+   *   InitialDirContext context = null;
+   *   boolean threw = true;
+   *   try {
+   *     context = new InitialDirContext();
+   *     // Some code which does something with the Context and may throw a NamingException
+   *     threw = false; // No throwable thrown
+   *   } finally {
+   *     // Close context
+   *     // If an exception occurs, only rethrow it if (threw==false)
+   *     close(context, threw);
+   *   }
+   * }
+   * &lt;/pre&gt;
+   *
+   * @param context the {@code Context} object to be closed, or null, in which case this method does nothing
+   * @param swallowIOException if true, don't propagate {@code NamingException} thrown by the {@code close} method
+   * @throws NamingException if {@code swallowIOException} is false and {@code close} throws a {@code NamingException}.
+   */
+  public static void close(@Nullable Context context, boolean swallowIOException) throws NamingException {
+<span class="fc bfc" id="L60" title="All 2 branches covered.">    if (context == null) {</span>
+<span class="fc" id="L61">      return;</span>
+    }
+    try {
+<span class="fc" id="L64">      context.close();</span>
+<span class="fc" id="L65">    } catch (NamingException e) {</span>
+<span class="fc bfc" id="L66" title="All 2 branches covered.">      if (swallowIOException) {</span>
+<span class="fc" id="L67">        LOG.warn(&quot;NamingException thrown while closing context.&quot;, e);</span>
+      } else {
+<span class="fc" id="L69">        throw e;</span>
+      }
+<span class="fc" id="L71">    }</span>
+<span class="fc" id="L72">  }</span>
+
+  public static void closeQuietly(@Nullable Context context) {
+    try {
+<span class="fc" id="L76">      close(context, true);</span>
+<span class="nc" id="L77">    } catch (NamingException e) {</span>
+<span class="nc" id="L78">      LOG.error(&quot;Unexpected NamingException&quot;, e);</span>
+<span class="fc" id="L79">    }</span>
+<span class="fc" id="L80">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

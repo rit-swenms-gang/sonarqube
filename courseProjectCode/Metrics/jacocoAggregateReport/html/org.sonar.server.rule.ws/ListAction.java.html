@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ListAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.rule.ws</a> &gt; <span class="el_source">ListAction.java</span></div><h1>ListAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.rule.ws;
+
+import com.google.common.collect.Maps;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+import javax.annotation.Nullable;
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.api.server.ws.WebService.NewAction;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.Pagination;
+import org.sonar.db.qualityprofile.QProfileDto;
+import org.sonar.db.rule.RuleDto;
+import org.sonar.db.rule.RuleListQuery;
+import org.sonar.db.rule.RuleListResult;
+import org.sonar.db.rule.RuleParamDto;
+import org.sonar.server.rule.ws.RulesResponseFormatter.SearchResult;
+import org.sonarqube.ws.Common;
+import org.sonarqube.ws.Rules;
+import org.sonarqube.ws.Rules.ListResponse;
+
+import static org.sonar.api.server.ws.WebService.Param.PAGE;
+import static org.sonar.api.server.ws.WebService.Param.PAGE_SIZE;
+import static org.sonar.db.rule.RuleListQuery.RuleListQueryBuilder.newRuleListQueryBuilder;
+import static org.sonar.server.exceptions.NotFoundException.checkFound;
+import static org.sonar.server.rule.ws.RulesWsParameters.PARAM_AVAILABLE_SINCE;
+import static org.sonar.server.rule.ws.RulesWsParameters.PARAM_QPROFILE;
+import static org.sonar.server.ws.WsUtils.writeProtobuf;
+
+public class ListAction implements RulesWsAction {
+  private final DbClient dbClient;
+  private final RulesResponseFormatter rulesResponseFormatter;
+
+<span class="fc" id="L60">  public ListAction(DbClient dbClient, RulesResponseFormatter rulesResponseFormatter) {</span>
+<span class="fc" id="L61">    this.dbClient = dbClient;</span>
+<span class="fc" id="L62">    this.rulesResponseFormatter = rulesResponseFormatter;</span>
+<span class="fc" id="L63">  }</span>
+
+  @Override
+  public void define(WebService.NewController controller) {
+<span class="fc" id="L67">    NewAction action = controller</span>
+<span class="fc" id="L68">      .createAction(&quot;list&quot;)</span>
+<span class="fc" id="L69">      .setDescription(&quot;List rules, excluding the external rules and the rules with status REMOVED. &quot; +</span>
+        &quot;If a quality profile is provided, it returns only the rules activated in this quality profile. &quot; +
+        &quot;If no quality profile is provided, it returns all the rules available to the user.&quot;)
+<span class="fc" id="L72">      .setSince(&quot;5.2&quot;)</span>
+<span class="fc" id="L73">      .setInternal(true)</span>
+<span class="fc" id="L74">      .setResponseExample(getClass().getResource(&quot;list-example.txt&quot;))</span>
+<span class="fc" id="L75">      .setHandler(this);</span>
+
+<span class="fc" id="L77">    action.setChangelog(</span>
+      new Change(&quot;10.4&quot;, &quot;'repository' field changed to 'repo'&quot;),
+      new Change(&quot;10.4&quot;, &quot;Extend the response with 'actives', 'qProfiles' fields&quot;),
+      new Change(&quot;10.4&quot;, &quot;Add pagination&quot;),
+<span class="fc" id="L81">      new Change(&quot;10.4&quot;, String.format(&quot;Add the '%s' parameter&quot;, PARAM_AVAILABLE_SINCE)),</span>
+<span class="fc" id="L82">      new Change(&quot;10.4&quot;, String.format(&quot;Add the '%s' parameter&quot;, PARAM_QPROFILE)),</span>
+      new Change(&quot;10.4&quot;, &quot;Add the 'createdAt' sorting field&quot;),
+<span class="fc" id="L84">      new Change(&quot;10.5&quot;, String.format(&quot;The sorting parameter '%s' no longer has a default value (was 'createdAt')&quot;,</span>
+        WebService.Param.SORT)));
+
+<span class="fc" id="L87">    action.createParam(PARAM_AVAILABLE_SINCE)</span>
+<span class="fc" id="L88">      .setDescription(&quot;Filter rules available since the given date. If no value is provided, all rules are returned. Format is yyyy-MM-dd.&quot;)</span>
+<span class="fc" id="L89">      .setExampleValue(&quot;2014-06-22&quot;)</span>
+<span class="fc" id="L90">      .setSince(&quot;10.4&quot;);</span>
+<span class="fc" id="L91">    action.createParam(PARAM_QPROFILE)</span>
+<span class="fc" id="L92">      .setDescription(&quot;Filter rules that are activated in the given quality profile.&quot;)</span>
+<span class="fc" id="L93">      .setSince(&quot;10.4&quot;);</span>
+<span class="fc" id="L94">    action.createSortParams(Set.of(&quot;createdAt&quot;), null, false)</span>
+<span class="fc" id="L95">      .setSince(&quot;10.4&quot;);</span>
+<span class="fc" id="L96">    action.addPagingParamsSince(100, 500, &quot;10.4&quot;);</span>
+<span class="fc" id="L97">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L101">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+
+<span class="fc" id="L103">      WsRequest wsRequest = toWsRequest(dbSession, request);</span>
+<span class="fc" id="L104">      SearchResult searchResult = doSearch(dbSession, wsRequest);</span>
+<span class="fc" id="L105">      ListResponse listResponse = buildResponse(wsRequest, dbSession, searchResult);</span>
+
+<span class="fc" id="L107">      writeProtobuf(listResponse, request, response);</span>
+    }
+<span class="fc" id="L109">  }</span>
+
+  private WsRequest toWsRequest(DbSession dbSession, Request request) {
+<span class="fc" id="L112">    WsRequest wsRequest = new WsRequest();</span>
+
+<span class="fc" id="L114">    String sortParam = request.param(WebService.Param.SORT);</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">    if (sortParam != null) {</span>
+<span class="fc" id="L116">      wsRequest.setSortField(sortParam)</span>
+<span class="fc" id="L117">        .setAscendingSort(request.mandatoryParamAsBoolean(WebService.Param.ASCENDING));</span>
+    }
+
+<span class="fc" id="L120">    return wsRequest</span>
+<span class="fc" id="L121">      .setQProfile(getQProfile(dbSession, request))</span>
+<span class="fc" id="L122">      .setPage(request.mandatoryParamAsInt(PAGE))</span>
+<span class="fc" id="L123">      .setPageSize(request.mandatoryParamAsInt(PAGE_SIZE))</span>
+<span class="fc" id="L124">      .setAvailableSince(request.paramAsDate(PARAM_AVAILABLE_SINCE));</span>
+  }
+
+  @Nullable
+  private QProfileDto getQProfile(DbSession dbSession, Request request) {
+<span class="fc" id="L129">    String profileUuid = request.param(PARAM_QPROFILE);</span>
+<span class="fc bfc" id="L130" title="All 2 branches covered.">    if (profileUuid == null) {</span>
+<span class="fc" id="L131">      return null;</span>
+    }
+<span class="fc" id="L133">    QProfileDto foundProfile = dbClient.qualityProfileDao().selectByUuid(dbSession, profileUuid);</span>
+<span class="fc" id="L134">    return checkFound(foundProfile, &quot;The specified qualityProfile '%s' does not exist&quot;, profileUuid);</span>
+  }
+
+  private SearchResult doSearch(DbSession dbSession, WsRequest wsRequest) {
+<span class="fc" id="L138">    RuleListResult ruleListResult = dbClient.ruleDao().selectRules(dbSession,</span>
+<span class="fc" id="L139">      buildRuleListQuery(wsRequest),</span>
+<span class="fc" id="L140">      Pagination.forPage(wsRequest.page).andSize(wsRequest.pageSize));</span>
+<span class="fc" id="L141">    Map&lt;String, RuleDto&gt; rulesByUuid = Maps.uniqueIndex(dbClient.ruleDao().selectByUuids(dbSession, ruleListResult.getUuids()), RuleDto::getUuid);</span>
+<span class="fc" id="L142">    Set&lt;String&gt; ruleUuids = rulesByUuid.keySet();</span>
+<span class="fc" id="L143">    List&lt;RuleDto&gt; rules = ruleListResult.getUuids().stream().map(rulesByUuid::get).toList();</span>
+
+<span class="fc" id="L145">    List&lt;String&gt; templateRuleUuids = rules.stream()</span>
+<span class="fc" id="L146">      .map(RuleDto::getTemplateUuid)</span>
+<span class="fc" id="L147">      .filter(Objects::nonNull)</span>
+<span class="fc" id="L148">      .toList();</span>
+<span class="fc" id="L149">    List&lt;RuleDto&gt; templateRules = dbClient.ruleDao().selectByUuids(dbSession, templateRuleUuids);</span>
+<span class="fc" id="L150">    List&lt;RuleParamDto&gt; ruleParamDtos = dbClient.ruleDao().selectRuleParamsByRuleUuids(dbSession, ruleUuids);</span>
+
+<span class="fc" id="L152">    return new SearchResult()</span>
+<span class="fc" id="L153">      .setRules(rules)</span>
+<span class="fc" id="L154">      .setRuleParameters(ruleParamDtos)</span>
+<span class="fc" id="L155">      .setTemplateRules(templateRules)</span>
+<span class="fc" id="L156">      .setTotal(ruleListResult.getTotal());</span>
+  }
+
+  private static RuleListQuery buildRuleListQuery(WsRequest wsRequest) {
+<span class="fc" id="L160">    return newRuleListQueryBuilder()</span>
+<span class="fc bfc" id="L161" title="All 2 branches covered.">      .profileUuid(wsRequest.qProfile != null ? wsRequest.qProfile.getRulesProfileUuid() : null)</span>
+<span class="fc bfc" id="L162" title="All 2 branches covered.">      .createdAt(wsRequest.availableSince != null ? wsRequest.availableSince.getTime() : null)</span>
+<span class="fc" id="L163">      .sortField(wsRequest.sortField)</span>
+<span class="pc bpc" id="L164" title="1 of 2 branches missed.">      .sortDirection(wsRequest.ascendingSort ? &quot;asc&quot; : &quot;desc&quot;)</span>
+<span class="fc" id="L165">      .build();</span>
+  }
+
+  private ListResponse buildResponse(WsRequest wsRequest, DbSession dbSession, SearchResult searchResult) {
+<span class="fc" id="L169">    QProfileDto qProfile = wsRequest.qProfile;</span>
+<span class="fc" id="L170">    Rules.Actives actives = rulesResponseFormatter.formatActiveRules(dbSession, qProfile, searchResult.getRules());</span>
+<span class="fc" id="L171">    Set&lt;String&gt; qProfiles = actives.getActivesMap().values()</span>
+<span class="fc" id="L172">      .stream()</span>
+<span class="fc" id="L173">      .map(Rules.ActiveList::getActiveListList)</span>
+<span class="fc" id="L174">      .flatMap(List::stream)</span>
+<span class="fc" id="L175">      .map(Rules.Active::getQProfile)</span>
+<span class="fc" id="L176">      .collect(Collectors.toSet());</span>
+
+<span class="fc" id="L178">    return ListResponse.newBuilder()</span>
+<span class="fc" id="L179">      .addAllRules(rulesResponseFormatter.formatRulesList(dbSession, searchResult))</span>
+<span class="fc" id="L180">      .setActives(actives)</span>
+<span class="fc" id="L181">      .setQProfiles(rulesResponseFormatter.formatQualityProfiles(dbSession, qProfiles))</span>
+<span class="fc" id="L182">      .setPaging(Common.Paging.newBuilder()</span>
+<span class="fc" id="L183">        .setPageIndex(wsRequest.page)</span>
+<span class="fc" id="L184">        .setPageSize(searchResult.getRules().size())</span>
+<span class="fc" id="L185">        .setTotal(searchResult.getTotal().intValue())</span>
+<span class="fc" id="L186">        .build())</span>
+<span class="fc" id="L187">      .build();</span>
+  }
+
+<span class="fc" id="L190">  private static class WsRequest {</span>
+<span class="fc" id="L191">    private String sortField = null;</span>
+<span class="fc" id="L192">    private boolean ascendingSort = true;</span>
+<span class="fc" id="L193">    private QProfileDto qProfile = null;</span>
+<span class="fc" id="L194">    private int page = 1;</span>
+<span class="fc" id="L195">    private int pageSize = 100;</span>
+<span class="fc" id="L196">    private Date availableSince = null;</span>
+
+    public WsRequest setSortField(String sortField) {
+<span class="fc" id="L199">      this.sortField = sortField;</span>
+<span class="fc" id="L200">      return this;</span>
+    }
+
+    public WsRequest setAscendingSort(boolean ascendingSort) {
+<span class="fc" id="L204">      this.ascendingSort = ascendingSort;</span>
+<span class="fc" id="L205">      return this;</span>
+    }
+
+    public WsRequest setQProfile(@Nullable QProfileDto qProfile) {
+<span class="fc" id="L209">      this.qProfile = qProfile;</span>
+<span class="fc" id="L210">      return this;</span>
+    }
+
+    public WsRequest setPage(int page) {
+<span class="fc" id="L214">      this.page = page;</span>
+<span class="fc" id="L215">      return this;</span>
+    }
+
+    public WsRequest setPageSize(int pageSize) {
+<span class="fc" id="L219">      this.pageSize = pageSize;</span>
+<span class="fc" id="L220">      return this;</span>
+    }
+
+    public WsRequest setAvailableSince(@Nullable Date availableSince) {
+<span class="fc" id="L224">      this.availableSince = availableSince;</span>
+<span class="fc" id="L225">      return this;</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

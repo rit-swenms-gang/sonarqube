@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LoadMeasureComputersStep.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.step</a> &gt; <span class="el_source">LoadMeasureComputersStep.java</span></div><h1>LoadMeasureComputersStep.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.step;
+
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import javax.annotation.Nonnull;
+import org.sonar.api.ce.measure.MeasureComputer;
+import org.sonar.api.measures.CoreMetrics;
+import org.sonar.api.measures.Metric;
+import org.sonar.api.measures.Metrics;
+import org.sonar.api.utils.dag.DirectAcyclicGraph;
+import org.sonar.ce.task.projectanalysis.api.measurecomputer.MeasureComputerDefinitionImpl;
+import org.sonar.ce.task.projectanalysis.api.measurecomputer.MeasureComputerWrapper;
+import org.sonar.ce.task.projectanalysis.measure.MutableMeasureComputersHolder;
+import org.sonar.ce.task.step.ComputationStep;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.collect.FluentIterable.from;
+import static org.sonar.api.ce.measure.MeasureComputer.MeasureComputerDefinition;
+
+public class LoadMeasureComputersStep implements ComputationStep {
+
+<span class="fc" id="L50">  private static final Set&lt;String&gt; CORE_METRIC_KEYS = CoreMetrics.getMetrics().stream().map(Metric::getKey).collect(Collectors.toSet());</span>
+  private final Set&lt;String&gt; pluginMetricKeys;
+  private final MutableMeasureComputersHolder measureComputersHolder;
+  private final MeasureComputer[] measureComputers;
+
+  @Autowired(required = false)
+<span class="fc" id="L56">  public LoadMeasureComputersStep(MutableMeasureComputersHolder measureComputersHolder, Metrics[] metricsRepositories, MeasureComputer[] measureComputers) {</span>
+<span class="fc" id="L57">    this.measureComputersHolder = measureComputersHolder;</span>
+<span class="fc" id="L58">    this.measureComputers = measureComputers;</span>
+<span class="fc" id="L59">    this.pluginMetricKeys = Arrays.stream(metricsRepositories)</span>
+<span class="fc" id="L60">      .flatMap(m -&gt; m.getMetrics().stream())</span>
+<span class="fc" id="L61">      .map(Metric::getKey)</span>
+<span class="fc" id="L62">      .collect(Collectors.toSet());</span>
+<span class="fc" id="L63">  }</span>
+
+  /**
+   * Constructor override used by the ioc container to instantiate the class when no plugin is defining metrics
+   */
+  @Autowired(required = false)
+  public LoadMeasureComputersStep(MutableMeasureComputersHolder measureComputersHolder, MeasureComputer[] measureComputers) {
+<span class="fc" id="L70">    this(measureComputersHolder, new Metrics[] {}, measureComputers);</span>
+<span class="fc" id="L71">  }</span>
+
+  /**
+   * Constructor override used by the ioc container to instantiate the class when no plugin is defining measure computers
+   */
+  @Autowired(required = false)
+  public LoadMeasureComputersStep(MutableMeasureComputersHolder measureComputersHolder, Metrics[] metricsRepositories) {
+<span class="fc" id="L78">    this(measureComputersHolder, metricsRepositories, new MeasureComputer[] {});</span>
+<span class="fc" id="L79">  }</span>
+
+  /**
+   * Constructor override used by the ioc container to instantiate the class when no plugin is defining metrics neither measure computers
+   */
+  @Autowired(required = false)
+  public LoadMeasureComputersStep(MutableMeasureComputersHolder measureComputersHolder) {
+<span class="fc" id="L86">    this(measureComputersHolder, new Metrics[] {}, new MeasureComputer[] {});</span>
+<span class="fc" id="L87">  }</span>
+
+  @Override
+  public void execute(Context context) {
+<span class="fc" id="L91">    List&lt;MeasureComputerWrapper&gt; wrappers = Arrays.stream(measureComputers).map(ToMeasureWrapper.INSTANCE).toList();</span>
+<span class="fc" id="L92">    validateMetrics(wrappers);</span>
+<span class="fc" id="L93">    measureComputersHolder.setMeasureComputers(sortComputers(wrappers));</span>
+<span class="fc" id="L94">  }</span>
+
+  private static Iterable&lt;MeasureComputerWrapper&gt; sortComputers(List&lt;MeasureComputerWrapper&gt; wrappers) {
+<span class="fc" id="L97">    Map&lt;String, MeasureComputerWrapper&gt; computersByOutputMetric = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L98">    Map&lt;String, MeasureComputerWrapper&gt; computersByInputMetric = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L99">    feedComputersByMetric(wrappers, computersByOutputMetric, computersByInputMetric);</span>
+<span class="fc" id="L100">    ToComputerByKey toComputerByOutputMetricKey = new ToComputerByKey(computersByOutputMetric);</span>
+<span class="fc" id="L101">    ToComputerByKey toComputerByInputMetricKey = new ToComputerByKey(computersByInputMetric);</span>
+
+<span class="fc" id="L103">    DirectAcyclicGraph dag = new DirectAcyclicGraph();</span>
+<span class="fc bfc" id="L104" title="All 2 branches covered.">    for (MeasureComputerWrapper computer : wrappers) {</span>
+<span class="fc" id="L105">      dag.add(computer);</span>
+<span class="fc bfc" id="L106" title="All 2 branches covered.">      for (MeasureComputerWrapper dependency : getDependencies(computer, toComputerByOutputMetricKey)) {</span>
+<span class="fc" id="L107">        dag.add(computer, dependency);</span>
+<span class="fc" id="L108">      }</span>
+<span class="fc bfc" id="L109" title="All 2 branches covered.">      for (MeasureComputerWrapper generates : getDependents(computer, toComputerByInputMetricKey)) {</span>
+<span class="fc" id="L110">        dag.add(generates, computer);</span>
+<span class="fc" id="L111">      }</span>
+<span class="fc" id="L112">    }</span>
+<span class="fc" id="L113">    return dag.sort();</span>
+  }
+
+  private static void feedComputersByMetric(List&lt;MeasureComputerWrapper&gt; wrappers, Map&lt;String, MeasureComputerWrapper&gt; computersByOutputMetric,
+    Map&lt;String, MeasureComputerWrapper&gt; computersByInputMetric) {
+<span class="fc bfc" id="L118" title="All 2 branches covered.">    for (MeasureComputerWrapper computer : wrappers) {</span>
+<span class="fc bfc" id="L119" title="All 2 branches covered.">      for (String outputMetric : computer.getDefinition().getOutputMetrics()) {</span>
+<span class="fc" id="L120">        computersByOutputMetric.put(outputMetric, computer);</span>
+<span class="fc" id="L121">      }</span>
+<span class="fc bfc" id="L122" title="All 2 branches covered.">      for (String inputMetric : computer.getDefinition().getInputMetrics()) {</span>
+<span class="fc" id="L123">        computersByInputMetric.put(inputMetric, computer);</span>
+<span class="fc" id="L124">      }</span>
+<span class="fc" id="L125">    }</span>
+<span class="fc" id="L126">  }</span>
+
+  private void validateMetrics(List&lt;MeasureComputerWrapper&gt; wrappers) {
+<span class="fc" id="L129">    wrappers.stream().flatMap(s -&gt; ToInputMetrics.INSTANCE.apply(s).stream()).forEach(this::validateInputMetric);</span>
+<span class="fc" id="L130">    wrappers.stream().flatMap(s -&gt; ToOutputMetrics.INSTANCE.apply(s).stream()).forEach(this::validateOutputMetric);</span>
+<span class="fc" id="L131">    ValidateUniqueOutputMetric validateUniqueOutputMetric = new ValidateUniqueOutputMetric();</span>
+<span class="fc" id="L132">    wrappers.forEach(validateUniqueOutputMetric::validate);</span>
+<span class="fc" id="L133">  }</span>
+
+  private static Collection&lt;MeasureComputerWrapper&gt; getDependencies(MeasureComputerWrapper measureComputer, ToComputerByKey toComputerByOutputMetricKey) {
+    // Remove null computer because a computer can depend on a metric that is only generated by a sensor or on a core metrics
+<span class="fc" id="L137">    return measureComputer.getDefinition().getInputMetrics().stream()</span>
+<span class="fc" id="L138">      .map(toComputerByOutputMetricKey)</span>
+<span class="fc" id="L139">      .filter(Objects::nonNull)</span>
+<span class="fc" id="L140">      .toList();</span>
+  }
+
+  private static Collection&lt;MeasureComputerWrapper&gt; getDependents(MeasureComputerWrapper measureComputer, ToComputerByKey toComputerByInputMetricKey) {
+<span class="fc" id="L144">    return measureComputer.getDefinition().getInputMetrics().stream()</span>
+<span class="fc" id="L145">      .map(toComputerByInputMetricKey)</span>
+<span class="fc" id="L146">      .toList();</span>
+  }
+
+  private static class ToComputerByKey implements Function&lt;String, MeasureComputerWrapper&gt; {
+    private final Map&lt;String, MeasureComputerWrapper&gt; computersByMetric;
+
+<span class="fc" id="L152">    private ToComputerByKey(Map&lt;String, MeasureComputerWrapper&gt; computersByMetric) {</span>
+<span class="fc" id="L153">      this.computersByMetric = computersByMetric;</span>
+<span class="fc" id="L154">    }</span>
+
+    @Override
+    public MeasureComputerWrapper apply(@Nonnull String metricKey) {
+<span class="fc" id="L158">      return computersByMetric.get(metricKey);</span>
+    }
+  }
+
+<span class="fc" id="L162">  private enum ToMeasureWrapper implements Function&lt;MeasureComputer, MeasureComputerWrapper&gt; {</span>
+<span class="fc" id="L163">    INSTANCE;</span>
+
+    @Override
+    public MeasureComputerWrapper apply(@Nonnull MeasureComputer measureComputer) {
+<span class="fc" id="L167">      MeasureComputerDefinition def = measureComputer.define(MeasureComputerDefinitionImpl.BuilderImpl::new);</span>
+<span class="fc" id="L168">      return new MeasureComputerWrapper(measureComputer, validateDef(def));</span>
+    }
+
+    private static MeasureComputerDefinition validateDef(MeasureComputerDefinition def) {
+<span class="fc bfc" id="L172" title="All 2 branches covered.">      if (def instanceof MeasureComputerDefinitionImpl) {</span>
+<span class="fc" id="L173">        return def;</span>
+      }
+      // If the computer has not been created by the builder, we recreate it to make sure it's valid
+<span class="fc" id="L176">      Set&lt;String&gt; inputMetrics = def.getInputMetrics();</span>
+<span class="fc" id="L177">      Set&lt;String&gt; outputMetrics = def.getOutputMetrics();</span>
+<span class="pc" id="L178">      return new MeasureComputerDefinitionImpl.BuilderImpl()</span>
+<span class="fc" id="L179">        .setInputMetrics(from(inputMetrics).toArray(String.class))</span>
+<span class="nc" id="L180">        .setOutputMetrics(from(outputMetrics).toArray(String.class))</span>
+<span class="nc" id="L181">        .build();</span>
+    }
+  }
+
+<span class="fc" id="L185">  private enum ToInputMetrics implements Function&lt;MeasureComputerWrapper, Collection&lt;String&gt;&gt; {</span>
+<span class="fc" id="L186">    INSTANCE;</span>
+
+    @Override
+    public Collection&lt;String&gt; apply(@Nonnull MeasureComputerWrapper input) {
+<span class="fc" id="L190">      return input.getDefinition().getInputMetrics();</span>
+    }
+  }
+
+  private void validateInputMetric(String metric) {
+<span class="fc bfc" id="L195" title="All 4 branches covered.">    checkState(pluginMetricKeys.contains(metric) || CORE_METRIC_KEYS.contains(metric),</span>
+      &quot;Metric '%s' cannot be used as an input metric as it's not a core metric and no plugin declare this metric&quot;, metric);
+<span class="fc" id="L197">  }</span>
+
+<span class="fc" id="L199">  private enum ToOutputMetrics implements Function&lt;MeasureComputerWrapper, Collection&lt;String&gt;&gt; {</span>
+<span class="fc" id="L200">    INSTANCE;</span>
+
+    @Override
+    public Collection&lt;String&gt; apply(@Nonnull MeasureComputerWrapper input) {
+<span class="fc" id="L204">      return input.getDefinition().getOutputMetrics();</span>
+    }
+  }
+
+  private void validateOutputMetric(String metric) {
+<span class="fc bfc" id="L209" title="All 2 branches covered.">    checkState(!CORE_METRIC_KEYS.contains(metric), &quot;Metric '%s' cannot be used as an output metric because it's a core metric&quot;, metric);</span>
+<span class="fc" id="L210">    checkState(pluginMetricKeys.contains(metric), &quot;Metric '%s' cannot be used as an output metric because no plugins declare this metric&quot;, metric);</span>
+<span class="fc" id="L211">  }</span>
+
+<span class="fc" id="L213">  private static class ValidateUniqueOutputMetric {</span>
+<span class="fc" id="L214">    private final Set&lt;String&gt; allOutputMetrics = new HashSet&lt;&gt;();</span>
+
+    public boolean validate(@Nonnull MeasureComputerWrapper wrapper) {
+<span class="fc bfc" id="L217" title="All 2 branches covered.">      for (String outputMetric : wrapper.getDefinition().getOutputMetrics()) {</span>
+<span class="fc bfc" id="L218" title="All 2 branches covered.">        checkState(!allOutputMetrics.contains(outputMetric),</span>
+<span class="fc" id="L219">          &quot;Output metric '%s' is already defined by another measure computer '%s'&quot;, outputMetric, wrapper.getComputer());</span>
+<span class="fc" id="L220">        allOutputMetrics.add(outputMetric);</span>
+<span class="fc" id="L221">      }</span>
+<span class="fc" id="L222">      return true;</span>
+    }
+  }
+
+  @Override
+  public String getDescription() {
+<span class="nc" id="L228">    return &quot;Load measure computers&quot;;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

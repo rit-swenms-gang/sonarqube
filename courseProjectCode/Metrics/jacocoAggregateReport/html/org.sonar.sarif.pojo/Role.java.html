@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Role.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.sarif.pojo</a> &gt; <span class="el_source">Role.java</span></div><h1>Role.java</h1><pre class="source lang-java linenums">
+package org.sonar.sarif.pojo;
+
+import java.util.HashMap;
+import java.util.Map;
+import javax.annotation.processing.Generated;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
+
+<span class="fc" id="L10">@Generated(&quot;jsonschema2pojo&quot;)</span>
+public enum Role {
+
+<span class="fc" id="L13">    ANALYSIS_TARGET(&quot;analysisTarget&quot;),</span>
+<span class="fc" id="L14">    ATTACHMENT(&quot;attachment&quot;),</span>
+<span class="fc" id="L15">    RESPONSE_FILE(&quot;responseFile&quot;),</span>
+<span class="fc" id="L16">    RESULT_FILE(&quot;resultFile&quot;),</span>
+<span class="fc" id="L17">    STANDARD_STREAM(&quot;standardStream&quot;),</span>
+<span class="fc" id="L18">    TRACED_FILE(&quot;tracedFile&quot;),</span>
+<span class="fc" id="L19">    UNMODIFIED(&quot;unmodified&quot;),</span>
+<span class="fc" id="L20">    MODIFIED(&quot;modified&quot;),</span>
+<span class="fc" id="L21">    ADDED(&quot;added&quot;),</span>
+<span class="fc" id="L22">    DELETED(&quot;deleted&quot;),</span>
+<span class="fc" id="L23">    RENAMED(&quot;renamed&quot;),</span>
+<span class="fc" id="L24">    UNCONTROLLED(&quot;uncontrolled&quot;),</span>
+<span class="fc" id="L25">    DRIVER(&quot;driver&quot;),</span>
+<span class="fc" id="L26">    EXTENSION(&quot;extension&quot;),</span>
+<span class="fc" id="L27">    TRANSLATION(&quot;translation&quot;),</span>
+<span class="fc" id="L28">    TAXONOMY(&quot;taxonomy&quot;),</span>
+<span class="fc" id="L29">    POLICY(&quot;policy&quot;),</span>
+<span class="fc" id="L30">    REFERENCED_ON_COMMAND_LINE(&quot;referencedOnCommandLine&quot;),</span>
+<span class="fc" id="L31">    MEMORY_CONTENTS(&quot;memoryContents&quot;),</span>
+<span class="fc" id="L32">    DIRECTORY(&quot;directory&quot;),</span>
+<span class="fc" id="L33">    USER_SPECIFIED_CONFIGURATION(&quot;userSpecifiedConfiguration&quot;),</span>
+<span class="fc" id="L34">    TOOL_SPECIFIED_CONFIGURATION(&quot;toolSpecifiedConfiguration&quot;),</span>
+<span class="fc" id="L35">    DEBUG_OUTPUT_FILE(&quot;debugOutputFile&quot;);</span>
+    private final String value;
+<span class="fc" id="L37">    private final static Map&lt;String, Role&gt; CONSTANTS = new HashMap&lt;String, Role&gt;();</span>
+
+    static {
+<span class="fc bfc" id="L40" title="All 2 branches covered.">        for (Role c: values()) {</span>
+<span class="fc" id="L41">            CONSTANTS.put(c.value, c);</span>
+        }
+<span class="fc" id="L43">    }</span>
+
+<span class="fc" id="L45">    Role(String value) {</span>
+<span class="fc" id="L46">        this.value = value;</span>
+<span class="fc" id="L47">    }</span>
+
+    @Override
+    public String toString() {
+<span class="nc" id="L51">        return this.value;</span>
+    }
+
+    @JsonValue
+    public String value() {
+<span class="fc" id="L56">        return this.value;</span>
+    }
+
+    @JsonCreator
+    public static Role fromValue(String value) {
+<span class="nc" id="L61">        Role constant = CONSTANTS.get(value);</span>
+<span class="nc bnc" id="L62" title="All 2 branches missed.">        if (constant == null) {</span>
+<span class="nc" id="L63">            throw new IllegalArgumentException(value);</span>
+        } else {
+<span class="nc" id="L65">            return constant;</span>
+        }
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

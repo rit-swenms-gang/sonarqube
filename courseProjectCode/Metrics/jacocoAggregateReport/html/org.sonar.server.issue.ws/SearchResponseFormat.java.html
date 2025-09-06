@@ -1,0 +1,504 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SearchResponseFormat.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.issue.ws</a> &gt; <span class="el_source">SearchResponseFormat.java</span></div><h1>SearchResponseFormat.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.issue.ws;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Date;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.sonar.api.issue.IssueStatus;
+import org.sonar.api.resources.Language;
+import org.sonar.api.resources.Languages;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.api.rules.CleanCodeAttribute;
+import org.sonar.api.utils.DateUtils;
+import org.sonar.api.utils.Duration;
+import org.sonar.api.utils.Durations;
+import org.sonar.api.utils.Paging;
+import org.sonar.core.rule.ImpactFormatter;
+import org.sonar.core.rule.RuleType;
+import org.sonar.db.component.BranchDto;
+import org.sonar.db.component.BranchType;
+import org.sonar.db.component.ComponentDto;
+import org.sonar.db.issue.IssueChangeDto;
+import org.sonar.db.issue.IssueDto;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.db.protobuf.DbIssues;
+import org.sonar.db.rule.RuleDto;
+import org.sonar.db.user.UserDto;
+import org.sonar.markdown.Markdown;
+import org.sonar.server.es.Facets;
+import org.sonar.server.issue.TextRangeResponseFormatter;
+import org.sonar.server.issue.index.IssueScope;
+import org.sonar.server.ws.MessageFormattingUtils;
+import org.sonarqube.ws.Common;
+import org.sonarqube.ws.Common.Comment;
+import org.sonarqube.ws.Common.User;
+import org.sonarqube.ws.Issues;
+import org.sonarqube.ws.Issues.Actions;
+import org.sonarqube.ws.Issues.Comments;
+import org.sonarqube.ws.Issues.Component;
+import org.sonarqube.ws.Issues.Issue;
+import org.sonarqube.ws.Issues.Operation;
+import org.sonarqube.ws.Issues.SearchWsResponse;
+import org.sonarqube.ws.Issues.Transitions;
+import org.sonarqube.ws.Issues.Users;
+
+import static com.google.common.base.MoreObjects.firstNonNull;
+import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.base.Strings.emptyToNull;
+import static com.google.common.base.Strings.nullToEmpty;
+import static java.lang.String.format;
+import static java.util.Collections.emptyList;
+import static java.util.Objects.requireNonNull;
+import static java.util.Optional.ofNullable;
+import static org.sonar.api.rule.RuleKey.EXTERNAL_RULE_REPO_PREFIX;
+import static org.sonar.db.component.ComponentQualifiers.UNIT_TEST_FILE;
+import static org.sonar.server.issue.index.IssueIndex.FACET_ASSIGNED_TO_ME;
+import static org.sonar.server.issue.index.IssueIndex.FACET_PROJECTS;
+import static org.sonar.server.issue.ws.SearchAdditionalField.ACTIONS;
+import static org.sonar.server.issue.ws.SearchAdditionalField.ALL_ADDITIONAL_FIELDS;
+import static org.sonar.server.issue.ws.SearchAdditionalField.COMMENTS;
+import static org.sonar.server.issue.ws.SearchAdditionalField.RULE_DESCRIPTION_CONTEXT_KEY;
+import static org.sonar.server.issue.ws.SearchAdditionalField.TRANSITIONS;
+import static org.sonarqube.ws.client.issue.IssuesWsParameters.PARAM_ASSIGNEES;
+import static org.sonarqube.ws.client.issue.IssuesWsParameters.PARAM_RULES;
+
+public class SearchResponseFormat {
+
+  private final Durations durations;
+  private final Languages languages;
+  private final TextRangeResponseFormatter textRangeFormatter;
+  private final UserResponseFormatter userFormatter;
+
+  public SearchResponseFormat(Durations durations, Languages languages, TextRangeResponseFormatter textRangeFormatter,
+<span class="fc" id="L97">    UserResponseFormatter userFormatter) {</span>
+<span class="fc" id="L98">    this.durations = durations;</span>
+<span class="fc" id="L99">    this.languages = languages;</span>
+<span class="fc" id="L100">    this.textRangeFormatter = textRangeFormatter;</span>
+<span class="fc" id="L101">    this.userFormatter = userFormatter;</span>
+<span class="fc" id="L102">  }</span>
+
+  SearchWsResponse formatSearch(Set&lt;SearchAdditionalField&gt; fields, SearchResponseData data, Paging paging, Facets facets,
+    boolean showAuthor, List&lt;String&gt; supportedFacets) {
+<span class="fc" id="L106">    SearchWsResponse.Builder response = SearchWsResponse.newBuilder();</span>
+
+<span class="fc" id="L108">    formatPaging(paging, response);</span>
+<span class="fc" id="L109">    ofNullable(data.getEffortTotal()).ifPresent(response::setEffortTotal);</span>
+<span class="fc" id="L110">    response.addAllIssues(createIssues(fields, data, showAuthor));</span>
+<span class="fc" id="L111">    response.addAllComponents(formatComponents(data));</span>
+<span class="fc" id="L112">    formatFacets(data, facets, response, supportedFacets);</span>
+<span class="fc bfc" id="L113" title="All 2 branches covered.">    if (fields.contains(SearchAdditionalField.RULES)) {</span>
+<span class="fc" id="L114">      response.setRules(formatRules(data));</span>
+    }
+<span class="fc bfc" id="L116" title="All 2 branches covered.">    if (fields.contains(SearchAdditionalField.USERS)) {</span>
+<span class="fc" id="L117">      response.setUsers(formatUsers(data));</span>
+    }
+<span class="fc bfc" id="L119" title="All 2 branches covered.">    if (fields.contains(SearchAdditionalField.LANGUAGES)) {</span>
+<span class="fc" id="L120">      response.setLanguages(formatLanguages());</span>
+    }
+<span class="fc" id="L122">    return response.build();</span>
+  }
+
+  Issues.ListWsResponse formatList(Set&lt;SearchAdditionalField&gt; fields, SearchResponseData data, Paging paging, boolean showAuthor) {
+<span class="fc" id="L126">    Issues.ListWsResponse.Builder response = Issues.ListWsResponse.newBuilder();</span>
+
+<span class="fc" id="L128">    response.setPaging(Common.Paging.newBuilder()</span>
+<span class="fc" id="L129">      .setPageIndex(paging.pageIndex())</span>
+<span class="fc" id="L130">      .setPageSize(data.getIssues().size()));</span>
+<span class="fc" id="L131">    response.addAllIssues(createIssues(fields, data, showAuthor));</span>
+<span class="fc" id="L132">    response.addAllComponents(formatComponents(data));</span>
+<span class="fc" id="L133">    return response.build();</span>
+  }
+
+  Operation formatOperation(SearchResponseData data, boolean showAuthor) {
+<span class="fc" id="L137">    Operation.Builder response = Operation.newBuilder();</span>
+
+<span class="fc bfc" id="L139" title="All 2 branches covered.">    if (data.getIssues().size() == 1) {</span>
+<span class="fc" id="L140">      IssueDto dto = data.getIssues().get(0);</span>
+<span class="fc" id="L141">      response.setIssue(createIssue(ALL_ADDITIONAL_FIELDS, data, dto, showAuthor));</span>
+    }
+<span class="fc" id="L143">    response.addAllComponents(formatComponents(data));</span>
+<span class="fc" id="L144">    response.addAllRules(formatRules(data).getRulesList());</span>
+<span class="fc" id="L145">    response.addAllUsers(formatUsers(data).getUsersList());</span>
+<span class="fc" id="L146">    return response.build();</span>
+  }
+
+  private static void formatPaging(Paging paging, SearchWsResponse.Builder response) {
+<span class="fc" id="L150">    response.setP(paging.pageIndex());</span>
+<span class="fc" id="L151">    response.setPs(paging.pageSize());</span>
+<span class="fc" id="L152">    response.setTotal(paging.total());</span>
+<span class="fc" id="L153">    response.setPaging(formatPaging(paging));</span>
+<span class="fc" id="L154">  }</span>
+
+  private static Common.Paging.Builder formatPaging(Paging paging) {
+<span class="fc" id="L157">    return Common.Paging.newBuilder()</span>
+<span class="fc" id="L158">      .setPageIndex(paging.pageIndex())</span>
+<span class="fc" id="L159">      .setPageSize(paging.pageSize())</span>
+<span class="fc" id="L160">      .setTotal(paging.total());</span>
+  }
+
+  private List&lt;Issues.Issue&gt; createIssues(Collection&lt;SearchAdditionalField&gt; fields, SearchResponseData data, boolean showAuthor) {
+<span class="fc" id="L164">    return data.getIssues().stream()</span>
+<span class="fc" id="L165">      .map(dto -&gt; createIssue(fields, data, dto, showAuthor))</span>
+<span class="fc" id="L166">      .toList();</span>
+  }
+
+  private Issue createIssue(Collection&lt;SearchAdditionalField&gt; fields, SearchResponseData data, IssueDto dto, boolean showAuthor) {
+<span class="fc" id="L170">    Issue.Builder issueBuilder = Issue.newBuilder();</span>
+<span class="fc" id="L171">    addMandatoryFieldsToIssueBuilder(issueBuilder, dto, data, showAuthor);</span>
+<span class="fc" id="L172">    addAdditionalFieldsToIssueBuilder(fields, data, dto, issueBuilder);</span>
+<span class="fc" id="L173">    return issueBuilder.build();</span>
+  }
+
+  private void addMandatoryFieldsToIssueBuilder(Issue.Builder issueBuilder, IssueDto dto, SearchResponseData data, boolean showAuthor) {
+<span class="fc" id="L177">    issueBuilder.setKey(dto.getKey());</span>
+<span class="fc" id="L178">    issueBuilder.setType(Common.RuleType.forNumber(dto.getType()));</span>
+
+<span class="fc" id="L180">    CleanCodeAttribute cleanCodeAttribute = dto.getEffectiveCleanCodeAttribute();</span>
+<span class="pc bpc" id="L181" title="1 of 2 branches missed.">    if (cleanCodeAttribute != null) {</span>
+<span class="fc" id="L182">      issueBuilder.setCleanCodeAttribute(Common.CleanCodeAttribute.valueOf(cleanCodeAttribute.name()));</span>
+<span class="fc" id="L183">      issueBuilder.setCleanCodeAttributeCategory(Common.CleanCodeAttributeCategory.valueOf(cleanCodeAttribute.getAttributeCategory().name()));</span>
+    }
+<span class="fc" id="L185">    issueBuilder.addAllImpacts(dto.getEffectiveImpacts().entrySet()</span>
+<span class="fc" id="L186">      .stream()</span>
+<span class="fc" id="L187">      .map(entry -&gt; Common.Impact.newBuilder()</span>
+<span class="fc" id="L188">        .setSoftwareQuality(Common.SoftwareQuality.valueOf(entry.getKey().name()))</span>
+<span class="fc" id="L189">        .setSeverity(ImpactFormatter.mapImpactSeverity(entry.getValue()))</span>
+<span class="fc" id="L190">        .build())</span>
+<span class="fc" id="L191">      .toList());</span>
+
+<span class="fc" id="L193">    ComponentDto component = data.getComponentByUuid(dto.getComponentUuid());</span>
+<span class="fc" id="L194">    issueBuilder.setComponent(component.getKey());</span>
+<span class="fc" id="L195">    setBranchOrPr(component, issueBuilder, data);</span>
+<span class="fc" id="L196">    ComponentDto branch = data.getComponentByUuid(dto.getProjectUuid());</span>
+<span class="pc bpc" id="L197" title="1 of 2 branches missed.">    if (branch != null) {</span>
+<span class="fc" id="L198">      issueBuilder.setProject(branch.getKey());</span>
+    }
+<span class="fc" id="L200">    issueBuilder.setRule(dto.getRuleKey().toString());</span>
+<span class="fc bfc" id="L201" title="All 2 branches covered.">    if (dto.isExternal()) {</span>
+<span class="fc" id="L202">      issueBuilder.setExternalRuleEngine(engineNameFrom(dto.getRuleKey()));</span>
+    }
+<span class="fc bfc" id="L204" title="All 2 branches covered.">    if (dto.getType() != RuleType.SECURITY_HOTSPOT.getDbConstant()) {</span>
+<span class="fc" id="L205">      issueBuilder.setSeverity(Common.Severity.valueOf(dto.getSeverity()));</span>
+    }
+<span class="fc" id="L207">    ofNullable(data.getUserByUuid(dto.getAssigneeUuid())).ifPresent(assignee -&gt; issueBuilder.setAssignee(assignee.getLogin()));</span>
+
+<span class="fc" id="L209">    ofNullable(emptyToNull(dto.getResolution())).ifPresent(issueBuilder::setResolution);</span>
+<span class="fc" id="L210">    issueBuilder.setStatus(dto.getStatus());</span>
+<span class="fc" id="L211">    ofNullable(dto.getIssueStatus()).map(IssueStatus::name).ifPresent(issueBuilder::setIssueStatus);</span>
+<span class="fc" id="L212">    issueBuilder.setMessage(nullToEmpty(dto.getMessage()));</span>
+<span class="fc" id="L213">    issueBuilder.addAllMessageFormattings(MessageFormattingUtils.dbMessageFormattingToWs(dto.parseMessageFormattings()));</span>
+<span class="fc" id="L214">    issueBuilder.addAllTags(dto.getTags());</span>
+<span class="fc" id="L215">    issueBuilder.addAllCodeVariants(dto.getCodeVariants());</span>
+<span class="fc" id="L216">    Long effort = dto.getEffort();</span>
+<span class="pc bpc" id="L217" title="1 of 2 branches missed.">    if (effort != null) {</span>
+<span class="fc" id="L218">      String effortValue = durations.encode(Duration.create(effort));</span>
+<span class="fc" id="L219">      issueBuilder.setDebt(effortValue);</span>
+<span class="fc" id="L220">      issueBuilder.setEffort(effortValue);</span>
+    }
+<span class="fc" id="L222">    ofNullable(dto.getLine()).ifPresent(issueBuilder::setLine);</span>
+<span class="fc" id="L223">    ofNullable(emptyToNull(dto.getChecksum())).ifPresent(issueBuilder::setHash);</span>
+<span class="fc" id="L224">    completeIssueLocations(dto, issueBuilder, data);</span>
+
+<span class="fc bfc" id="L226" title="All 2 branches covered.">    if (showAuthor) {</span>
+<span class="fc" id="L227">      issueBuilder.setAuthor(nullToEmpty(dto.getAuthorLogin()));</span>
+    }
+<span class="fc" id="L229">    ofNullable(dto.getIssueCreationDate()).map(DateUtils::formatDateTime).ifPresent(issueBuilder::setCreationDate);</span>
+<span class="fc" id="L230">    ofNullable(dto.getIssueUpdateDate()).map(DateUtils::formatDateTime).ifPresent(issueBuilder::setUpdateDate);</span>
+<span class="fc" id="L231">    ofNullable(dto.getIssueCloseDate()).map(DateUtils::formatDateTime).ifPresent(issueBuilder::setCloseDate);</span>
+
+<span class="fc" id="L233">    Optional.of(dto.isQuickFixAvailable())</span>
+<span class="pc" id="L234">      .ifPresentOrElse(issueBuilder::setQuickFixAvailable, () -&gt; issueBuilder.setQuickFixAvailable(false));</span>
+
+<span class="fc bfc" id="L236" title="All 2 branches covered.">    issueBuilder.setScope(UNIT_TEST_FILE.equals(component.qualifier()) ? IssueScope.TEST.name() : IssueScope.MAIN.name());</span>
+<span class="fc" id="L237">    issueBuilder.setPrioritizedRule(dto.isPrioritizedRule());</span>
+<span class="fc" id="L238">    issueBuilder.setFromSonarQubeUpdate(dto.isFromSonarQubeUpdate());</span>
+<span class="fc" id="L239">  }</span>
+
+  private static void addAdditionalFieldsToIssueBuilder(Collection&lt;SearchAdditionalField&gt; fields, SearchResponseData data, IssueDto dto,
+    Issue.Builder issueBuilder) {
+<span class="fc bfc" id="L243" title="All 2 branches covered.">    if (fields.contains(ACTIONS)) {</span>
+<span class="fc" id="L244">      issueBuilder.setActions(createIssueActions(data, dto));</span>
+    }
+<span class="fc bfc" id="L246" title="All 2 branches covered.">    if (fields.contains(TRANSITIONS)) {</span>
+<span class="fc" id="L247">      issueBuilder.setTransitions(createIssueTransition(data, dto));</span>
+    }
+<span class="fc bfc" id="L249" title="All 2 branches covered.">    if (fields.contains(COMMENTS)) {</span>
+<span class="fc" id="L250">      issueBuilder.setComments(createIssueComments(data, dto));</span>
+    }
+<span class="fc bfc" id="L252" title="All 2 branches covered.">    if (fields.contains(RULE_DESCRIPTION_CONTEXT_KEY)) {</span>
+<span class="fc" id="L253">      dto.getOptionalRuleDescriptionContextKey().ifPresent(issueBuilder::setRuleDescriptionContextKey);</span>
+    }
+<span class="fc" id="L255">  }</span>
+
+  private static String engineNameFrom(RuleKey ruleKey) {
+<span class="fc" id="L258">    checkState(ruleKey.repository().startsWith(EXTERNAL_RULE_REPO_PREFIX));</span>
+<span class="fc" id="L259">    return ruleKey.repository().replace(EXTERNAL_RULE_REPO_PREFIX, &quot;&quot;);</span>
+  }
+
+  private void completeIssueLocations(IssueDto dto, Issue.Builder issueBuilder, SearchResponseData data) {
+<span class="fc" id="L263">    DbIssues.Locations locations = dto.parseLocations();</span>
+<span class="fc bfc" id="L264" title="All 2 branches covered.">    if (locations == null) {</span>
+<span class="fc" id="L265">      return;</span>
+    }
+<span class="fc" id="L267">    textRangeFormatter.formatTextRange(locations, issueBuilder::setTextRange);</span>
+<span class="fc" id="L268">    issueBuilder.addAllFlows(textRangeFormatter.formatFlows(locations, issueBuilder.getComponent(), data.getComponentsByUuid()));</span>
+<span class="fc" id="L269">  }</span>
+
+  private static Transitions createIssueTransition(SearchResponseData data, IssueDto dto) {
+<span class="fc" id="L272">    Transitions.Builder wsTransitions = Transitions.newBuilder();</span>
+<span class="fc" id="L273">    List&lt;String&gt; transitions = data.getTransitionsForIssueKey(dto.getKey());</span>
+<span class="fc bfc" id="L274" title="All 2 branches covered.">    if (transitions != null) {</span>
+<span class="fc" id="L275">      wsTransitions.addAllTransitions(transitions);</span>
+    }
+<span class="fc" id="L277">    return wsTransitions.build();</span>
+  }
+
+  private static Actions createIssueActions(SearchResponseData data, IssueDto dto) {
+<span class="fc" id="L281">    Actions.Builder wsActions = Actions.newBuilder();</span>
+<span class="fc" id="L282">    List&lt;String&gt; actions = data.getActionsForIssueKey(dto.getKey());</span>
+<span class="fc bfc" id="L283" title="All 2 branches covered.">    if (actions != null) {</span>
+<span class="fc" id="L284">      wsActions.addAllActions(actions);</span>
+    }
+<span class="fc" id="L286">    return wsActions.build();</span>
+  }
+
+  private static Comments createIssueComments(SearchResponseData data, IssueDto dto) {
+<span class="fc" id="L290">    Comments.Builder wsComments = Comments.newBuilder();</span>
+<span class="fc" id="L291">    List&lt;IssueChangeDto&gt; comments = data.getCommentsForIssueKey(dto.getKey());</span>
+<span class="fc bfc" id="L292" title="All 2 branches covered.">    if (comments != null) {</span>
+<span class="fc" id="L293">      Comment.Builder wsComment = Comment.newBuilder();</span>
+<span class="fc bfc" id="L294" title="All 2 branches covered.">      for (IssueChangeDto comment : comments) {</span>
+<span class="fc" id="L295">        String markdown = comment.getChangeData();</span>
+<span class="fc" id="L296">        wsComment</span>
+<span class="fc" id="L297">          .clear()</span>
+<span class="fc" id="L298">          .setKey(comment.getKey())</span>
+<span class="fc" id="L299">          .setUpdatable(data.isUpdatableComment(comment.getKey()))</span>
+<span class="fc" id="L300">          .setCreatedAt(DateUtils.formatDateTime(new Date(comment.getIssueChangeCreationDate())));</span>
+<span class="fc" id="L301">        ofNullable(data.getUserByUuid(comment.getUserUuid())).ifPresent(user -&gt; wsComment.setLogin(user.getLogin()));</span>
+<span class="pc bpc" id="L302" title="1 of 2 branches missed.">        if (markdown != null) {</span>
+<span class="fc" id="L303">          wsComment</span>
+<span class="fc" id="L304">            .setHtmlText(Markdown.convertToHtml(markdown))</span>
+<span class="fc" id="L305">            .setMarkdown(markdown);</span>
+        }
+<span class="fc" id="L307">        wsComments.addComments(wsComment);</span>
+<span class="fc" id="L308">      }</span>
+    }
+<span class="fc" id="L310">    return wsComments.build();</span>
+  }
+
+  private Common.Rules.Builder formatRules(SearchResponseData data) {
+<span class="fc" id="L314">    Common.Rules.Builder wsRules = Common.Rules.newBuilder();</span>
+<span class="fc" id="L315">    List&lt;RuleDto&gt; rules = firstNonNull(data.getRules(), emptyList());</span>
+<span class="fc bfc" id="L316" title="All 2 branches covered.">    for (RuleDto rule : rules) {</span>
+<span class="fc" id="L317">      wsRules.addRules(formatRule(rule));</span>
+<span class="fc" id="L318">    }</span>
+<span class="fc" id="L319">    return wsRules;</span>
+  }
+
+  private Common.Rule.Builder formatRule(RuleDto rule) {
+<span class="fc" id="L323">    Common.Rule.Builder builder = Common.Rule.newBuilder()</span>
+<span class="fc" id="L324">      .setKey(rule.getKey().toString())</span>
+<span class="fc" id="L325">      .setName(nullToEmpty(rule.getName()))</span>
+<span class="fc" id="L326">      .setStatus(Common.RuleStatus.valueOf(rule.getStatus().name()));</span>
+
+<span class="fc" id="L328">    builder.setLang(nullToEmpty(rule.getLanguage()));</span>
+<span class="fc" id="L329">    Language lang = languages.get(rule.getLanguage());</span>
+<span class="pc bpc" id="L330" title="1 of 2 branches missed.">    if (lang != null) {</span>
+<span class="nc" id="L331">      builder.setLangName(lang.getName());</span>
+    }
+<span class="fc" id="L333">    return builder;</span>
+  }
+
+  private static List&lt;Issues.Component&gt; formatComponents(SearchResponseData data) {
+<span class="fc" id="L337">    Collection&lt;ComponentDto&gt; components = data.getComponents();</span>
+<span class="fc" id="L338">    List&lt;Issues.Component&gt; result = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L339" title="All 2 branches covered.">    for (ComponentDto dto : components) {</span>
+<span class="fc" id="L340">      Component.Builder builder = Component.newBuilder()</span>
+<span class="fc" id="L341">        .setKey(dto.getKey())</span>
+<span class="fc" id="L342">        .setQualifier(dto.qualifier())</span>
+<span class="fc" id="L343">        .setName(nullToEmpty(dto.name()))</span>
+<span class="fc" id="L344">        .setLongName(nullToEmpty(dto.longName()))</span>
+<span class="fc" id="L345">        .setEnabled(dto.isEnabled());</span>
+<span class="fc" id="L346">      setBranchOrPr(dto, builder, data);</span>
+<span class="fc" id="L347">      ofNullable(emptyToNull(dto.path())).ifPresent(builder::setPath);</span>
+
+<span class="fc" id="L349">      result.add(builder.build());</span>
+<span class="fc" id="L350">    }</span>
+<span class="fc" id="L351">    return result;</span>
+  }
+
+  private static void setBranchOrPr(ComponentDto componentDto, Component.Builder builder, SearchResponseData data) {
+<span class="pc bpc" id="L355" title="1 of 2 branches missed.">    String branchUuid = componentDto.getCopyComponentUuid() != null ? componentDto.getCopyComponentUuid() : componentDto.branchUuid();</span>
+<span class="fc" id="L356">    BranchDto branchDto = data.getBranch(branchUuid);</span>
+<span class="fc bfc" id="L357" title="All 2 branches covered.">    if (branchDto.isMain()) {</span>
+<span class="fc" id="L358">      return;</span>
+    }
+<span class="fc bfc" id="L360" title="All 2 branches covered.">    if (branchDto.getBranchType() == BranchType.BRANCH) {</span>
+<span class="fc" id="L361">      builder.setBranch(branchDto.getKey());</span>
+<span class="pc bpc" id="L362" title="1 of 2 branches missed.">    } else if (branchDto.getBranchType() == BranchType.PULL_REQUEST) {</span>
+<span class="fc" id="L363">      builder.setPullRequest(branchDto.getKey());</span>
+    }
+<span class="fc" id="L365">  }</span>
+
+  private static void setBranchOrPr(ComponentDto componentDto, Issue.Builder builder, SearchResponseData data) {
+<span class="pc bpc" id="L368" title="1 of 2 branches missed.">    String branchUuid = componentDto.getCopyComponentUuid() != null ? componentDto.getCopyComponentUuid() : componentDto.branchUuid();</span>
+<span class="fc" id="L369">    BranchDto branchDto = data.getBranch(branchUuid);</span>
+<span class="fc bfc" id="L370" title="All 2 branches covered.">    if (branchDto.isMain()) {</span>
+<span class="fc" id="L371">      return;</span>
+    }
+<span class="fc bfc" id="L373" title="All 2 branches covered.">    if (branchDto.getBranchType() == BranchType.BRANCH) {</span>
+<span class="fc" id="L374">      builder.setBranch(branchDto.getKey());</span>
+<span class="pc bpc" id="L375" title="1 of 2 branches missed.">    } else if (branchDto.getBranchType() == BranchType.PULL_REQUEST) {</span>
+<span class="fc" id="L376">      builder.setPullRequest(branchDto.getKey());</span>
+    }
+<span class="fc" id="L378">  }</span>
+
+  private Users.Builder formatUsers(SearchResponseData data) {
+<span class="fc" id="L381">    Users.Builder wsUsers = Users.newBuilder();</span>
+<span class="fc" id="L382">    List&lt;UserDto&gt; users = data.getUsers();</span>
+<span class="pc bpc" id="L383" title="1 of 2 branches missed.">    if (users != null) {</span>
+<span class="fc" id="L384">      User.Builder builder = User.newBuilder();</span>
+<span class="fc bfc" id="L385" title="All 2 branches covered.">      for (UserDto user : users) {</span>
+<span class="fc" id="L386">        wsUsers.addUsers(userFormatter.formatUser(builder, user));</span>
+<span class="fc" id="L387">      }</span>
+    }
+<span class="fc" id="L389">    return wsUsers;</span>
+  }
+
+  private Issues.Languages.Builder formatLanguages() {
+<span class="fc" id="L393">    Issues.Languages.Builder wsLangs = Issues.Languages.newBuilder();</span>
+<span class="fc" id="L394">    Issues.Language.Builder wsLang = Issues.Language.newBuilder();</span>
+<span class="pc bpc" id="L395" title="1 of 2 branches missed.">    for (Language lang : languages.all()) {</span>
+<span class="nc" id="L396">      wsLang</span>
+<span class="nc" id="L397">        .clear()</span>
+<span class="nc" id="L398">        .setKey(lang.getKey())</span>
+<span class="nc" id="L399">        .setName(lang.getName());</span>
+<span class="nc" id="L400">      wsLangs.addLanguages(wsLang);</span>
+    }
+<span class="fc" id="L402">    return wsLangs;</span>
+  }
+
+  private static void formatFacets(SearchResponseData data, Facets facets, SearchWsResponse.Builder wsSearch, List&lt;String&gt; supportedFacets) {
+<span class="fc" id="L406">    Common.Facets.Builder wsFacets = Common.Facets.newBuilder();</span>
+<span class="fc" id="L407">    supportedFacets.stream()</span>
+<span class="fc bfc" id="L408" title="All 2 branches covered.">      .filter(f -&gt; !f.equals(FACET_PROJECTS))</span>
+<span class="fc bfc" id="L409" title="All 2 branches covered.">      .filter(f -&gt; !f.equals(FACET_ASSIGNED_TO_ME))</span>
+<span class="fc bfc" id="L410" title="All 2 branches covered.">      .filter(f -&gt; !f.equals(PARAM_ASSIGNEES))</span>
+<span class="fc bfc" id="L411" title="All 2 branches covered.">      .filter(f -&gt; !f.equals(PARAM_RULES))</span>
+<span class="fc" id="L412">      .forEach(f -&gt; computeStandardFacet(wsFacets, facets, f));</span>
+<span class="fc" id="L413">    computeAssigneesFacet(wsFacets, facets, data);</span>
+<span class="fc" id="L414">    computeAssignedToMeFacet(wsFacets, facets, data);</span>
+<span class="fc" id="L415">    computeRulesFacet(wsFacets, facets, data);</span>
+<span class="fc" id="L416">    computeProjectsFacet(wsFacets, facets, data);</span>
+<span class="fc" id="L417">    wsSearch.setFacets(wsFacets.build());</span>
+<span class="fc" id="L418">  }</span>
+
+  private static void computeStandardFacet(Common.Facets.Builder wsFacets, Facets facets, String facetKey) {
+<span class="fc" id="L421">    LinkedHashMap&lt;String, Long&gt; facet = facets.get(facetKey);</span>
+<span class="fc bfc" id="L422" title="All 2 branches covered.">    if (facet == null) {</span>
+<span class="fc" id="L423">      return;</span>
+    }
+<span class="fc" id="L425">    Common.Facet.Builder wsFacet = wsFacets.addFacetsBuilder();</span>
+<span class="fc" id="L426">    wsFacet.setProperty(facetKey);</span>
+<span class="fc" id="L427">    facet.forEach((value, count) -&gt; wsFacet.addValuesBuilder()</span>
+<span class="fc" id="L428">      .setVal(value)</span>
+<span class="fc" id="L429">      .setCount(count)</span>
+<span class="fc" id="L430">      .build());</span>
+<span class="fc" id="L431">    wsFacet.build();</span>
+<span class="fc" id="L432">  }</span>
+
+  private static void computeAssigneesFacet(Common.Facets.Builder wsFacets, Facets facets, SearchResponseData data) {
+<span class="fc" id="L435">    LinkedHashMap&lt;String, Long&gt; facet = facets.get(PARAM_ASSIGNEES);</span>
+<span class="fc bfc" id="L436" title="All 2 branches covered.">    if (facet == null) {</span>
+<span class="fc" id="L437">      return;</span>
+    }
+<span class="fc" id="L439">    Common.Facet.Builder wsFacet = wsFacets.addFacetsBuilder();</span>
+<span class="fc" id="L440">    wsFacet.setProperty(PARAM_ASSIGNEES);</span>
+<span class="fc" id="L441">    facet</span>
+<span class="fc" id="L442">      .forEach((userUuid, count) -&gt; {</span>
+<span class="fc" id="L443">        UserDto user = data.getUserByUuid(userUuid);</span>
+<span class="fc" id="L444">        wsFacet.addValuesBuilder()</span>
+<span class="fc bfc" id="L445" title="All 2 branches covered.">          .setVal(user == null ? &quot;&quot; : user.getLogin())</span>
+<span class="fc" id="L446">          .setCount(count)</span>
+<span class="fc" id="L447">          .build();</span>
+<span class="fc" id="L448">      });</span>
+<span class="fc" id="L449">    wsFacet.build();</span>
+<span class="fc" id="L450">  }</span>
+
+  private static void computeAssignedToMeFacet(Common.Facets.Builder wsFacets, Facets facets, SearchResponseData data) {
+<span class="fc" id="L453">    LinkedHashMap&lt;String, Long&gt; facet = facets.get(FACET_ASSIGNED_TO_ME);</span>
+<span class="fc bfc" id="L454" title="All 2 branches covered.">    if (facet == null) {</span>
+<span class="fc" id="L455">      return;</span>
+    }
+<span class="fc" id="L457">    Map.Entry&lt;String, Long&gt; entry = facet.entrySet().iterator().next();</span>
+<span class="fc" id="L458">    UserDto user = data.getUserByUuid(entry.getKey());</span>
+<span class="pc bpc" id="L459" title="1 of 2 branches missed.">    checkState(user != null, &quot;User with uuid '%s' has not been found&quot;, entry.getKey());</span>
+
+<span class="fc" id="L461">    Common.Facet.Builder wsFacet = wsFacets.addFacetsBuilder();</span>
+<span class="fc" id="L462">    wsFacet.setProperty(FACET_ASSIGNED_TO_ME);</span>
+<span class="fc" id="L463">    wsFacet.addValuesBuilder()</span>
+<span class="fc" id="L464">      .setVal(user.getLogin())</span>
+<span class="fc" id="L465">      .setCount(entry.getValue())</span>
+<span class="fc" id="L466">      .build();</span>
+<span class="fc" id="L467">  }</span>
+
+  private static void computeRulesFacet(Common.Facets.Builder wsFacets, Facets facets, SearchResponseData data) {
+<span class="fc" id="L470">    LinkedHashMap&lt;String, Long&gt; facet = facets.get(PARAM_RULES);</span>
+<span class="fc bfc" id="L471" title="All 2 branches covered.">    if (facet == null) {</span>
+<span class="fc" id="L472">      return;</span>
+    }
+
+<span class="fc" id="L475">    Map&lt;String, RuleKey&gt; ruleUuidsByRuleKeys = data.getRules().stream().collect(Collectors.toMap(RuleDto::getUuid, RuleDto::getKey));</span>
+<span class="fc" id="L476">    Common.Facet.Builder wsFacet = wsFacets.addFacetsBuilder();</span>
+<span class="fc" id="L477">    wsFacet.setProperty(PARAM_RULES);</span>
+<span class="fc" id="L478">    facet.forEach((ruleUuid, count) -&gt; wsFacet.addValuesBuilder()</span>
+<span class="fc" id="L479">      .setVal(ruleUuidsByRuleKeys.get(ruleUuid).toString())</span>
+<span class="fc" id="L480">      .setCount(count)</span>
+<span class="fc" id="L481">      .build());</span>
+<span class="fc" id="L482">    wsFacet.build();</span>
+<span class="fc" id="L483">  }</span>
+
+  private static void computeProjectsFacet(Common.Facets.Builder wsFacets, Facets facets, SearchResponseData datas) {
+<span class="fc" id="L486">    LinkedHashMap&lt;String, Long&gt; facet = facets.get(FACET_PROJECTS);</span>
+<span class="fc bfc" id="L487" title="All 2 branches covered.">    if (facet == null) {</span>
+<span class="fc" id="L488">      return;</span>
+    }
+<span class="fc" id="L490">    Common.Facet.Builder wsFacet = wsFacets.addFacetsBuilder();</span>
+<span class="fc" id="L491">    wsFacet.setProperty(FACET_PROJECTS);</span>
+<span class="fc" id="L492">    facet.forEach((uuid, count) -&gt; {</span>
+<span class="fc" id="L493">      ProjectDto project = datas.getProject(uuid);</span>
+<span class="fc" id="L494">      requireNonNull(project, format(&quot;Project has not been found for uuid '%s'&quot;, uuid));</span>
+<span class="fc" id="L495">      wsFacet.addValuesBuilder()</span>
+<span class="fc" id="L496">        .setVal(project.getKey())</span>
+<span class="fc" id="L497">        .setCount(count)</span>
+<span class="fc" id="L498">        .build();</span>
+<span class="fc" id="L499">    });</span>
+<span class="fc" id="L500">    wsFacet.build();</span>
+<span class="fc" id="L501">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

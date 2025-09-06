@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PortfolioDto.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.portfolio</a> &gt; <span class="el_source">PortfolioDto.java</span></div><h1>PortfolioDto.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.portfolio;
+
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.db.component.ComponentQualifiers;
+import org.sonar.db.entity.EntityDto;
+
+<span class="fc" id="L27">public class PortfolioDto extends EntityDto {</span>
+<span class="fc" id="L28">  public enum SelectionMode {</span>
+<span class="fc" id="L29">    NONE, MANUAL, REGEXP, REST, TAGS</span>
+  }
+
+  private String branchKey;
+
+  private String rootUuid;
+  private String parentUuid;
+  private String selectionMode;
+  private String selectionExpression;
+
+  private long createdAt;
+  private long updatedAt;
+
+  public String getRootUuid() {
+<span class="fc" id="L43">    return rootUuid;</span>
+  }
+
+  public PortfolioDto setRootUuid(String rootUuid) {
+<span class="fc" id="L47">    this.rootUuid = rootUuid;</span>
+<span class="fc" id="L48">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getParentUuid() {
+<span class="fc" id="L53">    return parentUuid;</span>
+  }
+
+  public boolean isRoot() {
+<span class="fc bfc" id="L57" title="All 2 branches covered.">    return parentUuid == null;</span>
+  }
+
+  public PortfolioDto setParentUuid(@Nullable String parentUuid) {
+<span class="fc" id="L61">    this.parentUuid = parentUuid;</span>
+<span class="fc" id="L62">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getBranchKey() {
+<span class="fc" id="L67">    return branchKey;</span>
+  }
+
+  public void setBranchKey(@Nullable String branchKey) {
+<span class="nc" id="L71">    this.branchKey = branchKey;</span>
+<span class="nc" id="L72">  }</span>
+
+  @Override
+  public String getQualifier() {
+<span class="fc bfc" id="L76" title="All 2 branches covered.">    if (isRoot()) {</span>
+<span class="fc" id="L77">      return ComponentQualifiers.VIEW;</span>
+    }
+<span class="fc" id="L79">    return ComponentQualifiers.SUBVIEW;</span>
+  }
+
+  public String getSelectionMode() {
+<span class="fc" id="L83">    return selectionMode;</span>
+  }
+
+  public PortfolioDto setSelectionMode(String selectionMode) {
+<span class="fc" id="L87">    this.selectionMode = selectionMode;</span>
+<span class="fc" id="L88">    return this;</span>
+  }
+
+  public PortfolioDto setSelectionMode(SelectionMode selectionMode) {
+<span class="fc" id="L92">    this.selectionMode = selectionMode.name();</span>
+<span class="fc" id="L93">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getSelectionExpression() {
+<span class="fc" id="L98">    return selectionExpression;</span>
+  }
+
+  public PortfolioDto setSelectionExpression(@Nullable String selectionExpression) {
+<span class="fc" id="L102">    this.selectionExpression = selectionExpression;</span>
+<span class="fc" id="L103">    return this;</span>
+  }
+
+  public long getCreatedAt() {
+<span class="fc" id="L107">    return createdAt;</span>
+  }
+
+  public PortfolioDto setCreatedAt(long createdAt) {
+<span class="fc" id="L111">    this.createdAt = createdAt;</span>
+<span class="fc" id="L112">    return this;</span>
+  }
+
+  public long getUpdatedAt() {
+<span class="fc" id="L116">    return updatedAt;</span>
+  }
+
+  public PortfolioDto setUpdatedAt(long updatedAt) {
+<span class="fc" id="L120">    this.updatedAt = updatedAt;</span>
+<span class="fc" id="L121">    return this;</span>
+  }
+
+  public PortfolioDto setUuid(String uuid) {
+<span class="fc" id="L125">    this.uuid = uuid;</span>
+<span class="fc" id="L126">    return this;</span>
+  }
+
+  /**
+   * This is the setter used by MyBatis mapper.
+   */
+  public PortfolioDto setKee(String kee) {
+<span class="fc" id="L133">    this.kee = kee;</span>
+<span class="fc" id="L134">    return this;</span>
+  }
+
+  public PortfolioDto setKey(String key) {
+<span class="fc" id="L138">    return setKee(key);</span>
+  }
+
+  @Override
+  public PortfolioDto setPrivate(boolean aPrivate) {
+<span class="fc" id="L143">    isPrivate = aPrivate;</span>
+<span class="fc" id="L144">    return this;</span>
+  }
+
+  public PortfolioDto setName(String name) {
+<span class="fc" id="L148">    this.name = name;</span>
+<span class="fc" id="L149">    return this;</span>
+  }
+
+  public PortfolioDto setDescription(@Nullable String description) {
+<span class="fc" id="L153">    this.description = description;</span>
+<span class="fc" id="L154">    return this;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

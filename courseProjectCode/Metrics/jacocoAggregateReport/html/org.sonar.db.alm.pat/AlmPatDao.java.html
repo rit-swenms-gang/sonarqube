@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AlmPatDao.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.alm.pat</a> &gt; <span class="el_source">AlmPatDao.java</span></div><h1>AlmPatDao.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.alm.pat;
+
+import java.util.Optional;
+import javax.annotation.Nullable;
+import org.sonar.api.utils.System2;
+import org.sonar.core.util.UuidFactory;
+import org.sonar.db.Dao;
+import org.sonar.db.DbSession;
+import org.sonar.db.alm.setting.AlmSettingDto;
+import org.sonar.db.audit.AuditPersister;
+import org.sonar.db.audit.model.PersonalAccessTokenNewValue;
+import org.sonar.db.user.UserDto;
+
+public class AlmPatDao implements Dao {
+
+  private final System2 system2;
+  private final UuidFactory uuidFactory;
+  private final AuditPersister auditPersister;
+
+<span class="fc" id="L39">  public AlmPatDao(System2 system2, UuidFactory uuidFactory, AuditPersister auditPersister) {</span>
+<span class="fc" id="L40">    this.system2 = system2;</span>
+<span class="fc" id="L41">    this.uuidFactory = uuidFactory;</span>
+<span class="fc" id="L42">    this.auditPersister = auditPersister;</span>
+<span class="fc" id="L43">  }</span>
+
+  private static AlmPatMapper getMapper(DbSession dbSession) {
+<span class="fc" id="L46">    return dbSession.getMapper(AlmPatMapper.class);</span>
+  }
+
+  public Optional&lt;AlmPatDto&gt; selectByUuid(DbSession dbSession, String uuid) {
+<span class="fc" id="L50">    return Optional.ofNullable(getMapper(dbSession).selectByUuid(uuid));</span>
+  }
+
+  public Optional&lt;AlmPatDto&gt; selectByUserAndAlmSetting(DbSession dbSession, String userUuid, AlmSettingDto almSettingDto) {
+<span class="fc" id="L54">    return Optional.ofNullable(getMapper(dbSession).selectByUserAndAlmSetting(userUuid, almSettingDto.getUuid()));</span>
+  }
+
+  public void insert(DbSession dbSession, AlmPatDto almPatDto, @Nullable String userLogin, @Nullable String almSettingKey) {
+<span class="fc" id="L58">    String uuid = uuidFactory.create();</span>
+<span class="fc" id="L59">    long now = system2.now();</span>
+<span class="fc" id="L60">    almPatDto.setUuid(uuid);</span>
+<span class="fc" id="L61">    almPatDto.setCreatedAt(now);</span>
+<span class="fc" id="L62">    almPatDto.setUpdatedAt(now);</span>
+<span class="fc" id="L63">    getMapper(dbSession).insert(almPatDto);</span>
+
+<span class="fc" id="L65">    auditPersister.addPersonalAccessToken(dbSession, new PersonalAccessTokenNewValue(almPatDto, userLogin, almSettingKey));</span>
+<span class="fc" id="L66">  }</span>
+
+  public void update(DbSession dbSession, AlmPatDto almPatDto, @Nullable String userLogin, @Nullable String almSettingKey) {
+<span class="fc" id="L69">    long now = system2.now();</span>
+<span class="fc" id="L70">    almPatDto.setUpdatedAt(now);</span>
+<span class="fc" id="L71">    getMapper(dbSession).update(almPatDto);</span>
+<span class="fc" id="L72">    auditPersister.updatePersonalAccessToken(dbSession, new PersonalAccessTokenNewValue(almPatDto, userLogin, almSettingKey));</span>
+<span class="fc" id="L73">  }</span>
+
+  public void delete(DbSession dbSession, AlmPatDto almPatDto, @Nullable String userLogin, @Nullable String almSettingKey) {
+<span class="fc" id="L76">    int deletedRows = getMapper(dbSession).deleteByUuid(almPatDto.getUuid());</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">    if (deletedRows &gt; 0) {</span>
+<span class="fc" id="L78">      auditPersister.deletePersonalAccessToken(dbSession, new PersonalAccessTokenNewValue(almPatDto, userLogin, almSettingKey));</span>
+    }
+<span class="fc" id="L80">  }</span>
+
+  public void deleteByUser(DbSession dbSession, UserDto user) {
+<span class="fc" id="L83">    int deletedRows = getMapper(dbSession).deleteByUser(user.getUuid());</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">    if (deletedRows &gt; 0) {</span>
+<span class="fc" id="L85">      auditPersister.deletePersonalAccessToken(dbSession, new PersonalAccessTokenNewValue(user));</span>
+    }
+<span class="fc" id="L87">  }</span>
+
+  public void deleteByAlmSetting(DbSession dbSession, AlmSettingDto almSetting) {
+<span class="fc" id="L90">    int deletedRows = getMapper(dbSession).deleteByAlmSetting(almSetting.getUuid());</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">    if (deletedRows &gt; 0) {</span>
+<span class="fc" id="L92">      auditPersister.deletePersonalAccessToken(dbSession, new PersonalAccessTokenNewValue(almSetting));</span>
+    }
+<span class="fc" id="L94">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

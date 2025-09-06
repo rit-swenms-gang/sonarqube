@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IndexCreator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.es</a> &gt; <span class="el_source">IndexCreator.java</span></div><h1>IndexCreator.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.es;
+
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.client.indices.CreateIndexResponse;
+import org.elasticsearch.client.indices.GetIndexRequest;
+import org.elasticsearch.client.indices.PutMappingRequest;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.common.settings.Settings;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.Startable;
+import org.sonar.api.server.ServerSide;
+import org.sonar.server.es.metadata.EsDbCompatibility;
+import org.sonar.server.es.metadata.MetadataIndex;
+import org.sonar.server.es.metadata.MetadataIndexDefinition;
+import org.sonar.server.es.newindex.BuiltIndex;
+import org.sonar.server.es.newindex.NewIndex;
+
+import static org.sonar.server.es.metadata.MetadataIndexDefinition.DESCRIPTOR;
+import static org.sonar.server.es.metadata.MetadataIndexDefinition.TYPE_METADATA;
+
+/**
+ * Creates/deletes all indices in Elasticsearch during server startup.
+ */
+@ServerSide
+public class IndexCreator implements Startable {
+
+<span class="fc" id="L57">  private static final Logger LOGGER = LoggerFactory.getLogger(IndexCreator.class);</span>
+
+  private final MetadataIndexDefinition metadataIndexDefinition;
+  private final MetadataIndex metadataIndex;
+  private final EsClient client;
+  private final IndexDefinitions definitions;
+  private final EsDbCompatibility esDbCompatibility;
+
+  public IndexCreator(EsClient client, IndexDefinitions definitions, MetadataIndexDefinition metadataIndexDefinition,
+<span class="fc" id="L66">    MetadataIndex metadataIndex, EsDbCompatibility esDbCompatibility) {</span>
+<span class="fc" id="L67">    this.client = client;</span>
+<span class="fc" id="L68">    this.definitions = definitions;</span>
+<span class="fc" id="L69">    this.metadataIndexDefinition = metadataIndexDefinition;</span>
+<span class="fc" id="L70">    this.metadataIndex = metadataIndex;</span>
+<span class="fc" id="L71">    this.esDbCompatibility = esDbCompatibility;</span>
+<span class="fc" id="L72">  }</span>
+
+  @Override
+  public void start() {
+    // create the &quot;metadata&quot; index first
+<span class="fc" id="L77">    IndexType.IndexMainType metadataMainType = TYPE_METADATA;</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">    if (!client.indexExists(new GetIndexRequest(metadataMainType.getIndex().getName()))) {</span>
+<span class="fc" id="L79">      IndexDefinition.IndexDefinitionContext context = new IndexDefinition.IndexDefinitionContext();</span>
+<span class="fc" id="L80">      metadataIndexDefinition.define(context);</span>
+<span class="fc" id="L81">      NewIndex index = context.getIndices().values().iterator().next();</span>
+<span class="fc" id="L82">      createIndex(index.build(), false);</span>
+<span class="fc" id="L83">    } else {</span>
+<span class="fc" id="L84">      ensureWritable(metadataMainType);</span>
+    }
+
+<span class="fc" id="L87">    checkDbCompatibility(definitions.getIndices().values());</span>
+
+    // create indices that do not exist or that have a new definition (different mapping, cluster enabled, ...)
+<span class="fc" id="L90">    definitions.getIndices().values().stream()</span>
+<span class="pc bpc" id="L91" title="1 of 2 branches missed.">      .filter(i -&gt; !i.getMainType().equals(metadataMainType))</span>
+<span class="fc" id="L92">      .forEach(index -&gt; {</span>
+<span class="fc" id="L93">        boolean exists = client.indexExists(new GetIndexRequest(index.getMainType().getIndex().getName()));</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">        if (!exists) {</span>
+<span class="fc" id="L95">          createIndex(index, true);</span>
+<span class="fc bfc" id="L96" title="All 2 branches covered.">        } else if (hasDefinitionChange(index)) {</span>
+<span class="fc" id="L97">          updateIndex(index);</span>
+        } else {
+<span class="fc" id="L99">          ensureWritable(index.getMainType());</span>
+        }
+<span class="fc" id="L101">      });</span>
+<span class="fc" id="L102">  }</span>
+
+  private void ensureWritable(IndexType.IndexMainType mainType) {
+<span class="fc bfc" id="L105" title="All 2 branches covered.">    if (isReadOnly(mainType)) {</span>
+<span class="fc" id="L106">      removeReadOnly(mainType);</span>
+    }
+<span class="fc" id="L108">  }</span>
+
+  private boolean isReadOnly(IndexType.IndexMainType mainType) {
+<span class="fc" id="L111">    String indexName = mainType.getIndex().getName();</span>
+<span class="fc" id="L112">    String readOnly = client.getSettings(new GetSettingsRequest().indices(indexName))</span>
+<span class="fc" id="L113">      .getSetting(indexName, &quot;index.blocks.read_only_allow_delete&quot;);</span>
+<span class="fc" id="L114">    return &quot;true&quot;.equalsIgnoreCase(readOnly);</span>
+  }
+
+  private void removeReadOnly(IndexType.IndexMainType mainType) {
+<span class="fc" id="L118">    LOGGER.info(&quot;Index [{}] is read-only. Making it writable...&quot;, mainType.getIndex().getName());</span>
+
+<span class="fc" id="L120">    String indexName = mainType.getIndex().getName();</span>
+<span class="fc" id="L121">    Settings.Builder builder = Settings.builder();</span>
+<span class="fc" id="L122">    builder.putNull(&quot;index.blocks.read_only_allow_delete&quot;);</span>
+
+<span class="fc" id="L124">    client.putSettings(new UpdateSettingsRequest().indices(indexName).settings(builder.build()));</span>
+<span class="fc" id="L125">  }</span>
+
+  @Override
+  public void stop() {
+    // nothing to do
+<span class="fc" id="L130">  }</span>
+
+  private void createIndex(BuiltIndex&lt;?&gt; builtIndex, boolean useMetadata) {
+<span class="fc" id="L133">    Index index = builtIndex.getMainType().getIndex();</span>
+<span class="fc" id="L134">    LOGGER.info(&quot;Create index [{}]&quot;, index.getName());</span>
+<span class="fc" id="L135">    Settings.Builder settings = Settings.builder();</span>
+<span class="fc" id="L136">    settings.put(builtIndex.getSettings());</span>
+<span class="fc bfc" id="L137" title="All 2 branches covered.">    if (useMetadata) {</span>
+<span class="fc" id="L138">      metadataIndex.setHash(index, IndexDefinitionHash.of(builtIndex));</span>
+<span class="fc" id="L139">      metadataIndex.setInitialized(builtIndex.getMainType(), false);</span>
+<span class="pc" id="L140">      builtIndex.getRelationTypes().forEach(relationType -&gt; metadataIndex.setInitialized(relationType, false));</span>
+    }
+<span class="fc" id="L142">    CreateIndexResponse indexResponse = client.create(new CreateIndexRequest(index.getName()).settings((settings)));</span>
+
+<span class="pc bpc" id="L144" title="1 of 2 branches missed.">    if (!indexResponse.isAcknowledged()) {</span>
+<span class="nc" id="L145">      throw new IllegalStateException(&quot;Failed to create index [&quot; + index.getName() + &quot;]&quot;);</span>
+    }
+<span class="fc" id="L147">    client.waitForStatus(ClusterHealthStatus.YELLOW);</span>
+
+<span class="fc" id="L149">    LOGGER.info(&quot;Create mapping {}&quot;, builtIndex.getMainType().getIndex().getName());</span>
+<span class="fc" id="L150">    AcknowledgedResponse mappingResponse = client.putMapping(new PutMappingRequest(builtIndex.getMainType().getIndex().getName())</span>
+<span class="fc" id="L151">      .source(builtIndex.getAttributes()));</span>
+
+<span class="pc bpc" id="L153" title="1 of 2 branches missed.">    if (!mappingResponse.isAcknowledged()) {</span>
+<span class="nc" id="L154">      throw new IllegalStateException(&quot;Failed to create mapping &quot; + builtIndex.getMainType().getIndex().getName());</span>
+    }
+<span class="fc" id="L156">    client.waitForStatus(ClusterHealthStatus.YELLOW);</span>
+<span class="fc" id="L157">  }</span>
+
+  private void deleteIndex(String indexName) {
+<span class="fc" id="L160">    client.deleteIndex(new DeleteIndexRequest(indexName));</span>
+<span class="fc" id="L161">  }</span>
+
+  private void updateIndex(BuiltIndex&lt;?&gt; index) {
+<span class="fc" id="L164">    String indexName = index.getMainType().getIndex().getName();</span>
+
+<span class="fc" id="L166">    LOGGER.info(&quot;Delete Elasticsearch index {} (structure changed)&quot;, indexName);</span>
+<span class="fc" id="L167">    deleteIndex(indexName);</span>
+<span class="fc" id="L168">    createIndex(index, true);</span>
+<span class="fc" id="L169">  }</span>
+
+  private boolean hasDefinitionChange(BuiltIndex&lt;?&gt; index) {
+<span class="fc" id="L172">    return metadataIndex.getHash(index.getMainType().getIndex())</span>
+<span class="fc" id="L173">      .map(hash -&gt; {</span>
+<span class="fc" id="L174">        String defHash = IndexDefinitionHash.of(index);</span>
+<span class="fc bfc" id="L175" title="All 2 branches covered.">        return !StringUtils.equals(hash, defHash);</span>
+<span class="fc" id="L176">      }).orElse(true);</span>
+  }
+
+  private void checkDbCompatibility(Collection&lt;BuiltIndex&gt; definitions) {
+<span class="fc" id="L180">    List&lt;String&gt; existingIndices = loadExistingIndicesExceptMetadata(definitions);</span>
+<span class="fc bfc" id="L181" title="All 2 branches covered.">    if (!existingIndices.isEmpty()) {</span>
+<span class="fc" id="L182">      boolean delete = false;</span>
+<span class="fc bfc" id="L183" title="All 2 branches covered.">      if (!esDbCompatibility.hasSameDbVendor()) {</span>
+<span class="fc" id="L184">        LOGGER.info(&quot;Delete Elasticsearch indices (DB vendor changed)&quot;);</span>
+<span class="fc" id="L185">        delete = true;</span>
+      }
+<span class="fc bfc" id="L187" title="All 2 branches covered.">      if (delete) {</span>
+<span class="fc" id="L188">        existingIndices.forEach(this::deleteIndex);</span>
+      }
+    }
+<span class="fc" id="L191">    esDbCompatibility.markAsCompatible();</span>
+<span class="fc" id="L192">  }</span>
+
+  private List&lt;String&gt; loadExistingIndicesExceptMetadata(Collection&lt;BuiltIndex&gt; definitions) {
+<span class="fc" id="L195">    Set&lt;String&gt; definedNames = definitions.stream()</span>
+<span class="fc" id="L196">      .map(t -&gt; t.getMainType().getIndex().getName())</span>
+<span class="fc" id="L197">      .collect(Collectors.toSet());</span>
+<span class="fc" id="L198">    return Arrays.stream(client.getIndex(new GetIndexRequest(&quot;_all&quot;)).getIndices())</span>
+<span class="fc" id="L199">      .filter(definedNames::contains)</span>
+<span class="pc bpc" id="L200" title="1 of 2 branches missed.">      .filter(index -&gt; !DESCRIPTOR.getName().equals(index))</span>
+<span class="fc" id="L201">      .toList();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

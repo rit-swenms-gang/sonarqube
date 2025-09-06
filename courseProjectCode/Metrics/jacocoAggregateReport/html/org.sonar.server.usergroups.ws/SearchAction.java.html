@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SearchAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.usergroups.ws</a> &gt; <span class="el_source">SearchAction.java</span></div><h1>SearchAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.usergroups.ws;
+
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.api.server.ws.WebService.NewController;
+import org.sonar.api.server.ws.WebService.Param;
+import org.sonar.api.utils.Paging;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.user.GroupDto;
+import org.sonar.server.common.SearchResults;
+import org.sonar.server.common.group.service.GroupInformation;
+import org.sonar.server.common.group.service.GroupSearchRequest;
+import org.sonar.server.common.group.service.GroupService;
+import org.sonar.server.user.UserSession;
+
+import static java.lang.Boolean.TRUE;
+import static java.util.Optional.ofNullable;
+import static org.sonar.api.utils.Paging.forPageIndex;
+import static org.sonar.server.es.SearchOptions.MAX_PAGE_SIZE;
+import static org.sonar.server.ws.WsUtils.writeProtobuf;
+import static org.sonarqube.ws.UserGroups.Group;
+import static org.sonarqube.ws.UserGroups.SearchWsResponse;
+
+public class SearchAction implements UserGroupsWsAction {
+
+  private static final String FIELD_NAME = &quot;name&quot;;
+  private static final String FIELD_DESCRIPTION = &quot;description&quot;;
+  private static final String FIELD_MEMBERS_COUNT = &quot;membersCount&quot;;
+  private static final String FIELD_IS_MANAGED = &quot;managed&quot;;
+  private static final String MANAGED_PARAM = &quot;managed&quot;;
+<span class="fc" id="L59">  private static final List&lt;String&gt; ALL_FIELDS = Arrays.asList(FIELD_NAME, FIELD_DESCRIPTION, FIELD_MEMBERS_COUNT, FIELD_IS_MANAGED);</span>
+
+  private final DbClient dbClient;
+  private final UserSession userSession;
+
+  private final GroupService groupService;
+
+<span class="fc" id="L66">  public SearchAction(DbClient dbClient, UserSession userSession, GroupService groupService) {</span>
+<span class="fc" id="L67">    this.dbClient = dbClient;</span>
+<span class="fc" id="L68">    this.userSession = userSession;</span>
+<span class="fc" id="L69">    this.groupService = groupService;</span>
+<span class="fc" id="L70">  }</span>
+
+  @Override
+  public void define(NewController context) {
+<span class="fc" id="L74">    WebService.NewAction action = context.createAction(&quot;search&quot;)</span>
+<span class="fc" id="L75">      .setDescription(&quot;Search for user groups.&lt;br&gt;&quot; +</span>
+                      &quot;Requires the following permission: 'Administer System'.&quot;)
+<span class="fc" id="L77">      .setHandler(this)</span>
+<span class="fc" id="L78">      .setResponseExample(getClass().getResource(&quot;search-example.json&quot;))</span>
+<span class="fc" id="L79">      .setSince(&quot;5.2&quot;)</span>
+<span class="fc" id="L80">      .setDeprecatedSince(&quot;10.4&quot;)</span>
+<span class="fc" id="L81">      .addFieldsParam(ALL_FIELDS)</span>
+<span class="fc" id="L82">      .addPagingParams(100, MAX_PAGE_SIZE)</span>
+<span class="fc" id="L83">      .addSearchQuery(&quot;sonar-users&quot;, &quot;names&quot;)</span>
+<span class="fc" id="L84">      .setChangelog(</span>
+        new Change(&quot;10.4&quot;, &quot;Deprecated. Use GET /api/v2/authorizations/groups instead&quot;),
+        new Change(&quot;10.0&quot;, &quot;Field 'id' in the response has been removed&quot;),
+        new Change(&quot;10.0&quot;, &quot;New parameter 'managed' to optionally search by managed status&quot;),
+        new Change(&quot;10.0&quot;, &quot;Response includes 'managed' field.&quot;),
+        new Change(&quot;8.4&quot;, &quot;Field 'id' in the response is deprecated. Format changes from integer to string.&quot;),
+        new Change(&quot;6.4&quot;, &quot;Paging response fields moved to a Paging object&quot;),
+        new Change(&quot;6.4&quot;, &quot;'default' response field has been added&quot;));
+
+<span class="fc" id="L93">    action.createParam(MANAGED_PARAM)</span>
+<span class="fc" id="L94">      .setSince(&quot;10.0&quot;)</span>
+<span class="fc" id="L95">      .setDescription(&quot;Return managed or non-managed groups. Only available for managed instances, throws for non-managed instances.&quot;)</span>
+<span class="fc" id="L96">      .setRequired(false)</span>
+<span class="fc" id="L97">      .setBooleanPossibleValues();</span>
+<span class="fc" id="L98">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L102">    int page = request.mandatoryParamAsInt(Param.PAGE);</span>
+<span class="fc" id="L103">    int pageSize = request.mandatoryParamAsInt(Param.PAGE_SIZE);</span>
+
+<span class="fc" id="L105">    Set&lt;String&gt; fields = neededFields(request);</span>
+
+<span class="fc" id="L107">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L108">      userSession.checkLoggedIn().checkIsSystemAdministrator();</span>
+
+<span class="fc" id="L110">      GroupSearchRequest groupSearchRequest = new GroupSearchRequest(request.param(Param.TEXT_QUERY), request.paramAsBoolean(MANAGED_PARAM), null, null,</span>
+        page, pageSize);
+<span class="fc" id="L112">      SearchResults&lt;GroupInformation&gt; searchResults = groupService.search(dbSession, groupSearchRequest);</span>
+
+<span class="fc" id="L114">      Set&lt;String&gt; groupUuids = extractGroupUuids(searchResults.searchResults());</span>
+
+<span class="fc" id="L116">      Map&lt;String, Integer&gt; userCountByGroup = dbClient.groupMembershipDao().countUsersByGroups(dbSession, groupUuids);</span>
+<span class="fc" id="L117">      Paging paging = forPageIndex(page).withPageSize(pageSize).andTotal(searchResults.total());</span>
+<span class="fc" id="L118">      writeProtobuf(buildResponse(searchResults.searchResults(), userCountByGroup, fields, paging), request, response);</span>
+    }
+<span class="fc" id="L120">  }</span>
+
+  private static Set&lt;String&gt; extractGroupUuids(List&lt;GroupInformation&gt; groupInformations) {
+<span class="fc" id="L123">    return groupInformations.stream()</span>
+<span class="fc" id="L124">      .map(groupInformation -&gt; groupInformation.groupDto().getUuid())</span>
+<span class="fc" id="L125">      .collect(Collectors.toSet());</span>
+  }
+
+  private static Set&lt;String&gt; neededFields(Request request) {
+<span class="fc" id="L129">    Set&lt;String&gt; fields = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L130">    List&lt;String&gt; fieldsFromRequest = request.paramAsStrings(Param.FIELDS);</span>
+<span class="fc bfc" id="L131" title="All 4 branches covered.">    if (fieldsFromRequest == null || fieldsFromRequest.isEmpty()) {</span>
+<span class="fc" id="L132">      fields.addAll(ALL_FIELDS);</span>
+    } else {
+<span class="fc" id="L134">      fields.addAll(fieldsFromRequest);</span>
+    }
+<span class="fc" id="L136">    return fields;</span>
+  }
+
+  private static SearchWsResponse buildResponse(List&lt;GroupInformation&gt; groups, Map&lt;String, Integer&gt; userCountByGroup,
+    Set&lt;String&gt; fields, Paging paging) {
+<span class="fc" id="L141">    SearchWsResponse.Builder responseBuilder = SearchWsResponse.newBuilder();</span>
+<span class="fc" id="L142">    groups.forEach(group -&gt; responseBuilder</span>
+<span class="fc" id="L143">      .addGroups(toWsGroup(group.groupDto(), userCountByGroup.get(group.groupDto().getName()), group.isManaged(), fields, group.isDefault())));</span>
+<span class="fc" id="L144">    responseBuilder.getPagingBuilder()</span>
+<span class="fc" id="L145">      .setPageIndex(paging.pageIndex())</span>
+<span class="fc" id="L146">      .setPageSize(paging.pageSize())</span>
+<span class="fc" id="L147">      .setTotal(paging.total())</span>
+<span class="fc" id="L148">      .build();</span>
+<span class="fc" id="L149">    return responseBuilder.build();</span>
+  }
+
+  private static Group toWsGroup(GroupDto group, Integer memberCount, Boolean isManaged, Set&lt;String&gt; fields, boolean isDefault) {
+<span class="fc" id="L153">    Group.Builder groupBuilder = Group.newBuilder()</span>
+<span class="fc" id="L154">      .setDefault(isDefault);</span>
+<span class="fc bfc" id="L155" title="All 2 branches covered.">    if (fields.contains(FIELD_NAME)) {</span>
+<span class="fc" id="L156">      groupBuilder.setName(group.getName());</span>
+    }
+<span class="fc bfc" id="L158" title="All 2 branches covered.">    if (fields.contains(FIELD_DESCRIPTION)) {</span>
+<span class="fc" id="L159">      ofNullable(group.getDescription()).ifPresent(groupBuilder::setDescription);</span>
+    }
+<span class="fc bfc" id="L161" title="All 2 branches covered.">    if (fields.contains(FIELD_MEMBERS_COUNT)) {</span>
+<span class="fc" id="L162">      groupBuilder.setMembersCount(memberCount);</span>
+    }
+<span class="fc bfc" id="L164" title="All 2 branches covered.">    if (fields.contains(FIELD_IS_MANAGED)) {</span>
+<span class="fc" id="L165">      groupBuilder.setManaged(TRUE.equals(isManaged));</span>
+    }
+<span class="fc" id="L167">    return groupBuilder.build();</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

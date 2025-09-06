@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BatchComponents.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.bootstrap</a> &gt; <span class="el_source">BatchComponents.java</span></div><h1>BatchComponents.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.bootstrap;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import org.sonar.core.config.CorePropertyDefinitions;
+import org.sonar.core.sarif.SarifSerializerImpl;
+import org.sonar.scanner.cpd.JavaCpdBlockIndexerSensor;
+import org.sonar.scanner.deprecated.test.TestPlanBuilder;
+import org.sonar.scanner.externalissue.ExternalIssueReportParser;
+import org.sonar.scanner.externalissue.ExternalIssueReportValidator;
+import org.sonar.scanner.externalissue.ExternalIssuesImportSensor;
+import org.sonar.scanner.externalissue.sarif.DefaultSarif210Importer;
+import org.sonar.scanner.externalissue.sarif.LocationMapper;
+import org.sonar.scanner.externalissue.sarif.RegionMapper;
+import org.sonar.scanner.externalissue.sarif.ResultMapper;
+import org.sonar.scanner.externalissue.sarif.RuleMapper;
+import org.sonar.scanner.externalissue.sarif.RunMapper;
+import org.sonar.scanner.externalissue.sarif.SarifIssuesImportSensor;
+import org.sonar.scanner.genericcoverage.GenericCoverageSensor;
+import org.sonar.scanner.genericcoverage.GenericTestExecutionSensor;
+import org.sonar.scanner.source.ZeroCoverageSensor;
+
+public class BatchComponents {
+  private BatchComponents() {
+    // only static stuff
+  }
+
+  public static Collection&lt;Object&gt; all() {
+<span class="fc" id="L49">    List&lt;Object&gt; components = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L50">    components.addAll(CorePropertyDefinitions.all());</span>
+<span class="fc" id="L51">    components.add(ZeroCoverageSensor.class);</span>
+<span class="fc" id="L52">    components.add(JavaCpdBlockIndexerSensor.class);</span>
+
+    // Generic coverage
+<span class="fc" id="L55">    components.add(GenericCoverageSensor.class);</span>
+<span class="fc" id="L56">    components.addAll(GenericCoverageSensor.properties());</span>
+<span class="fc" id="L57">    components.add(GenericTestExecutionSensor.class);</span>
+<span class="fc" id="L58">    components.addAll(GenericTestExecutionSensor.properties());</span>
+<span class="fc" id="L59">    components.add(TestPlanBuilder.class);</span>
+
+    // External issues
+<span class="fc" id="L62">    components.add(ExternalIssueReportValidator.class);</span>
+<span class="fc" id="L63">    components.add(ExternalIssueReportParser.class);</span>
+<span class="fc" id="L64">    components.add(ExternalIssuesImportSensor.class);</span>
+<span class="fc" id="L65">    components.add(ExternalIssuesImportSensor.properties());</span>
+<span class="fc" id="L66">    components.add(SarifSerializerImpl.class);</span>
+
+    // Sarif issues
+<span class="fc" id="L69">    components.add(SarifIssuesImportSensor.class);</span>
+<span class="fc" id="L70">    components.add(SarifIssuesImportSensor.properties());</span>
+<span class="fc" id="L71">    components.add(DefaultSarif210Importer.class);</span>
+<span class="fc" id="L72">    components.add(RunMapper.class);</span>
+<span class="fc" id="L73">    components.add(ResultMapper.class);</span>
+<span class="fc" id="L74">    components.add(LocationMapper.class);</span>
+<span class="fc" id="L75">    components.add(RegionMapper.class);</span>
+<span class="fc" id="L76">    components.add(RuleMapper.class);</span>
+
+<span class="fc" id="L78">    return components;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

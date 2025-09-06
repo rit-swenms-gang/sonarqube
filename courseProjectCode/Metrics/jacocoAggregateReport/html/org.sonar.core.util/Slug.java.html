@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Slug.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.core.util</a> &gt; <span class="el_source">Slug.java</span></div><h1>Slug.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.core.util;
+
+import java.text.Normalizer;
+import java.util.Locale;
+import java.util.regex.Pattern;
+
+public class Slug {
+  private static final String DASH = &quot;-&quot;;
+<span class="fc" id="L28">  private static final Pattern NON_ASCII_CHARS = Pattern.compile(&quot;[^\\p{ASCII}]&quot;);</span>
+<span class="fc" id="L29">  private static final Pattern NON_WORD_CHARS = Pattern.compile(&quot;[^\\w+]&quot;);</span>
+<span class="fc" id="L30">  private static final Pattern WHITESPACES_CHARS = Pattern.compile(&quot;\\s+&quot;);</span>
+<span class="fc" id="L31">  private static final Pattern DASHES_IN_ROWS = Pattern.compile(&quot;[-]+&quot;);</span>
+
+  private String in;
+
+<span class="fc" id="L35">  private Slug(String in) {</span>
+<span class="fc" id="L36">    this.in = in;</span>
+<span class="fc" id="L37">  }</span>
+
+  public static String slugify(String s) {
+<span class="fc" id="L40">    Slug slug = new Slug(s);</span>
+<span class="fc" id="L41">    return slug</span>
+<span class="fc" id="L42">      .normalize()</span>
+<span class="fc" id="L43">      .removeNonAsciiChars()</span>
+<span class="fc" id="L44">      .dashifyNonWordChars()</span>
+<span class="fc" id="L45">      .dashifyWhitespaceChars()</span>
+<span class="fc" id="L46">      .collapseDashes()</span>
+<span class="fc" id="L47">      .removeHeadingDash()</span>
+<span class="fc" id="L48">      .removeTrailingDash()</span>
+<span class="fc" id="L49">      .toLowerCase();</span>
+  }
+
+  private Slug normalize() {
+<span class="fc" id="L53">    this.in = Normalizer.normalize(in, Normalizer.Form.NFD);</span>
+<span class="fc" id="L54">    return this;</span>
+  }
+
+  private Slug removeNonAsciiChars() {
+<span class="fc" id="L58">    this.in = removeAll(NON_ASCII_CHARS, in);</span>
+<span class="fc" id="L59">    return this;</span>
+  }
+
+  private Slug dashifyNonWordChars() {
+<span class="fc" id="L63">    this.in = dashify(NON_WORD_CHARS, in);</span>
+<span class="fc" id="L64">    return this;</span>
+  }
+
+  private Slug dashifyWhitespaceChars() {
+<span class="fc" id="L68">    this.in = dashify(WHITESPACES_CHARS, in);</span>
+<span class="fc" id="L69">    return this;</span>
+  }
+
+  private Slug collapseDashes() {
+<span class="fc" id="L73">    this.in = dashify(DASHES_IN_ROWS, in);</span>
+<span class="fc" id="L74">    return this;</span>
+  }
+
+  private Slug removeHeadingDash() {
+<span class="fc bfc" id="L78" title="All 2 branches covered.">    if (this.in.startsWith(DASH)) {</span>
+<span class="fc" id="L79">      this.in = this.in.substring(1);</span>
+    }
+<span class="fc" id="L81">    return this;</span>
+  }
+
+  private Slug removeTrailingDash() {
+<span class="fc bfc" id="L85" title="All 2 branches covered.">    if (this.in.endsWith(DASH)) {</span>
+<span class="fc" id="L86">      this.in = this.in.substring(0, this.in.length() - 1);</span>
+    }
+<span class="fc" id="L88">    return this;</span>
+  }
+
+  private String toLowerCase() {
+<span class="fc" id="L92">    return in.toLowerCase(Locale.ENGLISH);</span>
+  }
+
+  private static String removeAll(Pattern pattern, String in) {
+<span class="fc" id="L96">    return replaceAll(pattern, in, &quot;&quot;);</span>
+  }
+
+  private static String dashify(Pattern pattern, String in) {
+<span class="fc" id="L100">    return replaceAll(pattern, in, DASH);</span>
+  }
+
+  private static String replaceAll(Pattern pattern, String str, String replacement) {
+<span class="fc" id="L104">    return pattern.matcher(str).replaceAll(replacement);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

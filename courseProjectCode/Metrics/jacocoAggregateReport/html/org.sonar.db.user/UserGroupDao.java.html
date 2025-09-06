@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserGroupDao.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.user</a> &gt; <span class="el_source">UserGroupDao.java</span></div><h1>UserGroupDao.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.user;
+
+import java.util.List;
+import java.util.Set;
+import org.sonar.core.util.UuidFactory;
+import org.sonar.db.Dao;
+import org.sonar.db.DbSession;
+import org.sonar.db.Pagination;
+import org.sonar.db.audit.AuditPersister;
+import org.sonar.db.audit.model.UserGroupNewValue;
+
+public class UserGroupDao implements Dao {
+  private final AuditPersister auditPersister;
+  private final UuidFactory uuidFactory;
+
+<span class="fc" id="L35">  public UserGroupDao(AuditPersister auditPersister, UuidFactory uuidFactory) {</span>
+<span class="fc" id="L36">    this.auditPersister = auditPersister;</span>
+<span class="fc" id="L37">    this.uuidFactory = uuidFactory;</span>
+<span class="fc" id="L38">  }</span>
+
+  public UserGroupDto insert(DbSession session, UserGroupDto dto, String groupName, String login) {
+<span class="fc" id="L41">    dto.setUuid(uuidFactory.create());</span>
+<span class="fc" id="L42">    mapper(session).insert(dto);</span>
+<span class="fc" id="L43">    auditPersister.addUserToGroup(session, new UserGroupNewValue(dto, groupName, login));</span>
+<span class="fc" id="L44">    return dto;</span>
+  }
+
+  public Set&lt;String&gt; selectUserUuidsInGroup(DbSession session, String groupUuid) {
+<span class="fc" id="L48">    return mapper(session).selectUserUuidsInGroup(groupUuid);</span>
+  }
+
+  public List&lt;UserGroupDto&gt; selectByQuery(DbSession session, UserGroupQuery query, int page, int pageSize) {
+<span class="fc" id="L52">    return mapper(session).selectByQuery(query, Pagination.forPage(page).andSize(pageSize));</span>
+  }
+
+  public int countByQuery(DbSession session, UserGroupQuery query) {
+<span class="fc" id="L56">    return mapper(session).countByQuery(query);</span>
+  }
+
+  public void delete(DbSession session, GroupDto group, UserDto user) {
+<span class="fc" id="L60">    int deletedRows = mapper(session).delete(group.getUuid(), user.getUuid());</span>
+
+<span class="fc bfc" id="L62" title="All 2 branches covered.">    if (deletedRows &gt; 0) {</span>
+<span class="fc" id="L63">      auditPersister.deleteUserFromGroup(session, new UserGroupNewValue(group, user));</span>
+    }
+<span class="fc" id="L65">  }</span>
+
+  public void deleteByGroupUuid(DbSession session, String groupUuid, String groupName) {
+<span class="fc" id="L68">    int deletedRows = mapper(session).deleteByGroupUuid(groupUuid);</span>
+
+<span class="fc bfc" id="L70" title="All 2 branches covered.">    if (deletedRows &gt; 0) {</span>
+<span class="fc" id="L71">      auditPersister.deleteUserFromGroup(session, new UserGroupNewValue(groupUuid, groupName));</span>
+    }
+<span class="fc" id="L73">  }</span>
+
+  public void deleteByUserUuid(DbSession dbSession, UserDto userDto) {
+<span class="fc" id="L76">    int deletedRows = mapper(dbSession).deleteByUserUuid(userDto.getUuid());</span>
+
+<span class="fc bfc" id="L78" title="All 2 branches covered.">    if (deletedRows &gt; 0) {</span>
+<span class="fc" id="L79">      auditPersister.deleteUserFromGroup(dbSession, new UserGroupNewValue(userDto));</span>
+    }
+<span class="fc" id="L81">  }</span>
+
+  private static UserGroupMapper mapper(DbSession session) {
+<span class="fc" id="L84">    return session.getMapper(UserGroupMapper.class);</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

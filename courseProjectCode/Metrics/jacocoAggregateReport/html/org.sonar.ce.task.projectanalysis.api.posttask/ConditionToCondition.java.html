@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ConditionToCondition.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.api.posttask</a> &gt; <span class="el_source">ConditionToCondition.java</span></div><h1>ConditionToCondition.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.api.posttask;
+
+import java.util.Map;
+import java.util.function.Function;
+import org.sonar.api.ce.posttask.QualityGate;
+import org.sonar.ce.task.projectanalysis.qualitygate.Condition;
+import org.sonar.ce.task.projectanalysis.qualitygate.ConditionStatus;
+
+import static com.google.common.base.Preconditions.checkState;
+import static java.lang.String.format;
+
+/**
+ * Converts a {@link Condition} from the Compute Engine internal API to a {@link org.sonar.api.ce.posttask.QualityGate.Condition}
+ * of the public API.
+ */
+class ConditionToCondition implements Function&lt;Condition, QualityGate.Condition&gt; {
+<span class="fc" id="L36">  private final ConditionImpl.Builder builder = ConditionImpl.newBuilder();</span>
+  private final Map&lt;Condition, ConditionStatus&gt; statusPerConditions;
+
+<span class="fc" id="L39">  public ConditionToCondition(Map&lt;Condition, ConditionStatus&gt; statusPerConditions) {</span>
+<span class="fc" id="L40">    this.statusPerConditions = statusPerConditions;</span>
+<span class="fc" id="L41">  }</span>
+
+  @Override
+  public QualityGate.Condition apply(Condition input) {
+<span class="fc" id="L45">    String metricKey = input.getMetric().getKey();</span>
+<span class="fc" id="L46">    ConditionStatus conditionStatus = statusPerConditions.get(input);</span>
+<span class="fc bfc" id="L47" title="All 2 branches covered.">    checkState(conditionStatus != null, &quot;Missing ConditionStatus for condition on metric key %s&quot;, metricKey);</span>
+<span class="fc" id="L48">    return builder</span>
+<span class="fc" id="L49">      .setStatus(convert(conditionStatus.getStatus()))</span>
+<span class="fc" id="L50">      .setMetricKey(metricKey)</span>
+<span class="fc" id="L51">      .setOperator(convert(input.getOperator()))</span>
+<span class="fc" id="L52">      .setErrorThreshold(input.getErrorThreshold())</span>
+<span class="fc" id="L53">      .setValue(conditionStatus.getValue())</span>
+<span class="fc" id="L54">      .build();</span>
+  }
+
+  private static QualityGate.EvaluationStatus convert(ConditionStatus.EvaluationStatus status) {
+<span class="pc bpc" id="L58" title="1 of 4 branches missed.">    switch (status) {</span>
+      case NO_VALUE:
+<span class="fc" id="L60">        return QualityGate.EvaluationStatus.NO_VALUE;</span>
+      case OK:
+<span class="fc" id="L62">        return QualityGate.EvaluationStatus.OK;</span>
+      case ERROR:
+<span class="fc" id="L64">        return QualityGate.EvaluationStatus.ERROR;</span>
+      default:
+<span class="nc" id="L66">        throw new IllegalArgumentException(format(</span>
+          &quot;Unsupported value '%s' of ConditionStatus.EvaluationStatus can not be converted to QualityGate.EvaluationStatus&quot;,
+          status));
+    }
+  }
+
+  private static QualityGate.Operator convert(Condition.Operator operator) {
+<span class="pc bpc" id="L73" title="1 of 3 branches missed.">    switch (operator) {</span>
+      case GREATER_THAN:
+<span class="fc" id="L75">        return QualityGate.Operator.GREATER_THAN;</span>
+      case LESS_THAN:
+<span class="fc" id="L77">        return QualityGate.Operator.LESS_THAN;</span>
+      default:
+<span class="nc" id="L79">        throw new IllegalArgumentException(format(</span>
+          &quot;Unsupported value '%s' of Condition.Operation can not be converted to QualityGate.Operator&quot;,
+          operator));
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

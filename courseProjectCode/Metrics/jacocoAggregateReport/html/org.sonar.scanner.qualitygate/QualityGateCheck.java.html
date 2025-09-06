@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>QualityGateCheck.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.qualitygate</a> &gt; <span class="el_source">QualityGateCheck.java</span></div><h1>QualityGateCheck.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.qualitygate;
+
+import com.google.common.annotations.VisibleForTesting;
+import java.io.InputStream;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
+import java.util.EnumSet;
+import org.sonar.api.Startable;
+import org.sonar.api.utils.MessageException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.scanner.http.DefaultScannerWsClient;
+import org.sonar.scanner.bootstrap.GlobalAnalysisMode;
+import org.sonar.scanner.report.CeTaskReportDataHolder;
+import org.sonar.scanner.scan.ScanProperties;
+import org.sonarqube.ws.Ce;
+import org.sonarqube.ws.Ce.TaskStatus;
+import org.sonarqube.ws.MediaTypes;
+import org.sonarqube.ws.Qualitygates;
+import org.sonarqube.ws.Qualitygates.ProjectStatusResponse.Status;
+import org.sonarqube.ws.client.GetRequest;
+import org.sonarqube.ws.client.HttpException;
+import org.sonarqube.ws.client.WsResponse;
+
+public class QualityGateCheck implements Startable {
+
+<span class="fc" id="L46">  private static final Logger LOG = LoggerFactory.getLogger(QualityGateCheck.class);</span>
+<span class="fc" id="L47">  private static final EnumSet&lt;TaskStatus&gt; TASK_TERMINAL_STATUSES = EnumSet.of(TaskStatus.SUCCESS, TaskStatus.FAILED, TaskStatus.CANCELED);</span>
+
+  private final DefaultScannerWsClient wsClient;
+  private final GlobalAnalysisMode analysisMode;
+  private final CeTaskReportDataHolder ceTaskReportDataHolder;
+  private final ScanProperties properties;
+
+<span class="fc" id="L54">  private int pollingIntervalInSeconds = 5000;</span>
+  private long qualityGateTimeoutInMs;
+  private boolean enabled;
+
+  public QualityGateCheck(DefaultScannerWsClient wsClient, GlobalAnalysisMode analysisMode, CeTaskReportDataHolder ceTaskReportDataHolder,
+<span class="fc" id="L59">    ScanProperties properties) {</span>
+<span class="fc" id="L60">    this.wsClient = wsClient;</span>
+<span class="fc" id="L61">    this.properties = properties;</span>
+<span class="fc" id="L62">    this.ceTaskReportDataHolder = ceTaskReportDataHolder;</span>
+<span class="fc" id="L63">    this.analysisMode = analysisMode;</span>
+<span class="fc" id="L64">  }</span>
+
+  @Override
+  public void start() {
+<span class="fc" id="L68">    this.enabled = properties.shouldWaitForQualityGate();</span>
+<span class="fc" id="L69">    this.qualityGateTimeoutInMs = Duration.of(properties.qualityGateWaitTimeout(), ChronoUnit.SECONDS).toMillis();</span>
+<span class="fc" id="L70">  }</span>
+
+  @Override
+  public void stop() {
+    // nothing to do
+<span class="fc" id="L75">  }</span>
+
+  public void await() {
+<span class="fc bfc" id="L78" title="All 2 branches covered.">    if (!enabled) {</span>
+<span class="fc" id="L79">      LOG.debug(&quot;Quality Gate check disabled - skipping&quot;);</span>
+<span class="fc" id="L80">      return;</span>
+    }
+
+<span class="fc bfc" id="L83" title="All 2 branches covered.">    if (analysisMode.isMediumTest()) {</span>
+<span class="fc" id="L84">      throw new IllegalStateException(&quot;Quality Gate check not available in medium test mode&quot;);</span>
+    }
+
+<span class="fc" id="L87">    LOG.info(&quot;Waiting for the analysis report to be processed (max {}s)&quot;, properties.qualityGateWaitTimeout());</span>
+<span class="fc" id="L88">    String taskId = ceTaskReportDataHolder.getCeTaskId();</span>
+
+<span class="fc" id="L90">    Ce.Task task = waitForCeTaskToFinish(taskId);</span>
+
+<span class="fc bfc" id="L92" title="All 2 branches covered.">    if (!TaskStatus.SUCCESS.equals(task.getStatus())) {</span>
+<span class="fc" id="L93">      throw MessageException.of(String.format(&quot;CE Task finished abnormally with status: %s, you can check details here: %s&quot;,</span>
+<span class="fc" id="L94">        task.getStatus().name(), ceTaskReportDataHolder.getCeTaskUrl()));</span>
+    }
+
+<span class="fc" id="L97">    Status qualityGateStatus = getQualityGateStatus(task.getAnalysisId());</span>
+
+<span class="fc bfc" id="L99" title="All 2 branches covered.">    if (Status.OK.equals(qualityGateStatus)) {</span>
+<span class="fc" id="L100">      LOG.info(&quot;QUALITY GATE STATUS: PASSED - View details on &quot; + ceTaskReportDataHolder.getDashboardUrl());</span>
+    } else {
+<span class="fc" id="L102">      throw MessageException.of(&quot;QUALITY GATE STATUS: FAILED - View details on &quot; + ceTaskReportDataHolder.getDashboardUrl());</span>
+    }
+<span class="fc" id="L104">  }</span>
+
+  @VisibleForTesting
+  void setPollingIntervalInSeconds(int pollingIntervalInSeconds) {
+<span class="fc" id="L108">    this.pollingIntervalInSeconds = pollingIntervalInSeconds;</span>
+<span class="fc" id="L109">  }</span>
+
+  private Ce.Task waitForCeTaskToFinish(String taskId) {
+<span class="fc" id="L112">    GetRequest getTaskResultReq = new GetRequest(&quot;api/ce/task&quot;)</span>
+<span class="fc" id="L113">      .setMediaType(MediaTypes.PROTOBUF)</span>
+<span class="fc" id="L114">      .setParam(&quot;id&quot;, taskId);</span>
+
+<span class="fc" id="L116">    long currentTime = 0;</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">    while (qualityGateTimeoutInMs &gt; currentTime) {</span>
+      try {
+<span class="fc" id="L119">        WsResponse getTaskResultResponse = wsClient.call(getTaskResultReq).failIfNotSuccessful();</span>
+<span class="fc" id="L120">        Ce.Task task = parseCeTaskResponse(getTaskResultResponse);</span>
+<span class="fc bfc" id="L121" title="All 2 branches covered.">        if (TASK_TERMINAL_STATUSES.contains(task.getStatus())) {</span>
+<span class="fc" id="L122">          return task;</span>
+        }
+
+<span class="fc" id="L125">        Thread.sleep(pollingIntervalInSeconds);</span>
+<span class="fc" id="L126">        currentTime += pollingIntervalInSeconds;</span>
+<span class="fc" id="L127">      } catch (HttpException e) {</span>
+<span class="fc" id="L128">        throw MessageException.of(String.format(&quot;Failed to get CE Task status - %s&quot;, DefaultScannerWsClient.createErrorMessage(e)));</span>
+<span class="nc" id="L129">      } catch (InterruptedException e) {</span>
+<span class="nc" id="L130">        Thread.currentThread().interrupt();</span>
+<span class="nc" id="L131">        throw new IllegalStateException(&quot;Quality Gate check has been interrupted&quot;, e);</span>
+<span class="fc" id="L132">      }</span>
+    }
+<span class="fc" id="L134">    throw MessageException.of(&quot;Quality Gate check timeout exceeded - View details on &quot; + ceTaskReportDataHolder.getDashboardUrl());</span>
+  }
+
+  private static Ce.Task parseCeTaskResponse(WsResponse response) {
+<span class="fc" id="L138">    try (InputStream protobuf = response.contentStream()) {</span>
+<span class="fc" id="L139">      return Ce.TaskResponse.parser().parseFrom(protobuf).getTask();</span>
+<span class="fc" id="L140">    } catch (Exception e) {</span>
+<span class="fc" id="L141">      throw new IllegalStateException(&quot;Failed to parse response from &quot; + response.requestUrl(), e);</span>
+    }
+  }
+
+  private Status getQualityGateStatus(String analysisId) {
+<span class="fc" id="L146">    GetRequest getQualityGateReq = new GetRequest(&quot;api/qualitygates/project_status&quot;)</span>
+<span class="fc" id="L147">      .setMediaType(MediaTypes.PROTOBUF)</span>
+<span class="fc" id="L148">      .setParam(&quot;analysisId&quot;, analysisId);</span>
+    try {
+<span class="fc" id="L150">      WsResponse getTaskResultResponse = wsClient.call(getQualityGateReq).failIfNotSuccessful();</span>
+<span class="fc" id="L151">      Qualitygates.ProjectStatusResponse.ProjectStatus status = parseQualityGateResponse(getTaskResultResponse);</span>
+<span class="fc" id="L152">      return status.getStatus();</span>
+<span class="fc" id="L153">    } catch (HttpException e) {</span>
+<span class="fc" id="L154">      throw MessageException.of(String.format(&quot;Failed to get Quality Gate status - %s&quot;, DefaultScannerWsClient.createErrorMessage(e)));</span>
+    }
+  }
+
+  private static Qualitygates.ProjectStatusResponse.ProjectStatus parseQualityGateResponse(WsResponse response) {
+<span class="fc" id="L159">    try (InputStream protobuf = response.contentStream()) {</span>
+<span class="fc" id="L160">      return Qualitygates.ProjectStatusResponse.parser().parseFrom(protobuf).getProjectStatus();</span>
+<span class="fc" id="L161">    } catch (Exception e) {</span>
+<span class="fc" id="L162">      throw new IllegalStateException(&quot;Failed to parse response from &quot; + response.requestUrl(), e);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

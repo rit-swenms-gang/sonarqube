@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ListAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.ws.ws</a> &gt; <span class="el_source">ListAction.java</span></div><h1>ListAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.ws.ws;
+
+import com.google.common.collect.Ordering;
+import java.util.Comparator;
+import java.util.List;
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.api.utils.Version;
+import org.sonar.api.utils.text.JsonWriter;
+
+import static com.google.common.base.Preconditions.checkState;
+import static java.util.Optional.ofNullable;
+
+<span class="fc" id="L35">public class ListAction implements WebServicesWsAction {</span>
+  private WebService.Context context;
+
+  @Override
+  public void define(WebService.NewController context) {
+<span class="fc" id="L40">    WebService.NewAction action = context</span>
+<span class="fc" id="L41">      .createAction(&quot;list&quot;)</span>
+<span class="fc" id="L42">      .setSince(&quot;4.2&quot;)</span>
+<span class="fc" id="L43">      .setDescription(&quot;List web services&quot;)</span>
+<span class="fc" id="L44">      .setResponseExample(getClass().getResource(&quot;list-example.json&quot;))</span>
+<span class="fc" id="L45">      .setHandler(this);</span>
+
+<span class="fc" id="L47">    action</span>
+<span class="fc" id="L48">      .createParam(&quot;include_internals&quot;)</span>
+<span class="fc" id="L49">      .setDescription(&quot;Include web services that are implemented for internal use only. Their forward-compatibility is not assured&quot;)</span>
+<span class="fc" id="L50">      .setBooleanPossibleValues()</span>
+<span class="fc" id="L51">      .setDefaultValue(&quot;false&quot;);</span>
+<span class="fc" id="L52">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="pc bpc" id="L56" title="2 of 4 branches missed.">    checkState(context != null &amp;&amp; !context.controllers().isEmpty(), &quot;Web service controllers must be loaded before calling the action&quot;);</span>
+
+<span class="fc" id="L58">    boolean includeInternals = request.mandatoryParamAsBoolean(&quot;include_internals&quot;);</span>
+<span class="fc" id="L59">    JsonWriter writer = response.newJsonWriter();</span>
+<span class="fc" id="L60">    writer.beginObject();</span>
+<span class="fc" id="L61">    writer.name(&quot;webServices&quot;).beginArray();</span>
+
+    // sort controllers by path
+<span class="fc" id="L64">    Ordering&lt;WebService.Controller&gt; ordering = Ordering.natural().onResultOf(WebService.Controller::path);</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">    for (WebService.Controller controller : ordering.sortedCopy(context.controllers())) {</span>
+<span class="fc" id="L66">      writeController(writer, controller, includeInternals);</span>
+<span class="fc" id="L67">    }</span>
+<span class="fc" id="L68">    writer.endArray();</span>
+<span class="fc" id="L69">    writer.endObject();</span>
+<span class="fc" id="L70">    writer.close();</span>
+<span class="fc" id="L71">  }</span>
+
+  @Override
+  public void setContext(WebService.Context context) {
+<span class="fc" id="L75">    this.context = context;</span>
+<span class="fc" id="L76">  }</span>
+
+  private static void writeController(JsonWriter writer, WebService.Controller controller, boolean includeInternals) {
+<span class="pc bpc" id="L79" title="1 of 4 branches missed.">    if (includeInternals || !controller.isInternal()) {</span>
+<span class="fc" id="L80">      writer.beginObject();</span>
+<span class="fc" id="L81">      writer.prop(&quot;path&quot;, controller.path());</span>
+<span class="fc" id="L82">      writer.prop(&quot;since&quot;, controller.since());</span>
+<span class="fc" id="L83">      writer.prop(&quot;description&quot;, controller.description());</span>
+      // sort actions by key
+<span class="fc" id="L85">      Ordering&lt;WebService.Action&gt; ordering = Ordering.natural().onResultOf(WebService.Action::key);</span>
+<span class="fc" id="L86">      writer.name(&quot;actions&quot;).beginArray();</span>
+<span class="fc bfc" id="L87" title="All 2 branches covered.">      for (WebService.Action action : ordering.sortedCopy(controller.actions())) {</span>
+<span class="fc" id="L88">        writeAction(writer, action, includeInternals);</span>
+<span class="fc" id="L89">      }</span>
+<span class="fc" id="L90">      writer.endArray();</span>
+<span class="fc" id="L91">      writer.endObject();</span>
+    }
+<span class="fc" id="L93">  }</span>
+
+  private static void writeAction(JsonWriter writer, WebService.Action action, boolean includeInternals) {
+<span class="fc bfc" id="L96" title="All 4 branches covered.">    if (includeInternals || !action.isInternal()) {</span>
+<span class="fc" id="L97">      writer.beginObject();</span>
+<span class="fc" id="L98">      writer.prop(&quot;key&quot;, action.key());</span>
+<span class="fc" id="L99">      writer.prop(&quot;description&quot;, action.description());</span>
+<span class="fc" id="L100">      writer.prop(&quot;since&quot;, action.since());</span>
+<span class="fc" id="L101">      writer.prop(&quot;deprecatedSince&quot;, action.deprecatedSince());</span>
+<span class="fc" id="L102">      writer.prop(&quot;internal&quot;, action.isInternal());</span>
+<span class="fc" id="L103">      writer.prop(&quot;post&quot;, action.isPost());</span>
+<span class="fc bfc" id="L104" title="All 2 branches covered.">      writer.prop(&quot;hasResponseExample&quot;, action.responseExample() != null);</span>
+<span class="fc" id="L105">      writeChangelog(writer, action);</span>
+<span class="fc" id="L106">      writeParameters(writer, action, includeInternals);</span>
+<span class="fc" id="L107">      writer.endObject();</span>
+    }
+<span class="fc" id="L109">  }</span>
+
+  private static void writeParameters(JsonWriter writer, WebService.Action action, boolean includeInternals) {
+<span class="fc bfc" id="L112" title="All 4 branches covered.">    List&lt;WebService.Param&gt; params = action.params().stream().filter(p -&gt; includeInternals || !p.isInternal()).toList();</span>
+<span class="fc bfc" id="L113" title="All 2 branches covered.">    if (!params.isEmpty()) {</span>
+      // sort parameters by key
+<span class="fc" id="L115">      Ordering&lt;WebService.Param&gt; ordering = Ordering.natural().onResultOf(WebService.Param::key);</span>
+<span class="fc" id="L116">      writer.name(&quot;params&quot;).beginArray();</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">      for (WebService.Param param : ordering.sortedCopy(params)) {</span>
+<span class="fc" id="L118">        writeParam(writer, param);</span>
+<span class="fc" id="L119">      }</span>
+<span class="fc" id="L120">      writer.endArray();</span>
+    }
+<span class="fc" id="L122">  }</span>
+
+  private static void writeParam(JsonWriter writer, WebService.Param param) {
+<span class="fc" id="L125">    writer.beginObject();</span>
+<span class="fc" id="L126">    writer.prop(&quot;key&quot;, param.key());</span>
+<span class="fc" id="L127">    writer.prop(&quot;description&quot;, param.description());</span>
+<span class="fc" id="L128">    writer.prop(&quot;since&quot;, param.since());</span>
+<span class="fc" id="L129">    writer.prop(&quot;required&quot;, param.isRequired());</span>
+<span class="fc" id="L130">    writer.prop(&quot;internal&quot;, param.isInternal());</span>
+<span class="fc" id="L131">    writer.prop(&quot;defaultValue&quot;, param.defaultValue());</span>
+<span class="fc" id="L132">    writer.prop(&quot;exampleValue&quot;, param.exampleValue());</span>
+<span class="fc" id="L133">    writer.prop(&quot;deprecatedSince&quot;, param.deprecatedSince());</span>
+<span class="fc" id="L134">    writer.prop(&quot;deprecatedKey&quot;, param.deprecatedKey());</span>
+<span class="fc" id="L135">    writer.prop(&quot;deprecatedKeySince&quot;, param.deprecatedKeySince());</span>
+<span class="fc" id="L136">    writer.prop(&quot;maxValuesAllowed&quot;, param.maxValuesAllowed());</span>
+<span class="fc" id="L137">    ofNullable(param.possibleValues()).ifPresent(possibleValues -&gt; writer.name(&quot;possibleValues&quot;).beginArray().values(possibleValues).endArray());</span>
+<span class="fc" id="L138">    ofNullable(param.maximumLength()).ifPresent(maximumLength -&gt; writer.prop(&quot;maximumLength&quot;, maximumLength));</span>
+<span class="fc" id="L139">    ofNullable(param.minimumLength()).ifPresent(minimumLength -&gt; writer.prop(&quot;minimumLength&quot;, minimumLength));</span>
+<span class="fc" id="L140">    ofNullable(param.maximumValue()).ifPresent(maximumValue -&gt; writer.prop(&quot;maximumValue&quot;, maximumValue));</span>
+<span class="fc" id="L141">    writer.endObject();</span>
+<span class="fc" id="L142">  }</span>
+
+  private static void writeChangelog(JsonWriter writer, WebService.Action action) {
+<span class="fc" id="L145">    writer.name(&quot;changelog&quot;).beginArray();</span>
+<span class="fc" id="L146">    action.changelog().stream()</span>
+<span class="fc" id="L147">      .sorted(Comparator.comparing((Change change) -&gt; Version.parse(change.getVersion())).reversed())</span>
+<span class="fc" id="L148">      .forEach(changelog -&gt; {</span>
+<span class="fc" id="L149">        writer.beginObject();</span>
+<span class="fc" id="L150">        writer.prop(&quot;description&quot;, changelog.getDescription());</span>
+<span class="fc" id="L151">        writer.prop(&quot;version&quot;, changelog.getVersion());</span>
+<span class="fc" id="L152">        writer.endObject();</span>
+<span class="fc" id="L153">      });</span>
+<span class="fc" id="L154">    writer.endArray();</span>
+<span class="fc" id="L155">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

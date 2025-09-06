@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IssueIndexDefinition.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.issue.index</a> &gt; <span class="el_source">IssueIndexDefinition.java</span></div><h1>IssueIndexDefinition.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.issue.index;
+
+import jakarta.inject.Inject;
+import org.sonar.api.config.Configuration;
+import org.sonar.api.config.internal.MapSettings;
+import org.sonar.server.es.Index;
+import org.sonar.server.es.IndexDefinition;
+import org.sonar.server.es.IndexType;
+import org.sonar.server.es.newindex.NewAuthorizedIndex;
+import org.sonar.server.es.newindex.TypeMapping;
+
+import static org.sonar.server.es.newindex.DefaultIndexSettingsElement.SORTABLE_ANALYZER;
+import static org.sonar.server.es.newindex.SettingsConfiguration.MANUAL_REFRESH_INTERVAL;
+import static org.sonar.server.es.newindex.SettingsConfiguration.newBuilder;
+import static org.sonar.server.permission.index.IndexAuthorizationConstants.TYPE_AUTHORIZATION;
+
+/**
+ * Definition of ES index &quot;issues&quot;, including settings and fields.
+ */
+public class IssueIndexDefinition implements IndexDefinition {
+
+<span class="fc" id="L41">  public static final Index DESCRIPTOR = Index.withRelations(&quot;issues&quot;);</span>
+<span class="fc" id="L42">  public static final IndexType.IndexRelationType TYPE_ISSUE = IndexType.relation(IndexType.main(DESCRIPTOR, TYPE_AUTHORIZATION), &quot;issue&quot;);</span>
+  public static final String FIELD_ISSUE_ASSIGNEE_UUID = &quot;assignee&quot;;
+  public static final String FIELD_ISSUE_AUTHOR_LOGIN = &quot;authorLogin&quot;;
+  public static final String FIELD_ISSUE_COMPONENT_UUID = &quot;component&quot;;
+  public static final String FIELD_ISSUE_EFFORT = &quot;effort&quot;;
+  public static final String FIELD_ISSUE_FILE_PATH = &quot;filePath&quot;;
+  /**
+   * Functional date
+   */
+  public static final String FIELD_ISSUE_FUNC_CREATED_AT = &quot;issueCreatedAt&quot;;
+  /**
+   * Functional date
+   */
+  public static final String FIELD_ISSUE_FUNC_UPDATED_AT = &quot;issueUpdatedAt&quot;;
+  /**
+   * Functional date
+   */
+  public static final String FIELD_ISSUE_FUNC_CLOSED_AT = &quot;issueClosedAt&quot;;
+  public static final String FIELD_ISSUE_KEY = &quot;key&quot;;
+  public static final String FIELD_ISSUE_SCOPE = &quot;scope&quot;;
+  public static final String FIELD_ISSUE_LANGUAGE = &quot;language&quot;;
+  public static final String FIELD_ISSUE_LINE = &quot;line&quot;;
+
+  /**
+   * The (real) project, equivalent of projects.uuid, so
+   * it's never empty.
+   * This field maps the parent association with issues/authorization.
+   */
+  public static final String FIELD_ISSUE_PROJECT_UUID = &quot;project&quot;;
+
+  /**
+   * The branch. It's never empty. It maps the DB column components.branch_uuid.
+   * It's the UUID of the branch and it's different than {@link #FIELD_ISSUE_PROJECT_UUID}.
+   */
+  public static final String FIELD_ISSUE_BRANCH_UUID = &quot;branch&quot;;
+
+  /**
+   * Whether component is in a main branch or not.
+   */
+  public static final String FIELD_ISSUE_IS_MAIN_BRANCH = &quot;isMainBranch&quot;;
+
+  public static final String FIELD_ISSUE_DIRECTORY_PATH = &quot;dirPath&quot;;
+  public static final String FIELD_ISSUE_RESOLUTION = &quot;resolution&quot;;
+  public static final String FIELD_ISSUE_RULE_UUID = &quot;ruleUuid&quot;;
+  public static final String FIELD_ISSUE_SEVERITY = &quot;severity&quot;;
+  public static final String FIELD_ISSUE_SEVERITY_VALUE = &quot;severityValue&quot;;
+  public static final String FIELD_ISSUE_STATUS = &quot;status&quot;;
+  public static final String FIELD_ISSUE_NEW_STATUS = &quot;issueStatus&quot;;
+  public static final String FIELD_ISSUE_TAGS = &quot;tags&quot;;
+  public static final String FIELD_ISSUE_TYPE = &quot;type&quot;;
+  public static final String FIELD_ISSUE_PCI_DSS_32 = &quot;pciDss-3.2&quot;;
+  public static final String FIELD_ISSUE_PCI_DSS_40 = &quot;pciDss-4.0&quot;;
+  public static final String FIELD_ISSUE_OWASP_ASVS_40 = &quot;owaspAsvs-4.0&quot;;
+  public static final String FIELD_ISSUE_OWASP_ASVS_40_LEVEL = &quot;owaspAsvs-4.0-level&quot;;
+  public static final String FIELD_ISSUE_OWASP_MOBILE_TOP_10_2024 = &quot;owaspMobileTop10-2024&quot;;
+  public static final String FIELD_ISSUE_OWASP_TOP_10 = &quot;owaspTop10&quot;;
+  public static final String FIELD_ISSUE_OWASP_TOP_10_2021 = &quot;owaspTop10-2021&quot;;
+  public static final String FIELD_ISSUE_SANS_TOP_25 = &quot;sansTop25&quot;;
+  public static final String FIELD_ISSUE_CWE = &quot;cwe&quot;;
+  public static final String FIELD_ISSUE_STIG_ASD_V5R3 = &quot;stig-ASD_V5R3&quot;;
+  public static final String FIELD_ISSUE_CASA = &quot;casa&quot;;
+  public static final String FIELD_ISSUE_SQ_SECURITY_CATEGORY = &quot;sonarsourceSecurity&quot;;
+  public static final String FIELD_ISSUE_VULNERABILITY_PROBABILITY = &quot;vulnerabilityProbability&quot;;
+  public static final String FIELD_ISSUE_CODE_VARIANTS = &quot;codeVariants&quot;;
+
+  /**
+   * Whether issue is new code for a branch using the reference branch new code definition.
+   */
+  public static final String FIELD_ISSUE_NEW_CODE_REFERENCE = &quot;isNewCodeReference&quot;;
+  public static final String FIELD_ISSUE_CLEAN_CODE_ATTRIBUTE_CATEGORY = &quot;cleanCodeAttributeCategory&quot;;
+  public static final String FIELD_ISSUE_IMPACTS = &quot;impacts&quot;;
+  public static final String SUB_FIELD_SOFTWARE_QUALITY = &quot;softwareQuality&quot;;
+  public static final String SUB_FIELD_SEVERITY = &quot;severity&quot;;
+  public static final String FIELD_ISSUE_IMPACT_SOFTWARE_QUALITY = FIELD_ISSUE_IMPACTS + &quot;.&quot; + SUB_FIELD_SOFTWARE_QUALITY;
+  public static final String FIELD_ISSUE_IMPACT_SEVERITY = FIELD_ISSUE_IMPACTS + &quot;.&quot; + SUB_FIELD_SEVERITY;
+  public static final String FIELD_PRIORITIZED_RULE = &quot;prioritizedRule&quot;;
+  public static final String FIELD_FROM_SONAR_QUBE_UPDATE = &quot;fromSonarQubeUpdate&quot;;
+
+  private final Configuration config;
+  private final boolean enableSource;
+
+  @Inject
+  public IssueIndexDefinition(Configuration config) {
+<span class="fc" id="L125">    this(config, false);</span>
+<span class="fc" id="L126">  }</span>
+
+<span class="fc" id="L128">  private IssueIndexDefinition(Configuration config, boolean enableSource) {</span>
+<span class="fc" id="L129">    this.config = config;</span>
+<span class="fc" id="L130">    this.enableSource = enableSource;</span>
+<span class="fc" id="L131">  }</span>
+
+  /**
+   * Keep the document sources in index so that indexer tests can verify content
+   * of indexed documents.
+   */
+  public static IssueIndexDefinition createForTest() {
+<span class="fc" id="L138">    return new IssueIndexDefinition(new MapSettings().asConfig(), true);</span>
+  }
+
+  @Override
+  public void define(IndexDefinitionContext context) {
+<span class="fc" id="L143">    NewAuthorizedIndex index = context.createWithAuthorization(</span>
+        DESCRIPTOR,
+<span class="fc" id="L145">        newBuilder(config)</span>
+<span class="fc" id="L146">          .setRefreshInterval(MANUAL_REFRESH_INTERVAL)</span>
+<span class="fc" id="L147">          .setDefaultNbOfShards(5)</span>
+<span class="fc" id="L148">          .build())</span>
+<span class="fc" id="L149">      .setEnableSource(enableSource);</span>
+
+<span class="fc" id="L151">    TypeMapping mapping = index.createTypeMapping(TYPE_ISSUE);</span>
+<span class="fc" id="L152">    mapping.keywordFieldBuilder(FIELD_ISSUE_ASSIGNEE_UUID).disableNorms().addSubFields(SORTABLE_ANALYZER).build();</span>
+<span class="fc" id="L153">    mapping.keywordFieldBuilder(FIELD_ISSUE_AUTHOR_LOGIN).disableNorms().build();</span>
+<span class="fc" id="L154">    mapping.keywordFieldBuilder(FIELD_ISSUE_COMPONENT_UUID).disableNorms().build();</span>
+<span class="fc" id="L155">    mapping.createLongField(FIELD_ISSUE_EFFORT);</span>
+<span class="fc" id="L156">    mapping.keywordFieldBuilder(FIELD_ISSUE_FILE_PATH).disableNorms().addSubFields(SORTABLE_ANALYZER).build();</span>
+<span class="fc" id="L157">    mapping.createDateTimeField(FIELD_ISSUE_FUNC_CREATED_AT);</span>
+<span class="fc" id="L158">    mapping.createDateTimeField(FIELD_ISSUE_FUNC_UPDATED_AT);</span>
+<span class="fc" id="L159">    mapping.createDateTimeField(FIELD_ISSUE_FUNC_CLOSED_AT);</span>
+<span class="fc" id="L160">    mapping.keywordFieldBuilder(FIELD_ISSUE_KEY).disableNorms().addSubFields(SORTABLE_ANALYZER).build();</span>
+<span class="fc" id="L161">    mapping.keywordFieldBuilder(FIELD_ISSUE_SCOPE).disableNorms().build();</span>
+<span class="fc" id="L162">    mapping.keywordFieldBuilder(FIELD_ISSUE_LANGUAGE).disableNorms().build();</span>
+<span class="fc" id="L163">    mapping.createIntegerField(FIELD_ISSUE_LINE);</span>
+<span class="fc" id="L164">    mapping.keywordFieldBuilder(FIELD_ISSUE_PROJECT_UUID).disableNorms().addSubFields(SORTABLE_ANALYZER).build();</span>
+<span class="fc" id="L165">    mapping.keywordFieldBuilder(FIELD_ISSUE_BRANCH_UUID).disableNorms().build();</span>
+<span class="fc" id="L166">    mapping.createBooleanField(FIELD_ISSUE_IS_MAIN_BRANCH);</span>
+<span class="fc" id="L167">    mapping.keywordFieldBuilder(FIELD_ISSUE_DIRECTORY_PATH).disableNorms().build();</span>
+<span class="fc" id="L168">    mapping.keywordFieldBuilder(FIELD_ISSUE_RESOLUTION).disableNorms().build();</span>
+<span class="fc" id="L169">    mapping.keywordFieldBuilder(FIELD_ISSUE_NEW_STATUS).disableNorms().build();</span>
+<span class="fc" id="L170">    mapping.keywordFieldBuilder(FIELD_ISSUE_RULE_UUID).disableNorms().build();</span>
+<span class="fc" id="L171">    mapping.keywordFieldBuilder(FIELD_ISSUE_SEVERITY).disableNorms().build();</span>
+<span class="fc" id="L172">    mapping.createByteField(FIELD_ISSUE_SEVERITY_VALUE);</span>
+<span class="fc" id="L173">    mapping.keywordFieldBuilder(FIELD_ISSUE_CLEAN_CODE_ATTRIBUTE_CATEGORY).disableNorms().build();</span>
+<span class="fc" id="L174">    mapping.nestedFieldBuilder(FIELD_ISSUE_IMPACTS)</span>
+<span class="fc" id="L175">      .addKeywordField(SUB_FIELD_SOFTWARE_QUALITY)</span>
+<span class="fc" id="L176">      .addKeywordField(SUB_FIELD_SEVERITY)</span>
+<span class="fc" id="L177">      .build();</span>
+<span class="fc" id="L178">    mapping.keywordFieldBuilder(FIELD_ISSUE_STATUS).disableNorms().addSubFields(SORTABLE_ANALYZER).build();</span>
+<span class="fc" id="L179">    mapping.keywordFieldBuilder(FIELD_ISSUE_TAGS).disableNorms().build();</span>
+<span class="fc" id="L180">    mapping.keywordFieldBuilder(FIELD_ISSUE_TYPE).disableNorms().build();</span>
+<span class="fc" id="L181">    mapping.keywordFieldBuilder(FIELD_ISSUE_PCI_DSS_32).disableNorms().build();</span>
+<span class="fc" id="L182">    mapping.keywordFieldBuilder(FIELD_ISSUE_PCI_DSS_40).disableNorms().build();</span>
+<span class="fc" id="L183">    mapping.keywordFieldBuilder(FIELD_ISSUE_OWASP_ASVS_40).disableNorms().build();</span>
+<span class="fc" id="L184">    mapping.keywordFieldBuilder(FIELD_ISSUE_OWASP_ASVS_40_LEVEL).disableNorms().build();</span>
+<span class="fc" id="L185">    mapping.keywordFieldBuilder(FIELD_ISSUE_OWASP_MOBILE_TOP_10_2024).disableNorms().build();</span>
+<span class="fc" id="L186">    mapping.keywordFieldBuilder(FIELD_ISSUE_OWASP_TOP_10).disableNorms().build();</span>
+<span class="fc" id="L187">    mapping.keywordFieldBuilder(FIELD_ISSUE_OWASP_TOP_10_2021).disableNorms().build();</span>
+<span class="fc" id="L188">    mapping.keywordFieldBuilder(FIELD_ISSUE_SANS_TOP_25).disableNorms().build();</span>
+<span class="fc" id="L189">    mapping.keywordFieldBuilder(FIELD_ISSUE_CWE).disableNorms().build();</span>
+<span class="fc" id="L190">    mapping.keywordFieldBuilder(FIELD_ISSUE_SQ_SECURITY_CATEGORY).disableNorms().build();</span>
+<span class="fc" id="L191">    mapping.keywordFieldBuilder(FIELD_ISSUE_VULNERABILITY_PROBABILITY).disableNorms().build();</span>
+<span class="fc" id="L192">    mapping.keywordFieldBuilder(FIELD_ISSUE_STIG_ASD_V5R3).disableNorms().build();</span>
+<span class="fc" id="L193">    mapping.keywordFieldBuilder(FIELD_ISSUE_CASA).disableNorms().build();</span>
+<span class="fc" id="L194">    mapping.createBooleanField(FIELD_ISSUE_NEW_CODE_REFERENCE);</span>
+<span class="fc" id="L195">    mapping.keywordFieldBuilder(FIELD_ISSUE_CODE_VARIANTS).disableNorms().build();</span>
+<span class="fc" id="L196">    mapping.createBooleanField(FIELD_PRIORITIZED_RULE);</span>
+<span class="fc" id="L197">    mapping.createBooleanField(FIELD_FROM_SONAR_QUBE_UPDATE);</span>
+<span class="fc" id="L198">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

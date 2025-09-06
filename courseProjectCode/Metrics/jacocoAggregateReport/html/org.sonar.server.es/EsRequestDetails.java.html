@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EsRequestDetails.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.es</a> &gt; <span class="el_source">EsRequestDetails.java</span></div><h1>EsRequestDetails.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.es;
+
+import java.util.Arrays;
+import org.apache.commons.lang3.StringUtils;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.client.indices.GetIndexRequest;
+import org.elasticsearch.client.indices.PutMappingRequest;
+import org.elasticsearch.common.bytes.BytesReference;
+
+final class EsRequestDetails {
+  private static final String ON_INDICES_MESSAGE = &quot; on indices '%s'&quot;;
+
+  private EsRequestDetails() {
+    // this is utility class only
+  }
+
+  static String computeDetailsAsString(SearchRequest searchRequest) {
+<span class="fc" id="L45">    StringBuilder message = new StringBuilder();</span>
+<span class="fc" id="L46">    message.append(String.format(&quot;ES search request '%s'&quot;, searchRequest));</span>
+<span class="pc bpc" id="L47" title="1 of 2 branches missed.">    if (searchRequest.indices().length &gt; 0) {</span>
+<span class="fc" id="L48">      message.append(String.format(ON_INDICES_MESSAGE, Arrays.toString(searchRequest.indices())));</span>
+    }
+<span class="fc" id="L50">    return message.toString();</span>
+  }
+
+  public static String computeDetailsAsString(SearchScrollRequest searchScrollRequest) {
+<span class="fc" id="L54">    return String.format(&quot;ES search scroll request for scroll id '%s'&quot;, searchScrollRequest.scroll());</span>
+  }
+
+  static String computeDetailsAsString(DeleteRequest deleteRequest) {
+<span class="fc" id="L58">    return new StringBuilder()</span>
+<span class="fc" id="L59">      .append(&quot;ES delete request of doc &quot;)</span>
+<span class="fc" id="L60">      .append(deleteRequest.id())</span>
+<span class="fc" id="L61">      .append(&quot; in index &quot;)</span>
+<span class="fc" id="L62">      .append(deleteRequest.index())</span>
+<span class="fc" id="L63">      .toString();</span>
+  }
+
+  static String computeDetailsAsString(RefreshRequest refreshRequest) {
+<span class="fc" id="L67">    StringBuilder message = new StringBuilder();</span>
+<span class="fc" id="L68">    message.append(&quot;ES refresh request&quot;);</span>
+<span class="pc bpc" id="L69" title="1 of 2 branches missed.">    if (refreshRequest.indices().length &gt; 0) {</span>
+<span class="fc" id="L70">      message.append(String.format(ON_INDICES_MESSAGE, StringUtils.join(refreshRequest.indices(), &quot;,&quot;)));</span>
+    }
+<span class="fc" id="L72">    return message.toString();</span>
+  }
+
+  static String computeDetailsAsString(ClearIndicesCacheRequest request) {
+<span class="fc" id="L76">    StringBuilder message = new StringBuilder();</span>
+<span class="fc" id="L77">    message.append(&quot;ES clear cache request&quot;);</span>
+<span class="pc bpc" id="L78" title="1 of 2 branches missed.">    if (request.indices().length &gt; 0) {</span>
+<span class="fc" id="L79">      message.append(String.format(ON_INDICES_MESSAGE, StringUtils.join(request.indices(), &quot;,&quot;)));</span>
+    }
+<span class="fc" id="L81">    String[] fields = request.fields();</span>
+<span class="pc bpc" id="L82" title="2 of 4 branches missed.">    if (fields != null &amp;&amp; fields.length &gt; 0) {</span>
+<span class="fc" id="L83">      message.append(String.format(&quot; on fields '%s'&quot;, StringUtils.join(fields, &quot;,&quot;)));</span>
+    }
+<span class="pc bpc" id="L85" title="1 of 2 branches missed.">    if (request.queryCache()) {</span>
+<span class="fc" id="L86">      message.append(&quot; with filter cache&quot;);</span>
+    }
+<span class="pc bpc" id="L88" title="1 of 2 branches missed.">    if (request.fieldDataCache()) {</span>
+<span class="fc" id="L89">      message.append(&quot; with field data cache&quot;);</span>
+    }
+<span class="pc bpc" id="L91" title="1 of 2 branches missed.">    if (request.requestCache()) {</span>
+<span class="fc" id="L92">      message.append(&quot; with request cache&quot;);</span>
+    }
+<span class="fc" id="L94">    return message.toString();</span>
+  }
+
+  static String computeDetailsAsString(IndexRequest indexRequest) {
+<span class="fc" id="L98">    return new StringBuilder().append(&quot;ES index request&quot;)</span>
+<span class="fc" id="L99">      .append(String.format(&quot; for key '%s'&quot;, indexRequest.id()))</span>
+<span class="fc" id="L100">      .append(String.format(&quot; on index '%s'&quot;, indexRequest.index()))</span>
+<span class="fc" id="L101">      .toString();</span>
+  }
+
+  static String computeDetailsAsString(GetRequest request) {
+<span class="fc" id="L105">    return new StringBuilder().append(&quot;ES get request&quot;)</span>
+<span class="fc" id="L106">      .append(String.format(&quot; for key '%s'&quot;, request.id()))</span>
+<span class="fc" id="L107">      .append(String.format(&quot; on index '%s'&quot;, request.index()))</span>
+<span class="fc" id="L108">      .toString();</span>
+  }
+
+  static String computeDetailsAsString(GetIndexRequest getIndexRequest) {
+<span class="fc" id="L112">    StringBuilder message = new StringBuilder();</span>
+<span class="fc" id="L113">    message.append(&quot;ES indices exists request&quot;);</span>
+<span class="pc bpc" id="L114" title="1 of 2 branches missed.">    if (getIndexRequest.indices().length &gt; 0) {</span>
+<span class="fc" id="L115">      message.append(String.format(ON_INDICES_MESSAGE, StringUtils.join(getIndexRequest.indices(), &quot;,&quot;)));</span>
+    }
+<span class="fc" id="L117">    return message.toString();</span>
+  }
+
+  static String computeDetailsAsString(CreateIndexRequest createIndexRequest) {
+<span class="fc" id="L121">    return String.format(&quot;ES create index '%s'&quot;, createIndexRequest.index());</span>
+  }
+
+  static String computeDetailsAsString(PutMappingRequest request) {
+<span class="fc" id="L125">    StringBuilder message = new StringBuilder();</span>
+<span class="fc" id="L126">    message.append(&quot;ES put mapping request&quot;);</span>
+<span class="pc bpc" id="L127" title="1 of 2 branches missed.">    if (request.indices().length &gt; 0) {</span>
+<span class="fc" id="L128">      message.append(String.format(ON_INDICES_MESSAGE, StringUtils.join(request.indices(), &quot;,&quot;)));</span>
+    }
+<span class="fc" id="L130">    BytesReference source = request.source();</span>
+<span class="pc bpc" id="L131" title="1 of 2 branches missed.">    if (source != null) {</span>
+<span class="nc" id="L132">      message.append(String.format(&quot; with source '%s'&quot;, source.utf8ToString()));</span>
+    }
+
+<span class="fc" id="L135">    return message.toString();</span>
+  }
+
+  static String computeDetailsAsString(ClusterHealthRequest clusterHealthRequest) {
+<span class="fc" id="L139">    StringBuilder message = new StringBuilder();</span>
+<span class="fc" id="L140">    message.append(&quot;ES cluster health request&quot;);</span>
+<span class="fc" id="L141">    String[] indices = clusterHealthRequest.indices();</span>
+<span class="pc bpc" id="L142" title="2 of 4 branches missed.">    if (indices != null &amp;&amp; indices.length &gt; 0) {</span>
+<span class="fc" id="L143">      message.append(String.format(ON_INDICES_MESSAGE, StringUtils.join(indices, &quot;,&quot;)));</span>
+    }
+<span class="fc" id="L145">    return message.toString();</span>
+  }
+
+  static String computeDetailsAsString(String... indices) {
+<span class="fc" id="L149">    StringBuilder message = new StringBuilder();</span>
+<span class="fc" id="L150">    message.append(&quot;ES indices stats request&quot;);</span>
+<span class="fc bfc" id="L151" title="All 2 branches covered.">    if (indices.length &gt; 0) {</span>
+<span class="fc" id="L152">      message.append(String.format(ON_INDICES_MESSAGE, StringUtils.join(indices, &quot;,&quot;)));</span>
+    }
+<span class="fc" id="L154">    return message.toString();</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UpdatedValue.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.common</a> &gt; <span class="el_source">UpdatedValue.java</span></div><h1>UpdatedValue.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.common;
+
+import java.util.Objects;
+import java.util.StringJoiner;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import javax.annotation.Nullable;
+
+public class UpdatedValue&lt;T&gt; {
+  final T value;
+  final boolean isDefined;
+
+<span class="fc" id="L32">  UpdatedValue(@Nullable T value, boolean isDefined) {</span>
+<span class="fc" id="L33">    this.value = value;</span>
+<span class="fc" id="L34">    this.isDefined = isDefined;</span>
+<span class="fc" id="L35">  }</span>
+
+  public static &lt;T&gt; UpdatedValue&lt;T&gt; withValue(@Nullable T value) {
+<span class="fc" id="L38">    return new UpdatedValue&lt;&gt;(value, true);</span>
+  }
+
+  public static &lt;T&gt; UpdatedValue&lt;T&gt; undefined() {
+<span class="fc" id="L42">    return new UpdatedValue&lt;&gt;(null, false);</span>
+  }
+
+  public &lt;U&gt; UpdatedValue&lt;U&gt; map(Function&lt;T, U&gt; mappingFunction) {
+<span class="fc bfc" id="L46" title="All 2 branches covered.">    if (isDefined) {</span>
+<span class="fc" id="L47">      return withValue(mappingFunction.apply(value));</span>
+    }
+<span class="fc" id="L49">    return undefined();</span>
+  }
+
+  public void applyIfDefined(Consumer&lt;T&gt; consumer) {
+<span class="fc bfc" id="L53" title="All 2 branches covered.">    if (isDefined) {</span>
+<span class="fc" id="L54">      consumer.accept(value);</span>
+    }
+<span class="fc" id="L56">  }</span>
+
+  public boolean contains(T testValue) {
+<span class="pc bpc" id="L59" title="1 of 4 branches missed.">    if (isDefined &amp;&amp; value != null) {</span>
+<span class="fc" id="L60">      return value.equals(testValue);</span>
+    }
+<span class="fc" id="L62">    return false;</span>
+  }
+
+  public boolean isDefined() {
+<span class="fc" id="L66">    return isDefined;</span>
+  }
+
+  @Override
+  public boolean equals(Object o) {
+<span class="pc bpc" id="L71" title="1 of 2 branches missed.">    if (this == o) {</span>
+<span class="nc" id="L72">      return true;</span>
+    }
+<span class="pc bpc" id="L74" title="2 of 4 branches missed.">    if (o == null || getClass() != o.getClass()) {</span>
+<span class="nc" id="L75">      return false;</span>
+    }
+<span class="fc" id="L77">    UpdatedValue&lt;?&gt; that = (UpdatedValue&lt;?&gt;) o;</span>
+<span class="pc bpc" id="L78" title="2 of 4 branches missed.">    return isDefined == that.isDefined &amp;&amp; Objects.equals(value, that.value);</span>
+  }
+
+  @Override
+  public int hashCode() {
+<span class="nc" id="L83">    return Objects.hash(value, isDefined);</span>
+  }
+
+  public T orElse(@Nullable T defaultValue) {
+<span class="fc bfc" id="L87" title="All 2 branches covered.">    if (isDefined) {</span>
+<span class="fc" id="L88">      return value;</span>
+    } else {
+<span class="fc" id="L90">      return defaultValue;</span>
+    }
+  }
+
+  @Override
+  public String toString() {
+<span class="nc" id="L96">    return new StringJoiner(&quot;, &quot;, UpdatedValue.class.getSimpleName() + &quot;[&quot;, &quot;]&quot;)</span>
+<span class="nc" id="L97">      .add(String.valueOf(value))</span>
+<span class="nc" id="L98">      .toString();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

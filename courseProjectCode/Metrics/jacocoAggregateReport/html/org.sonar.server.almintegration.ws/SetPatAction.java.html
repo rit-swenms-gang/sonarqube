@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SetPatAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.almintegration.ws</a> &gt; <span class="el_source">SetPatAction.java</span></div><h1>SetPatAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.almintegration.ws;
+
+import com.google.common.base.Strings;
+import java.util.List;
+import java.util.Optional;
+import javax.annotation.Nullable;
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.api.utils.Preconditions;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.alm.pat.AlmPatDto;
+import org.sonar.db.alm.setting.AlmSettingDto;
+import org.sonar.server.exceptions.NotFoundException;
+import org.sonar.server.user.UserSession;
+
+import static java.util.Objects.requireNonNull;
+import static org.sonar.db.alm.setting.ALM.BITBUCKET_CLOUD;
+import static org.sonar.db.permission.GlobalPermission.PROVISION_PROJECTS;
+
+public class SetPatAction implements AlmIntegrationsWsAction {
+
+  private static final String PARAM_ALM_SETTING = &quot;almSetting&quot;;
+  private static final String PARAM_PAT = &quot;pat&quot;;
+  private static final String PARAM_USERNAME = &quot;username&quot;;
+
+  private final DbClient dbClient;
+  private final UserSession userSession;
+  private final ImportHelper importHelper;
+
+<span class="fc" id="L52">  public SetPatAction(DbClient dbClient, UserSession userSession, ImportHelper importHelper) {</span>
+<span class="fc" id="L53">    this.dbClient = dbClient;</span>
+<span class="fc" id="L54">    this.userSession = userSession;</span>
+<span class="fc" id="L55">    this.importHelper = importHelper;</span>
+<span class="fc" id="L56">  }</span>
+
+  @Override
+  public void define(WebService.NewController context) {
+<span class="fc" id="L60">    WebService.NewAction action = context.createAction(&quot;set_pat&quot;)</span>
+<span class="fc" id="L61">      .setDescription(&quot;Set a Personal Access Token for the given DevOps Platform setting&lt;br/&gt;&quot; +</span>
+        &quot;Requires the 'Create Projects' permission&quot;)
+<span class="fc" id="L63">      .setPost(true)</span>
+<span class="fc" id="L64">      .setSince(&quot;8.2&quot;)</span>
+<span class="fc" id="L65">      .setHandler(this)</span>
+<span class="fc" id="L66">      .setChangelog(</span>
+        new Change(&quot;9.0&quot;, &quot;Bitbucket Cloud support and optional Username parameter were added&quot;),
+        new Change(&quot;10.3&quot;, &quot;Allow setting Personal Access Tokens for all DevOps platforms&quot;),
+<span class="fc" id="L69">        new Change(&quot;10.3&quot;, String.format(&quot;Parameter %s becomes optional if you have only one DevOps Platform configuration&quot;, PARAM_ALM_SETTING)));</span>
+
+<span class="fc" id="L71">    action.createParam(PARAM_ALM_SETTING)</span>
+<span class="fc" id="L72">      .setDescription(&quot;DevOps Platform configuration key. This parameter is optional if you have only one single DevOps Platform integration.&quot;);</span>
+
+<span class="fc" id="L74">    action.createParam(PARAM_PAT)</span>
+<span class="fc" id="L75">      .setRequired(true)</span>
+<span class="fc" id="L76">      .setMaximumLength(2000)</span>
+<span class="fc" id="L77">      .setDescription(&quot;Personal Access Token&quot;);</span>
+
+<span class="fc" id="L79">    action.createParam(PARAM_USERNAME)</span>
+<span class="fc" id="L80">      .setRequired(false)</span>
+<span class="fc" id="L81">      .setMaximumLength(2000)</span>
+<span class="fc" id="L82">      .setDescription(&quot;Username&quot;);</span>
+<span class="fc" id="L83">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) {
+<span class="fc" id="L87">    doHandle(request);</span>
+<span class="fc" id="L88">    response.noContent();</span>
+<span class="fc" id="L89">  }</span>
+
+  private void doHandle(Request request) {
+<span class="fc" id="L92">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L93">      userSession.checkLoggedIn().checkPermission(PROVISION_PROJECTS);</span>
+
+<span class="fc" id="L95">      String pat = request.mandatoryParam(PARAM_PAT);</span>
+<span class="fc" id="L96">      String username = request.param(PARAM_USERNAME);</span>
+
+<span class="fc" id="L98">      String userUuid = requireNonNull(userSession.getUuid(), &quot;User UUID cannot be null&quot;);</span>
+<span class="fc" id="L99">      AlmSettingDto almSettingDto = importHelper.getAlmSettingDto(request);</span>
+
+<span class="fc bfc" id="L101" title="All 2 branches covered.">      if (almSettingDto.getAlm().equals(BITBUCKET_CLOUD)) {</span>
+<span class="fc bfc" id="L102" title="All 2 branches covered.">        Preconditions.checkArgument(!Strings.isNullOrEmpty(username), &quot;Username cannot be null for Bitbucket Cloud&quot;);</span>
+      }
+
+<span class="fc" id="L105">      String resultingPat = CredentialsEncoderHelper.encodeCredentials(almSettingDto.getAlm(), pat, username);</span>
+
+<span class="fc" id="L107">      Optional&lt;AlmPatDto&gt; almPatDto = dbClient.almPatDao().selectByUserAndAlmSetting(dbSession, userUuid, almSettingDto);</span>
+<span class="fc bfc" id="L108" title="All 2 branches covered.">      if (almPatDto.isPresent()) {</span>
+<span class="fc" id="L109">        AlmPatDto almPat = almPatDto.get();</span>
+<span class="fc" id="L110">        almPat.setPersonalAccessToken(resultingPat);</span>
+<span class="fc" id="L111">        dbClient.almPatDao().update(dbSession, almPat, userSession.getLogin(), almSettingDto.getKey());</span>
+<span class="fc" id="L112">      } else {</span>
+<span class="fc" id="L113">        AlmPatDto almPat = new AlmPatDto()</span>
+<span class="fc" id="L114">          .setPersonalAccessToken(resultingPat)</span>
+<span class="fc" id="L115">          .setAlmSettingUuid(almSettingDto.getUuid())</span>
+<span class="fc" id="L116">          .setUserUuid(userUuid);</span>
+<span class="fc" id="L117">        dbClient.almPatDao().insert(dbSession, almPat, userSession.getLogin(), almSettingDto.getKey());</span>
+      }
+<span class="fc" id="L119">      dbSession.commit();</span>
+    }
+<span class="fc" id="L121">  }</span>
+
+  public AlmSettingDto getAlmConfig(@Nullable String almSettingKey) {
+<span class="nc" id="L124">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="nc bnc" id="L125" title="All 2 branches missed.">      if (almSettingKey != null) {</span>
+<span class="nc" id="L126">        return getAlmSettingDtoFromKey(dbSession, almSettingKey);</span>
+      }
+<span class="nc" id="L128">      return getAlmSettingDtoFromAlm(dbSession);</span>
+<span class="nc bnc" id="L129" title="All 2 branches missed.">    }</span>
+  }
+
+  private AlmSettingDto getAlmSettingDtoFromKey(DbSession dbSession, String almSettingKey) {
+<span class="nc" id="L133">    return dbClient.almSettingDao().selectByKey(dbSession, almSettingKey)</span>
+<span class="nc" id="L134">      .orElseThrow(() -&gt; new NotFoundException(String.format(&quot;DevOps Platform configuration '%s' not found.&quot;, almSettingKey)));</span>
+  }
+
+  private AlmSettingDto getAlmSettingDtoFromAlm(DbSession dbSession) {
+<span class="nc" id="L138">    List&lt;AlmSettingDto&gt; almSettingDtos = dbClient.almSettingDao().selectAll(dbSession);</span>
+<span class="nc bnc" id="L139" title="All 2 branches missed.">    if (almSettingDtos.isEmpty()) {</span>
+<span class="nc" id="L140">      throw new NotFoundException(&quot;There is no configuration for DevOps Platforms. Please add one.&quot;);</span>
+    }
+<span class="nc bnc" id="L142" title="All 2 branches missed.">    if (almSettingDtos.size() == 1) {</span>
+<span class="nc" id="L143">      return almSettingDtos.get(0);</span>
+    }
+<span class="nc" id="L145">    throw new IllegalArgumentException(String.format(&quot;Parameter %s is required as there are multiple DevOps Platform configurations.&quot;, PARAM_ALM_SETTING));</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PermissionChange.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.common.permission</a> &gt; <span class="el_source">PermissionChange.java</span></div><h1>PermissionChange.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.common.permission;
+
+import java.util.StringJoiner;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.db.entity.EntityDto;
+import org.sonar.db.permission.GlobalPermission;
+import org.sonar.server.permission.PermissionService;
+
+import static java.util.Objects.requireNonNull;
+import static org.sonar.server.exceptions.BadRequestException.checkRequest;
+
+public abstract class PermissionChange {
+
+  private final Operation operation;
+  private final String permission;
+  private final EntityDto entity;
+  protected final PermissionService permissionService;
+
+<span class="fc" id="L39">  protected PermissionChange(Operation operation, String permission, @Nullable EntityDto entity, PermissionService permissionService) {</span>
+<span class="fc" id="L40">    this.operation = requireNonNull(operation);</span>
+<span class="fc" id="L41">    this.permission = requireNonNull(permission);</span>
+<span class="fc" id="L42">    this.entity = entity;</span>
+<span class="fc" id="L43">    this.permissionService = permissionService;</span>
+<span class="fc bfc" id="L44" title="All 2 branches covered.">    if (entity == null) {</span>
+<span class="fc" id="L45">      checkRequest(permissionService.getGlobalPermissions().stream().anyMatch(p -&gt; p.getKey().equals(permission)),</span>
+        &quot;Invalid global permission '%s'. Valid values are %s&quot;, permission,
+<span class="fc" id="L47">        permissionService.getGlobalPermissions().stream().map(GlobalPermission::getKey).toList());</span>
+    } else {
+<span class="fc" id="L49">      checkRequest(permissionService.getAllProjectPermissions().stream().anyMatch(p -&gt; p.getKey().equals(permission)),</span>
+        &quot;Invalid project permission '%s'. Valid values are %s&quot;, permission,
+<span class="fc" id="L51">        permissionService.getAllProjectPermissions());</span>
+    }
+<span class="fc" id="L53">  }</span>
+
+  public Operation getOperation() {
+<span class="fc" id="L56">    return operation;</span>
+  }
+
+  public String getPermission() {
+<span class="fc" id="L60">    return permission;</span>
+  }
+
+  @CheckForNull
+  public EntityDto getEntity() {
+<span class="fc" id="L65">    return entity;</span>
+  }
+
+  @CheckForNull
+  public String getProjectName() {
+<span class="fc bfc" id="L70" title="All 2 branches covered.">    return entity == null ? null : entity.getName();</span>
+  }
+
+  @CheckForNull
+  public String getProjectUuid() {
+<span class="fc bfc" id="L75" title="All 2 branches covered.">    return entity == null ? null : entity.getUuid();</span>
+  }
+
+  public abstract String getUuidOfGrantee();
+
+  @Override
+  public String toString() {
+<span class="nc" id="L82">    return new StringJoiner(&quot;, &quot;, PermissionChange.class.getSimpleName() + &quot;[&quot;, &quot;]&quot;)</span>
+<span class="nc" id="L83">      .add(&quot;operation=&quot; + operation)</span>
+<span class="nc" id="L84">      .add(&quot;permission='&quot; + permission + &quot;'&quot;)</span>
+<span class="nc" id="L85">      .add(&quot;entity=&quot; + entity)</span>
+<span class="nc" id="L86">      .add(&quot;permissionService=&quot; + permissionService)</span>
+<span class="nc" id="L87">      .toString();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

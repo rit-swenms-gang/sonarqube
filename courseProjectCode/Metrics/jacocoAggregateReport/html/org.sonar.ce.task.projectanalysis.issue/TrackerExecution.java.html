@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TrackerExecution.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.issue</a> &gt; <span class="el_source">TrackerExecution.java</span></div><h1>TrackerExecution.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.issue;
+
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.sonar.api.issue.Issue;
+import org.sonar.ce.task.projectanalysis.analysis.AnalysisMetadataHolder;
+import org.sonar.ce.task.projectanalysis.component.Component;
+import org.sonar.core.issue.DefaultIssue;
+import org.sonar.core.issue.tracking.Input;
+import org.sonar.core.issue.tracking.NonClosedTracking;
+import org.sonar.core.issue.tracking.Tracker;
+import org.sonar.core.issue.tracking.Tracking;
+
+public class TrackerExecution {
+
+  private final TrackerBaseInputFactory baseInputFactory;
+  private final ClosedIssuesInputFactory closedIssuesInputFactory;
+  private final Tracker&lt;DefaultIssue, DefaultIssue&gt; tracker;
+  private final ComponentIssuesLoader componentIssuesLoader;
+  private final AnalysisMetadataHolder analysisMetadataHolder;
+
+  public TrackerExecution(TrackerBaseInputFactory baseInputFactory,
+    ClosedIssuesInputFactory closedIssuesInputFactory, Tracker&lt;DefaultIssue, DefaultIssue&gt; tracker,
+<span class="fc" id="L43">    ComponentIssuesLoader componentIssuesLoader, AnalysisMetadataHolder analysisMetadataHolder) {</span>
+<span class="fc" id="L44">    this.baseInputFactory = baseInputFactory;</span>
+<span class="fc" id="L45">    this.closedIssuesInputFactory = closedIssuesInputFactory;</span>
+<span class="fc" id="L46">    this.tracker = tracker;</span>
+<span class="fc" id="L47">    this.componentIssuesLoader = componentIssuesLoader;</span>
+<span class="fc" id="L48">    this.analysisMetadataHolder = analysisMetadataHolder;</span>
+<span class="fc" id="L49">  }</span>
+
+  public Tracking&lt;DefaultIssue, DefaultIssue&gt; track(Component component, Input&lt;DefaultIssue&gt; rawInput) {
+<span class="fc" id="L52">    Input&lt;DefaultIssue&gt; openBaseIssuesInput = baseInputFactory.create(component);</span>
+<span class="fc" id="L53">    NonClosedTracking&lt;DefaultIssue, DefaultIssue&gt; openIssueTracking = tracker.trackNonClosed(rawInput, openBaseIssuesInput);</span>
+<span class="fc bfc" id="L54" title="All 4 branches covered.">    if (openIssueTracking.isComplete() || analysisMetadataHolder.isFirstAnalysis()) {</span>
+<span class="fc" id="L55">      return openIssueTracking;</span>
+    }
+
+<span class="fc" id="L58">    Input&lt;DefaultIssue&gt; closedIssuesBaseInput = closedIssuesInputFactory.create(component);</span>
+<span class="fc" id="L59">    Tracking&lt;DefaultIssue, DefaultIssue&gt; closedIssuesTracking = tracker.trackClosed(openIssueTracking, closedIssuesBaseInput);</span>
+
+    // changes of closed issues need to be loaded in order to:
+    // - compute right transition from workflow
+    // - recover fields values from before they were closed
+<span class="fc" id="L64">    Set&lt;DefaultIssue&gt; matchesClosedIssues = closedIssuesTracking.getMatchedRaws().values().stream()</span>
+<span class="fc" id="L65">      .filter(t -&gt; Issue.STATUS_CLOSED.equals(t.getStatus()))</span>
+<span class="fc" id="L66">      .collect(Collectors.toSet());</span>
+<span class="fc" id="L67">    componentIssuesLoader.loadLatestDiffChangesForReopeningOfClosedIssues(matchesClosedIssues);</span>
+
+<span class="fc" id="L69">    return closedIssuesTracking;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

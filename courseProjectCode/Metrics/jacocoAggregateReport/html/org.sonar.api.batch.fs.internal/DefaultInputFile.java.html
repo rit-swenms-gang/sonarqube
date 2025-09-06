@@ -1,0 +1,481 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultInputFile.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.api.batch.fs.internal</a> &gt; <span class="el_source">DefaultInputFile.java</span></div><h1>DefaultInputFile.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.api.batch.fs.internal;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.BitSet;
+import java.util.Collection;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.apache.commons.io.ByteOrderMark;
+import org.apache.commons.io.input.BOMInputStream;
+import org.sonar.api.batch.fs.InputFile;
+import org.sonar.api.batch.fs.TextPointer;
+import org.sonar.api.batch.fs.TextRange;
+
+import static org.sonar.api.utils.Preconditions.checkArgument;
+import static org.sonar.api.utils.Preconditions.checkState;
+
+/**
+ * @since 4.2
+ * To create {@link InputFile} in tests, use TestInputFileBuilder.
+ */
+public class DefaultInputFile extends DefaultInputComponent implements InputFile {
+
+  private static final int DEFAULT_BUFFER_SIZE = 1024 * 4;
+
+  private final DefaultIndexedFile indexedFile;
+  private final String contents;
+  private final Consumer&lt;DefaultInputFile&gt; metadataGenerator;
+  private final Consumer&lt;DefaultInputFile&gt; scmStatusGenerator;
+
+  private boolean published;
+  private boolean excludedForCoverage;
+  private boolean excludedForDuplication;
+  private boolean ignoreAllIssues;
+  // Lazy init to save memory
+  private BitSet noSonarLines;
+  private Status status;
+  private Charset charset;
+  private Metadata metadata;
+  private Collection&lt;int[]&gt; ignoreIssuesOnlineRanges;
+  private BitSet executableLines;
+  private boolean markedAsUnchanged;
+
+  public DefaultInputFile(DefaultIndexedFile indexedFile, Consumer&lt;DefaultInputFile&gt; metadataGenerator, Consumer&lt;DefaultInputFile&gt; scmStatusGenerator) {
+<span class="fc" id="L77">    this(indexedFile, metadataGenerator, null, scmStatusGenerator);</span>
+<span class="fc" id="L78">  }</span>
+
+  // For testing
+  public DefaultInputFile(DefaultIndexedFile indexedFile, Consumer&lt;DefaultInputFile&gt; metadataGenerator, @Nullable String contents,
+    Consumer&lt;DefaultInputFile&gt; scmStatusGenerator) {
+<span class="fc" id="L83">    super(indexedFile.scannerId());</span>
+<span class="fc" id="L84">    this.indexedFile = indexedFile;</span>
+<span class="fc" id="L85">    this.metadataGenerator = metadataGenerator;</span>
+<span class="fc" id="L86">    this.scmStatusGenerator = scmStatusGenerator;</span>
+<span class="fc" id="L87">    this.metadata = null;</span>
+<span class="fc" id="L88">    this.markedAsUnchanged = false;</span>
+<span class="fc" id="L89">    this.published = false;</span>
+<span class="fc" id="L90">    this.excludedForCoverage = false;</span>
+<span class="fc" id="L91">    this.contents = contents;</span>
+<span class="fc" id="L92">  }</span>
+
+  public void checkMetadata() {
+<span class="fc bfc" id="L95" title="All 2 branches covered.">    if (metadata == null) {</span>
+<span class="fc" id="L96">      metadataGenerator.accept(this);</span>
+    }
+<span class="fc" id="L98">  }</span>
+
+  private void checkScmStatus() {
+<span class="fc bfc" id="L101" title="All 2 branches covered.">    if (status == null) {</span>
+<span class="fc" id="L102">      scmStatusGenerator.accept(this);</span>
+    }
+<span class="fc" id="L104">  }</span>
+
+  @Override
+  public InputStream inputStream() throws IOException {
+<span class="fc bfc" id="L108" title="All 2 branches covered.">    return contents != null ? new ByteArrayInputStream(contents.getBytes(charset()))</span>
+<span class="fc" id="L109">      : new BOMInputStream(Files.newInputStream(path()),</span>
+        ByteOrderMark.UTF_8, ByteOrderMark.UTF_16LE, ByteOrderMark.UTF_16BE, ByteOrderMark.UTF_32LE, ByteOrderMark.UTF_32BE);
+  }
+
+  public boolean isMarkedAsUnchanged() {
+<span class="fc" id="L114">    return markedAsUnchanged;</span>
+  }
+
+  public DefaultInputComponent setMarkedAsUnchanged(boolean markedAsUnchanged) {
+<span class="fc" id="L118">    this.markedAsUnchanged = markedAsUnchanged;</span>
+<span class="fc" id="L119">    return this;</span>
+  }
+
+  @Override
+  public String contents() throws IOException {
+<span class="fc bfc" id="L124" title="All 2 branches covered.">    if (contents != null) {</span>
+<span class="fc" id="L125">      return contents;</span>
+    } else {
+<span class="fc" id="L127">      ByteArrayOutputStream result = new ByteArrayOutputStream();</span>
+<span class="fc" id="L128">      try (InputStream inputStream = inputStream()) {</span>
+<span class="fc" id="L129">        byte[] buffer = new byte[DEFAULT_BUFFER_SIZE];</span>
+        int length;
+<span class="fc bfc" id="L131" title="All 2 branches covered.">        while ((length = inputStream.read(buffer)) != -1) {</span>
+<span class="fc" id="L132">          result.write(buffer, 0, length);</span>
+        }
+      }
+<span class="fc" id="L135">      return result.toString(charset().name());</span>
+    }
+  }
+
+  public DefaultInputFile setPublished(boolean published) {
+<span class="fc" id="L140">    this.published = published;</span>
+<span class="fc" id="L141">    return this;</span>
+  }
+
+  public boolean isPublished() {
+<span class="fc" id="L145">    return published;</span>
+  }
+
+  public DefaultInputFile setExcludedForCoverage(boolean excludedForCoverage) {
+<span class="fc" id="L149">    this.excludedForCoverage = excludedForCoverage;</span>
+<span class="fc" id="L150">    return this;</span>
+  }
+
+  public boolean isExcludedForCoverage() {
+<span class="fc" id="L154">    return excludedForCoverage;</span>
+  }
+
+  public DefaultInputFile setExcludedForDuplication(boolean excludedForDuplication) {
+<span class="fc" id="L158">    this.excludedForDuplication = excludedForDuplication;</span>
+<span class="fc" id="L159">    return this;</span>
+  }
+
+  public boolean isExcludedForDuplication() {
+<span class="fc" id="L163">    return excludedForDuplication;</span>
+  }
+
+  /**
+   * @deprecated since 6.6
+   */
+  @Deprecated
+  @Override
+  public String relativePath() {
+<span class="fc" id="L172">    return indexedFile.relativePath();</span>
+  }
+
+  public String getModuleRelativePath() {
+<span class="fc" id="L176">    return indexedFile.getModuleRelativePath();</span>
+  }
+
+  public String getProjectRelativePath() {
+<span class="fc" id="L180">    return indexedFile.getProjectRelativePath();</span>
+  }
+
+  @Override
+  public String absolutePath() {
+<span class="fc" id="L185">    return indexedFile.absolutePath();</span>
+  }
+
+  @CheckForNull
+  public String oldRelativePath() {
+<span class="fc" id="L190">    return indexedFile.oldRelativePath();</span>
+  }
+
+  @Override
+  public File file() {
+<span class="fc" id="L195">    return indexedFile.file();</span>
+  }
+
+  @Override
+  public Path path() {
+<span class="fc" id="L200">    return indexedFile.path();</span>
+  }
+
+  @CheckForNull
+  @Override
+  public String language() {
+<span class="fc" id="L206">    return indexedFile.language();</span>
+  }
+
+  @Override
+  public Type type() {
+<span class="fc" id="L211">    return indexedFile.type();</span>
+  }
+
+  @Override
+  public boolean isHidden() {
+<span class="fc" id="L216">    return indexedFile.isHidden();</span>
+  }
+
+  /**
+   * Component key (without branch).
+   */
+  @Override
+  public String key() {
+<span class="fc" id="L224">    return indexedFile.key();</span>
+  }
+
+  @Override
+  public int hashCode() {
+<span class="fc" id="L229">    return indexedFile.hashCode();</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="fc" id="L234">    return indexedFile.toString();</span>
+  }
+
+  /**
+   * {@link #setStatus(Status)}
+   */
+  @Override
+  public Status status() {
+<span class="fc" id="L242">    checkScmStatus();</span>
+<span class="fc bfc" id="L243" title="All 2 branches covered.">    if (status == null) {</span>
+      // scm might not be available, fallback to using hashes in the metadata
+<span class="fc" id="L245">      checkMetadata();</span>
+    }
+<span class="fc" id="L247">    return status;</span>
+  }
+
+  public boolean isStatusSet() {
+<span class="fc bfc" id="L251" title="All 2 branches covered.">    return status != null;</span>
+  }
+
+  @Override
+  public int lines() {
+<span class="fc" id="L256">    checkMetadata();</span>
+<span class="fc" id="L257">    return metadata.lines();</span>
+  }
+
+  @Override
+  public boolean isEmpty() {
+<span class="fc" id="L262">    checkMetadata();</span>
+<span class="fc" id="L263">    return metadata.isEmpty();</span>
+  }
+
+  @Override
+  public Charset charset() {
+<span class="fc" id="L268">    checkMetadata();</span>
+<span class="fc" id="L269">    return charset;</span>
+  }
+
+  public int lastValidOffset() {
+<span class="fc" id="L273">    checkMetadata();</span>
+<span class="fc" id="L274">    return metadata.lastValidOffset();</span>
+  }
+
+  /**
+   * Digest hash of the file.
+   */
+  @Override
+  public String md5Hash() {
+<span class="fc" id="L282">    checkMetadata();</span>
+<span class="fc" id="L283">    return metadata.hash();</span>
+  }
+
+  public int nonBlankLines() {
+<span class="fc" id="L287">    checkMetadata();</span>
+<span class="fc" id="L288">    return metadata.nonBlankLines();</span>
+  }
+
+  public int[] originalLineStartOffsets() {
+<span class="fc" id="L292">    checkMetadata();</span>
+<span class="pc bpc" id="L293" title="1 of 2 branches missed.">    checkState(metadata.originalLineStartOffsets() != null, &quot;InputFile is not properly initialized.&quot;);</span>
+<span class="pc bpc" id="L294" title="1 of 2 branches missed.">    checkState(metadata.originalLineStartOffsets().length == metadata.lines(),</span>
+      &quot;InputFile is not properly initialized. 'originalLineStartOffsets' property length should be equal to 'lines'&quot;);
+<span class="fc" id="L296">    return metadata.originalLineStartOffsets();</span>
+  }
+
+  public int[] originalLineEndOffsets() {
+<span class="fc" id="L300">    checkMetadata();</span>
+<span class="pc bpc" id="L301" title="1 of 2 branches missed.">    checkState(metadata.originalLineEndOffsets() != null, &quot;InputFile is not properly initialized.&quot;);</span>
+<span class="pc bpc" id="L302" title="1 of 2 branches missed.">    checkState(metadata.originalLineEndOffsets().length == metadata.lines(),</span>
+      &quot;InputFile is not properly initialized. 'originalLineEndOffsets' property length should be equal to 'lines'&quot;);
+<span class="fc" id="L304">    return metadata.originalLineEndOffsets();</span>
+  }
+
+  @Override
+  public TextPointer newPointer(int line, int lineOffset) {
+<span class="fc" id="L309">    checkMetadata();</span>
+<span class="fc" id="L310">    DefaultTextPointer textPointer = new DefaultTextPointer(line, lineOffset);</span>
+<span class="fc" id="L311">    checkValid(textPointer, &quot;pointer&quot;);</span>
+<span class="fc" id="L312">    return textPointer;</span>
+  }
+
+  @Override
+  public TextRange newRange(TextPointer start, TextPointer end) {
+<span class="fc" id="L317">    checkMetadata();</span>
+<span class="fc" id="L318">    checkValid(start, &quot;start pointer&quot;);</span>
+<span class="fc" id="L319">    checkValid(end, &quot;end pointer&quot;);</span>
+<span class="fc" id="L320">    return newRangeValidPointers(start, end, false);</span>
+  }
+
+  @Override
+  public TextRange newRange(int startLine, int startLineOffset, int endLine, int endLineOffset) {
+<span class="fc" id="L325">    checkMetadata();</span>
+<span class="fc" id="L326">    TextPointer start = newPointer(startLine, startLineOffset);</span>
+<span class="fc" id="L327">    TextPointer end = newPointer(endLine, endLineOffset);</span>
+<span class="fc" id="L328">    return newRangeValidPointers(start, end, false);</span>
+  }
+
+  @Override
+  public TextRange selectLine(int line) {
+<span class="fc" id="L333">    checkMetadata();</span>
+<span class="fc" id="L334">    TextPointer startPointer = newPointer(line, 0);</span>
+<span class="fc" id="L335">    TextPointer endPointer = newPointer(line, lineLength(line));</span>
+<span class="fc" id="L336">    return newRangeValidPointers(startPointer, endPointer, true);</span>
+  }
+
+  public void validate(TextRange range) {
+<span class="fc" id="L340">    checkMetadata();</span>
+<span class="fc" id="L341">    checkValid(range.start(), &quot;start pointer&quot;);</span>
+<span class="fc" id="L342">    checkValid(range.end(), &quot;end pointer&quot;);</span>
+<span class="fc" id="L343">  }</span>
+
+  /**
+   * Create Range from global offsets. Used for backward compatibility with older API.
+   */
+  public TextRange newRange(int startOffset, int endOffset) {
+<span class="fc" id="L349">    checkMetadata();</span>
+<span class="fc" id="L350">    return newRangeValidPointers(newPointer(startOffset), newPointer(endOffset), false);</span>
+  }
+
+  public TextPointer newPointer(int globalOffset) {
+<span class="fc" id="L354">    checkMetadata();</span>
+<span class="fc bfc" id="L355" title="All 2 branches covered.">    checkArgument(globalOffset &gt;= 0, &quot;%s is not a valid offset for a file&quot;, globalOffset);</span>
+<span class="fc bfc" id="L356" title="All 2 branches covered.">    checkArgument(globalOffset &lt;= lastValidOffset(), &quot;%s is not a valid offset for file %s. Max offset is %s&quot;, globalOffset, this, lastValidOffset());</span>
+<span class="fc" id="L357">    int line = findLine(globalOffset);</span>
+<span class="fc" id="L358">    int startLineOffset = originalLineStartOffsets()[line - 1];</span>
+    // In case the global offset is between \r and \n, move the pointer to a valid location
+<span class="fc" id="L360">    return new DefaultTextPointer(line, Math.min(globalOffset, originalLineEndOffsets()[line - 1]) - startLineOffset);</span>
+  }
+
+  public DefaultInputFile setStatus(Status status) {
+<span class="fc" id="L364">    this.status = status;</span>
+<span class="fc" id="L365">    return this;</span>
+  }
+
+  public DefaultInputFile setCharset(Charset charset) {
+<span class="fc" id="L369">    this.charset = charset;</span>
+<span class="fc" id="L370">    return this;</span>
+  }
+
+  private void checkValid(TextPointer pointer, String owner) {
+<span class="fc bfc" id="L374" title="All 2 branches covered.">    checkArgument(pointer.line() &gt;= 1, &quot;%s is not a valid line for a file&quot;, pointer.line());</span>
+<span class="fc bfc" id="L375" title="All 2 branches covered.">    checkArgument(pointer.line() &lt;= this.metadata.lines(), &quot;%s is not a valid line for %s. File %s has %s line(s)&quot;, pointer.line(), owner, this, metadata.lines());</span>
+<span class="fc bfc" id="L376" title="All 2 branches covered.">    checkArgument(pointer.lineOffset() &gt;= 0, &quot;%s is not a valid line offset for a file&quot;, pointer.lineOffset());</span>
+<span class="fc" id="L377">    int lineLength = lineLength(pointer.line());</span>
+<span class="fc bfc" id="L378" title="All 2 branches covered.">    checkArgument(pointer.lineOffset() &lt;= lineLength,</span>
+<span class="fc" id="L379">      &quot;%s is not a valid line offset for %s. File %s has %s character(s) at line %s&quot;, pointer.lineOffset(), owner, this, lineLength, pointer.line());</span>
+<span class="fc" id="L380">  }</span>
+
+  public int lineLength(int line) {
+<span class="fc" id="L383">    return originalLineEndOffsets()[line - 1] - originalLineStartOffsets()[line - 1];</span>
+  }
+
+  private static TextRange newRangeValidPointers(TextPointer start, TextPointer end, boolean acceptEmptyRange) {
+<span class="pc bpc" id="L387" title="1 of 6 branches missed.">    checkArgument(acceptEmptyRange ? (start.compareTo(end) &lt;= 0) : (start.compareTo(end) &lt; 0),</span>
+      &quot;Start pointer %s should be before end pointer %s&quot;, start, end);
+<span class="fc" id="L389">    return new DefaultTextRange(start, end);</span>
+  }
+
+  private int findLine(int globalOffset) {
+<span class="fc" id="L393">    return Math.abs(Arrays.binarySearch(originalLineStartOffsets(), globalOffset) + 1);</span>
+  }
+
+  public DefaultInputFile setMetadata(Metadata metadata) {
+<span class="fc" id="L397">    this.metadata = metadata;</span>
+<span class="fc" id="L398">    return this;</span>
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+<span class="fc bfc" id="L403" title="All 2 branches covered.">    if (obj == null) {</span>
+<span class="fc" id="L404">      return false;</span>
+    }
+
+<span class="fc bfc" id="L407" title="All 2 branches covered.">    if (this.getClass() != obj.getClass()) {</span>
+<span class="fc" id="L408">      return false;</span>
+    }
+
+<span class="fc" id="L411">    DefaultInputFile that = (DefaultInputFile) obj;</span>
+<span class="fc" id="L412">    return this.getProjectRelativePath().equals(that.getProjectRelativePath());</span>
+  }
+
+  @Override
+  public boolean isFile() {
+<span class="fc" id="L417">    return true;</span>
+  }
+
+  @Override
+  public String filename() {
+<span class="fc" id="L422">    return indexedFile.filename();</span>
+  }
+
+  @Override
+  public URI uri() {
+<span class="fc" id="L427">    return indexedFile.uri();</span>
+  }
+
+  public void noSonarAt(Set&lt;Integer&gt; noSonarLines) {
+<span class="pc bpc" id="L431" title="1 of 2 branches missed.">    if (this.noSonarLines == null) {</span>
+<span class="fc" id="L432">      this.noSonarLines = new BitSet(lines());</span>
+    }
+<span class="fc" id="L434">    noSonarLines.forEach(l -&gt; this.noSonarLines.set(l - 1));</span>
+<span class="fc" id="L435">  }</span>
+
+  public boolean hasNoSonarAt(int line) {
+<span class="fc bfc" id="L438" title="All 2 branches covered.">    if (this.noSonarLines == null) {</span>
+<span class="fc" id="L439">      return false;</span>
+    }
+<span class="fc" id="L441">    return this.noSonarLines.get(line - 1);</span>
+  }
+
+  public boolean isIgnoreAllIssues() {
+<span class="fc" id="L445">    checkMetadata();</span>
+<span class="fc" id="L446">    return ignoreAllIssues;</span>
+  }
+
+  public void setIgnoreAllIssues(boolean ignoreAllIssues) {
+<span class="fc" id="L450">    this.ignoreAllIssues = ignoreAllIssues;</span>
+<span class="fc" id="L451">  }</span>
+
+  public void addIgnoreIssuesOnLineRanges(Collection&lt;int[]&gt; lineRanges) {
+<span class="pc bpc" id="L454" title="1 of 2 branches missed.">    if (this.ignoreIssuesOnlineRanges == null) {</span>
+<span class="fc" id="L455">      this.ignoreIssuesOnlineRanges = new ArrayList&lt;&gt;();</span>
+    }
+<span class="fc" id="L457">    this.ignoreIssuesOnlineRanges.addAll(lineRanges);</span>
+<span class="fc" id="L458">  }</span>
+
+  public boolean isIgnoreAllIssuesOnLine(@Nullable Integer line) {
+<span class="fc" id="L461">    checkMetadata();</span>
+<span class="fc bfc" id="L462" title="All 4 branches covered.">    if (line == null || ignoreIssuesOnlineRanges == null) {</span>
+<span class="fc" id="L463">      return false;</span>
+    }
+<span class="fc bfc" id="L465" title="All 4 branches covered.">    return ignoreIssuesOnlineRanges.stream().anyMatch(r -&gt; r[0] &lt;= line &amp;&amp; line &lt;= r[1]);</span>
+  }
+
+  public void setExecutableLines(Set&lt;Integer&gt; executableLines) {
+<span class="pc bpc" id="L469" title="1 of 2 branches missed.">    checkState(this.executableLines == null, &quot;Executable lines have already been saved for file: {}&quot;, this.toString());</span>
+<span class="fc" id="L470">    this.executableLines = new BitSet(lines());</span>
+<span class="fc" id="L471">    executableLines.forEach(l -&gt; this.executableLines.set(l - 1));</span>
+<span class="fc" id="L472">  }</span>
+
+  public Optional&lt;Set&lt;Integer&gt;&gt; getExecutableLines() {
+<span class="fc bfc" id="L475" title="All 2 branches covered.">    if (this.executableLines == null) {</span>
+<span class="fc" id="L476">      return Optional.empty();</span>
+    }
+<span class="fc" id="L478">    return Optional.of(this.executableLines.stream().map(i -&gt; i + 1).boxed().collect(Collectors.toSet()));</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

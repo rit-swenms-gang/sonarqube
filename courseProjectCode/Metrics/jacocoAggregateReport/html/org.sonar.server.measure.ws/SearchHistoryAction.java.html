@@ -1,0 +1,414 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SearchHistoryAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.measure.ws</a> &gt; <span class="el_source">SearchHistoryAction.java</span></div><h1>SearchHistoryAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.measure.ws;
+
+import com.google.common.collect.Sets;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.api.server.ws.WebService.Param;
+import org.sonar.db.permission.ProjectPermission;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.ComponentDto;
+import org.sonar.db.component.ComponentQualifiers;
+import org.sonar.db.component.ComponentScopes;
+import org.sonar.db.component.SnapshotDto;
+import org.sonar.db.component.SnapshotQuery;
+import org.sonar.db.component.SnapshotQuery.SORT_FIELD;
+import org.sonar.db.component.SnapshotQuery.SORT_ORDER;
+import org.sonar.db.measure.PastMeasureQuery;
+import org.sonar.db.measure.ProjectMeasureDto;
+import org.sonar.db.metric.MetricDto;
+import org.sonar.db.metric.RemovedMetricConverter;
+import org.sonar.server.component.ComponentFinder;
+import org.sonar.server.telemetry.TelemetryPortfolioActivityGraphTypeProvider;
+import org.sonar.server.telemetry.TelemetryPortfolioActivityRequestedMetricProvider;
+import org.sonar.server.user.UserSession;
+import org.sonar.server.ws.KeyExamples;
+import org.sonarqube.ws.Measures.SearchHistoryResponse;
+
+import static java.lang.String.format;
+import static java.util.Optional.ofNullable;
+import static org.sonar.api.utils.DateUtils.parseEndingDateOrDateTime;
+import static org.sonar.api.utils.DateUtils.parseStartingDateOrDateTime;
+import static org.sonar.db.component.ComponentQualifiers.SUBVIEW;
+import static org.sonar.db.component.ComponentQualifiers.VIEW;
+import static org.sonar.db.component.SnapshotDto.STATUS_PROCESSED;
+import static org.sonar.server.component.ws.MeasuresWsParameters.ACTION_SEARCH_HISTORY;
+import static org.sonar.server.component.ws.MeasuresWsParameters.PARAM_BRANCH;
+import static org.sonar.server.component.ws.MeasuresWsParameters.PARAM_COMPONENT;
+import static org.sonar.server.component.ws.MeasuresWsParameters.PARAM_FROM;
+import static org.sonar.server.component.ws.MeasuresWsParameters.PARAM_METRICS;
+import static org.sonar.server.component.ws.MeasuresWsParameters.PARAM_PULL_REQUEST;
+import static org.sonar.server.component.ws.MeasuresWsParameters.PARAM_TO;
+import static org.sonar.server.ws.KeyExamples.KEY_BRANCH_EXAMPLE_001;
+import static org.sonar.server.ws.KeyExamples.KEY_PULL_REQUEST_EXAMPLE_001;
+import static org.sonar.server.ws.WsUtils.writeProtobuf;
+
+public class SearchHistoryAction implements MeasuresWsAction {
+
+  private static final int MAX_PAGE_SIZE = 1_000;
+  private static final int DEFAULT_PAGE_SIZE = 100;
+<span class="fc" id="L83">  public static final Pattern GRAPH_REGEX = Pattern.compile(&quot;graph=([^&amp;]+)&quot;);</span>
+
+  private final DbClient dbClient;
+  private final ComponentFinder componentFinder;
+  private final UserSession userSession;
+  private final TelemetryPortfolioActivityRequestedMetricProvider telemetryRequestedMetricProvider;
+  private final TelemetryPortfolioActivityGraphTypeProvider telemetryGraphTypeProvider;
+
+  public SearchHistoryAction(DbClient dbClient, ComponentFinder componentFinder, UserSession userSession,
+    TelemetryPortfolioActivityRequestedMetricProvider telemetryRequestedMetricProvider,
+<span class="fc" id="L93">    TelemetryPortfolioActivityGraphTypeProvider telemetryGraphTypeProvider) {</span>
+<span class="fc" id="L94">    this.dbClient = dbClient;</span>
+<span class="fc" id="L95">    this.componentFinder = componentFinder;</span>
+<span class="fc" id="L96">    this.userSession = userSession;</span>
+<span class="fc" id="L97">    this.telemetryRequestedMetricProvider = telemetryRequestedMetricProvider;</span>
+<span class="fc" id="L98">    this.telemetryGraphTypeProvider = telemetryGraphTypeProvider;</span>
+<span class="fc" id="L99">  }</span>
+
+  @Override
+  public void define(WebService.NewController context) {
+<span class="fc" id="L103">    WebService.NewAction action = context.createAction(ACTION_SEARCH_HISTORY)</span>
+<span class="fc" id="L104">      .setDescription(&quot;Search measures history of a component.&lt;br&gt;&quot; +</span>
+        &quot;Measures are ordered chronologically.&lt;br&gt;&quot; +
+        &quot;Pagination applies to the number of measures for each metric.&lt;br&gt;&quot; +
+        &quot;Requires the following permission: 'Browse' on the specified component. &lt;br&gt;&quot; +
+        &quot;For applications, it also requires 'Browse' permission on its child projects.&quot;)
+<span class="fc" id="L109">      .setResponseExample(getClass().getResource(&quot;search_history-example.json&quot;))</span>
+<span class="fc" id="L110">      .setSince(&quot;6.3&quot;)</span>
+<span class="fc" id="L111">      .setChangelog(</span>
+<span class="fc" id="L112">        new Change(&quot;2025.4&quot;, format(</span>
+          &quot;The following SCA metrics are available on licensed enterprise/datacenter editions with SCA enabled: %s&quot;,
+<span class="fc" id="L114">          MeasuresWsModule.getNewScaMetricsInSonarQube202504())),</span>
+<span class="fc" id="L115">        new Change(&quot;10.8&quot;, String.format(&quot;The following metrics are not deprecated anymore: %s&quot;,</span>
+<span class="fc" id="L116">          MeasuresWsModule.getUndeprecatedMetricsinSonarQube108())),</span>
+<span class="fc" id="L117">        new Change(&quot;10.8&quot;, String.format(&quot;Added new accepted values for the 'metricKeys' param: %s&quot;,</span>
+<span class="fc" id="L118">          MeasuresWsModule.getNewMetricsInSonarQube108())),</span>
+<span class="fc" id="L119">        new Change(&quot;10.8&quot;, String.format(&quot;The metrics %s are now deprecated. Use 'software_quality_maintainability_issues', &quot; +</span>
+          &quot;'software_quality_reliability_issues', 'software_quality_security_issues', 'new_software_quality_maintainability_issues', &quot; +
+          &quot;'new_software_quality_reliability_issues', 'new_software_quality_security_issues' instead.&quot;,
+<span class="fc" id="L122">          MeasuresWsModule.getDeprecatedMetricsInSonarQube108())),</span>
+<span class="fc" id="L123">        new Change(&quot;10.7&quot;, &quot;Added new accepted values for the 'metricKeys' param: %s&quot;.formatted(MeasuresWsModule.getNewMetricsInSonarQube107())),</span>
+<span class="fc" id="L124">        new Change(&quot;10.5&quot;, String.format(&quot;The metrics %s are now deprecated &quot; +</span>
+          &quot;without exact replacement. Use 'maintainability_issues', 'reliability_issues' and 'security_issues' instead.&quot;,
+<span class="fc" id="L126">          MeasuresWsModule.getDeprecatedMetricsInSonarQube105())),</span>
+        new Change(&quot;10.5&quot;, &quot;Added new accepted values for the 'metricKeys' param: 'new_maintainability_issues', 'new_reliability_issues', 'new_security_issues'&quot;),
+<span class="fc" id="L128">        new Change(&quot;10.4&quot;, String.format(&quot;The metrics %s are now deprecated &quot; +</span>
+          &quot;without exact replacement. Use 'maintainability_issues', 'reliability_issues' and 'security_issues' instead.&quot;,
+<span class="fc" id="L130">          MeasuresWsModule.getDeprecatedMetricsInSonarQube104())),</span>
+        new Change(&quot;10.4&quot;, &quot;The metrics 'open_issues', 'reopened_issues' and 'confirmed_issues' are now deprecated in the response. Consume 'violations' instead.&quot;),
+        new Change(&quot;10.4&quot;, &quot;The use of 'open_issues', 'reopened_issues' and 'confirmed_issues' values in 'metricKeys' param are now deprecated. Use 'violations' instead.&quot;),
+        new Change(&quot;10.4&quot;, &quot;The metric 'wont_fix_issues' is now deprecated in the response. Consume 'accepted_issues' instead.&quot;),
+        new Change(&quot;10.4&quot;, &quot;The use of 'wont_fix_issues' value in 'metricKeys' param is now deprecated. Use 'accepted_issues' instead.&quot;),
+        new Change(&quot;10.4&quot;, &quot;Added new accepted value for the 'metricKeys' param: 'accepted_issues'.&quot;),
+<span class="fc" id="L136">        new Change(&quot;10.0&quot;, format(&quot;The use of the following metrics in 'metricKeys' parameter is not deprecated anymore: %s&quot;,</span>
+<span class="fc" id="L137">          MeasuresWsModule.getDeprecatedMetricsInSonarQube93())),</span>
+<span class="fc" id="L138">        new Change(&quot;9.3&quot;, format(&quot;The use of the following metrics in 'metrics' parameter is deprecated: %s&quot;,</span>
+<span class="fc" id="L139">          MeasuresWsModule.getDeprecatedMetricsInSonarQube93())),</span>
+<span class="fc" id="L140">        new Change(&quot;7.6&quot;, format(&quot;The use of module keys in parameter '%s' is deprecated&quot;, PARAM_COMPONENT)))</span>
+<span class="fc" id="L141">      .setHandler(this);</span>
+
+<span class="fc" id="L143">    action.createParam(PARAM_COMPONENT)</span>
+<span class="fc" id="L144">      .setDescription(&quot;Component key&quot;)</span>
+<span class="fc" id="L145">      .setRequired(true)</span>
+<span class="fc" id="L146">      .setExampleValue(KeyExamples.KEY_PROJECT_EXAMPLE_001);</span>
+
+<span class="fc" id="L148">    action.createParam(PARAM_BRANCH)</span>
+<span class="fc" id="L149">      .setDescription(&quot;Branch key. Not available in the community edition.&quot;)</span>
+<span class="fc" id="L150">      .setSince(&quot;6.6&quot;)</span>
+<span class="fc" id="L151">      .setExampleValue(KEY_BRANCH_EXAMPLE_001);</span>
+
+<span class="fc" id="L153">    action.createParam(PARAM_PULL_REQUEST)</span>
+<span class="fc" id="L154">      .setDescription(&quot;Pull request id. Not available in the community edition.&quot;)</span>
+<span class="fc" id="L155">      .setSince(&quot;7.1&quot;)</span>
+<span class="fc" id="L156">      .setExampleValue(KEY_PULL_REQUEST_EXAMPLE_001);</span>
+
+<span class="fc" id="L158">    action.createParam(PARAM_METRICS)</span>
+<span class="fc" id="L159">      .setDescription(&quot;Comma-separated list of metric keys&quot;)</span>
+<span class="fc" id="L160">      .setRequired(true)</span>
+<span class="fc" id="L161">      .setExampleValue(&quot;ncloc,coverage,new_violations&quot;);</span>
+
+<span class="fc" id="L163">    action.createParam(PARAM_FROM)</span>
+<span class="fc" id="L164">      .setDescription(&quot;Filter measures created after the given date (inclusive). &lt;br&gt;&quot; +</span>
+        &quot;Either a date (server timezone) or datetime can be provided&quot;)
+<span class="fc" id="L166">      .setExampleValue(&quot;2017-10-19 or 2017-10-19T13:00:00+0200&quot;);</span>
+
+<span class="fc" id="L168">    action.createParam(PARAM_TO)</span>
+<span class="fc" id="L169">      .setDescription(&quot;Filter measures created before the given date (inclusive). &lt;br&gt;&quot; +</span>
+        &quot;Either a date (server timezone) or datetime can be provided&quot;)
+<span class="fc" id="L171">      .setExampleValue(&quot;2017-10-19 or 2017-10-19T13:00:00+0200&quot;);</span>
+
+<span class="fc" id="L173">    action.addPagingParams(DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);</span>
+<span class="fc" id="L174">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L178">    Optional&lt;SearchHistoryResult&gt; searchHistoryResult = Optional.of(request)</span>
+<span class="fc" id="L179">      .map(SearchHistoryAction::toWsRequest)</span>
+<span class="fc" id="L180">      .map(search());</span>
+<span class="fc" id="L181">    SearchHistoryResponse searchHistoryResponse = searchHistoryResult</span>
+<span class="fc" id="L182">      .map(result -&gt; new SearchHistoryResponseFactory(result).apply())</span>
+<span class="fc" id="L183">      .orElseThrow();</span>
+
+<span class="fc" id="L185">    writeProtobuf(searchHistoryResponse, request, response);</span>
+<span class="fc" id="L186">    searchHistoryResult.ifPresent(r -&gt; writeTelemetry(request, r));</span>
+<span class="fc" id="L187">  }</span>
+
+  private void writeTelemetry(Request request, SearchHistoryResult searchResult) {
+<span class="fc" id="L190">    Map&lt;String, String&gt; headers = request.getHeaders();</span>
+<span class="fc" id="L191">    String referer = headers.getOrDefault(&quot;referer&quot;, &quot;&quot;);</span>
+<span class="pc bpc" id="L192" title="1 of 4 branches missed.">    if (referer.contains(&quot;project/activity&quot;) &amp;&amp; List.of(VIEW, SUBVIEW).contains(searchResult.getComponent().qualifier())) {</span>
+<span class="fc" id="L193">      toWsRequest(request).metrics.forEach(telemetryRequestedMetricProvider::metricRequested);</span>
+<span class="fc" id="L194">      getGraphType(referer).ifPresent(telemetryGraphTypeProvider::incrementCount);</span>
+    }
+<span class="fc" id="L196">  }</span>
+
+  private static Optional&lt;String&gt; getGraphType(String url) {
+<span class="fc" id="L199">    Matcher matcher = GRAPH_REGEX.matcher(url);</span>
+<span class="fc bfc" id="L200" title="All 2 branches covered.">    return matcher.find() ? Optional.of(matcher.group(1)) : Optional.of(&quot;issues&quot;);</span>
+  }
+
+  private static SearchHistoryRequest toWsRequest(Request request) {
+<span class="fc" id="L204">    return SearchHistoryRequest.builder()</span>
+<span class="fc" id="L205">      .setComponent(request.mandatoryParam(PARAM_COMPONENT))</span>
+<span class="fc" id="L206">      .setBranch(request.param(PARAM_BRANCH))</span>
+<span class="fc" id="L207">      .setPullRequest(request.param(PARAM_PULL_REQUEST))</span>
+<span class="fc" id="L208">      .setMetrics(request.mandatoryParamAsStrings(PARAM_METRICS))</span>
+<span class="fc" id="L209">      .setFrom(request.param(PARAM_FROM))</span>
+<span class="fc" id="L210">      .setTo(request.param(PARAM_TO))</span>
+<span class="fc" id="L211">      .setPage(request.mandatoryParamAsInt(Param.PAGE))</span>
+<span class="fc" id="L212">      .setPageSize(request.mandatoryParamAsInt(Param.PAGE_SIZE))</span>
+<span class="fc" id="L213">      .build();</span>
+  }
+
+  private Function&lt;SearchHistoryRequest, SearchHistoryResult&gt; search() {
+<span class="fc" id="L217">    return request -&gt; {</span>
+<span class="fc" id="L218">      try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L219">        ComponentDto component = searchComponent(request, dbSession);</span>
+
+<span class="fc" id="L221">        SearchHistoryResult result = new SearchHistoryResult(request.page, request.pageSize)</span>
+<span class="fc" id="L222">          .setComponent(component)</span>
+<span class="fc" id="L223">          .setAnalyses(searchAnalyses(dbSession, request, component))</span>
+<span class="fc" id="L224">          .setMetrics(searchMetrics(dbSession, request))</span>
+<span class="fc" id="L225">          .setRequestedMetrics(request.getMetrics());</span>
+<span class="fc" id="L226">        return result.setMeasures(searchMeasures(dbSession, request, result));</span>
+      }
+    };
+  }
+
+  private ComponentDto searchComponent(SearchHistoryRequest request, DbSession dbSession) {
+<span class="fc" id="L232">    ComponentDto component = loadComponent(dbSession, request);</span>
+<span class="fc" id="L233">    userSession.checkComponentPermission(ProjectPermission.USER, component);</span>
+<span class="pc bpc" id="L234" title="1 of 4 branches missed.">    if (ComponentScopes.PROJECT.equals(component.scope()) &amp;&amp; ComponentQualifiers.APP.equals(component.qualifier())) {</span>
+<span class="nc" id="L235">      userSession.checkChildProjectsPermission(ProjectPermission.USER, component);</span>
+    }
+<span class="fc" id="L237">    return component;</span>
+  }
+
+  private List&lt;ProjectMeasureDto&gt; searchMeasures(DbSession dbSession, SearchHistoryRequest request, SearchHistoryResult result) {
+<span class="fc" id="L241">    Date from = parseStartingDateOrDateTime(request.getFrom());</span>
+<span class="fc" id="L242">    Date to = parseEndingDateOrDateTime(request.getTo());</span>
+<span class="fc" id="L243">    PastMeasureQuery dbQuery = new PastMeasureQuery(</span>
+<span class="fc" id="L244">      result.getComponent().uuid(),</span>
+<span class="fc" id="L245">      result.getMetrics().stream().map(MetricDto::getUuid).toList(),</span>
+<span class="fc bfc" id="L246" title="All 2 branches covered.">      from == null ? null : from.getTime(),</span>
+<span class="fc bfc" id="L247" title="All 2 branches covered.">      to == null ? null : (to.getTime() + 1_000L));</span>
+<span class="fc" id="L248">    return dbClient.projectMeasureDao().selectPastMeasures(dbSession, dbQuery);</span>
+  }
+
+  private List&lt;SnapshotDto&gt; searchAnalyses(DbSession dbSession, SearchHistoryRequest request, ComponentDto component) {
+<span class="fc" id="L252">    SnapshotQuery dbQuery = new SnapshotQuery()</span>
+<span class="fc" id="L253">      .setRootComponentUuid(component.branchUuid())</span>
+<span class="fc" id="L254">      .setStatus(STATUS_PROCESSED)</span>
+<span class="fc" id="L255">      .setSort(SORT_FIELD.BY_DATE, SORT_ORDER.ASC);</span>
+<span class="fc" id="L256">    ofNullable(request.getFrom()).ifPresent(from -&gt; dbQuery.setCreatedAfter(parseStartingDateOrDateTime(from).getTime()));</span>
+<span class="fc" id="L257">    ofNullable(request.getTo()).ifPresent(to -&gt; dbQuery.setCreatedBefore(parseEndingDateOrDateTime(to).getTime() + 1_000L));</span>
+
+<span class="fc" id="L259">    return dbClient.snapshotDao().selectAnalysesByQuery(dbSession, dbQuery);</span>
+  }
+
+  private List&lt;MetricDto&gt; searchMetrics(DbSession dbSession, SearchHistoryRequest request) {
+<span class="fc" id="L263">    List&lt;String&gt; upToDateRequestedMetrics = RemovedMetricConverter.withRemovedMetricAlias(request.getMetrics());</span>
+<span class="fc" id="L264">    List&lt;MetricDto&gt; metrics = dbClient.metricDao().selectByKeys(dbSession, upToDateRequestedMetrics);</span>
+<span class="fc bfc" id="L265" title="All 2 branches covered.">    if (upToDateRequestedMetrics.size() &gt; metrics.size()) {</span>
+<span class="fc" id="L266">      Set&lt;String&gt; requestedMetrics = new HashSet&lt;&gt;(upToDateRequestedMetrics);</span>
+<span class="fc" id="L267">      Set&lt;String&gt; foundMetrics = metrics.stream().map(MetricDto::getKey).collect(Collectors.toSet());</span>
+
+<span class="fc" id="L269">      Set&lt;String&gt; unfoundMetrics = Sets.difference(requestedMetrics, foundMetrics).immutableCopy();</span>
+<span class="fc" id="L270">      throw new IllegalArgumentException(format(&quot;Metrics %s are not found&quot;, String.join(&quot;, &quot;, unfoundMetrics)));</span>
+    }
+
+<span class="fc" id="L273">    return metrics;</span>
+  }
+
+  private ComponentDto loadComponent(DbSession dbSession, SearchHistoryRequest request) {
+<span class="fc" id="L277">    String componentKey = request.getComponent();</span>
+<span class="fc" id="L278">    String branch = request.getBranch();</span>
+<span class="fc" id="L279">    String pullRequest = request.getPullRequest();</span>
+<span class="fc" id="L280">    return componentFinder.getByKeyAndOptionalBranchOrPullRequest(dbSession, componentKey, branch, pullRequest);</span>
+  }
+
+  static class SearchHistoryRequest {
+    private final String component;
+    private final String branch;
+    private final String pullRequest;
+    private final List&lt;String&gt; metrics;
+    private final String from;
+    private final String to;
+    private final int page;
+    private final int pageSize;
+
+<span class="fc" id="L293">    public SearchHistoryRequest(Builder builder) {</span>
+<span class="fc" id="L294">      this.component = builder.component;</span>
+<span class="fc" id="L295">      this.branch = builder.branch;</span>
+<span class="fc" id="L296">      this.pullRequest = builder.pullRequest;</span>
+<span class="fc" id="L297">      this.metrics = builder.metrics;</span>
+<span class="fc" id="L298">      this.from = builder.from;</span>
+<span class="fc" id="L299">      this.to = builder.to;</span>
+<span class="fc" id="L300">      this.page = builder.page;</span>
+<span class="fc" id="L301">      this.pageSize = builder.pageSize;</span>
+<span class="fc" id="L302">    }</span>
+
+    public String getComponent() {
+<span class="fc" id="L305">      return component;</span>
+    }
+
+    @CheckForNull
+    public String getBranch() {
+<span class="fc" id="L310">      return branch;</span>
+    }
+
+    @CheckForNull
+    public String getPullRequest() {
+<span class="fc" id="L315">      return pullRequest;</span>
+    }
+
+    public List&lt;String&gt; getMetrics() {
+<span class="fc" id="L319">      return metrics;</span>
+    }
+
+    @CheckForNull
+    public String getFrom() {
+<span class="fc" id="L324">      return from;</span>
+    }
+
+    @CheckForNull
+    public String getTo() {
+<span class="fc" id="L329">      return to;</span>
+    }
+
+    public int getPage() {
+<span class="fc" id="L333">      return page;</span>
+    }
+
+    public int getPageSize() {
+<span class="fc" id="L337">      return pageSize;</span>
+    }
+
+    public static Builder builder() {
+<span class="fc" id="L341">      return new Builder();</span>
+    }
+  }
+
+  static class Builder {
+    private String component;
+    private String branch;
+    private String pullRequest;
+    private List&lt;String&gt; metrics;
+    private String from;
+    private String to;
+<span class="fc" id="L352">    private int page = 1;</span>
+<span class="fc" id="L353">    private int pageSize = DEFAULT_PAGE_SIZE;</span>
+
+<span class="fc" id="L355">    private Builder() {</span>
+      // enforce build factory method
+<span class="fc" id="L357">    }</span>
+
+    public Builder setComponent(String component) {
+<span class="fc" id="L360">      this.component = component;</span>
+<span class="fc" id="L361">      return this;</span>
+    }
+
+    public Builder setBranch(@Nullable String branch) {
+<span class="fc" id="L365">      this.branch = branch;</span>
+<span class="fc" id="L366">      return this;</span>
+    }
+
+    public Builder setPullRequest(@Nullable String pullRequest) {
+<span class="fc" id="L370">      this.pullRequest = pullRequest;</span>
+<span class="fc" id="L371">      return this;</span>
+    }
+
+    public Builder setMetrics(List&lt;String&gt; metrics) {
+<span class="fc" id="L375">      this.metrics = metrics;</span>
+<span class="fc" id="L376">      return this;</span>
+    }
+
+    public Builder setFrom(@Nullable String from) {
+<span class="fc" id="L380">      this.from = from;</span>
+<span class="fc" id="L381">      return this;</span>
+    }
+
+    public Builder setTo(@Nullable String to) {
+<span class="fc" id="L385">      this.to = to;</span>
+<span class="fc" id="L386">      return this;</span>
+    }
+
+    public Builder setPage(int page) {
+<span class="fc" id="L390">      this.page = page;</span>
+<span class="fc" id="L391">      return this;</span>
+    }
+
+    public Builder setPageSize(int pageSize) {
+<span class="fc" id="L395">      this.pageSize = pageSize;</span>
+<span class="fc" id="L396">      return this;</span>
+    }
+
+    public SearchHistoryRequest build() {
+<span class="pc bpc" id="L400" title="2 of 4 branches missed.">      checkArgument(component != null &amp;&amp; !component.isEmpty(), &quot;Component key is required&quot;);</span>
+<span class="pc bpc" id="L401" title="2 of 4 branches missed.">      checkArgument(metrics != null &amp;&amp; !metrics.isEmpty(), &quot;Metric keys are required&quot;);</span>
+<span class="pc bpc" id="L402" title="1 of 2 branches missed.">      checkArgument(pageSize &lt;= MAX_PAGE_SIZE, &quot;Page size (%d) must be lower than or equal to %d&quot;, pageSize, MAX_PAGE_SIZE);</span>
+
+<span class="fc" id="L404">      return new SearchHistoryRequest(this);</span>
+    }
+
+    private static void checkArgument(boolean condition, String message, Object... args) {
+<span class="pc bpc" id="L408" title="1 of 2 branches missed.">      if (!condition) {</span>
+<span class="nc" id="L409">        throw new IllegalArgumentException(format(message, args));</span>
+      }
+<span class="fc" id="L411">    }</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

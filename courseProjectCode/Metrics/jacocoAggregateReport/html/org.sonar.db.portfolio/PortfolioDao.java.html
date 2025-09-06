@@ -1,0 +1,294 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PortfolioDao.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.portfolio</a> &gt; <span class="el_source">PortfolioDao.java</span></div><h1>PortfolioDao.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.portfolio;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import javax.annotation.CheckForNull;
+import org.sonar.api.utils.System2;
+import org.sonar.core.util.UuidFactory;
+import org.sonar.db.Dao;
+import org.sonar.db.DbSession;
+import org.sonar.db.audit.AuditPersister;
+import org.sonar.db.audit.model.ComponentNewValue;
+import org.sonar.db.component.ComponentQualifiers;
+import org.sonar.db.component.KeyWithUuidDto;
+import org.sonar.db.project.ApplicationProjectDto;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.lang.String.format;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singleton;
+import static org.sonar.db.DatabaseUtils.executeLargeInputs;
+
+public class PortfolioDao implements Dao {
+  private final System2 system2;
+  private final UuidFactory uuidFactory;
+  private final AuditPersister auditPersister;
+
+<span class="fc" id="L49">  public PortfolioDao(System2 system2, UuidFactory uuidFactory, AuditPersister auditPersister) {</span>
+<span class="fc" id="L50">    this.system2 = system2;</span>
+<span class="fc" id="L51">    this.uuidFactory = uuidFactory;</span>
+<span class="fc" id="L52">    this.auditPersister = auditPersister;</span>
+<span class="fc" id="L53">  }</span>
+
+  /*
+   * Select portfolios
+   */
+  public List&lt;PortfolioDto&gt; selectAllRoots(DbSession dbSession) {
+<span class="fc" id="L59">    return mapper(dbSession).selectAllRoots();</span>
+  }
+
+  /**
+   * select all application projects belong to the hierarchy of a portfolio
+   */
+  public List&lt;ApplicationProjectDto&gt; selectAllApplicationProjects(DbSession dbSession, String rootPortfolioUuid) {
+<span class="fc" id="L66">    return mapper(dbSession).selectAllApplicationProjects(rootPortfolioUuid);</span>
+  }
+
+  public List&lt;PortfolioDto&gt; selectAll(DbSession dbSession) {
+<span class="fc" id="L70">    return mapper(dbSession).selectAll();</span>
+  }
+
+  public List&lt;PortfolioDto&gt; selectTree(DbSession dbSession, String portfolioUuid) {
+<span class="fc" id="L74">    return mapper(dbSession).selectTree(portfolioUuid);</span>
+  }
+
+  public Optional&lt;PortfolioDto&gt; selectByKey(DbSession dbSession, String key) {
+<span class="fc" id="L78">    return Optional.ofNullable(mapper(dbSession).selectByKey(key));</span>
+  }
+
+  public List&lt;PortfolioDto&gt; selectByKeys(DbSession dbSession, Set&lt;String&gt; portfolioDbKeys) {
+<span class="nc" id="L82">    return executeLargeInputs(portfolioDbKeys, input -&gt; mapper(dbSession).selectByKeys(input));</span>
+  }
+
+  public Optional&lt;PortfolioDto&gt; selectByUuid(DbSession dbSession, String uuid) {
+<span class="fc" id="L86">    return Optional.ofNullable(mapper(dbSession).selectByUuid(uuid));</span>
+  }
+
+  public List&lt;PortfolioDto&gt; selectByUuids(DbSession dbSession, Set&lt;String&gt; uuids) {
+<span class="fc bfc" id="L90" title="All 2 branches covered.">    if (uuids.isEmpty()) {</span>
+<span class="fc" id="L91">      return emptyList();</span>
+    }
+<span class="fc" id="L93">    return mapper(dbSession).selectByUuids(uuids);</span>
+  }
+
+  public List&lt;KeyWithUuidDto&gt; selectUuidsByKey(DbSession dbSession, String rootKey) {
+<span class="fc" id="L97">    return mapper(dbSession).selectUuidsByKey(rootKey);</span>
+  }
+
+  public Map&lt;String, Integer&gt; countPortfoliosByMode(DbSession dbSession) {
+<span class="fc" id="L101">    return mapper(dbSession).countPortfoliosByMode().stream().collect(Collectors.toMap(ModeCount::getSelectionMode,</span>
+      ModeCount::getCount));
+  }
+
+  public Map&lt;String, Integer&gt; countSubportfoliosByMode(DbSession dbSession) {
+<span class="fc" id="L106">    return mapper(dbSession).countSubportfoliosByMode().stream().collect(Collectors.toMap(ModeCount::getSelectionMode,</span>
+      ModeCount::getCount));
+  }
+
+  /*
+   * Modify portfolios
+   */
+  public void insertWithAudit(DbSession dbSession, PortfolioDto portfolio) {
+<span class="fc" id="L114">    insert(dbSession, portfolio, true);</span>
+<span class="fc" id="L115">  }</span>
+
+  public void insert(DbSession dbSession, PortfolioDto portfolio, boolean shouldPersistAudit) {
+<span class="fc bfc" id="L118" title="All 2 branches covered.">    checkArgument(portfolio.isRoot() == (portfolio.getUuid().equals(portfolio.getRootUuid())));</span>
+<span class="fc" id="L119">    mapper(dbSession).insert(portfolio);</span>
+<span class="fc bfc" id="L120" title="All 2 branches covered.">    if(shouldPersistAudit) {</span>
+<span class="fc" id="L121">      auditPersister.addComponent(dbSession, toComponentNewValue(portfolio));</span>
+    }
+<span class="fc" id="L123">  }</span>
+
+  public void delete(DbSession dbSession, PortfolioDto portfolio) {
+<span class="fc" id="L126">    mapper(dbSession).deleteReferencesByPortfolioOrReferenceUuids(singleton(portfolio.getUuid()));</span>
+<span class="fc" id="L127">    mapper(dbSession).deletePortfolio(portfolio.getUuid());</span>
+<span class="fc" id="L128">    auditPersister.deleteComponent(dbSession, toComponentNewValue(portfolio));</span>
+<span class="fc" id="L129">  }</span>
+
+  /**
+   * Does NOT delete related references and project/branch selections!
+   */
+  public void deleteAllDescendantPortfolios(DbSession dbSession, String rootUuid) {
+    // not audited but it's part of DefineWs
+<span class="fc" id="L136">    mapper(dbSession).deleteAllDescendantPortfolios(rootUuid);</span>
+<span class="fc" id="L137">  }</span>
+
+  public void update(DbSession dbSession, PortfolioDto portfolio) {
+<span class="pc bpc" id="L140" title="1 of 2 branches missed.">    checkArgument(portfolio.isRoot() == (portfolio.getUuid().equals(portfolio.getRootUuid())));</span>
+<span class="fc" id="L141">    portfolio.setUpdatedAt(system2.now());</span>
+<span class="fc" id="L142">    mapper(dbSession).update(portfolio);</span>
+<span class="fc" id="L143">    auditPersister.updateComponent(dbSession, toComponentNewValue(portfolio));</span>
+<span class="fc" id="L144">  }</span>
+
+  public void updateVisibilityByPortfolioUuid(DbSession dbSession, String uuid, boolean newIsPrivate) {
+<span class="fc" id="L147">    mapper(dbSession).updateVisibilityByPortfolioUuid(uuid, newIsPrivate);</span>
+<span class="fc" id="L148">  }</span>
+
+  /*
+   * Portfolio references
+   */
+  public void addReferenceBranch(DbSession dbSession, String portfolioUuid, String referenceUuid, String branchUuid) {
+<span class="fc" id="L154">    mapper(dbSession).insertReference(uuidFactory.create(), portfolioUuid, referenceUuid, branchUuid, system2.now());</span>
+<span class="fc" id="L155">  }</span>
+
+  public void addReference(DbSession dbSession, String portfolioUuid, String referenceUuid) {
+<span class="fc" id="L158">    PortfolioDto portfolio = mapper(dbSession).selectByUuid(referenceUuid);</span>
+<span class="pc bpc" id="L159" title="1 of 2 branches missed.">    if (portfolio == null) {</span>
+<span class="nc" id="L160">      throw new IllegalArgumentException(&quot;Reference must be a portfolio&quot;);</span>
+    } else {
+<span class="fc" id="L162">      mapper(dbSession).insertReference(uuidFactory.create(), portfolioUuid, referenceUuid, null, system2.now());</span>
+    }
+<span class="fc" id="L164">  }</span>
+
+  public List&lt;ReferenceDto&gt; selectAllReferencesToPortfolios(DbSession dbSession) {
+<span class="fc" id="L167">    return mapper(dbSession).selectAllReferencesToPortfolios();</span>
+  }
+
+  public List&lt;ReferenceDto&gt; selectAllReferencesToApplications(DbSession dbSession) {
+<span class="fc" id="L171">    return mapper(dbSession).selectAllReferencesToApplications();</span>
+  }
+
+  public List&lt;ReferenceDto&gt; selectAllReferencesToPortfoliosInHierarchy(DbSession dbSession, String rootUuid) {
+<span class="fc" id="L175">    return mapper(dbSession).selectAllReferencesToPortfoliosInHierarchy(rootUuid);</span>
+  }
+
+  public List&lt;ReferenceDto&gt; selectAllReferencesToApplicationsInHierarchy(DbSession dbSession, String rootUuid) {
+<span class="fc" id="L179">    return mapper(dbSession).selectAllReferencesToApplicationsInHierarchy(rootUuid);</span>
+  }
+
+  public List&lt;String&gt; selectApplicationReferenceUuids(DbSession dbSession, String portfolioUuid) {
+<span class="fc" id="L183">    return mapper(dbSession).selectApplicationReferenceUuids(portfolioUuid);</span>
+  }
+
+  public Set&lt;String&gt; selectReferenceUuids(DbSession dbSession, String portfolioUuid) {
+<span class="fc" id="L187">    return mapper(dbSession).selectReferenceUuids(portfolioUuid);</span>
+  }
+
+  public List&lt;PortfolioDto&gt; selectReferencers(DbSession dbSession, String referenceUuid) {
+<span class="fc" id="L191">    return mapper(dbSession).selectReferencers(referenceUuid);</span>
+  }
+
+  public List&lt;PortfolioDto&gt; selectRootOfReferencers(DbSession dbSession, String referenceUuid) {
+<span class="fc" id="L195">    return mapper(dbSession).selectRootOfReferencers(referenceUuid);</span>
+  }
+
+  public List&lt;PortfolioDto&gt; selectRootOfReferencersToAppBranch(DbSession dbSession, String appBranchUuid) {
+<span class="fc" id="L199">    return mapper(dbSession).selectRootOfReferencersToAppBranch(appBranchUuid);</span>
+  }
+
+  public void deleteReferencesTo(DbSession dbSession, String referenceUuid) {
+<span class="fc" id="L203">    mapper(dbSession).deleteReferencesTo(referenceUuid);</span>
+<span class="fc" id="L204">  }</span>
+
+  public void deleteAllReferences(DbSession dbSession) {
+<span class="fc" id="L207">    mapper(dbSession).deleteAllReferences();</span>
+<span class="fc" id="L208">  }</span>
+
+  public int deleteReferenceBranch(DbSession dbSession, String portfolioUuid, String referenceUuid, String branchUuid) {
+<span class="fc" id="L211">    return mapper(dbSession).deleteReferenceBranch(portfolioUuid, referenceUuid, branchUuid);</span>
+  }
+
+  public int deleteReference(DbSession dbSession, String portfolioUuid, String referenceUuid) {
+<span class="fc" id="L215">    return mapper(dbSession).deleteReference(portfolioUuid, referenceUuid);</span>
+  }
+
+  @CheckForNull
+  public ReferenceDto selectReference(DbSession dbSession, String portfolioUuid, String referenceKey) {
+<span class="fc" id="L220">    return selectReferenceToApp(dbSession, portfolioUuid, referenceKey)</span>
+<span class="fc" id="L221">      .or(() -&gt; selectReferenceToPortfolio(dbSession, portfolioUuid, referenceKey))</span>
+<span class="fc" id="L222">      .orElse(null);</span>
+  }
+
+  public Optional&lt;ReferenceDto&gt; selectReferenceToApp(DbSession dbSession, String portfolioUuid, String referenceKey) {
+<span class="fc" id="L226">    return Optional.ofNullable(mapper(dbSession).selectReferenceToApplication(portfolioUuid, referenceKey));</span>
+  }
+
+  public Optional&lt;ReferenceDto&gt; selectReferenceToPortfolio(DbSession dbSession, String portfolioUuid, String referenceKey) {
+<span class="fc" id="L230">    return Optional.ofNullable(mapper(dbSession).selectReferenceToPortfolio(portfolioUuid, referenceKey));</span>
+  }
+
+  /*
+   * Manual selection of projects
+   */
+  public List&lt;PortfolioProjectDto&gt; selectPortfolioProjects(DbSession dbSession, String portfolioUuid) {
+<span class="fc" id="L237">    return mapper(dbSession).selectPortfolioProjects(portfolioUuid);</span>
+  }
+
+  public List&lt;PortfolioProjectDto&gt; selectAllProjectsInHierarchy(DbSession dbSession, String rootUuid) {
+<span class="fc" id="L241">    return mapper(dbSession).selectAllProjectsInHierarchy(rootUuid);</span>
+  }
+
+  public List&lt;PortfolioProjectDto&gt; selectAllPortfolioProjects(DbSession dbSession) {
+<span class="fc" id="L245">    return mapper(dbSession).selectAllPortfolioProjects();</span>
+  }
+
+  public PortfolioProjectDto selectPortfolioProjectOrFail(DbSession dbSession, String portfolioUuid, String projectUuid) {
+<span class="fc" id="L249">    return Optional.ofNullable(mapper(dbSession).selectPortfolioProject(portfolioUuid, projectUuid))</span>
+<span class="pc" id="L250">      .orElseThrow(() -&gt; new IllegalArgumentException(format(&quot;Project '%s' not selected in portfolio '%s'&quot;, projectUuid, portfolioUuid)));</span>
+  }
+
+  public String addProject(DbSession dbSession, String portfolioUuid, String projectUuid) {
+<span class="fc" id="L254">    String uuid = uuidFactory.create();</span>
+<span class="fc" id="L255">    mapper(dbSession).insertProject(uuid, portfolioUuid, projectUuid, system2.now());</span>
+<span class="fc" id="L256">    return uuid;</span>
+  }
+
+  public void deleteProjects(DbSession dbSession, String portfolioUuid) {
+<span class="fc" id="L260">    mapper(dbSession).deleteProjects(portfolioUuid);</span>
+<span class="fc" id="L261">  }</span>
+
+  public void deleteProject(DbSession dbSession, String portfolioUuid, String projectUuid) {
+<span class="fc" id="L264">    mapper(dbSession).deleteProject(portfolioUuid, projectUuid);</span>
+<span class="fc" id="L265">  }</span>
+
+  public void deleteAllProjects(DbSession dbSession) {
+<span class="fc" id="L268">    mapper(dbSession).deleteAllProjects();</span>
+<span class="fc" id="L269">  }</span>
+
+  public void addBranch(DbSession dbSession, String portfolioProjectUuid, String branchUuid) {
+<span class="fc" id="L272">    mapper(dbSession).insertBranch(uuidFactory.create(), portfolioProjectUuid, branchUuid, system2.now());</span>
+<span class="fc" id="L273">  }</span>
+
+  public void deleteBranch(DbSession dbSession, String portfolioUuid, String projectUuid, String branchUuid) {
+<span class="fc" id="L276">    mapper(dbSession).deleteBranch(portfolioUuid, projectUuid, branchUuid);</span>
+<span class="fc" id="L277">  }</span>
+
+  /*
+   * Utils
+   */
+  private static PortfolioMapper mapper(DbSession session) {
+<span class="fc" id="L283">    return session.getMapper(PortfolioMapper.class);</span>
+  }
+
+  private static ComponentNewValue toComponentNewValue(PortfolioDto portfolio) {
+<span class="fc" id="L287">    return new ComponentNewValue(portfolio.getUuid(), portfolio.isPrivate(), portfolio.getName(), portfolio.getKey(), portfolio.getDescription(), qualifier(portfolio));</span>
+  }
+
+  private static String qualifier(PortfolioDto portfolioDto) {
+<span class="fc bfc" id="L291" title="All 2 branches covered.">    return portfolioDto.isRoot() ? ComponentQualifiers.VIEW : ComponentQualifiers.SUBVIEW;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

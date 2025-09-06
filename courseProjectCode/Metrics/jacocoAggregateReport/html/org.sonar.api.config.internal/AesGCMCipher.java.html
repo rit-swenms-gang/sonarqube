@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AesGCMCipher.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.api.config.internal</a> &gt; <span class="el_source">AesGCMCipher.java</span></div><h1>AesGCMCipher.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.api.config.internal;
+
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
+import javax.annotation.Nullable;
+import javax.crypto.spec.GCMParameterSpec;
+import org.apache.commons.codec.binary.Base64;
+import org.apache.commons.lang3.StringUtils;
+
+final class AesGCMCipher extends AesCipher {
+  private static final int GCM_TAG_LENGTH_IN_BITS = 128;
+  private static final int GCM_IV_LENGTH_IN_BYTES = 12;
+
+  private static final String CRYPTO_ALGO = &quot;AES/GCM/NoPadding&quot;;
+
+  AesGCMCipher(@Nullable String pathToSecretKey) {
+<span class="fc" id="L37">    super(pathToSecretKey);</span>
+<span class="fc" id="L38">  }</span>
+
+  @Override
+  public String encrypt(String clearText) {
+    try {
+<span class="fc" id="L43">      javax.crypto.Cipher cipher = javax.crypto.Cipher.getInstance(CRYPTO_ALGO);</span>
+<span class="fc" id="L44">      byte[] iv = new byte[GCM_IV_LENGTH_IN_BYTES];</span>
+<span class="fc" id="L45">      new SecureRandom().nextBytes(iv);</span>
+<span class="fc" id="L46">      cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, loadSecretFile(), new GCMParameterSpec(GCM_TAG_LENGTH_IN_BITS, iv));</span>
+<span class="fc" id="L47">      byte[] encryptedText = cipher.doFinal(clearText.getBytes(StandardCharsets.UTF_8.name()));</span>
+<span class="fc" id="L48">      return Base64.encodeBase64String(</span>
+<span class="fc" id="L49">        ByteBuffer.allocate(GCM_IV_LENGTH_IN_BYTES + encryptedText.length)</span>
+<span class="fc" id="L50">          .put(iv)</span>
+<span class="fc" id="L51">          .put(encryptedText)</span>
+<span class="fc" id="L52">          .array());</span>
+<span class="nc" id="L53">    } catch (RuntimeException e) {</span>
+<span class="nc" id="L54">      throw e;</span>
+<span class="fc" id="L55">    } catch (Exception e) {</span>
+<span class="fc" id="L56">      throw new IllegalStateException(e);</span>
+    }
+  }
+
+  @Override
+  public String decrypt(String encryptedText) {
+    try {
+<span class="fc" id="L63">      javax.crypto.Cipher cipher = javax.crypto.Cipher.getInstance(CRYPTO_ALGO);</span>
+<span class="fc" id="L64">      ByteBuffer byteBuffer = ByteBuffer.wrap(Base64.decodeBase64(StringUtils.trim(encryptedText)));</span>
+<span class="fc" id="L65">      byte[] iv = new byte[GCM_IV_LENGTH_IN_BYTES];</span>
+<span class="fc" id="L66">      byteBuffer.get(iv);</span>
+<span class="fc" id="L67">      byte[] cipherText = new byte[byteBuffer.remaining()];</span>
+<span class="fc" id="L68">      byteBuffer.get(cipherText);</span>
+<span class="fc" id="L69">      cipher.init(javax.crypto.Cipher.DECRYPT_MODE, loadSecretFile(), new GCMParameterSpec(GCM_TAG_LENGTH_IN_BITS, iv));</span>
+<span class="fc" id="L70">      byte[] cipherData = cipher.doFinal(cipherText);</span>
+<span class="fc" id="L71">      return new String(cipherData, StandardCharsets.UTF_8);</span>
+<span class="nc" id="L72">    } catch (RuntimeException e) {</span>
+<span class="nc" id="L73">      throw e;</span>
+<span class="fc" id="L74">    } catch (Exception e) {</span>
+<span class="fc" id="L75">      throw new IllegalStateException(e);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

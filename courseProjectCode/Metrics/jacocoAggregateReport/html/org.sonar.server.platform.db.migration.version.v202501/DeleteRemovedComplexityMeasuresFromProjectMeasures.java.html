@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DeleteRemovedComplexityMeasuresFromProjectMeasures.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform.db.migration.version.v202501</a> &gt; <span class="el_source">DeleteRemovedComplexityMeasuresFromProjectMeasures.java</span></div><h1>DeleteRemovedComplexityMeasuresFromProjectMeasures.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform.db.migration.version.v202501;
+
+import java.sql.SQLException;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.sonar.db.Database;
+import org.sonar.server.platform.db.migration.step.DataChange;
+import org.sonar.server.platform.db.migration.step.MassUpdate;
+
+public class DeleteRemovedComplexityMeasuresFromProjectMeasures extends DataChange {
+
+<span class="fc" id="L31">  public static final Set&lt;String&gt; COMPLEXITY_METRICS_TO_DELETE = Set.of(</span>
+    &quot;file_complexity&quot;,
+    &quot;complexity_in_classes&quot;,
+    &quot;class_complexity&quot;,
+    &quot;complexity_in_functions&quot;,
+    &quot;function_complexity&quot;,
+    &quot;function_complexity_distribution&quot;,
+    &quot;file_complexity_distribution&quot;);
+
+<span class="fc" id="L40">  private static final String SELECT_QUERY = &quot;&quot;&quot;</span>
+    select pm.uuid from project_measures pm
+      inner join metrics m on pm.metric_uuid = m.uuid
+     where m.name in (%s)
+<span class="fc" id="L44">    &quot;&quot;&quot;.formatted(COMPLEXITY_METRICS_TO_DELETE.stream().map(s -&gt; &quot;'&quot; + s + &quot;'&quot;).collect(Collectors.joining(&quot;,&quot;)));</span>
+
+  public DeleteRemovedComplexityMeasuresFromProjectMeasures(Database db) {
+<span class="fc" id="L47">    super(db);</span>
+<span class="fc" id="L48">  }</span>
+
+  @Override
+  protected void execute(Context context) throws SQLException {
+<span class="fc" id="L52">    MassUpdate massUpdate = context.prepareMassUpdate();</span>
+<span class="fc" id="L53">    massUpdate.select(SELECT_QUERY);</span>
+<span class="fc" id="L54">    massUpdate.update(&quot;delete from project_measures where uuid = ?&quot;);</span>
+
+<span class="fc" id="L56">    massUpdate.execute((row, update, index) -&gt; {</span>
+<span class="fc" id="L57">      update.setString(1, row.getString(1));</span>
+<span class="fc" id="L58">      return true;</span>
+    });
+<span class="fc" id="L60">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PostMeasuresComputationChecksStep.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.measure</a> &gt; <span class="el_source">PostMeasuresComputationChecksStep.java</span></div><h1>PostMeasuresComputationChecksStep.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.measure;
+
+import java.util.Optional;
+import org.sonar.api.ce.ComputeEngineSide;
+import org.sonar.api.measures.CoreMetrics;
+import org.sonar.ce.common.scanner.ScannerReportReader;
+import org.sonar.ce.task.projectanalysis.analysis.AnalysisMetadataHolder;
+import org.sonar.ce.task.projectanalysis.analysis.Branch;
+import org.sonar.ce.task.projectanalysis.component.Component;
+import org.sonar.ce.task.projectanalysis.component.TreeRootHolder;
+import org.sonar.ce.task.projectanalysis.metric.Metric;
+import org.sonar.ce.task.projectanalysis.metric.MetricRepository;
+import org.sonar.ce.task.step.ComputationStep;
+
+/**
+ * Execute {@link PostMeasuresComputationCheck} instances in no specific order.
+ * If an extension fails (throws an exception), consecutive extensions
+ * won't be called.
+ */
+@ComputeEngineSide
+public class PostMeasuresComputationChecksStep implements ComputationStep {
+
+  private final TreeRootHolder treeRootHolder;
+  private final MetricRepository metricRepository;
+  private final MeasureRepository measureRepository;
+  private final AnalysisMetadataHolder analysisMetadataHolder;
+  private final ScannerReportReader reportReader;
+  private final PostMeasuresComputationCheck[] extensions;
+
+  public PostMeasuresComputationChecksStep(TreeRootHolder treeRootHolder, MetricRepository metricRepository, MeasureRepository measureRepository,
+<span class="fc" id="L50">    AnalysisMetadataHolder analysisMetadataHolder, ScannerReportReader reportReader, PostMeasuresComputationCheck[] extensions) {</span>
+<span class="fc" id="L51">    this.treeRootHolder = treeRootHolder;</span>
+<span class="fc" id="L52">    this.metricRepository = metricRepository;</span>
+<span class="fc" id="L53">    this.measureRepository = measureRepository;</span>
+<span class="fc" id="L54">    this.analysisMetadataHolder = analysisMetadataHolder;</span>
+<span class="fc" id="L55">    this.reportReader = reportReader;</span>
+<span class="fc" id="L56">    this.extensions = extensions;</span>
+<span class="fc" id="L57">  }</span>
+
+  @Override
+  public void execute(ComputationStep.Context context) {
+<span class="fc" id="L61">    PostMeasuresComputationCheck.Context extensionContext = new ContextImpl();</span>
+<span class="fc bfc" id="L62" title="All 2 branches covered.">    for (PostMeasuresComputationCheck extension : extensions) {</span>
+<span class="fc" id="L63">      extension.onCheck(extensionContext);</span>
+    }
+<span class="fc" id="L65">  }</span>
+
+  @Override
+  public String getDescription() {
+<span class="fc" id="L69">    return &quot;Checks executed after computation of measures&quot;;</span>
+  }
+
+<span class="fc" id="L72">  private class ContextImpl implements PostMeasuresComputationCheck.Context {</span>
+
+    @Override
+    public String getProjectUuid() {
+<span class="fc" id="L76">      return analysisMetadataHolder.getProject().getUuid();</span>
+    }
+
+    @Override
+    public String getAnalysisUuid() {
+<span class="fc" id="L81">      return analysisMetadataHolder.getUuid();</span>
+    }
+
+    @Override
+    public Branch getBranch() {
+<span class="nc" id="L86">      return analysisMetadataHolder.getBranch();</span>
+    }
+
+    @Override
+    public ScannerReportReader getReportReader() {
+<span class="nc" id="L91">      return reportReader;</span>
+    }
+
+    @Override
+    public int getNcloc() {
+<span class="fc" id="L96">      Metric nclocMetric = metricRepository.getByKey(CoreMetrics.NCLOC_KEY);</span>
+<span class="fc" id="L97">      Optional&lt;Measure&gt; nclocMeasure = measureRepository.getRawMeasure(treeRootHolder.getRoot(), nclocMetric);</span>
+<span class="fc" id="L98">      return nclocMeasure.map(Measure::getIntValue).orElse(0);</span>
+    }
+
+    @Override public Component getRoot() {
+<span class="nc" id="L102">      return treeRootHolder.getRoot();</span>
+    }
+
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

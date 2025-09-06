@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StandardToMQRMetrics.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.metric</a> &gt; <span class="el_source">StandardToMQRMetrics.java</span></div><h1>StandardToMQRMetrics.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.metric;
+
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
+import java.util.Optional;
+import java.util.Set;
+import org.sonar.api.measures.CoreMetrics;
+import org.sonar.core.metric.SoftwareQualitiesMetrics;
+
+import static org.sonar.api.measures.CoreMetrics.BLOCKER_VIOLATIONS_KEY;
+import static org.sonar.api.measures.CoreMetrics.CODE_SMELLS_KEY;
+import static org.sonar.api.measures.CoreMetrics.CRITICAL_VIOLATIONS_KEY;
+import static org.sonar.api.measures.CoreMetrics.EFFORT_TO_REACH_MAINTAINABILITY_RATING_A_KEY;
+import static org.sonar.api.measures.CoreMetrics.INFO_VIOLATIONS_KEY;
+import static org.sonar.api.measures.CoreMetrics.MAJOR_VIOLATIONS_KEY;
+import static org.sonar.api.measures.CoreMetrics.MINOR_VIOLATIONS_KEY;
+import static org.sonar.api.measures.CoreMetrics.NEW_BLOCKER_VIOLATIONS_KEY;
+import static org.sonar.api.measures.CoreMetrics.NEW_CODE_SMELLS_KEY;
+import static org.sonar.api.measures.CoreMetrics.NEW_CRITICAL_VIOLATIONS_KEY;
+import static org.sonar.api.measures.CoreMetrics.NEW_INFO_VIOLATIONS_KEY;
+import static org.sonar.api.measures.CoreMetrics.NEW_MAJOR_VIOLATIONS_KEY;
+import static org.sonar.api.measures.CoreMetrics.NEW_MINOR_VIOLATIONS_KEY;
+import static org.sonar.api.measures.CoreMetrics.SQALE_RATING_KEY;
+import static org.sonar.core.metric.SoftwareQualitiesMetrics.EFFORT_TO_REACH_SOFTWARE_QUALITY_MAINTAINABILITY_RATING_A_KEY;
+import static org.sonar.core.metric.SoftwareQualitiesMetrics.NEW_SOFTWARE_QUALITY_BLOCKER_ISSUES_KEY;
+import static org.sonar.core.metric.SoftwareQualitiesMetrics.NEW_SOFTWARE_QUALITY_HIGH_ISSUES_KEY;
+import static org.sonar.core.metric.SoftwareQualitiesMetrics.NEW_SOFTWARE_QUALITY_INFO_ISSUES_KEY;
+import static org.sonar.core.metric.SoftwareQualitiesMetrics.NEW_SOFTWARE_QUALITY_LOW_ISSUES_KEY;
+import static org.sonar.core.metric.SoftwareQualitiesMetrics.NEW_SOFTWARE_QUALITY_MAINTAINABILITY_ISSUES_KEY;
+import static org.sonar.core.metric.SoftwareQualitiesMetrics.NEW_SOFTWARE_QUALITY_MAINTAINABILITY_RATING_KEY;
+import static org.sonar.core.metric.SoftwareQualitiesMetrics.NEW_SOFTWARE_QUALITY_MEDIUM_ISSUES_KEY;
+import static org.sonar.core.metric.SoftwareQualitiesMetrics.SOFTWARE_QUALITY_BLOCKER_ISSUES_KEY;
+import static org.sonar.core.metric.SoftwareQualitiesMetrics.SOFTWARE_QUALITY_HIGH_ISSUES_KEY;
+import static org.sonar.core.metric.SoftwareQualitiesMetrics.SOFTWARE_QUALITY_INFO_ISSUES_KEY;
+import static org.sonar.core.metric.SoftwareQualitiesMetrics.SOFTWARE_QUALITY_LOW_ISSUES_KEY;
+import static org.sonar.core.metric.SoftwareQualitiesMetrics.SOFTWARE_QUALITY_MAINTAINABILITY_ISSUES_KEY;
+import static org.sonar.core.metric.SoftwareQualitiesMetrics.SOFTWARE_QUALITY_MAINTAINABILITY_RATING_KEY;
+import static org.sonar.core.metric.SoftwareQualitiesMetrics.SOFTWARE_QUALITY_MEDIUM_ISSUES_KEY;
+
+/**
+ * Defines the metrics mapping between the standard mode and the MQR mode.
+ * This list all the metrics that are specific for each mode, and the equivalent metric in the other mode.
+ */
+public class StandardToMQRMetrics {
+  private static final BiMap&lt;String, String&gt; STANDARD_TO_MQR_MODE_METRICS;
+
+  private static final BiMap&lt;String, String&gt; MQR_TO_STANDARD_MODE_METRICS;
+
+  static {
+<span class="fc" id="L69">    STANDARD_TO_MQR_MODE_METRICS = HashBiMap.create();</span>
+    // Severity related metrics
+<span class="fc" id="L71">    STANDARD_TO_MQR_MODE_METRICS.put(BLOCKER_VIOLATIONS_KEY, SOFTWARE_QUALITY_BLOCKER_ISSUES_KEY);</span>
+<span class="fc" id="L72">    STANDARD_TO_MQR_MODE_METRICS.put(NEW_BLOCKER_VIOLATIONS_KEY, NEW_SOFTWARE_QUALITY_BLOCKER_ISSUES_KEY);</span>
+<span class="fc" id="L73">    STANDARD_TO_MQR_MODE_METRICS.put(CRITICAL_VIOLATIONS_KEY, SOFTWARE_QUALITY_HIGH_ISSUES_KEY);</span>
+<span class="fc" id="L74">    STANDARD_TO_MQR_MODE_METRICS.put(NEW_CRITICAL_VIOLATIONS_KEY, NEW_SOFTWARE_QUALITY_HIGH_ISSUES_KEY);</span>
+<span class="fc" id="L75">    STANDARD_TO_MQR_MODE_METRICS.put(MAJOR_VIOLATIONS_KEY, SOFTWARE_QUALITY_MEDIUM_ISSUES_KEY);</span>
+<span class="fc" id="L76">    STANDARD_TO_MQR_MODE_METRICS.put(NEW_MAJOR_VIOLATIONS_KEY, NEW_SOFTWARE_QUALITY_MEDIUM_ISSUES_KEY);</span>
+<span class="fc" id="L77">    STANDARD_TO_MQR_MODE_METRICS.put(MINOR_VIOLATIONS_KEY, SOFTWARE_QUALITY_LOW_ISSUES_KEY);</span>
+<span class="fc" id="L78">    STANDARD_TO_MQR_MODE_METRICS.put(NEW_MINOR_VIOLATIONS_KEY, NEW_SOFTWARE_QUALITY_LOW_ISSUES_KEY);</span>
+<span class="fc" id="L79">    STANDARD_TO_MQR_MODE_METRICS.put(INFO_VIOLATIONS_KEY, SOFTWARE_QUALITY_INFO_ISSUES_KEY);</span>
+<span class="fc" id="L80">    STANDARD_TO_MQR_MODE_METRICS.put(NEW_INFO_VIOLATIONS_KEY, NEW_SOFTWARE_QUALITY_INFO_ISSUES_KEY);</span>
+
+    // Maintainability related metrics
+<span class="fc" id="L83">    STANDARD_TO_MQR_MODE_METRICS.put(CODE_SMELLS_KEY, SOFTWARE_QUALITY_MAINTAINABILITY_ISSUES_KEY);</span>
+<span class="fc" id="L84">    STANDARD_TO_MQR_MODE_METRICS.put(NEW_CODE_SMELLS_KEY, NEW_SOFTWARE_QUALITY_MAINTAINABILITY_ISSUES_KEY);</span>
+<span class="fc" id="L85">    STANDARD_TO_MQR_MODE_METRICS.put(SQALE_RATING_KEY, SOFTWARE_QUALITY_MAINTAINABILITY_RATING_KEY);</span>
+<span class="fc" id="L86">    STANDARD_TO_MQR_MODE_METRICS.put(CoreMetrics.NEW_MAINTAINABILITY_RATING_KEY, NEW_SOFTWARE_QUALITY_MAINTAINABILITY_RATING_KEY);</span>
+<span class="fc" id="L87">    STANDARD_TO_MQR_MODE_METRICS.put(CoreMetrics.TECHNICAL_DEBT_KEY, SoftwareQualitiesMetrics.SOFTWARE_QUALITY_MAINTAINABILITY_REMEDIATION_EFFORT_KEY);</span>
+<span class="fc" id="L88">    STANDARD_TO_MQR_MODE_METRICS.put(CoreMetrics.NEW_TECHNICAL_DEBT_KEY, SoftwareQualitiesMetrics.NEW_SOFTWARE_QUALITY_MAINTAINABILITY_REMEDIATION_EFFORT_KEY);</span>
+<span class="fc" id="L89">    STANDARD_TO_MQR_MODE_METRICS.put(CoreMetrics.SQALE_DEBT_RATIO_KEY, SoftwareQualitiesMetrics.SOFTWARE_QUALITY_MAINTAINABILITY_DEBT_RATIO_KEY);</span>
+<span class="fc" id="L90">    STANDARD_TO_MQR_MODE_METRICS.put(CoreMetrics.NEW_SQALE_DEBT_RATIO_KEY, SoftwareQualitiesMetrics.NEW_SOFTWARE_QUALITY_MAINTAINABILITY_DEBT_RATIO_KEY);</span>
+
+<span class="fc" id="L92">    STANDARD_TO_MQR_MODE_METRICS.put(EFFORT_TO_REACH_MAINTAINABILITY_RATING_A_KEY, EFFORT_TO_REACH_SOFTWARE_QUALITY_MAINTAINABILITY_RATING_A_KEY);</span>
+
+    // Security related metrics
+<span class="fc" id="L95">    STANDARD_TO_MQR_MODE_METRICS.put(CoreMetrics.SECURITY_RATING_KEY, SoftwareQualitiesMetrics.SOFTWARE_QUALITY_SECURITY_RATING_KEY);</span>
+<span class="fc" id="L96">    STANDARD_TO_MQR_MODE_METRICS.put(CoreMetrics.NEW_SECURITY_RATING_KEY, SoftwareQualitiesMetrics.NEW_SOFTWARE_QUALITY_SECURITY_RATING_KEY);</span>
+<span class="fc" id="L97">    STANDARD_TO_MQR_MODE_METRICS.put(CoreMetrics.SECURITY_REMEDIATION_EFFORT_KEY, SoftwareQualitiesMetrics.SOFTWARE_QUALITY_SECURITY_REMEDIATION_EFFORT_KEY);</span>
+<span class="fc" id="L98">    STANDARD_TO_MQR_MODE_METRICS.put(CoreMetrics.NEW_SECURITY_REMEDIATION_EFFORT_KEY, SoftwareQualitiesMetrics.NEW_SOFTWARE_QUALITY_SECURITY_REMEDIATION_EFFORT_KEY);</span>
+<span class="fc" id="L99">    STANDARD_TO_MQR_MODE_METRICS.put(CoreMetrics.VULNERABILITIES_KEY, SoftwareQualitiesMetrics.SOFTWARE_QUALITY_SECURITY_ISSUES_KEY);</span>
+<span class="fc" id="L100">    STANDARD_TO_MQR_MODE_METRICS.put(CoreMetrics.NEW_VULNERABILITIES_KEY, SoftwareQualitiesMetrics.NEW_SOFTWARE_QUALITY_SECURITY_ISSUES_KEY);</span>
+
+    // Reliability related metrics
+<span class="fc" id="L103">    STANDARD_TO_MQR_MODE_METRICS.put(CoreMetrics.RELIABILITY_RATING_KEY, SoftwareQualitiesMetrics.SOFTWARE_QUALITY_RELIABILITY_RATING_KEY);</span>
+<span class="fc" id="L104">    STANDARD_TO_MQR_MODE_METRICS.put(CoreMetrics.NEW_RELIABILITY_RATING_KEY, SoftwareQualitiesMetrics.NEW_SOFTWARE_QUALITY_RELIABILITY_RATING_KEY);</span>
+<span class="fc" id="L105">    STANDARD_TO_MQR_MODE_METRICS.put(CoreMetrics.RELIABILITY_REMEDIATION_EFFORT_KEY, SoftwareQualitiesMetrics.SOFTWARE_QUALITY_RELIABILITY_REMEDIATION_EFFORT_KEY);</span>
+<span class="fc" id="L106">    STANDARD_TO_MQR_MODE_METRICS.put(CoreMetrics.NEW_RELIABILITY_REMEDIATION_EFFORT_KEY, SoftwareQualitiesMetrics.NEW_SOFTWARE_QUALITY_RELIABILITY_REMEDIATION_EFFORT_KEY);</span>
+<span class="fc" id="L107">    STANDARD_TO_MQR_MODE_METRICS.put(CoreMetrics.BUGS_KEY, SoftwareQualitiesMetrics.SOFTWARE_QUALITY_RELIABILITY_ISSUES_KEY);</span>
+<span class="fc" id="L108">    STANDARD_TO_MQR_MODE_METRICS.put(CoreMetrics.NEW_BUGS_KEY, SoftwareQualitiesMetrics.NEW_SOFTWARE_QUALITY_RELIABILITY_ISSUES_KEY);</span>
+
+<span class="fc" id="L110">    MQR_TO_STANDARD_MODE_METRICS = STANDARD_TO_MQR_MODE_METRICS.inverse();</span>
+<span class="fc" id="L111">  }</span>
+
+  private StandardToMQRMetrics() {
+  }
+
+  public static boolean isStandardMetric(String metricKey) {
+<span class="fc" id="L117">    return STANDARD_TO_MQR_MODE_METRICS.containsKey(metricKey);</span>
+  }
+
+  public static boolean isMQRMetric(String metricKey) {
+<span class="fc" id="L121">    return MQR_TO_STANDARD_MODE_METRICS.containsKey(metricKey);</span>
+  }
+
+  public static Set&lt;String&gt; getMQRMetrics() {
+<span class="nc" id="L125">    return STANDARD_TO_MQR_MODE_METRICS.keySet();</span>
+  }
+
+  public static Set&lt;String&gt; getStandardMetrics() {
+<span class="nc" id="L129">    return MQR_TO_STANDARD_MODE_METRICS.keySet();</span>
+  }
+
+  /**
+   * Retrieves equivalent metric in the other mode. Return empty if metric has no equivalence
+   */
+  public static Optional&lt;String&gt; getEquivalentMetric(String metricKey) {
+<span class="fc" id="L136">    return Optional.ofNullable(STANDARD_TO_MQR_MODE_METRICS.get(metricKey))</span>
+<span class="fc" id="L137">      .or(() -&gt; Optional.ofNullable(MQR_TO_STANDARD_MODE_METRICS.get(metricKey)));</span>
+  }
+
+  public static Optional&lt;String&gt; getEquivalentStandardExperienceMetric(String metricKey) {
+<span class="nc" id="L141">    return Optional.ofNullable(MQR_TO_STANDARD_MODE_METRICS.get(metricKey));</span>
+  }
+
+  public static Optional&lt;String&gt; getEquivalentMQRMetric(String metricKey) {
+<span class="nc" id="L145">    return Optional.ofNullable(STANDARD_TO_MQR_MODE_METRICS.get(metricKey));</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

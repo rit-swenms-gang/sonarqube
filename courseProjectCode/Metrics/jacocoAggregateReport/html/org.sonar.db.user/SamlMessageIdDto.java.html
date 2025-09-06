@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SamlMessageIdDto.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.user</a> &gt; <span class="el_source">SamlMessageIdDto.java</span></div><h1>SamlMessageIdDto.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.user;
+
+<span class="fc" id="L22">public class SamlMessageIdDto {</span>
+
+  private String uuid;
+
+  /**
+   * Message ID from the SAML response received during authentication.
+   */
+  private String messageId;
+
+  /**
+   * Expiration date is coming from the NotOnOrAfter attribute of the SAML response.
+   *
+   * A row that contained an expired date can be safely deleted from database.
+   */
+  private long expirationDate;
+
+  private long createdAt;
+
+  public String getUuid() {
+<span class="fc" id="L41">    return uuid;</span>
+  }
+
+  SamlMessageIdDto setUuid(String uuid) {
+<span class="fc" id="L45">    this.uuid = uuid;</span>
+<span class="fc" id="L46">    return this;</span>
+  }
+
+  public String getMessageId() {
+<span class="fc" id="L50">    return messageId;</span>
+  }
+
+  public SamlMessageIdDto setMessageId(String messageId) {
+<span class="fc" id="L54">    this.messageId = messageId;</span>
+<span class="fc" id="L55">    return this;</span>
+  }
+
+  public long getExpirationDate() {
+<span class="fc" id="L59">    return expirationDate;</span>
+  }
+
+  public SamlMessageIdDto setExpirationDate(long expirationDate) {
+<span class="fc" id="L63">    this.expirationDate = expirationDate;</span>
+<span class="fc" id="L64">    return this;</span>
+  }
+
+  public long getCreatedAt() {
+<span class="fc" id="L68">    return createdAt;</span>
+  }
+
+  SamlMessageIdDto setCreatedAt(long createdAt) {
+<span class="fc" id="L72">    this.createdAt = createdAt;</span>
+<span class="fc" id="L73">    return this;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

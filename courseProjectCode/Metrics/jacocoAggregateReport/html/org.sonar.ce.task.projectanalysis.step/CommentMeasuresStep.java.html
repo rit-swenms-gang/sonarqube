@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CommentMeasuresStep.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.step</a> &gt; <span class="el_source">CommentMeasuresStep.java</span></div><h1>CommentMeasuresStep.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.step;
+
+import java.util.List;
+import java.util.Optional;
+import org.sonar.ce.task.projectanalysis.component.CrawlerDepthLimit;
+import org.sonar.ce.task.projectanalysis.component.PathAwareCrawler;
+import org.sonar.ce.task.projectanalysis.component.TreeRootHolder;
+import org.sonar.ce.task.projectanalysis.formula.Counter;
+import org.sonar.ce.task.projectanalysis.formula.CounterInitializationContext;
+import org.sonar.ce.task.projectanalysis.formula.CreateMeasureContext;
+import org.sonar.ce.task.projectanalysis.formula.Formula;
+import org.sonar.ce.task.projectanalysis.formula.FormulaExecutorComponentVisitor;
+import org.sonar.ce.task.projectanalysis.formula.counter.IntSumCounter;
+import org.sonar.ce.task.projectanalysis.formula.counter.SumCounter;
+import org.sonar.ce.task.projectanalysis.measure.Measure;
+import org.sonar.ce.task.projectanalysis.measure.MeasureRepository;
+import org.sonar.ce.task.projectanalysis.metric.Metric;
+import org.sonar.ce.task.projectanalysis.metric.MetricRepository;
+import org.sonar.ce.task.step.ComputationStep;
+
+import static org.sonar.api.measures.CoreMetrics.COMMENT_LINES_DENSITY_KEY;
+import static org.sonar.api.measures.CoreMetrics.COMMENT_LINES_KEY;
+import static org.sonar.api.measures.CoreMetrics.NCLOC_KEY;
+import static org.sonar.api.measures.CoreMetrics.PUBLIC_API_KEY;
+import static org.sonar.api.measures.CoreMetrics.PUBLIC_DOCUMENTED_API_DENSITY_KEY;
+import static org.sonar.api.measures.CoreMetrics.PUBLIC_UNDOCUMENTED_API_KEY;
+
+/**
+ * Computes comments measures on files and then aggregates them on higher components.
+ */
+public class CommentMeasuresStep implements ComputationStep {
+
+  private final TreeRootHolder treeRootHolder;
+  private final MetricRepository metricRepository;
+  private final MeasureRepository measureRepository;
+  private final List&lt;Formula&lt;?&gt;&gt; formulas;
+
+<span class="fc" id="L57">  public CommentMeasuresStep(TreeRootHolder treeRootHolder, MetricRepository metricRepository, MeasureRepository measureRepository) {</span>
+<span class="fc" id="L58">    this.treeRootHolder = treeRootHolder;</span>
+<span class="fc" id="L59">    this.metricRepository = metricRepository;</span>
+<span class="fc" id="L60">    this.measureRepository = measureRepository;</span>
+<span class="fc" id="L61">    this.formulas = List.of(</span>
+      new DocumentationFormula(),
+      new CommentDensityFormula()
+    );
+<span class="fc" id="L65">  }</span>
+
+  @Override
+  public void execute(ComputationStep.Context context) {
+<span class="fc" id="L69">    new PathAwareCrawler&lt;&gt;(</span>
+<span class="fc" id="L70">      FormulaExecutorComponentVisitor.newBuilder(metricRepository, measureRepository).buildFor(formulas))</span>
+<span class="fc" id="L71">      .visit(treeRootHolder.getRoot());</span>
+<span class="fc" id="L72">  }</span>
+
+  private class CommentDensityFormula implements Formula&lt;IntSumCounter&gt; {
+
+    private final Metric nclocMetric;
+
+<span class="fc" id="L78">    public CommentDensityFormula() {</span>
+<span class="fc" id="L79">      this.nclocMetric = metricRepository.getByKey(NCLOC_KEY);</span>
+<span class="fc" id="L80">    }</span>
+
+    @Override
+    public IntSumCounter createNewCounter() {
+<span class="fc" id="L84">      return new IntSumCounter(COMMENT_LINES_KEY);</span>
+    }
+
+    @Override
+    public Optional&lt;Measure&gt; createMeasure(IntSumCounter counter, CreateMeasureContext context) {
+<span class="fc" id="L89">      Optional&lt;Measure&gt; measure = createCommentLinesMeasure(counter, context);</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">      return measure.isPresent() ? measure : createCommentLinesDensityMeasure(counter, context);</span>
+    }
+
+    private Optional&lt;Measure&gt; createCommentLinesMeasure(SumCounter counter, CreateMeasureContext context) {
+<span class="fc" id="L94">      Optional&lt;Integer&gt; commentLines = counter.getValue();</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">      if (COMMENT_LINES_KEY.equals(context.getMetric().getKey())</span>
+<span class="fc bfc" id="L96" title="All 2 branches covered.">        &amp;&amp; commentLines.isPresent()</span>
+<span class="fc bfc" id="L97" title="All 2 branches covered.">        &amp;&amp; CrawlerDepthLimit.LEAVES.isDeeperThan(context.getComponent().getType())) {</span>
+<span class="fc" id="L98">        return Optional.of(Measure.newMeasureBuilder().create(commentLines.get()));</span>
+      }
+<span class="fc" id="L100">      return Optional.empty();</span>
+    }
+
+    private Optional&lt;Measure&gt; createCommentLinesDensityMeasure(SumCounter counter, CreateMeasureContext context) {
+<span class="fc bfc" id="L104" title="All 2 branches covered.">      if (COMMENT_LINES_DENSITY_KEY.equals(context.getMetric().getKey())) {</span>
+<span class="fc" id="L105">        Optional&lt;Measure&gt; nclocsOpt = measureRepository.getRawMeasure(context.getComponent(), nclocMetric);</span>
+<span class="fc" id="L106">        Optional&lt;Integer&gt; commentsOpt = counter.getValue();</span>
+<span class="fc bfc" id="L107" title="All 4 branches covered.">        if (nclocsOpt.isPresent() &amp;&amp; commentsOpt.isPresent()) {</span>
+<span class="fc" id="L108">          double nclocs = nclocsOpt.get().getIntValue();</span>
+<span class="fc" id="L109">          double comments = commentsOpt.get();</span>
+<span class="fc" id="L110">          double divisor = nclocs + comments;</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">          if (divisor &gt; 0D) {</span>
+<span class="fc" id="L112">            double value = 100D * (comments / divisor);</span>
+<span class="fc" id="L113">            return Optional.of(Measure.newMeasureBuilder().create(value, context.getMetric().getDecimalScale()));</span>
+          }
+        }
+      }
+<span class="fc" id="L117">      return Optional.empty();</span>
+    }
+
+    @Override
+    public String[] getOutputMetricKeys() {
+<span class="fc" id="L122">      return new String[] {COMMENT_LINES_KEY, COMMENT_LINES_DENSITY_KEY};</span>
+    }
+  }
+
+  private static class DocumentationFormula implements Formula&lt;DocumentationCounter&gt; {
+
+    @Override
+    public DocumentationCounter createNewCounter() {
+<span class="fc" id="L130">      return new DocumentationCounter();</span>
+    }
+
+    @Override
+    public Optional&lt;Measure&gt; createMeasure(DocumentationCounter counter, CreateMeasureContext context) {
+<span class="fc" id="L135">      Optional&lt;Measure&gt; measure = getMeasure(context, counter.getPublicApiValue(), PUBLIC_API_KEY);</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">      if (measure.isPresent()) {</span>
+<span class="fc" id="L137">        return measure;</span>
+      }
+<span class="fc" id="L139">      measure = getMeasure(context, counter.getPublicUndocumentedApiValue(), PUBLIC_UNDOCUMENTED_API_KEY);</span>
+<span class="fc bfc" id="L140" title="All 2 branches covered.">      return measure.isPresent() ? measure : getDensityMeasure(counter, context);</span>
+    }
+
+    private static Optional&lt;Measure&gt; getMeasure(CreateMeasureContext context, Optional&lt;Integer&gt; metricValue, String metricKey) {
+<span class="fc bfc" id="L144" title="All 4 branches covered.">      if (context.getMetric().getKey().equals(metricKey) &amp;&amp; metricValue.isPresent()</span>
+<span class="fc bfc" id="L145" title="All 2 branches covered.">        &amp;&amp; CrawlerDepthLimit.LEAVES.isDeeperThan(context.getComponent().getType())) {</span>
+<span class="fc" id="L146">        return Optional.of(Measure.newMeasureBuilder().create(metricValue.get()));</span>
+      }
+<span class="fc" id="L148">      return Optional.empty();</span>
+    }
+
+    private static Optional&lt;Measure&gt; getDensityMeasure(DocumentationCounter counter, CreateMeasureContext context) {
+<span class="fc bfc" id="L152" title="All 4 branches covered.">      if (context.getMetric().getKey().equals(PUBLIC_DOCUMENTED_API_DENSITY_KEY) &amp;&amp; counter.getPublicApiValue().isPresent()</span>
+<span class="fc bfc" id="L153" title="All 2 branches covered.">        &amp;&amp; counter.getPublicUndocumentedApiValue().isPresent()) {</span>
+<span class="fc" id="L154">        double publicApis = counter.getPublicApiValue().get();</span>
+<span class="fc" id="L155">        double publicUndocumentedApis = counter.getPublicUndocumentedApiValue().get();</span>
+<span class="fc bfc" id="L156" title="All 2 branches covered.">        if (publicApis &gt; 0D) {</span>
+<span class="fc" id="L157">          double documentedAPI = publicApis - publicUndocumentedApis;</span>
+<span class="fc" id="L158">          double value = 100D * (documentedAPI / publicApis);</span>
+<span class="fc" id="L159">          return Optional.of(Measure.newMeasureBuilder().create(value, context.getMetric().getDecimalScale()));</span>
+        }
+      }
+<span class="fc" id="L162">      return Optional.empty();</span>
+    }
+
+    @Override
+    public String[] getOutputMetricKeys() {
+<span class="fc" id="L167">      return new String[] {PUBLIC_API_KEY, PUBLIC_UNDOCUMENTED_API_KEY, PUBLIC_DOCUMENTED_API_DENSITY_KEY};</span>
+    }
+  }
+
+  private static class DocumentationCounter implements Counter&lt;DocumentationCounter&gt; {
+
+    private final SumCounter publicApiCounter;
+    private final SumCounter publicUndocumentedApiCounter;
+
+<span class="fc" id="L176">    public DocumentationCounter() {</span>
+<span class="fc" id="L177">      this.publicApiCounter = new IntSumCounter(PUBLIC_API_KEY);</span>
+<span class="fc" id="L178">      this.publicUndocumentedApiCounter = new IntSumCounter(PUBLIC_UNDOCUMENTED_API_KEY);</span>
+<span class="fc" id="L179">    }</span>
+
+    @Override
+    public void aggregate(DocumentationCounter counter) {
+<span class="fc" id="L183">      publicApiCounter.aggregate(counter.publicApiCounter);</span>
+<span class="fc" id="L184">      publicUndocumentedApiCounter.aggregate(counter.publicUndocumentedApiCounter);</span>
+<span class="fc" id="L185">    }</span>
+
+    @Override
+    public void initialize(CounterInitializationContext context) {
+<span class="fc" id="L189">      publicApiCounter.initialize(context);</span>
+<span class="fc" id="L190">      publicUndocumentedApiCounter.initialize(context);</span>
+<span class="fc" id="L191">    }</span>
+
+    public Optional&lt;Integer&gt; getPublicApiValue() {
+<span class="fc" id="L194">      return publicApiCounter.getValue();</span>
+    }
+
+    public Optional&lt;Integer&gt; getPublicUndocumentedApiValue() {
+<span class="fc" id="L198">      return publicUndocumentedApiCounter.getValue();</span>
+    }
+  }
+
+  @Override
+  public String getDescription() {
+<span class="nc" id="L204">    return &quot;Compute comment measures&quot;;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

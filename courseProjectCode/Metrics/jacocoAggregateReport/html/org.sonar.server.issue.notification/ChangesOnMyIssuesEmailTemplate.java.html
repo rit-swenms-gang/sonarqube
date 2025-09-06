@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ChangesOnMyIssuesEmailTemplate.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.issue.notification</a> &gt; <span class="el_source">ChangesOnMyIssuesEmailTemplate.java</span></div><h1>ChangesOnMyIssuesEmailTemplate.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.issue.notification;
+
+import com.google.common.collect.ListMultimap;
+import com.google.common.collect.SetMultimap;
+import java.util.List;
+import javax.annotation.CheckForNull;
+import org.sonar.api.notifications.Notification;
+import org.sonar.api.platform.Server;
+import org.sonar.core.i18n.I18n;
+import org.sonar.server.issue.notification.IssuesChangesNotificationBuilder.AnalysisChange;
+import org.sonar.server.issue.notification.IssuesChangesNotificationBuilder.ChangedIssue;
+import org.sonar.server.issue.notification.IssuesChangesNotificationBuilder.Project;
+import org.sonar.server.issue.notification.IssuesChangesNotificationBuilder.User;
+import org.sonar.server.issue.notification.IssuesChangesNotificationBuilder.UserChange;
+
+import static com.google.common.base.Preconditions.checkState;
+import static java.util.function.Function.identity;
+import static org.sonar.api.issue.Issue.STATUS_CLOSED;
+import static org.sonar.api.issue.Issue.STATUS_OPEN;
+import static org.sonar.core.util.stream.MoreCollectors.index;
+import static org.sonar.server.issue.notification.RuleGroup.ISSUES;
+import static org.sonar.server.issue.notification.RuleGroup.SECURITY_HOTSPOTS;
+import static org.sonar.server.issue.notification.RuleGroup.resolveGroup;
+
+/**
+ * Creates email message for notification &quot;Changes on my issues&quot;.
+ */
+public class ChangesOnMyIssuesEmailTemplate extends IssueChangesEmailTemplate {
+  private static final String NOTIFICATION_NAME_I18N_KEY = &quot;notification.dispatcher.ChangesOnMyIssue&quot;;
+
+  public ChangesOnMyIssuesEmailTemplate(I18n i18n, Server server) {
+<span class="fc" id="L51">    super(i18n, server);</span>
+<span class="fc" id="L52">  }</span>
+
+  @Override
+  @CheckForNull
+  public EmailMessage format(Notification notif) {
+<span class="fc bfc" id="L57" title="All 2 branches covered.">    if (!(notif instanceof ChangesOnMyIssuesNotification)) {</span>
+<span class="fc" id="L58">      return null;</span>
+    }
+
+<span class="fc" id="L61">    ChangesOnMyIssuesNotification notification = (ChangesOnMyIssuesNotification) notif;</span>
+
+<span class="fc bfc" id="L63" title="All 2 branches covered.">    if (notification.getChange() instanceof AnalysisChange) {</span>
+<span class="fc bfc" id="L64" title="All 2 branches covered.">      checkState(!notification.getChangedIssues().isEmpty(), &quot;changedIssues can't be empty&quot;);</span>
+<span class="fc" id="L65">      return formatAnalysisNotification(notification.getChangedIssues().keySet().iterator().next(), notification);</span>
+    }
+<span class="fc" id="L67">    return formatMultiProject(notification);</span>
+  }
+
+  private EmailMessage formatAnalysisNotification(Project project, ChangesOnMyIssuesNotification notification) {
+<span class="fc" id="L71">    return new EmailMessage()</span>
+<span class="fc" id="L72">      .setMessageId(&quot;changes-on-my-issues/&quot; + project.getKey())</span>
+<span class="fc" id="L73">      .setSubject(buildAnalysisSubject(project))</span>
+<span class="fc" id="L74">      .setHtmlMessage(buildAnalysisMessage(project, notification));</span>
+  }
+
+  private static String buildAnalysisSubject(Project project) {
+<span class="fc" id="L78">    return &quot;Analysis has changed some of your issues in &quot; + toSubject(project);</span>
+  }
+
+  private String buildAnalysisMessage(Project project, ChangesOnMyIssuesNotification notification) {
+<span class="fc" id="L82">    String projectParams = toUrlParams(project);</span>
+
+<span class="fc" id="L84">    StringBuilder sb = new StringBuilder();</span>
+<span class="fc" id="L85">    paragraph(sb, s -&gt; s.append(&quot;Hi,&quot;));</span>
+<span class="fc" id="L86">    paragraph(sb, s -&gt; s.append(&quot;An analysis has updated &quot;).append(issuesOrAnIssue(notification.getChangedIssues()))</span>
+<span class="fc" id="L87">      .append(&quot; assigned to you:&quot;));</span>
+
+<span class="fc" id="L89">    ListMultimap&lt;String, ChangedIssue&gt; issuesByNewStatus = notification.getChangedIssues().values().stream()</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">      .collect(index(changedIssue -&gt; STATUS_CLOSED.equals(changedIssue.getNewStatus()) ? STATUS_CLOSED : STATUS_OPEN, t -&gt; t));</span>
+
+<span class="fc" id="L92">    List&lt;ChangedIssue&gt; closedIssues = issuesByNewStatus.get(STATUS_CLOSED);</span>
+<span class="fc bfc" id="L93" title="All 2 branches covered.">    if (!closedIssues.isEmpty()) {</span>
+<span class="fc" id="L94">      paragraph(sb, s -&gt; s.append(&quot;Closed &quot;).append(issueOrIssues(closedIssues)).append(&quot;:&quot;));</span>
+<span class="fc" id="L95">      addIssuesByRule(sb, closedIssues, projectIssuePageHref(projectParams));</span>
+    }
+<span class="fc" id="L97">    List&lt;ChangedIssue&gt; openIssues = issuesByNewStatus.get(STATUS_OPEN);</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">    if (!openIssues.isEmpty()) {</span>
+<span class="fc" id="L99">      paragraph(sb, s -&gt; s.append(&quot;Open &quot;).append(issueOrIssues(openIssues)).append(&quot;:&quot;));</span>
+<span class="fc" id="L100">      addIssuesByRule(sb, openIssues, projectIssuePageHref(projectParams));</span>
+    }
+
+<span class="fc" id="L103">    addFooter(sb, NOTIFICATION_NAME_I18N_KEY);</span>
+
+<span class="fc" id="L105">    return sb.toString();</span>
+  }
+
+  private EmailMessage formatMultiProject(ChangesOnMyIssuesNotification notification) {
+<span class="fc" id="L109">    User user = ((UserChange) notification.getChange()).getUser();</span>
+<span class="fc" id="L110">    return new EmailMessage()</span>
+<span class="fc" id="L111">      .setFrom(user.getName().orElse(user.getLogin()))</span>
+<span class="fc" id="L112">      .setMessageId(&quot;changes-on-my-issues&quot;)</span>
+<span class="fc" id="L113">      .setSubject(&quot;A manual update has changed some of your issues/hotspots&quot;)</span>
+<span class="fc" id="L114">      .setHtmlMessage(buildMultiProjectMessage(notification));</span>
+  }
+
+  private String buildMultiProjectMessage(ChangesOnMyIssuesNotification notification) {
+<span class="fc" id="L118">    ListMultimap&lt;RuleGroup, ChangedIssue&gt; issuesAndHotspots = notification.getChangedIssues().values().stream()</span>
+<span class="fc" id="L119">      .collect(index(changedIssue -&gt; resolveGroup(changedIssue.getRule().getRuleType()), identity()));</span>
+
+<span class="fc" id="L121">    List&lt;ChangedIssue&gt; issues = issuesAndHotspots.get(ISSUES);</span>
+<span class="fc" id="L122">    List&lt;ChangedIssue&gt; hotspots = issuesAndHotspots.get(SECURITY_HOTSPOTS);</span>
+
+<span class="fc" id="L124">    StringBuilder sb = new StringBuilder();</span>
+<span class="fc" id="L125">    paragraph(sb, s -&gt; s.append(&quot;Hi,&quot;));</span>
+<span class="fc" id="L126">    paragraph(sb, s -&gt; s.append(&quot;A manual change has updated &quot;).append(RuleGroup.formatIssuesOrHotspots(issues, hotspots)).append(&quot; assigned to you:&quot;));</span>
+
+<span class="fc" id="L128">    addIssuesAndHotspotsByProjectThenRule(sb, notification.getChangedIssues());</span>
+
+<span class="fc" id="L130">    addFooter(sb, NOTIFICATION_NAME_I18N_KEY);</span>
+
+<span class="fc" id="L132">    return sb.toString();</span>
+  }
+
+  private static String issuesOrAnIssue(SetMultimap&lt;Project, ChangedIssue&gt; changedIssues) {
+<span class="fc bfc" id="L136" title="All 2 branches covered.">    if (changedIssues.size() &gt; 1) {</span>
+<span class="fc" id="L137">      return &quot;issues&quot;;</span>
+    }
+<span class="fc" id="L139">    return &quot;an issue&quot;;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DepthTraversalTypeAwareCrawler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.component</a> &gt; <span class="el_source">DepthTraversalTypeAwareCrawler.java</span></div><h1>DepthTraversalTypeAwareCrawler.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.component;
+
+import static java.util.Objects.requireNonNull;
+
+/**
+ * Implementation of {@link ComponentCrawler} that implements a depth traversal of a {@link Component} tree.
+ * &lt;p&gt;It supports visiting traversal in either pre-order or post-order&lt;/p&gt;
+ * It supports a max depth for crawling (component strictly deeper than the specified type will be ignored).
+ */
+public final class DepthTraversalTypeAwareCrawler implements ComponentCrawler {
+  private final TypeAwareVisitor visitor;
+
+<span class="fc" id="L32">  public DepthTraversalTypeAwareCrawler(TypeAwareVisitor visitor) {</span>
+<span class="fc" id="L33">    this.visitor = requireNonNull(visitor);</span>
+<span class="fc" id="L34">  }</span>
+
+  @Override
+  public void visit(Component component) {
+    try {
+<span class="fc" id="L39">      visitImpl(component);</span>
+<span class="fc" id="L40">    } catch (RuntimeException e) {</span>
+<span class="nc" id="L41">      VisitException.rethrowOrWrap(e, &quot;Visit of Component {key=%s,uuid=%s,type=%s} failed&quot;, component.getKey(), component.getUuid(), component.getType());</span>
+<span class="fc" id="L42">    }</span>
+<span class="fc" id="L43">  }</span>
+
+  private void visitImpl(Component component) {
+<span class="fc bfc" id="L46" title="All 2 branches covered.">    if (!verifyDepth(component)) {</span>
+<span class="fc" id="L47">      return;</span>
+    }
+
+<span class="fc bfc" id="L50" title="All 2 branches covered.">    if (this.visitor.getOrder() == ComponentVisitor.Order.PRE_ORDER) {</span>
+<span class="fc" id="L51">      visitNode(component);</span>
+    }
+
+<span class="fc" id="L54">    visitChildren(component);</span>
+
+<span class="fc bfc" id="L56" title="All 2 branches covered.">    if (this.visitor.getOrder() == ComponentVisitor.Order.POST_ORDER) {</span>
+<span class="fc" id="L57">      visitNode(component);</span>
+    }
+<span class="fc" id="L59">  }</span>
+
+  private boolean verifyDepth(Component component) {
+<span class="fc" id="L62">    CrawlerDepthLimit maxDepth = this.visitor.getMaxDepth();</span>
+<span class="fc bfc" id="L63" title="All 4 branches covered.">    return maxDepth.isSameAs(component.getType()) || maxDepth.isDeeperThan(component.getType());</span>
+  }
+
+  private void visitNode(Component component) {
+<span class="fc" id="L67">    this.visitor.visitAny(component);</span>
+<span class="pc bpc" id="L68" title="1 of 7 branches missed.">    switch (component.getType()) {</span>
+      case PROJECT:
+<span class="fc" id="L70">        this.visitor.visitProject(component);</span>
+<span class="fc" id="L71">        break;</span>
+      case DIRECTORY:
+<span class="fc" id="L73">        this.visitor.visitDirectory(component);</span>
+<span class="fc" id="L74">        break;</span>
+      case FILE:
+<span class="fc" id="L76">        this.visitor.visitFile(component);</span>
+<span class="fc" id="L77">        break;</span>
+      case VIEW:
+<span class="fc" id="L79">        this.visitor.visitView(component);</span>
+<span class="fc" id="L80">        break;</span>
+      case SUBVIEW:
+<span class="fc" id="L82">        this.visitor.visitSubView(component);</span>
+<span class="fc" id="L83">        break;</span>
+      case PROJECT_VIEW:
+<span class="fc" id="L85">        this.visitor.visitProjectView(component);</span>
+<span class="fc" id="L86">        break;</span>
+      default:
+<span class="nc" id="L88">        throw new IllegalArgumentException(&quot;Unsupported Component type &quot; + component.getType());</span>
+    }
+<span class="fc" id="L90">  }</span>
+
+  private void visitChildren(Component component) {
+<span class="fc bfc" id="L93" title="All 2 branches covered.">    for (Component child : component.getChildren()) {</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">      if (verifyDepth(child)) {</span>
+<span class="fc" id="L95">        visit(child);</span>
+      }
+<span class="fc" id="L97">    }</span>
+<span class="fc" id="L98">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

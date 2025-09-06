@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EffortAggregator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.issue</a> &gt; <span class="el_source">EffortAggregator.java</span></div><h1>EffortAggregator.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.issue;
+
+import java.util.HashMap;
+import java.util.Map;
+import org.sonar.api.measures.CoreMetrics;
+import org.sonar.ce.task.projectanalysis.component.Component;
+import org.sonar.ce.task.projectanalysis.measure.Measure;
+import org.sonar.ce.task.projectanalysis.measure.MeasureRepository;
+import org.sonar.ce.task.projectanalysis.metric.Metric;
+import org.sonar.ce.task.projectanalysis.metric.MetricRepository;
+import org.sonar.core.issue.DefaultIssue;
+import org.sonar.core.metric.SoftwareQualitiesMetrics;
+
+import static org.sonar.api.measures.CoreMetrics.RELIABILITY_REMEDIATION_EFFORT_KEY;
+import static org.sonar.api.measures.CoreMetrics.SECURITY_REMEDIATION_EFFORT_KEY;
+import static org.sonar.api.measures.CoreMetrics.TECHNICAL_DEBT_KEY;
+import static org.sonar.core.metric.SoftwareQualitiesMetrics.SOFTWARE_QUALITY_MAINTAINABILITY_REMEDIATION_EFFORT_KEY;
+import static org.sonar.core.metric.SoftwareQualitiesMetrics.SOFTWARE_QUALITY_RELIABILITY_REMEDIATION_EFFORT_KEY;
+import static org.sonar.core.metric.SoftwareQualitiesMetrics.SOFTWARE_QUALITY_SECURITY_REMEDIATION_EFFORT_KEY;
+
+/**
+ * Compute effort related measures :
+ * {@link CoreMetrics#TECHNICAL_DEBT_KEY}
+ * {@link CoreMetrics#RELIABILITY_REMEDIATION_EFFORT_KEY}
+ * {@link CoreMetrics#SECURITY_REMEDIATION_EFFORT_KEY}
+ * {@link SoftwareQualitiesMetrics#SOFTWARE_QUALITY_MAINTAINABILITY_REMEDIATION_EFFORT_KEY}
+ * {@link SoftwareQualitiesMetrics#SOFTWARE_QUALITY_RELIABILITY_REMEDIATION_EFFORT_KEY}
+ * {@link SoftwareQualitiesMetrics#SOFTWARE_QUALITY_SECURITY_REMEDIATION_EFFORT_KEY}
+ */
+public class EffortAggregator extends IssueVisitor {
+
+  private final MeasureRepository measureRepository;
+<span class="fc" id="L52">  private final Map&lt;String, EffortCounter&gt; effortsByComponentUuid = new HashMap&lt;&gt;();</span>
+
+  private final Metric maintainabilityEffortMetric;
+  private final Metric reliabilityEffortMetric;
+  private final Metric securityEffortMetric;
+
+  private final Metric softwareQualityMaintainabilityEffortMetric;
+  private final Metric softwareQualityReliabilityEffortMetric;
+  private final Metric softwareQualitySecurityEffortMetric;
+
+  private EffortCounter effortCounter;
+
+<span class="fc" id="L64">  public EffortAggregator(MetricRepository metricRepository, MeasureRepository measureRepository) {</span>
+<span class="fc" id="L65">    this.measureRepository = measureRepository;</span>
+
+    // Based on issue Type and Severity
+<span class="fc" id="L68">    this.maintainabilityEffortMetric = metricRepository.getByKey(TECHNICAL_DEBT_KEY);</span>
+<span class="fc" id="L69">    this.reliabilityEffortMetric = metricRepository.getByKey(RELIABILITY_REMEDIATION_EFFORT_KEY);</span>
+<span class="fc" id="L70">    this.securityEffortMetric = metricRepository.getByKey(SECURITY_REMEDIATION_EFFORT_KEY);</span>
+
+    // Based on software qualities
+<span class="fc" id="L73">    this.softwareQualityMaintainabilityEffortMetric = metricRepository.getByKey(SOFTWARE_QUALITY_MAINTAINABILITY_REMEDIATION_EFFORT_KEY);</span>
+<span class="fc" id="L74">    this.softwareQualityReliabilityEffortMetric = metricRepository.getByKey(SOFTWARE_QUALITY_RELIABILITY_REMEDIATION_EFFORT_KEY);</span>
+<span class="fc" id="L75">    this.softwareQualitySecurityEffortMetric = metricRepository.getByKey(SOFTWARE_QUALITY_SECURITY_REMEDIATION_EFFORT_KEY);</span>
+<span class="fc" id="L76">  }</span>
+
+  @Override
+  public void beforeComponent(Component component) {
+<span class="fc" id="L80">    effortCounter = new EffortCounter();</span>
+<span class="fc" id="L81">    effortsByComponentUuid.put(component.getUuid(), effortCounter);</span>
+
+    // aggregate children counters
+<span class="fc bfc" id="L84" title="All 2 branches covered.">    for (Component child : component.getChildren()) {</span>
+      // no need to keep the children in memory. They can be garbage-collected.
+<span class="fc" id="L86">      EffortCounter childEffortCounter = effortsByComponentUuid.remove(child.getUuid());</span>
+<span class="pc bpc" id="L87" title="1 of 2 branches missed.">      if (childEffortCounter != null) {</span>
+<span class="fc" id="L88">        effortCounter.add(childEffortCounter);</span>
+      }
+<span class="fc" id="L90">    }</span>
+<span class="fc" id="L91">  }</span>
+
+  @Override
+  public void onIssue(Component component, DefaultIssue issue) {
+<span class="fc bfc" id="L95" title="All 2 branches covered.">    if (issue.resolution() == null) {</span>
+<span class="fc" id="L96">      effortCounter.add(issue);</span>
+    }
+<span class="fc" id="L98">  }</span>
+
+  @Override
+  public void afterComponent(Component component) {
+<span class="fc" id="L102">    computeMaintainabilityEffortMeasure(component);</span>
+<span class="fc" id="L103">    computeReliabilityEffortMeasure(component);</span>
+<span class="fc" id="L104">    computeSecurityEffortMeasure(component);</span>
+
+<span class="fc" id="L106">    this.effortCounter = null;</span>
+<span class="fc" id="L107">  }</span>
+
+  private void computeMaintainabilityEffortMeasure(Component component) {
+<span class="fc" id="L110">    measureRepository.add(component, maintainabilityEffortMetric, Measure.newMeasureBuilder().create(effortCounter.maintainabilityEffort));</span>
+<span class="fc" id="L111">    measureRepository.add(component, softwareQualityMaintainabilityEffortMetric, Measure.newMeasureBuilder().create(effortCounter.softwareQualityMaintainabilityEffort));</span>
+<span class="fc" id="L112">  }</span>
+
+  private void computeReliabilityEffortMeasure(Component component) {
+<span class="fc" id="L115">    measureRepository.add(component, reliabilityEffortMetric, Measure.newMeasureBuilder().create(effortCounter.reliabilityEffort));</span>
+<span class="fc" id="L116">    measureRepository.add(component, softwareQualityReliabilityEffortMetric, Measure.newMeasureBuilder().create(effortCounter.softwareQualityReliabilityEffort));</span>
+<span class="fc" id="L117">  }</span>
+
+  private void computeSecurityEffortMeasure(Component component) {
+<span class="fc" id="L120">    measureRepository.add(component, securityEffortMetric, Measure.newMeasureBuilder().create(effortCounter.securityEffort));</span>
+<span class="fc" id="L121">    measureRepository.add(component, softwareQualitySecurityEffortMetric, Measure.newMeasureBuilder().create(effortCounter.softwareQualitySecurityEffort));</span>
+<span class="fc" id="L122">  }</span>
+
+<span class="fc" id="L124">  private static class EffortCounter {</span>
+<span class="fc" id="L125">    private long maintainabilityEffort = 0L;</span>
+<span class="fc" id="L126">    private long reliabilityEffort = 0L;</span>
+<span class="fc" id="L127">    private long securityEffort = 0L;</span>
+
+<span class="fc" id="L129">    private long softwareQualityMaintainabilityEffort = 0L;</span>
+<span class="fc" id="L130">    private long softwareQualityReliabilityEffort = 0L;</span>
+<span class="fc" id="L131">    private long softwareQualitySecurityEffort = 0L;</span>
+
+    void add(DefaultIssue issue) {
+<span class="fc" id="L134">      Long issueEffort = issue.effortInMinutes();</span>
+<span class="pc bpc" id="L135" title="1 of 4 branches missed.">      if (issueEffort != null &amp;&amp; issueEffort != 0L) {</span>
+<span class="fc" id="L136">        computeTypeEffort(issue, issueEffort);</span>
+<span class="fc" id="L137">        computeSoftwareQualityEffort(issue, issueEffort);</span>
+      }
+<span class="fc" id="L139">    }</span>
+
+    private void computeSoftwareQualityEffort(DefaultIssue issue, Long issueEffort) {
+<span class="fc" id="L142">      issue.impacts().forEach((sq, severity) -&gt; {</span>
+<span class="pc bpc" id="L143" title="1 of 4 branches missed.">        switch (sq) {</span>
+          case MAINTAINABILITY:
+<span class="fc" id="L145">            softwareQualityMaintainabilityEffort += issueEffort;</span>
+<span class="fc" id="L146">            break;</span>
+          case RELIABILITY:
+<span class="fc" id="L148">            softwareQualityReliabilityEffort += issueEffort;</span>
+<span class="fc" id="L149">            break;</span>
+          case SECURITY:
+<span class="fc" id="L151">            softwareQualitySecurityEffort += issueEffort;</span>
+<span class="fc" id="L152">            break;</span>
+          default:
+<span class="nc" id="L154">            throw new IllegalStateException(String.format(&quot;Unknown software quality '%s'&quot;, sq));</span>
+        }
+<span class="fc" id="L156">      });</span>
+<span class="fc" id="L157">    }</span>
+
+    private void computeTypeEffort(DefaultIssue issue, Long issueEffort) {
+<span class="pc bpc" id="L160" title="2 of 5 branches missed.">      switch (issue.type()) {</span>
+        case CODE_SMELL:
+<span class="fc" id="L162">          maintainabilityEffort += issueEffort;</span>
+<span class="fc" id="L163">          break;</span>
+        case BUG:
+<span class="fc" id="L165">          reliabilityEffort += issueEffort;</span>
+<span class="fc" id="L166">          break;</span>
+        case VULNERABILITY:
+<span class="fc" id="L168">          securityEffort += issueEffort;</span>
+<span class="fc" id="L169">          break;</span>
+        case SECURITY_HOTSPOT:
+          // Not counted
+<span class="nc" id="L172">          break;</span>
+        default:
+<span class="nc" id="L174">          throw new IllegalStateException(String.format(&quot;Unknown type '%s'&quot;, issue.type()));</span>
+      }
+<span class="fc" id="L176">    }</span>
+
+    public void add(EffortCounter effortCounter) {
+<span class="fc" id="L179">      maintainabilityEffort += effortCounter.maintainabilityEffort;</span>
+<span class="fc" id="L180">      reliabilityEffort += effortCounter.reliabilityEffort;</span>
+<span class="fc" id="L181">      securityEffort += effortCounter.securityEffort;</span>
+
+<span class="fc" id="L183">      softwareQualityMaintainabilityEffort += effortCounter.softwareQualityMaintainabilityEffort;</span>
+<span class="fc" id="L184">      softwareQualityReliabilityEffort += effortCounter.softwareQualityReliabilityEffort;</span>
+<span class="fc" id="L185">      softwareQualitySecurityEffort += effortCounter.softwareQualitySecurityEffort;</span>
+<span class="fc" id="L186">    }</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

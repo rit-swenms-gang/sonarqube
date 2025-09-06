@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GitlabConfigurationService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonarqube.ws.client.gitlab.configuration</a> &gt; <span class="el_source">GitlabConfigurationService.java</span></div><h1>GitlabConfigurationService.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonarqube.ws.client.gitlab.configuration;
+
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import org.sonarqube.ws.client.BaseService;
+import org.sonarqube.ws.client.PatchRequest;
+import org.sonarqube.ws.client.PostRequest;
+import org.sonarqube.ws.client.WsConnector;
+import org.sonarqube.ws.client.WsResponse;
+
+public class GitlabConfigurationService extends BaseService {
+
+
+  public GitlabConfigurationService(WsConnector wsConnector) {
+<span class="fc" id="L34">    super(wsConnector, &quot;api/v2/dop-translation/gitlab-configurations&quot;);</span>
+<span class="fc" id="L35">  }</span>
+
+  public String saveGitlabConfiguration(GitlabConfiguration gitlabConfiguration) {
+<span class="fc" id="L38">    String body = String.format(&quot;&quot;&quot;</span>
+        {
+          &quot;enabled&quot;: &quot;%s&quot;,
+          &quot;applicationId&quot;: &quot;%s&quot;,
+          &quot;url&quot;: &quot;%s&quot;,
+          &quot;secret&quot;: &quot;%s&quot;,
+          &quot;synchronizeGroups&quot;: &quot;%s&quot;,
+          &quot;provisioningType&quot;: &quot;%s&quot;,
+          &quot;allowUsersToSignUp&quot;: &quot;%s&quot;,
+          &quot;provisioningToken&quot;: &quot;%s&quot;,
+          &quot;allowedGroups&quot;: [&quot;%s&quot;]
+        }
+<span class="fc" id="L50">        &quot;&quot;&quot;, gitlabConfiguration.enabled(), gitlabConfiguration.applicationId(), gitlabConfiguration.url(), gitlabConfiguration.secret(),</span>
+<span class="fc" id="L51">      gitlabConfiguration.synchronizeGroups(), gitlabConfiguration.provisioningType(), gitlabConfiguration.allowUsersToSignUp(),</span>
+<span class="fc" id="L52">      gitlabConfiguration.provisioningToken(), gitlabConfiguration.singleAllowedGroup());</span>
+<span class="fc" id="L53">    WsResponse response = call(</span>
+<span class="fc" id="L54">      new PostRequest(path()).setBody(body)</span>
+    );
+<span class="fc" id="L56">    return new Gson().fromJson(response.content(), JsonObject.class).get(&quot;id&quot;).getAsString();</span>
+  }
+
+  public void enableAutoProvisioning(String configId) {
+<span class="fc" id="L60">    setProvisioningMode(configId, &quot;AUTO_PROVISIONING&quot;);</span>
+<span class="fc" id="L61">  }</span>
+
+  public void disableAutoProvisioning(String configId) {
+<span class="fc" id="L64">    setProvisioningMode(configId, &quot;JIT&quot;);</span>
+<span class="fc" id="L65">  }</span>
+
+  private void setProvisioningMode(String configId, String provisioningMode) {
+<span class="fc" id="L68">    String body = String.format(&quot;&quot;&quot;</span>
+      { 
+        &quot;provisioningType&quot;: &quot;%s&quot;
+      }
+      &quot;&quot;&quot;, provisioningMode);
+<span class="fc" id="L73">    call(</span>
+<span class="fc" id="L74">      new PatchRequest(path(configId)).setBody(body).setContentType(APPLICATION_MERGE_PATCH_JSON)</span>
+    );
+<span class="fc" id="L76">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GitUrlParser.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.common.projectbindings.service</a> &gt; <span class="el_source">GitUrlParser.java</span></div><h1>GitUrlParser.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.common.projectbindings.service;
+
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.Optional;
+import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import javax.annotation.Nullable;
+import org.apache.commons.lang3.StringUtils;
+
+import static org.sonar.server.exceptions.BadRequestException.throwBadRequestException;
+
+/**
+ * Generic parser for Git repository URLs.
+ * 
+ * &lt;p&gt;This parser extracts organization, project, and repository information from repository URLs
+ * without trying to identify the specific DevOps platform. It focuses on parsing the path
+ * components after the domain to work with any Git hosting platform including enterprise instances.&lt;/p&gt;
+ * 
+ * &lt;p&gt;Supported URL patterns:&lt;/p&gt;
+ * &lt;ul&gt;
+ *   &lt;li&gt;&lt;strong&gt;Standard format:&lt;/strong&gt; http(s)://domain.com/org/repo&lt;/li&gt;
+ *   &lt;li&gt;&lt;strong&gt;With project:&lt;/strong&gt; http(s)://domain.com/org/project/_git/repo (Azure DevOps style)&lt;/li&gt;
+ *   &lt;li&gt;&lt;strong&gt;Nested groups:&lt;/strong&gt; http(s)://domain.com/group/subgroup/repo (GitLab style)&lt;/li&gt;
+ *   &lt;li&gt;&lt;strong&gt;SSH format:&lt;/strong&gt; git@domain.com:org/repo&lt;/li&gt;
+ *   &lt;li&gt;&lt;strong&gt;SSH with project:&lt;/strong&gt; git@domain.com:v3/org/project/repo (Azure DevOps style)&lt;/li&gt;
+ * &lt;/ul&gt;
+ */
+public final class GitUrlParser {
+
+  // SSH-only patterns (HTTP/HTTPS handled via URI parsing)
+<span class="fc" id="L52">  private static final Pattern SSH_STANDARD_PATTERN = Pattern.compile(&quot;^git@([^:]+):([^/]+)/([^/]+?)(?:\\.git)?/*$&quot;);</span>
+<span class="fc" id="L53">  private static final Pattern SSH_AZURE_PATTERN = Pattern.compile(&quot;^git@([^:]+):v3/([^/]+)/([^/]+)/([^/]+?)(?:\\.git)?/*$&quot;);</span>
+<span class="fc" id="L54">  private static final Pattern SSH_NESTED_PATTERN = Pattern.compile(&quot;^git@([^:]+):([^/]+/.+)/([^/]+?)(?:\\.git)?/*$&quot;);</span>
+
+  // Path-only patterns for HTTP/HTTPS URLs
+<span class="fc" id="L57">  private static final Pattern PATH_STANDARD_PATTERN = Pattern.compile(&quot;^/([^/]+)/([^/]+?)(?:\\.git)?/*$&quot;);</span>
+<span class="fc" id="L58">  private static final Pattern PATH_AZURE_PATTERN = Pattern.compile(&quot;^/([^/]+)/([^/]+)/_git/([^/]+?)(?:\\.git)?/*$&quot;);</span>
+<span class="fc" id="L59">  private static final Pattern PATH_NESTED_PATTERN = Pattern.compile(&quot;^/([^/]+/.+)/([^/]+?)(?:\\.git)?/*$&quot;);</span>
+
+  private static final String GIT_SUFFIX = &quot;.git&quot;;
+  private static final String HTTP_PREFIX = &quot;http://&quot;;
+  private static final String HTTPS_PREFIX = &quot;https://&quot;;
+  private static final String SSH_PREFIX = &quot;git@&quot;;
+
+  private GitUrlParser() {
+    // Utility class, no instantiation
+  }
+
+  /**
+   * Parses a Git repository URL to extract path components.
+   * 
+   * @param url The Git repository URL to parse
+   * @return RepositoryInfo if the URL matches a supported format
+   * @throws org.sonar.server.exceptions.BadRequestException if the URL is null or empty
+   */
+  public static Optional&lt;RepositoryInfo&gt; parseRepositoryUrl(@Nullable String url) {
+<span class="fc" id="L78">    validateInput(url);</span>
+<span class="fc" id="L79">    String trimmedUrl = url.trim();</span>
+
+    // Protocol detection upfront
+<span class="fc bfc" id="L82" title="All 2 branches covered.">    if (trimmedUrl.startsWith(SSH_PREFIX)) {</span>
+<span class="fc" id="L83">      return parseSshUrl(trimmedUrl);</span>
+    }
+
+<span class="fc bfc" id="L86" title="All 4 branches covered.">    if (trimmedUrl.startsWith(HTTPS_PREFIX) || trimmedUrl.startsWith(HTTP_PREFIX)) {</span>
+<span class="fc" id="L87">      return parseHttpUrl(trimmedUrl);</span>
+    }
+
+    // Fallback for other formats
+<span class="fc" id="L91">    return Optional.empty();</span>
+  }
+
+  /**
+   * Validates the input URL.
+   */
+  private static void validateInput(@Nullable String url) {
+<span class="fc bfc" id="L98" title="All 2 branches covered.">    if (StringUtils.isBlank(url)) {</span>
+<span class="nc" id="L99">      throwBadRequestException(&quot;URL cannot be empty&quot;);</span>
+    }
+<span class="fc" id="L101">  }</span>
+
+  /**
+   * Parses SSH URLs using regex patterns.
+   */
+  private static Optional&lt;RepositoryInfo&gt; parseSshUrl(String url) {
+<span class="fc" id="L107">    return tryPattern(SSH_AZURE_PATTERN, url, GitUrlParser::parseAzureMatch)</span>
+<span class="fc" id="L108">      .or(() -&gt; tryPattern(SSH_NESTED_PATTERN, url, GitUrlParser::parseNestedMatch))</span>
+<span class="fc" id="L109">      .or(() -&gt; tryPattern(SSH_STANDARD_PATTERN, url, GitUrlParser::parseStandardMatch));</span>
+  }
+
+  /**
+   * Parses HTTP/HTTPS URLs using URI parsing.
+   */
+  private static Optional&lt;RepositoryInfo&gt; parseHttpUrl(String url) {
+    try {
+<span class="fc" id="L117">      URI uri = new URI(url);</span>
+<span class="fc" id="L118">      String path = uri.getPath();</span>
+
+<span class="fc bfc" id="L120" title="All 4 branches covered.">      if (StringUtils.isBlank(path) || path.equals(&quot;/&quot;)) {</span>
+<span class="fc" id="L121">        return Optional.empty();</span>
+      }
+
+<span class="fc" id="L124">      return parsePathComponents(path);</span>
+<span class="fc" id="L125">    } catch (URISyntaxException e) {</span>
+<span class="fc" id="L126">      return Optional.empty();</span>
+    }
+  }
+
+  /**
+   * Parses path components extracted from URI (much simpler than full URL regex).
+   */
+  private static Optional&lt;RepositoryInfo&gt; parsePathComponents(String path) {
+<span class="fc" id="L134">    return tryPattern(PATH_AZURE_PATTERN, path, GitUrlParser::parseAzureMatch)</span>
+<span class="fc" id="L135">      .or(() -&gt; tryPattern(PATH_NESTED_PATTERN, path, GitUrlParser::parseNestedMatch))</span>
+<span class="fc" id="L136">      .or(() -&gt; tryPattern(PATH_STANDARD_PATTERN, path, GitUrlParser::parseStandardMatch));</span>
+  }
+
+  /**
+   * Tries to match a pattern against input and applies a function to the matcher if successful.
+   */
+  private static Optional&lt;RepositoryInfo&gt; tryPattern(Pattern pattern, String input, Function&lt;Matcher, RepositoryInfo&gt; matchFunction) {
+<span class="fc" id="L143">    Matcher matcher = pattern.matcher(input);</span>
+<span class="fc bfc" id="L144" title="All 2 branches covered.">    return matcher.matches() ? Optional.of(matchFunction.apply(matcher)) : Optional.empty();</span>
+  }
+
+  /**
+   * Parses Azure DevOps format matches (org/project/_git/repo or org/project/repo).
+   */
+  private static RepositoryInfo parseAzureMatch(Matcher matcher) {
+<span class="fc bfc" id="L151" title="All 2 branches covered.">    if (matcher.groupCount() == 4) {</span>
+      // SSH: git@host:v3/org/project/repo
+<span class="fc" id="L153">      return new RepositoryInfo(matcher.group(2), removeGitSuffix(matcher.group(4)), matcher.group(3));</span>
+    } else {
+      // HTTP: /org/project/_git/repo
+<span class="fc" id="L156">      return new RepositoryInfo(matcher.group(1), removeGitSuffix(matcher.group(3)), matcher.group(2));</span>
+    }
+  }
+
+  /**
+   * Parses nested format matches (org/suborg/repo).
+   */
+  private static RepositoryInfo parseNestedMatch(Matcher matcher) {
+<span class="fc bfc" id="L164" title="All 2 branches covered.">    if (matcher.groupCount() == 3) {</span>
+      // SSH: git@host:org/suborg/repo
+<span class="fc" id="L166">      return new RepositoryInfo(matcher.group(2), removeGitSuffix(matcher.group(3)));</span>
+    } else {
+      // HTTP: /org/suborg/repo
+<span class="fc" id="L169">      return new RepositoryInfo(matcher.group(1), removeGitSuffix(matcher.group(2)));</span>
+    }
+  }
+
+  /**
+   * Parses standard format matches (org/repo).
+   */
+  private static RepositoryInfo parseStandardMatch(Matcher matcher) {
+<span class="fc bfc" id="L177" title="All 2 branches covered.">    if (matcher.groupCount() == 3) {</span>
+      // SSH: git@host:org/repo
+<span class="fc" id="L179">      return new RepositoryInfo(matcher.group(2), removeGitSuffix(matcher.group(3)));</span>
+    } else {
+      // HTTP: /org/repo
+<span class="fc" id="L182">      return new RepositoryInfo(matcher.group(1), removeGitSuffix(matcher.group(2)));</span>
+    }
+  }
+
+  /**
+   * Removes .git suffix and trailing slashes from URLs.
+   */
+  private static String removeGitSuffix(String url) {
+<span class="pc bpc" id="L190" title="1 of 2 branches missed.">    if (url.endsWith(GIT_SUFFIX)) {</span>
+<span class="nc" id="L191">      url = url.substring(0, url.length() - GIT_SUFFIX.length());</span>
+    }
+    // Remove trailing slashes
+<span class="pc bpc" id="L194" title="1 of 2 branches missed.">    while (url.endsWith(&quot;/&quot;)) {</span>
+<span class="nc" id="L195">      url = url.substring(0, url.length() - 1);</span>
+    }
+<span class="fc" id="L197">    return url;</span>
+  }
+
+  /**
+   * Information extracted from a parsed Git repository URL.
+   * 
+   * @param organization The organization, workspace, group, or namespace name
+   * @param repository The repository name
+   * @param project The project name (used by Azure DevOps, null for other platforms)
+   */
+<span class="fc" id="L207">  public record RepositoryInfo(String organization, String repository, @Nullable String project) {</span>
+
+    RepositoryInfo(String organization, String repository) {
+<span class="fc" id="L210">      this(organization, repository, null);</span>
+<span class="fc" id="L211">    }</span>
+
+    public String slug() {
+<span class="fc" id="L214">      return organization + &quot;/&quot; + repository;</span>
+    }
+
+    public String projectName() {
+<span class="fc" id="L218">      return StringUtils.defaultString(project);</span>
+    }
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

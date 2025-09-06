@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ProjectKeyGenerator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.common.almintegration</a> &gt; <span class="el_source">ProjectKeyGenerator.java</span></div><h1>ProjectKeyGenerator.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.common.almintegration;
+
+import com.google.common.annotations.VisibleForTesting;
+import java.util.List;
+import org.apache.commons.lang3.StringUtils;
+import org.sonar.core.util.UuidFactory;
+
+import static com.google.common.collect.Lists.asList;
+import static org.sonar.core.component.ComponentKeys.sanitizeProjectKey;
+
+public class ProjectKeyGenerator {
+
+  @VisibleForTesting
+  static final int MAX_PROJECT_KEY_SIZE = 250;
+  @VisibleForTesting
+<span class="fc" id="L35">  static final Character PROJECT_KEY_SEPARATOR = '_';</span>
+
+  private final UuidFactory uuidFactory;
+
+<span class="fc" id="L39">  public ProjectKeyGenerator(UuidFactory uuidFactory) {</span>
+<span class="fc" id="L40">    this.uuidFactory = uuidFactory;</span>
+<span class="fc" id="L41">  }</span>
+
+  public String generateUniqueProjectKey(String projectName, String... extraProjectKeyItems) {
+<span class="fc" id="L44">    String sqProjectKey = generateCompleteProjectKey(projectName, extraProjectKeyItems);</span>
+<span class="fc" id="L45">    sqProjectKey = truncateProjectKeyIfNecessary(sqProjectKey);</span>
+<span class="fc" id="L46">    return sanitizeProjectKey(sqProjectKey);</span>
+  }
+
+  private String generateCompleteProjectKey(String projectName, String[] extraProjectKeyItems) {
+<span class="fc" id="L50">    List&lt;String&gt; projectKeyItems = asList(projectName, extraProjectKeyItems);</span>
+<span class="fc" id="L51">    String projectKey = StringUtils.join(projectKeyItems, PROJECT_KEY_SEPARATOR);</span>
+<span class="fc" id="L52">    String uuid = uuidFactory.create();</span>
+<span class="fc" id="L53">    return projectKey + PROJECT_KEY_SEPARATOR + uuid;</span>
+  }
+
+  private static String truncateProjectKeyIfNecessary(String sqProjectKey) {
+<span class="fc bfc" id="L57" title="All 2 branches covered.">    if (sqProjectKey.length() &gt; MAX_PROJECT_KEY_SIZE) {</span>
+<span class="fc" id="L58">      return sqProjectKey.substring(sqProjectKey.length() - MAX_PROJECT_KEY_SIZE);</span>
+    }
+<span class="fc" id="L60">    return sqProjectKey;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

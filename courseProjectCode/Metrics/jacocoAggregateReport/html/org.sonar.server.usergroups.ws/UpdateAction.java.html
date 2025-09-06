@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UpdateAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.usergroups.ws</a> &gt; <span class="el_source">UpdateAction.java</span></div><h1>UpdateAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.usergroups.ws;
+
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService.NewAction;
+import org.sonar.api.server.ws.WebService.NewController;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.user.GroupDto;
+import org.sonar.db.user.UserMembershipQuery;
+import org.sonar.server.common.group.service.GroupService;
+import org.sonar.server.common.management.ManagedInstanceChecker;
+import org.sonar.server.exceptions.NotFoundException;
+import org.sonar.server.user.UserSession;
+import org.sonarqube.ws.UserGroups;
+
+import static java.lang.String.format;
+import static org.sonar.api.user.UserGroupValidation.GROUP_NAME_MAX_LENGTH;
+import static org.sonar.core.util.Uuids.UUID_EXAMPLE_01;
+import static org.sonar.db.permission.GlobalPermission.ADMINISTER;
+import static org.sonar.server.usergroups.ws.GroupWsSupport.DESCRIPTION_MAX_LENGTH;
+import static org.sonar.server.usergroups.ws.GroupWsSupport.PARAM_GROUP_CURRENT_NAME;
+import static org.sonar.server.usergroups.ws.GroupWsSupport.PARAM_GROUP_DESCRIPTION;
+import static org.sonar.server.usergroups.ws.GroupWsSupport.PARAM_GROUP_NAME;
+import static org.sonar.server.usergroups.ws.GroupWsSupport.toProtobuf;
+import static org.sonar.server.ws.WsUtils.writeProtobuf;
+
+public class UpdateAction implements UserGroupsWsAction {
+
+  private final DbClient dbClient;
+  private final UserSession userSession;
+  private final GroupService groupService;
+
+  private final ManagedInstanceChecker managedInstanceChecker;
+
+<span class="fc" id="L56">  public UpdateAction(DbClient dbClient, UserSession userSession, GroupService groupService, ManagedInstanceChecker managedInstanceChecker) {</span>
+<span class="fc" id="L57">    this.dbClient = dbClient;</span>
+<span class="fc" id="L58">    this.userSession = userSession;</span>
+<span class="fc" id="L59">    this.groupService = groupService;</span>
+<span class="fc" id="L60">    this.managedInstanceChecker = managedInstanceChecker;</span>
+<span class="fc" id="L61">  }</span>
+
+  @Override
+  public void define(NewController context) {
+<span class="fc" id="L65">    NewAction action = context.createAction(&quot;update&quot;)</span>
+<span class="fc" id="L66">      .setDescription(&quot;Update a group.&lt;br&gt;&quot; +</span>
+        &quot;Requires the following permission: 'Administer System'.&quot;)
+<span class="fc" id="L68">      .setHandler(this)</span>
+<span class="fc" id="L69">      .setPost(true)</span>
+<span class="fc" id="L70">      .setResponseExample(getClass().getResource(&quot;update.example.json&quot;))</span>
+<span class="fc" id="L71">      .setSince(&quot;5.2&quot;)</span>
+<span class="fc" id="L72">      .setDeprecatedSince(&quot;10.4&quot;)</span>
+<span class="fc" id="L73">      .setChangelog(</span>
+        new Change(&quot;10.4&quot;, &quot;Deprecated. Use PATCH /api/v2/authorizations/groups instead&quot;),
+        new Change(&quot;10.0&quot;, &quot;Parameter 'id' is removed in favor of 'currentName'&quot;),
+        new Change(&quot;8.5&quot;, &quot;Parameter 'id' deprecated in favor of 'currentName'&quot;),
+        new Change(&quot;8.4&quot;, &quot;Parameter 'id' format changes from integer to string&quot;),
+        new Change(&quot;6.4&quot;, &quot;The default group is no longer editable&quot;));
+
+<span class="fc" id="L80">    action.createParam(PARAM_GROUP_CURRENT_NAME)</span>
+<span class="fc" id="L81">      .setDescription(&quot;Name of the group to be updated.&quot;)</span>
+<span class="fc" id="L82">      .setRequired(true)</span>
+<span class="fc" id="L83">      .setExampleValue(UUID_EXAMPLE_01)</span>
+<span class="fc" id="L84">      .setSince(&quot;8.5&quot;);</span>
+
+<span class="fc" id="L86">    action.createParam(PARAM_GROUP_NAME)</span>
+<span class="fc" id="L87">      .setMaximumLength(GROUP_NAME_MAX_LENGTH)</span>
+<span class="fc" id="L88">      .setDescription(format(&quot;New optional name for the group. A group name cannot be larger than %d characters and must be unique. &quot; +</span>
+<span class="fc" id="L89">        &quot;Value 'anyone' (whatever the case) is reserved and cannot be used. If value is empty or not defined, then name is not changed.&quot;, GROUP_NAME_MAX_LENGTH))</span>
+<span class="fc" id="L90">      .setExampleValue(&quot;my-group&quot;);</span>
+
+<span class="fc" id="L92">    action.createParam(PARAM_GROUP_DESCRIPTION)</span>
+<span class="fc" id="L93">      .setMaximumLength(DESCRIPTION_MAX_LENGTH)</span>
+<span class="fc" id="L94">      .setDescription(format(&quot;New optional description for the group. A group description cannot be larger than %d characters. &quot; +</span>
+<span class="fc" id="L95">        &quot;If value is not defined, then description is not changed.&quot;, DESCRIPTION_MAX_LENGTH))</span>
+<span class="fc" id="L96">      .setExampleValue(&quot;Default group for new users&quot;);</span>
+<span class="fc" id="L97">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L101">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L102">      userSession.checkPermission(ADMINISTER);</span>
+<span class="fc" id="L103">      managedInstanceChecker.throwIfInstanceIsManaged();</span>
+<span class="fc" id="L104">      String currentName = request.mandatoryParam(PARAM_GROUP_CURRENT_NAME);</span>
+
+<span class="fc" id="L106">      GroupDto group = dbClient.groupDao().selectByName(dbSession, currentName)</span>
+<span class="fc" id="L107">        .orElseThrow(() -&gt; new NotFoundException(format(&quot;Could not find a user group with name '%s'.&quot;, currentName)));</span>
+
+<span class="fc" id="L109">      String newName = request.param(PARAM_GROUP_NAME);</span>
+<span class="fc" id="L110">      String description = request.param(PARAM_GROUP_DESCRIPTION);</span>
+
+<span class="fc" id="L112">      GroupDto updatedGroup = groupService.updateGroup(dbSession, group, newName, description).groupDto();</span>
+<span class="fc" id="L113">      dbSession.commit();</span>
+
+<span class="fc" id="L115">      writeResponse(dbSession, request, response, updatedGroup);</span>
+    }
+<span class="fc" id="L117">  }</span>
+
+  private void writeResponse(DbSession dbSession, Request request, Response response, GroupDto group) {
+<span class="fc" id="L120">    UserMembershipQuery query = UserMembershipQuery.builder()</span>
+<span class="fc" id="L121">      .groupUuid(group.getUuid())</span>
+<span class="fc" id="L122">      .membership(UserMembershipQuery.IN)</span>
+<span class="fc" id="L123">      .build();</span>
+<span class="fc" id="L124">    int membersCount = dbClient.groupMembershipDao().countMembers(dbSession, query);</span>
+
+<span class="fc" id="L126">    UserGroups.UpdateWsResponse.Builder respBuilder = UserGroups.UpdateWsResponse.newBuilder();</span>
+    // 'default' is always false as it's not possible to update a default group
+<span class="fc" id="L128">    respBuilder.setGroup(toProtobuf(group, membersCount, false));</span>
+<span class="fc" id="L129">    writeProtobuf(respBuilder.build(), request, response);</span>
+<span class="fc" id="L130">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RepositoriesAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.rule.ws</a> &gt; <span class="el_source">RepositoriesAction.java</span></div><h1>RepositoriesAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.rule.ws;
+
+import com.google.common.io.Resources;
+import java.util.Collection;
+import javax.annotation.Nullable;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.api.server.ws.WebService.NewAction;
+import org.sonar.api.server.ws.WebService.Param;
+import org.sonar.api.utils.text.JsonWriter;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.rule.RuleRepositoryDto;
+
+
+/**
+ * @since 5.1
+ */
+public class RepositoriesAction implements RulesWsAction {
+
+  private static final String LANGUAGE = &quot;language&quot;;
+
+  private final DbClient dbClient;
+
+<span class="fc" id="L45">  public RepositoriesAction(DbClient dbClient) {</span>
+<span class="fc" id="L46">    this.dbClient = dbClient;</span>
+<span class="fc" id="L47">  }</span>
+
+  @Override
+  public void define(WebService.NewController controller) {
+<span class="fc" id="L51">    NewAction action = controller.createAction(&quot;repositories&quot;)</span>
+<span class="fc" id="L52">      .setDescription(&quot;List available rule repositories&quot;)</span>
+<span class="fc" id="L53">      .setSince(&quot;4.5&quot;)</span>
+<span class="fc" id="L54">      .setHandler(this)</span>
+<span class="fc" id="L55">      .setResponseExample(Resources.getResource(getClass(), &quot;repositories-example.json&quot;));</span>
+
+<span class="fc" id="L57">    action.createParam(Param.TEXT_QUERY)</span>
+<span class="fc" id="L58">      .setDescription(&quot;A pattern to match repository keys/names against&quot;)</span>
+<span class="fc" id="L59">      .setExampleValue(&quot;java&quot;);</span>
+<span class="fc" id="L60">    action.createParam(LANGUAGE)</span>
+<span class="fc" id="L61">      .setDescription(&quot;A language key; if provided, only repositories for the given language will be returned&quot;)</span>
+<span class="fc" id="L62">      .setExampleValue(&quot;java&quot;);</span>
+<span class="fc" id="L63">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L67">    String query = request.param(Param.TEXT_QUERY);</span>
+<span class="fc" id="L68">    String languageKey = request.param(LANGUAGE);</span>
+
+<span class="fc" id="L70">    try (JsonWriter json = response.newJsonWriter()) {</span>
+<span class="fc" id="L71">      json.beginObject().name(&quot;repositories&quot;).beginArray();</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">      for (RuleRepositoryDto repo : listMatchingRepositories(query, languageKey)) {</span>
+<span class="fc" id="L73">        json</span>
+<span class="fc" id="L74">          .beginObject()</span>
+<span class="fc" id="L75">          .prop(&quot;key&quot;, repo.getKey())</span>
+<span class="fc" id="L76">          .prop(&quot;name&quot;, repo.getName())</span>
+<span class="fc" id="L77">          .prop(LANGUAGE, repo.getLanguage())</span>
+<span class="fc" id="L78">          .endObject();</span>
+<span class="fc" id="L79">      }</span>
+<span class="fc" id="L80">      json.endArray().endObject();</span>
+    }
+<span class="fc" id="L82">  }</span>
+
+  private Collection&lt;RuleRepositoryDto&gt; listMatchingRepositories(@Nullable String query, @Nullable String languageKey) {
+<span class="fc" id="L85">    return selectFromDb(languageKey,  query);</span>
+  }
+
+  private Collection&lt;RuleRepositoryDto&gt; selectFromDb(@Nullable String language, @Nullable  String query) {
+<span class="fc" id="L89">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L90">      return dbClient.ruleRepositoryDao().selectByQueryAndLanguage(dbSession, query, language);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

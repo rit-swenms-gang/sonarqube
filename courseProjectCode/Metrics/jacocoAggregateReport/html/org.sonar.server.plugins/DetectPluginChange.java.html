@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DetectPluginChange.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.plugins</a> &gt; <span class="el_source">DetectPluginChange.java</span></div><h1>DetectPluginChange.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.plugins;
+
+import java.util.Map;
+import java.util.stream.Collectors;
+import org.sonar.api.Startable;
+import org.sonar.api.utils.Preconditions;
+import org.sonar.api.utils.log.Logger;
+import org.sonar.api.utils.log.Loggers;
+import org.sonar.api.utils.log.Profiler;
+import org.sonar.core.plugin.PluginType;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.plugin.PluginDto;
+
+import static java.util.function.Function.identity;
+
+public class DetectPluginChange implements Startable {
+  public static final String FORCE_PLUGIN_RELOAD_PROPERTY = &quot;plugin.refresh.forced&quot;;
+<span class="fc" id="L38">  private static final Logger LOG = Loggers.get(DetectPluginChange.class);</span>
+
+  private final ServerPluginRepository serverPluginRepository;
+  private final DbClient dbClient;
+<span class="fc" id="L42">  private Boolean changesDetected = null;</span>
+
+<span class="fc" id="L44">  public DetectPluginChange(ServerPluginRepository serverPluginRepository, DbClient dbClient) {</span>
+<span class="fc" id="L45">    this.serverPluginRepository = serverPluginRepository;</span>
+<span class="fc" id="L46">    this.dbClient = dbClient;</span>
+<span class="fc" id="L47">  }</span>
+
+  @Override
+  public void start() {
+<span class="fc bfc" id="L51" title="All 2 branches covered.">    Preconditions.checkState(changesDetected == null, &quot;Can only call #start() once&quot;);</span>
+<span class="fc" id="L52">    Profiler profiler = Profiler.create(LOG).startInfo(&quot;Detect plugin changes&quot;);</span>
+<span class="fc bfc" id="L53" title="All 4 branches covered.">    changesDetected = isForcedReload() || anyChange();</span>
+<span class="fc bfc" id="L54" title="All 2 branches covered.">    if (changesDetected) {</span>
+<span class="fc" id="L55">      LOG.debug(&quot;Plugin changes detected&quot;);</span>
+    } else {
+<span class="fc" id="L57">      LOG.info(&quot;No plugin change detected&quot;);</span>
+    }
+<span class="fc" id="L59">    profiler.stopDebug();</span>
+<span class="fc" id="L60">  }</span>
+
+  /**
+   * @throws NullPointerException if {@link #start} hasn't been called
+   */
+  public boolean anyPluginChanged() {
+<span class="fc" id="L66">    return changesDetected;</span>
+  }
+
+  private boolean isForcedReload() {
+<span class="fc" id="L70">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L71">      boolean forceRefresh = Boolean.parseBoolean(dbClient.internalPropertiesDao().selectByKey(dbSession, FORCE_PLUGIN_RELOAD_PROPERTY).orElse(&quot;false&quot;));</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">      if (forceRefresh) {</span>
+<span class="fc" id="L73">        dbClient.internalPropertiesDao().delete(dbSession, FORCE_PLUGIN_RELOAD_PROPERTY);</span>
+<span class="fc" id="L74">        dbSession.commit();</span>
+      }
+<span class="fc" id="L76">      return forceRefresh;</span>
+    }
+  }
+
+  private boolean anyChange() {
+<span class="fc" id="L81">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L82">      Map&lt;String, PluginDto&gt; dbPluginsByKey = dbClient.pluginDao().selectAll(dbSession).stream()</span>
+<span class="fc bfc" id="L83" title="All 2 branches covered.">        .filter(p -&gt; !p.isRemoved())</span>
+<span class="fc" id="L84">        .collect(Collectors.toMap(PluginDto::getKee, identity()));</span>
+<span class="fc" id="L85">      Map&lt;String, ServerPlugin&gt; filePluginsByKey = serverPluginRepository.getPlugins().stream()</span>
+<span class="fc" id="L86">        .collect(Collectors.toMap(p -&gt; p.getPluginInfo().getKey(), p -&gt; p));</span>
+
+<span class="fc bfc" id="L88" title="All 2 branches covered.">      if (!dbPluginsByKey.keySet().equals(filePluginsByKey.keySet())) {</span>
+<span class="fc" id="L89">        return true;</span>
+      }
+
+<span class="fc bfc" id="L92" title="All 2 branches covered.">      for (ServerPlugin installed : filePluginsByKey.values()) {</span>
+<span class="fc" id="L93">        PluginDto dbPlugin = dbPluginsByKey.get(installed.getPluginInfo().getKey());</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">        if (changed(dbPlugin, installed)) {</span>
+<span class="fc" id="L95">          return true;</span>
+        }
+<span class="fc" id="L97">      }</span>
+<span class="pc bpc" id="L98" title="2 of 4 branches missed.">    }</span>
+<span class="fc" id="L99">    return false;</span>
+  }
+
+  private static boolean changed(PluginDto dbPlugin, ServerPlugin filePlugin) {
+<span class="fc bfc" id="L103" title="All 4 branches covered.">    return !dbPlugin.getFileHash().equals(filePlugin.getJar().getMd5()) || !dbPlugin.getType().equals(toTypeDto(filePlugin.getType()));</span>
+  }
+
+  static PluginDto.Type toTypeDto(PluginType type) {
+<span class="pc bpc" id="L107" title="1 of 3 branches missed.">    switch (type) {</span>
+      case EXTERNAL:
+<span class="fc" id="L109">        return PluginDto.Type.EXTERNAL;</span>
+      case BUNDLED:
+<span class="fc" id="L111">        return PluginDto.Type.BUNDLED;</span>
+      default:
+<span class="nc" id="L113">        throw new IllegalStateException(&quot;Unknown type: &quot; + type);</span>
+    }
+  }
+
+  @Override
+  public void stop() {
+    // Nothing to do
+<span class="nc" id="L120">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,292 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ClusterSettings.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.application.config</a> &gt; <span class="el_source">ClusterSettings.java</span></div><h1>ClusterSettings.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.application.config;
+
+import com.google.common.net.HostAndPort;
+import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import javax.annotation.Nullable;
+import org.sonar.process.MessageException;
+import org.sonar.process.NetworkUtils;
+import org.sonar.process.ProcessId;
+import org.sonar.process.ProcessProperties.Property;
+import org.sonar.process.Props;
+import org.sonar.process.cluster.NodeType;
+
+import static java.lang.String.format;
+import static java.util.Arrays.asList;
+import static java.util.Arrays.stream;
+import static java.util.Collections.singleton;
+import static java.util.Collections.singletonList;
+import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toSet;
+import static org.sonar.process.ProcessProperties.Property.AUTH_JWT_SECRET;
+import static org.sonar.process.ProcessProperties.Property.CLUSTER_ENABLED;
+import static org.sonar.process.ProcessProperties.Property.CLUSTER_ES_HOSTS;
+import static org.sonar.process.ProcessProperties.Property.CLUSTER_HZ_HOSTS;
+import static org.sonar.process.ProcessProperties.Property.CLUSTER_NODE_ES_HOST;
+import static org.sonar.process.ProcessProperties.Property.CLUSTER_NODE_HOST;
+import static org.sonar.process.ProcessProperties.Property.CLUSTER_NODE_SEARCH_HOST;
+import static org.sonar.process.ProcessProperties.Property.CLUSTER_NODE_TYPE;
+import static org.sonar.process.ProcessProperties.Property.CLUSTER_SEARCH_HOSTS;
+import static org.sonar.process.ProcessProperties.Property.CLUSTER_WEB_STARTUP_LEADER;
+import static org.sonar.process.ProcessProperties.Property.JDBC_URL;
+import static org.sonar.process.ProcessProperties.Property.SEARCH_HOST;
+import static org.sonar.process.ProcessProperties.Property.SEARCH_PORT;
+
+public class ClusterSettings implements Consumer&lt;Props&gt; {
+<span class="fc" id="L60">  private static final Set&lt;Property&gt; FORBIDDEN_SEARCH_NODE_SETTINGS = EnumSet.of(SEARCH_HOST, SEARCH_PORT);</span>
+
+  private final NetworkUtils network;
+
+<span class="fc" id="L64">  public ClusterSettings(NetworkUtils network) {</span>
+<span class="fc" id="L65">    this.network = network;</span>
+<span class="fc" id="L66">  }</span>
+
+  @Override
+  public void accept(Props props) {
+<span class="fc bfc" id="L70" title="All 2 branches covered.">    if (isClusterEnabled(props)) {</span>
+<span class="fc" id="L71">      checkClusterProperties(props);</span>
+    }
+<span class="fc" id="L73">  }</span>
+
+  private void checkClusterProperties(Props props) {
+    // for internal use
+<span class="fc bfc" id="L77" title="All 2 branches covered.">    if (props.value(CLUSTER_WEB_STARTUP_LEADER.getKey()) != null) {</span>
+<span class="fc" id="L78">      throw new MessageException(format(&quot;Property [%s] is forbidden&quot;, CLUSTER_WEB_STARTUP_LEADER.getKey()));</span>
+    }
+
+<span class="fc" id="L81">    NodeType nodeType = toNodeType(props);</span>
+<span class="pc bpc" id="L82" title="1 of 3 branches missed.">    switch (nodeType) {</span>
+      case APPLICATION:
+<span class="fc" id="L84">        checkForApplicationNode(props);</span>
+<span class="fc" id="L85">        break;</span>
+      case SEARCH:
+<span class="fc" id="L87">        checkForSearchNode(props);</span>
+<span class="fc" id="L88">        break;</span>
+      default:
+<span class="nc" id="L90">        throw new UnsupportedOperationException(&quot;Unknown value: &quot; + nodeType);</span>
+    }
+<span class="fc" id="L92">  }</span>
+
+  private void checkForApplicationNode(Props props) {
+<span class="fc" id="L95">    ensureNotH2(props);</span>
+<span class="fc" id="L96">    requireValue(props, AUTH_JWT_SECRET);</span>
+<span class="fc" id="L97">    Set&lt;AddressAndPort&gt; hzNodes = parseAndCheckHosts(CLUSTER_HZ_HOSTS, requireValue(props, CLUSTER_HZ_HOSTS));</span>
+<span class="fc" id="L98">    ensureNotLoopbackAddresses(CLUSTER_HZ_HOSTS, hzNodes);</span>
+<span class="fc" id="L99">    checkClusterNodeHost(props);</span>
+<span class="fc" id="L100">    checkClusterSearchHosts(props);</span>
+<span class="fc" id="L101">  }</span>
+
+  private void checkForSearchNode(Props props) {
+<span class="fc" id="L104">    ensureNoSearchNodeForbiddenSettings(props);</span>
+<span class="fc" id="L105">    AddressAndPort searchHost = parseAndCheckHost(CLUSTER_NODE_SEARCH_HOST, requireValue(props, CLUSTER_NODE_SEARCH_HOST));</span>
+<span class="fc" id="L106">    ensureLocalButNotLoopbackAddress(CLUSTER_NODE_SEARCH_HOST, searchHost);</span>
+<span class="fc" id="L107">    AddressAndPort esHost = parseAndCheckHost(CLUSTER_NODE_ES_HOST, requireValue(props, CLUSTER_NODE_ES_HOST));</span>
+<span class="fc" id="L108">    ensureLocalButNotLoopbackAddress(CLUSTER_NODE_ES_HOST, esHost);</span>
+<span class="fc" id="L109">    checkClusterEsHosts(props);</span>
+<span class="fc" id="L110">  }</span>
+
+  private void checkClusterNodeHost(Props props) {
+<span class="fc" id="L113">    AddressAndPort clusterNodeHost = parseAndCheckHost(CLUSTER_NODE_HOST, requireValue(props, CLUSTER_NODE_HOST));</span>
+<span class="fc" id="L114">    ensureLocalButNotLoopbackAddress(CLUSTER_NODE_HOST, clusterNodeHost);</span>
+<span class="fc" id="L115">  }</span>
+
+  private void checkClusterSearchHosts(Props props) {
+<span class="fc" id="L118">    Set&lt;AddressAndPort&gt; searchHosts = parseAndCheckHosts(CLUSTER_SEARCH_HOSTS, requireValue(props, CLUSTER_SEARCH_HOSTS));</span>
+<span class="fc" id="L119">    ensureNotLoopbackAddresses(CLUSTER_SEARCH_HOSTS, searchHosts);</span>
+<span class="fc" id="L120">  }</span>
+
+  private void checkClusterEsHosts(Props props) {
+<span class="fc" id="L123">    Set&lt;AddressAndPort&gt; esHosts = parseHosts(requireValue(props, CLUSTER_ES_HOSTS));</span>
+<span class="fc" id="L124">    ensureNotLoopbackAddresses(CLUSTER_ES_HOSTS, esHosts);</span>
+<span class="fc" id="L125">    ensureEitherPortsAreProvidedOrOnlyHosts(CLUSTER_ES_HOSTS, esHosts);</span>
+<span class="fc" id="L126">  }</span>
+
+  private static Set&lt;AddressAndPort&gt; parseHosts(String value) {
+<span class="fc" id="L129">    return stream(value.split(&quot;,&quot;))</span>
+<span class="fc" id="L130">      .filter(Objects::nonNull)</span>
+<span class="fc" id="L131">      .map(String::trim)</span>
+<span class="fc" id="L132">      .map(ClusterSettings::parseHost)</span>
+<span class="fc" id="L133">      .collect(toSet());</span>
+  }
+
+  private Set&lt;AddressAndPort&gt; parseAndCheckHosts(Property property, String value) {
+<span class="fc" id="L137">    Set&lt;AddressAndPort&gt; res = parseHosts(value);</span>
+<span class="fc" id="L138">    checkValidHosts(property, res);</span>
+<span class="fc" id="L139">    return res;</span>
+  }
+
+  private void checkValidHosts(Property property, Set&lt;AddressAndPort&gt; addressAndPorts) {
+<span class="fc" id="L143">    List&lt;String&gt; invalidHosts = addressAndPorts.stream()</span>
+<span class="fc" id="L144">      .map(AddressAndPort::getHost)</span>
+<span class="fc bfc" id="L145" title="All 2 branches covered.">      .filter(t -&gt; !network.toInetAddress(t).isPresent())</span>
+<span class="fc" id="L146">      .sorted()</span>
+<span class="fc" id="L147">      .toList();</span>
+<span class="fc bfc" id="L148" title="All 2 branches covered.">    if (!invalidHosts.isEmpty()) {</span>
+<span class="fc" id="L149">      throw new MessageException(format(&quot;Address in property %s is not a valid address: %s&quot;,</span>
+<span class="fc" id="L150">        property.getKey(), String.join(&quot;, &quot;, invalidHosts)));</span>
+    }
+<span class="fc" id="L152">  }</span>
+
+  private static AddressAndPort parseHost(String value) {
+<span class="fc" id="L155">    HostAndPort hostAndPort = HostAndPort.fromString(value);</span>
+<span class="fc bfc" id="L156" title="All 2 branches covered.">    return new AddressAndPort(hostAndPort.getHost(), hostAndPort.hasPort() ? hostAndPort.getPort() : null);</span>
+  }
+
+  private AddressAndPort parseAndCheckHost(Property property, String value) {
+<span class="fc" id="L160">    AddressAndPort addressAndPort = parseHost(value);</span>
+<span class="fc" id="L161">    checkValidHosts(property, singleton(addressAndPort));</span>
+<span class="fc" id="L162">    return addressAndPort;</span>
+  }
+
+  public static NodeType toNodeType(Props props) {
+<span class="fc" id="L166">    String nodeTypeValue = requireValue(props, CLUSTER_NODE_TYPE);</span>
+<span class="fc bfc" id="L167" title="All 2 branches covered.">    if (!NodeType.isValid(nodeTypeValue)) {</span>
+<span class="fc" id="L168">      throw new MessageException(format(&quot;Invalid value for property %s: [%s], only [%s] are allowed&quot;, CLUSTER_NODE_TYPE.getKey(), nodeTypeValue,</span>
+<span class="fc" id="L169">        Arrays.stream(NodeType.values()).map(NodeType::getValue).collect(joining(&quot;, &quot;))));</span>
+    }
+<span class="fc" id="L171">    return NodeType.parse(nodeTypeValue);</span>
+  }
+
+  private static String requireValue(Props props, Property property) {
+<span class="fc" id="L175">    String key = property.getKey();</span>
+<span class="fc" id="L176">    String value = props.value(key);</span>
+<span class="fc bfc" id="L177" title="All 2 branches covered.">    String trimmedValue = value == null ? null : value.trim();</span>
+<span class="fc bfc" id="L178" title="All 4 branches covered.">    if (trimmedValue == null || trimmedValue.isEmpty()) {</span>
+<span class="fc" id="L179">      throw new MessageException(format(&quot;Property %s is mandatory&quot;, key));</span>
+    }
+<span class="fc" id="L181">    return trimmedValue;</span>
+  }
+
+  private static void ensureNoSearchNodeForbiddenSettings(Props props) {
+<span class="fc" id="L185">    List&lt;String&gt; violations = FORBIDDEN_SEARCH_NODE_SETTINGS.stream()</span>
+<span class="fc bfc" id="L186" title="All 2 branches covered.">      .filter(setting -&gt; props.value(setting.getKey()) != null)</span>
+<span class="fc" id="L187">      .map(Property::getKey)</span>
+<span class="fc" id="L188">      .toList();</span>
+
+<span class="fc bfc" id="L190" title="All 2 branches covered.">    if (!violations.isEmpty()) {</span>
+<span class="fc" id="L191">      throw new MessageException(format(&quot;Properties [%s] are not allowed when running SonarQube in cluster mode.&quot;, String.join(&quot;, &quot;, violations)));</span>
+    }
+<span class="fc" id="L193">  }</span>
+
+  private static void ensureNotH2(Props props) {
+<span class="fc" id="L196">    String jdbcUrl = props.value(JDBC_URL.getKey());</span>
+<span class="fc bfc" id="L197" title="All 2 branches covered.">    String trimmedJdbcUrl = jdbcUrl == null ? null : jdbcUrl.trim();</span>
+<span class="pc bpc" id="L198" title="1 of 6 branches missed.">    if (trimmedJdbcUrl == null || trimmedJdbcUrl.isEmpty() || trimmedJdbcUrl.startsWith(&quot;jdbc:h2:&quot;)) {</span>
+<span class="fc" id="L199">      throw new MessageException(&quot;Embedded database is not supported in cluster mode&quot;);</span>
+    }
+<span class="fc" id="L201">  }</span>
+
+  private void ensureNotLoopbackAddresses(Property property, Set&lt;AddressAndPort&gt; hostAndPorts) {
+<span class="fc" id="L204">    Set&lt;AddressAndPort&gt; loopbackAddresses = hostAndPorts.stream()</span>
+<span class="fc" id="L205">      .filter(t -&gt; network.isLoopback(t.getHost()))</span>
+<span class="fc" id="L206">      .collect(toSet());</span>
+<span class="fc bfc" id="L207" title="All 2 branches covered.">    if (!loopbackAddresses.isEmpty()) {</span>
+<span class="fc" id="L208">      throw new MessageException(format(&quot;Property %s must not contain a loopback address: %s&quot;, property.getKey(),</span>
+<span class="fc" id="L209">        loopbackAddresses.stream().map(AddressAndPort::getHost).sorted().collect(Collectors.joining(&quot;, &quot;))));</span>
+    }
+<span class="fc" id="L211">  }</span>
+
+  private void ensureLocalButNotLoopbackAddress(Property property, AddressAndPort addressAndPort) {
+<span class="fc" id="L214">    String host = addressAndPort.getHost();</span>
+<span class="fc bfc" id="L215" title="All 4 branches covered.">    if (!network.isLocal(host) || network.isLoopback(host)) {</span>
+<span class="fc" id="L216">      throw new MessageException(format(&quot;Property %s must be a local non-loopback address: %s&quot;, property.getKey(), addressAndPort.getHost()));</span>
+    }
+<span class="fc" id="L218">  }</span>
+
+  private static void ensureEitherPortsAreProvidedOrOnlyHosts(Property property, Set&lt;AddressAndPort&gt; addressAndPorts) {
+<span class="fc" id="L221">    Set&lt;AddressAndPort&gt; hostsWithoutPort = addressAndPorts.stream()</span>
+<span class="fc bfc" id="L222" title="All 2 branches covered.">      .filter(t -&gt; !t.hasPort())</span>
+<span class="fc" id="L223">      .collect(toSet());</span>
+<span class="fc bfc" id="L224" title="All 4 branches covered.">    if (!hostsWithoutPort.isEmpty() &amp;&amp; hostsWithoutPort.size() != addressAndPorts.size()) {</span>
+<span class="fc" id="L225">      throw new MessageException(format(&quot;Entries in property %s must not mix 'host:port' and 'host'. Provide hosts without port only or hosts with port only.&quot;, property.getKey()));</span>
+    }
+<span class="fc" id="L227">  }</span>
+
+  private static class AddressAndPort {
+    private static final int NO_PORT = -1;
+
+    /**
+     * the host from setting, can be a hostname or an IP address
+     */
+    private final String host;
+    private final int port;
+
+<span class="fc" id="L238">    private AddressAndPort(String host, @Nullable Integer port) {</span>
+<span class="fc" id="L239">      this.host = host;</span>
+<span class="fc bfc" id="L240" title="All 2 branches covered.">      this.port = port == null ? NO_PORT : port;</span>
+<span class="fc" id="L241">    }</span>
+
+    public String getHost() {
+<span class="fc" id="L244">      return host;</span>
+    }
+
+    public boolean hasPort() {
+<span class="fc bfc" id="L248" title="All 2 branches covered.">      return port != NO_PORT;</span>
+    }
+  }
+
+  public static boolean isClusterEnabled(AppSettings settings) {
+<span class="fc" id="L253">    return isClusterEnabled(settings.getProps());</span>
+  }
+
+  private static boolean isClusterEnabled(Props props) {
+<span class="fc" id="L257">    return props.valueAsBoolean(CLUSTER_ENABLED.getKey());</span>
+  }
+
+  /**
+   * Hazelcast must be started when cluster is activated on all nodes but search ones
+   */
+  public static boolean shouldStartHazelcast(AppSettings appSettings) {
+<span class="fc bfc" id="L264" title="All 4 branches covered.">    return isClusterEnabled(appSettings.getProps()) &amp;&amp; toNodeType(appSettings.getProps()).equals(NodeType.APPLICATION);</span>
+  }
+
+  public static List&lt;ProcessId&gt; getEnabledProcesses(AppSettings settings) {
+<span class="fc bfc" id="L268" title="All 2 branches covered.">    if (!isClusterEnabled(settings)) {</span>
+<span class="fc" id="L269">      return asList(ProcessId.ELASTICSEARCH, ProcessId.WEB_SERVER, ProcessId.COMPUTE_ENGINE);</span>
+    }
+<span class="fc" id="L271">    NodeType nodeType = NodeType.parse(settings.getValue(CLUSTER_NODE_TYPE.getKey()).orElse(&quot;&quot;));</span>
+<span class="pc bpc" id="L272" title="1 of 3 branches missed.">    switch (nodeType) {</span>
+      case APPLICATION:
+<span class="fc" id="L274">        return asList(ProcessId.WEB_SERVER, ProcessId.COMPUTE_ENGINE);</span>
+      case SEARCH:
+<span class="fc" id="L276">        return singletonList(ProcessId.ELASTICSEARCH);</span>
+      default:
+<span class="nc" id="L278">        throw new IllegalArgumentException(&quot;Unexpected node type &quot; + nodeType);</span>
+    }
+  }
+
+  public static boolean isLocalElasticsearchEnabled(AppSettings settings) {
+    // elasticsearch is enabled on &quot;search&quot; nodes, but disabled on &quot;application&quot; nodes
+<span class="fc bfc" id="L284" title="All 2 branches covered.">    if (isClusterEnabled(settings.getProps())) {</span>
+<span class="fc bfc" id="L285" title="All 2 branches covered.">      return NodeType.parse(settings.getValue(CLUSTER_NODE_TYPE.getKey()).orElse(&quot;&quot;)) == NodeType.SEARCH;</span>
+    }
+
+    // elasticsearch is enabled in standalone mode
+<span class="fc" id="L289">    return true;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

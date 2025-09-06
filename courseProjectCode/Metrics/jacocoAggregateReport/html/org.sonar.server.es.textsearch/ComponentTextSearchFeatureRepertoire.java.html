@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ComponentTextSearchFeatureRepertoire.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.es.textsearch</a> &gt; <span class="el_source">ComponentTextSearchFeatureRepertoire.java</span></div><h1>ComponentTextSearchFeatureRepertoire.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.es.textsearch;
+
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Stream;
+import org.apache.commons.lang3.StringUtils;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.sonar.server.es.newindex.DefaultIndexSettings;
+import org.sonar.server.es.newindex.DefaultIndexSettingsElement;
+import org.sonar.server.es.textsearch.ComponentTextSearchQueryFactory.ComponentTextSearchQuery;
+
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
+import static org.sonar.server.es.newindex.DefaultIndexSettingsElement.SEARCH_GRAMS_ANALYZER;
+import static org.sonar.server.es.newindex.DefaultIndexSettingsElement.SEARCH_PREFIX_ANALYZER;
+import static org.sonar.server.es.newindex.DefaultIndexSettingsElement.SEARCH_PREFIX_CASE_INSENSITIVE_ANALYZER;
+import static org.sonar.server.es.newindex.DefaultIndexSettingsElement.SORTABLE_ANALYZER;
+import static org.sonar.server.es.textsearch.ComponentTextSearchFeature.UseCase.CHANGE_ORDER_OF_RESULTS;
+import static org.sonar.server.es.textsearch.ComponentTextSearchFeature.UseCase.GENERATE_RESULTS;
+
+<span class="fc" id="L45">public enum ComponentTextSearchFeatureRepertoire implements ComponentTextSearchFeature {</span>
+
+<span class="fc" id="L47">  EXACT_IGNORE_CASE(CHANGE_ORDER_OF_RESULTS) {</span>
+    @Override
+    public QueryBuilder getQuery(ComponentTextSearchQuery query) {
+<span class="fc" id="L50">      return matchQuery(SORTABLE_ANALYZER.subField(query.getFieldName()), query.getQueryText())</span>
+<span class="fc" id="L51">        .boost(2.5F);</span>
+    }
+  },
+<span class="fc" id="L54">  PREFIX(CHANGE_ORDER_OF_RESULTS) {</span>
+    @Override
+    public Stream&lt;QueryBuilder&gt; getQueries(ComponentTextSearchQuery query) {
+<span class="fc" id="L57">      List&lt;String&gt; tokens = query.getQueryTextTokens();</span>
+<span class="pc bpc" id="L58" title="1 of 2 branches missed.">      if (tokens.isEmpty()) {</span>
+<span class="nc" id="L59">        return Stream.empty();</span>
+      }
+<span class="fc" id="L61">      BoolQueryBuilder queryBuilder = prefixAndPartialQuery(tokens, query.getFieldName(), SEARCH_PREFIX_ANALYZER)</span>
+<span class="fc" id="L62">        .boost(3F);</span>
+<span class="fc" id="L63">      return Stream.of(queryBuilder);</span>
+    }
+  },
+<span class="fc" id="L66">  PREFIX_IGNORE_CASE(GENERATE_RESULTS) {</span>
+    @Override
+    public Stream&lt;QueryBuilder&gt; getQueries(ComponentTextSearchQuery query) {
+<span class="fc" id="L69">      List&lt;String&gt; tokens = query.getQueryTextTokens();</span>
+<span class="pc bpc" id="L70" title="1 of 2 branches missed.">      if (tokens.isEmpty()) {</span>
+<span class="nc" id="L71">        return Stream.empty();</span>
+      }
+<span class="fc" id="L73">      List&lt;String&gt; lowerCaseTokens = tokens.stream().map(t -&gt; t.toLowerCase(Locale.ENGLISH)).toList();</span>
+<span class="fc" id="L74">      BoolQueryBuilder queryBuilder = prefixAndPartialQuery(lowerCaseTokens, query.getFieldName(), SEARCH_PREFIX_CASE_INSENSITIVE_ANALYZER)</span>
+<span class="fc" id="L75">        .boost(2F);</span>
+<span class="fc" id="L76">      return Stream.of(queryBuilder);</span>
+    }
+  },
+<span class="fc" id="L79">  PARTIAL(GENERATE_RESULTS) {</span>
+    @Override
+    public Stream&lt;QueryBuilder&gt; getQueries(ComponentTextSearchQuery query) {
+<span class="fc" id="L82">      List&lt;String&gt; tokens = query.getQueryTextTokens();</span>
+<span class="pc bpc" id="L83" title="1 of 2 branches missed.">      if (tokens.isEmpty()) {</span>
+<span class="nc" id="L84">        return Stream.empty();</span>
+      }
+<span class="fc" id="L86">      BoolQueryBuilder queryBuilder = boolQuery().boost(0.5F);</span>
+<span class="fc" id="L87">      tokens.stream()</span>
+<span class="fc" id="L88">        .map(text -&gt; tokenQuery(text, query.getFieldName(), SEARCH_GRAMS_ANALYZER))</span>
+<span class="fc" id="L89">        .forEach(queryBuilder::must);</span>
+<span class="fc" id="L90">      return Stream.of(queryBuilder);</span>
+    }
+  },
+<span class="fc" id="L93">  KEY(GENERATE_RESULTS) {</span>
+    @Override
+    public QueryBuilder getQuery(ComponentTextSearchQuery query) {
+<span class="fc" id="L96">      return matchQuery(SORTABLE_ANALYZER.subField(query.getFieldKey()), query.getQueryText())</span>
+<span class="fc" id="L97">        .boost(50F);</span>
+    }
+  },
+<span class="fc" id="L100">  RECENTLY_BROWSED(CHANGE_ORDER_OF_RESULTS) {</span>
+    @Override
+    public Stream&lt;QueryBuilder&gt; getQueries(ComponentTextSearchQuery query) {
+<span class="fc" id="L103">      Set&lt;String&gt; recentlyBrowsedKeys = query.getRecentlyBrowsedKeys();</span>
+<span class="fc bfc" id="L104" title="All 2 branches covered.">      if (recentlyBrowsedKeys.isEmpty()) {</span>
+<span class="fc" id="L105">        return Stream.empty();</span>
+      }
+<span class="fc" id="L107">      return Stream.of(termsQuery(query.getFieldKey(), recentlyBrowsedKeys).boost(100F));</span>
+    }
+  },
+<span class="fc" id="L110">  FAVORITE(CHANGE_ORDER_OF_RESULTS) {</span>
+    @Override
+    public Stream&lt;QueryBuilder&gt; getQueries(ComponentTextSearchQuery query) {
+<span class="fc" id="L113">      Set&lt;String&gt; favoriteKeys = query.getFavoriteKeys();</span>
+<span class="fc bfc" id="L114" title="All 2 branches covered.">      if (favoriteKeys.isEmpty()) {</span>
+<span class="fc" id="L115">        return Stream.empty();</span>
+      }
+<span class="fc" id="L117">      return Stream.of(termsQuery(query.getFieldKey(), favoriteKeys).boost(1000F));</span>
+    }
+  };
+
+  private final UseCase useCase;
+
+<span class="fc" id="L123">  ComponentTextSearchFeatureRepertoire(UseCase useCase) {</span>
+<span class="fc" id="L124">    this.useCase = useCase;</span>
+<span class="fc" id="L125">  }</span>
+
+  @Override
+  public QueryBuilder getQuery(ComponentTextSearchQuery query) {
+<span class="nc" id="L129">    throw new UnsupportedOperationException();</span>
+  }
+
+  protected BoolQueryBuilder prefixAndPartialQuery(List&lt;String&gt; tokens, String originalFieldName, DefaultIndexSettingsElement analyzer) {
+<span class="fc" id="L133">    BoolQueryBuilder queryBuilder = boolQuery();</span>
+<span class="fc" id="L134">    AtomicBoolean first = new AtomicBoolean(true);</span>
+<span class="fc" id="L135">    tokens.stream()</span>
+<span class="fc" id="L136">      .map(queryTerm -&gt; {</span>
+
+<span class="fc bfc" id="L138" title="All 2 branches covered.">        if (first.getAndSet(false)) {</span>
+<span class="fc" id="L139">          return tokenQuery(queryTerm, originalFieldName, analyzer);</span>
+        }
+
+<span class="fc" id="L142">        return tokenQuery(queryTerm, originalFieldName, SEARCH_GRAMS_ANALYZER);</span>
+      })
+<span class="fc" id="L144">      .forEach(queryBuilder::must);</span>
+<span class="fc" id="L145">    return queryBuilder;</span>
+  }
+
+  protected MatchQueryBuilder tokenQuery(String queryTerm, String fieldName, DefaultIndexSettingsElement analyzer) {
+    // We will truncate the search to the maximum length of nGrams in the index.
+    // Otherwise the search would for sure not find any results.
+<span class="fc" id="L151">    String truncatedQuery = StringUtils.left(queryTerm, DefaultIndexSettings.MAXIMUM_NGRAM_LENGTH);</span>
+<span class="fc" id="L152">    return matchQuery(analyzer.subField(fieldName), truncatedQuery);</span>
+  }
+
+  @Override
+  public UseCase getUseCase() {
+<span class="fc" id="L157">    return useCase;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

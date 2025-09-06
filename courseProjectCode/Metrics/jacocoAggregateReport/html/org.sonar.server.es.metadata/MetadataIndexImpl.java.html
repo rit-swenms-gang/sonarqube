@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MetadataIndexImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.es.metadata</a> &gt; <span class="el_source">MetadataIndexImpl.java</span></div><h1>MetadataIndexImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.es.metadata;
+
+import java.util.Optional;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.document.DocumentField;
+import org.sonar.server.es.EsClient;
+import org.sonar.server.es.Index;
+import org.sonar.server.es.IndexType;
+import org.sonar.server.es.IndexType.IndexMainType;
+import org.sonar.server.es.IndexType.IndexRelationType;
+
+import static org.sonar.server.es.metadata.MetadataIndexDefinition.TYPE_METADATA;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.REFRESH_IMMEDIATE;
+
+public class MetadataIndexImpl implements MetadataIndex {
+
+  private static final String DB_VENDOR_KEY = &quot;dbVendor&quot;;
+
+  private final EsClient esClient;
+
+<span class="fc" id="L42">  public MetadataIndexImpl(EsClient esClient) {</span>
+<span class="fc" id="L43">    this.esClient = esClient;</span>
+<span class="fc" id="L44">  }</span>
+
+  @Override
+  public Optional&lt;String&gt; getHash(Index index) {
+<span class="fc" id="L48">    return getMetadata(hashId(index));</span>
+  }
+
+  @Override
+  public void setHash(Index index, String hash) {
+<span class="fc" id="L53">    setMetadata(hashId(index), hash);</span>
+<span class="fc" id="L54">  }</span>
+
+  private static String hashId(Index index) {
+<span class="fc" id="L57">    return index.getName() + &quot;.indexStructure&quot;;</span>
+  }
+
+  @Override
+  public boolean getInitialized(IndexType indexType) {
+<span class="fc" id="L62">    return getMetadata(initializedId(indexType)).map(Boolean::parseBoolean).orElse(false);</span>
+  }
+
+  @Override
+  public void setInitialized(IndexType indexType, boolean initialized) {
+<span class="fc" id="L67">    setMetadata(initializedId(indexType), String.valueOf(initialized));</span>
+<span class="fc" id="L68">  }</span>
+
+  private static String initializedId(IndexType indexType) {
+<span class="fc bfc" id="L71" title="All 2 branches covered.">    if (indexType instanceof IndexMainType mainType) {</span>
+<span class="fc" id="L72">      return mainType.getIndex().getName() + &quot;.&quot; + mainType.getType() + &quot;.initialized&quot;;</span>
+    }
+<span class="pc bpc" id="L74" title="1 of 2 branches missed.">    if (indexType instanceof IndexRelationType relationType) {</span>
+<span class="fc" id="L75">      IndexMainType mainType = relationType.getMainType();</span>
+<span class="fc" id="L76">      return mainType.getIndex().getName() + &quot;.&quot; + mainType.getType() + &quot;.&quot; + relationType.getName() + &quot;.initialized&quot;;</span>
+    }
+<span class="nc" id="L78">    throw new IllegalArgumentException(&quot;Unsupported IndexType &quot; + indexType.getClass());</span>
+  }
+
+  @Override
+  public Optional&lt;String&gt; getDbVendor() {
+<span class="fc" id="L83">    return getMetadata(DB_VENDOR_KEY);</span>
+  }
+
+  @Override
+  public void setDbMetadata(String vendor) {
+<span class="fc" id="L88">    setMetadata(DB_VENDOR_KEY, vendor);</span>
+<span class="fc" id="L89">  }</span>
+
+  private Optional&lt;String&gt; getMetadata(String id) {
+<span class="fc" id="L92">    GetResponse response = esClient.get(new GetRequest(TYPE_METADATA.getIndex().getName())</span>
+<span class="fc" id="L93">      .id(id)</span>
+<span class="fc" id="L94">      .storedFields(MetadataIndexDefinition.FIELD_VALUE));</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">    if (response.isExists()) {</span>
+<span class="fc" id="L96">      DocumentField field = response.getField(MetadataIndexDefinition.FIELD_VALUE);</span>
+<span class="fc" id="L97">      return Optional.of(field.getValue());</span>
+    }
+<span class="fc" id="L99">    return Optional.empty();</span>
+  }
+
+  private void setMetadata(String id, String value) {
+<span class="fc" id="L103">    esClient.index(new IndexRequest(TYPE_METADATA.getIndex().getName())</span>
+<span class="fc" id="L104">        .id(id)</span>
+<span class="fc" id="L105">      .source(MetadataIndexDefinition.FIELD_VALUE, value)</span>
+<span class="fc" id="L106">      .setRefreshPolicy(REFRESH_IMMEDIATE));</span>
+<span class="fc" id="L107">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

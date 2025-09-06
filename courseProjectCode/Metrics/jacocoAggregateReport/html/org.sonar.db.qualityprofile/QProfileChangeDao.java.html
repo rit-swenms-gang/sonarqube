@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>QProfileChangeDao.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.qualityprofile</a> &gt; <span class="el_source">QProfileChangeDao.java</span></div><h1>QProfileChangeDao.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.qualityprofile;
+
+import java.util.Collection;
+import java.util.List;
+import org.sonar.api.utils.System2;
+import org.sonar.core.util.UuidFactory;
+import org.sonar.db.Dao;
+import org.sonar.db.DatabaseUtils;
+import org.sonar.db.DbSession;
+
+import static com.google.common.base.Preconditions.checkState;
+
+public class QProfileChangeDao implements Dao {
+
+  private final System2 system2;
+  private final UuidFactory uuidFactory;
+
+<span class="fc" id="L37">  public QProfileChangeDao(System2 system2, UuidFactory uuidFactory) {</span>
+<span class="fc" id="L38">    this.system2 = system2;</span>
+<span class="fc" id="L39">    this.uuidFactory = uuidFactory;</span>
+<span class="fc" id="L40">  }</span>
+
+  public void bulkInsert(DbSession dbSession, Collection&lt;QProfileChangeDto&gt; profileChangeDtos) {
+<span class="fc" id="L43">    long now = system2.now();</span>
+<span class="fc" id="L44">    profileChangeDtos.forEach(dto -&gt; doInsertAtTime(dbSession, dto, now));</span>
+<span class="fc" id="L45">  }</span>
+
+  public void insert(DbSession dbSession, QProfileChangeDto dto) {
+<span class="fc" id="L48">    doInsertAtTime(dbSession, dto, system2.now());</span>
+<span class="fc" id="L49">  }</span>
+
+  private void doInsertAtTime(DbSession dbSession, QProfileChangeDto dto, long time) {
+<span class="fc bfc" id="L52" title="All 2 branches covered.">    checkState(dto.getCreatedAt() == 0L, &quot;Date of QProfileChangeDto must be set by DAO only. Got %s.&quot;, dto.getCreatedAt());</span>
+<span class="fc" id="L53">    dto.setCreatedAt(time);</span>
+<span class="fc" id="L54">    dto.setUuid(uuidFactory.create());</span>
+<span class="fc" id="L55">    mapper(dbSession).insert(dto);</span>
+<span class="fc" id="L56">  }</span>
+
+  public List&lt;QProfileChangeDto&gt; selectByQuery(DbSession dbSession, QProfileChangeQuery query) {
+<span class="fc" id="L59">    return mapper(dbSession).selectByQuery(query);</span>
+  }
+
+  /**
+   * Note: offset and limit of the query object will be ignored
+   */
+  public int countByQuery(DbSession dbSession, QProfileChangeQuery query) {
+<span class="fc" id="L66">    return mapper(dbSession).countByQuery(query);</span>
+  }
+
+  public void deleteByRulesProfileUuids(DbSession dbSession, Collection&lt;String&gt; ruleProfileUuids) {
+<span class="fc" id="L70">    QProfileChangeMapper mapper = mapper(dbSession);</span>
+<span class="fc" id="L71">    DatabaseUtils.executeLargeUpdates(ruleProfileUuids, mapper::deleteByRuleProfileUuids);</span>
+<span class="fc" id="L72">  }</span>
+
+  private static QProfileChangeMapper mapper(DbSession dbSession) {
+<span class="fc" id="L75">    return dbSession.getMapper(QProfileChangeMapper.class);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

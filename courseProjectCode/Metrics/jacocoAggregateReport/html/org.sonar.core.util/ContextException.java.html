@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContextException.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.core.util</a> &gt; <span class="el_source">ContextException.java</span></div><h1>ContextException.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.core.util;
+
+import com.google.common.base.Joiner;
+import com.google.common.collect.LinkedListMultimap;
+import com.google.common.collect.ListMultimap;
+import java.util.Iterator;
+import java.util.List;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import org.apache.commons.lang3.StringUtils;
+
+/**
+ * A runtime exception that provides contextual information as a list of key-value
+ * pairs. This information is added to the message and stack trace.
+ * &lt;p&gt;
+ * Example:
+ * &lt;pre&gt;
+ *   try {
+ *
+ *   } catch (Exception e) {
+ *     throw ContextException.of(&quot;Unable to assign issue&quot;, e)
+ *       .addContext(&quot;projectUuid&quot;, &quot;P1&quot;)
+ *       .addContext(&quot;issueUuid&quot;, &quot;I1&quot;)
+ *       .addContext(&quot;login&quot;, &quot;felix&quot;);
+ *   }
+ * &lt;/pre&gt;
+ * &lt;/p&gt;
+ * &lt;p&gt;
+ * Contexts of nested {@link ContextException}s are merged:
+ * &lt;pre&gt;
+ *   try {
+ *     throw ContextException.of(&quot;Something wrong&quot;).addContext(&quot;login&quot;, &quot;josette&quot;);
+ *   } catch (Exception e) {
+ *     throw ContextException.of(&quot;Unable to assign issue&quot;, e)
+ *       .addContext(&quot;issueUuid&quot;, &quot;I1&quot;)
+ *       .addContext(&quot;login&quot;, &quot;felix&quot;);
+ *   }
+ * &lt;/pre&gt;
+ * &lt;/p&gt;
+ * &lt;p&gt;
+ * The generated message, usually written to a log with stack trace, looks like:
+ * &lt;pre&gt;
+ *   Unable to assign issue | issueUuid=I1 | login=[josette,felix]
+ * &lt;/pre&gt;
+ * &lt;/p&gt;
+ */
+public class ContextException extends RuntimeException {
+
+<span class="fc" id="L69">  private static final Joiner COMMA_JOINER = Joiner.on(',');</span>
+
+  // LinkedListMultimap is used to keep order of keys and values
+<span class="fc" id="L72">  private final transient ListMultimap&lt;String, Object&gt; context = LinkedListMultimap.create();</span>
+
+  private ContextException(Throwable t) {
+<span class="fc" id="L75">    super(t);</span>
+<span class="fc" id="L76">  }</span>
+
+  private ContextException(String message, Throwable t) {
+<span class="fc" id="L79">    super(message, t);</span>
+<span class="fc" id="L80">  }</span>
+
+  private ContextException(String message) {
+<span class="fc" id="L83">    super(message);</span>
+<span class="fc" id="L84">  }</span>
+
+  private ContextException addContext(ContextException e) {
+<span class="fc" id="L87">    this.context.putAll(e.context);</span>
+<span class="fc" id="L88">    return this;</span>
+  }
+
+  public ContextException addContext(String key, @Nullable Object value) {
+<span class="fc" id="L92">    context.put(key, value);</span>
+<span class="fc" id="L93">    return this;</span>
+  }
+
+  public ContextException clearContext(String key) {
+<span class="fc" id="L97">    context.removeAll(key);</span>
+<span class="fc" id="L98">    return this;</span>
+  }
+
+  public ContextException setContext(String key, @Nullable Object value) {
+<span class="fc" id="L102">    clearContext(key);</span>
+<span class="fc" id="L103">    return addContext(key, value);</span>
+  }
+
+  /**
+   * Returns the values associated with {@code key}, if any, else returns an
+   * empty list.
+   */
+  public List&lt;Object&gt; getContext(String key) {
+<span class="fc" id="L111">    return context.get(key);</span>
+  }
+
+  public static ContextException of(Throwable t) {
+<span class="fc bfc" id="L115" title="All 2 branches covered.">    if (t instanceof ContextException contextException) {</span>
+<span class="fc" id="L116">      return new ContextException(t.getCause()).addContext(contextException);</span>
+    }
+<span class="fc" id="L118">    return new ContextException(t);</span>
+  }
+
+  public static ContextException of(String message, Throwable t) {
+<span class="fc bfc" id="L122" title="All 2 branches covered.">    if (t instanceof ContextException contextException) {</span>
+<span class="fc" id="L123">      return new ContextException(message, t.getCause()).addContext(contextException);</span>
+    }
+<span class="fc" id="L125">    return new ContextException(message, t);</span>
+  }
+
+  public static ContextException of(String message) {
+<span class="fc" id="L129">    return new ContextException(message);</span>
+  }
+
+  @Override
+  @Nonnull
+  public String getMessage() {
+<span class="fc" id="L135">    return format(super.getMessage());</span>
+  }
+
+  /**
+   * Provides the message explaining the exception without the contextual data.
+   */
+  @CheckForNull
+  public String getRawMessage() {
+<span class="fc" id="L143">    return super.getMessage();</span>
+  }
+
+  private String format(@Nullable String baseMessage) {
+<span class="fc" id="L147">    StringBuilder sb = new StringBuilder();</span>
+<span class="fc" id="L148">    Iterator&lt;String&gt; keyIt = context.keySet().iterator();</span>
+<span class="fc bfc" id="L149" title="All 2 branches covered.">    if (StringUtils.isNotBlank(baseMessage)) {</span>
+<span class="fc" id="L150">      sb.append(baseMessage);</span>
+<span class="fc bfc" id="L151" title="All 2 branches covered.">      if (keyIt.hasNext()) {</span>
+<span class="fc" id="L152">        sb.append(&quot; | &quot;);</span>
+      }
+    }
+<span class="fc bfc" id="L155" title="All 2 branches covered.">    while (keyIt.hasNext()) {</span>
+<span class="fc" id="L156">      String key = keyIt.next();</span>
+<span class="fc" id="L157">      sb.append(key).append(&quot;=&quot;);</span>
+<span class="fc" id="L158">      List&lt;Object&gt; values = getContext(key);</span>
+<span class="fc bfc" id="L159" title="All 2 branches covered.">      if (values.size() &gt; 1) {</span>
+<span class="fc" id="L160">        sb.append(&quot;[&quot;).append(COMMA_JOINER.join(values)).append(&quot;]&quot;);</span>
+<span class="pc bpc" id="L161" title="1 of 2 branches missed.">      } else if (values.size() == 1) {</span>
+<span class="fc" id="L162">        sb.append(values.get(0));</span>
+      }
+<span class="fc bfc" id="L164" title="All 2 branches covered.">      if (keyIt.hasNext()) {</span>
+<span class="fc" id="L165">        sb.append(&quot; | &quot;);</span>
+      }
+<span class="fc" id="L167">    }</span>
+<span class="fc" id="L168">    return sb.toString();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SamlConfiguration.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.auth.saml</a> &gt; <span class="el_source">SamlConfiguration.java</span></div><h1>SamlConfiguration.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.auth.saml;
+
+import java.util.Map;
+import java.util.function.Consumer;
+import org.opensaml.saml.saml2.assertion.SAML2AssertionValidationParameters;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.convert.converter.Converter;
+import org.springframework.security.saml2.core.Saml2ResponseValidatorResult;
+import org.springframework.security.saml2.provider.service.authentication.OpenSaml4AuthenticationProvider;
+
+@Configuration
+<span class="fc" id="L32">public class SamlConfiguration {</span>
+
+  @Bean
+  OpenSaml4AuthenticationProvider openSaml4AuthenticationProvider(SonarqubeSaml2ResponseValidator sonarqubeSaml2ResponseValidator){
+<span class="fc" id="L36">    OpenSaml4AuthenticationProvider openSaml4AuthenticationProvider = new OpenSaml4AuthenticationProvider();</span>
+<span class="fc" id="L37">    openSaml4AuthenticationProvider.setAssertionValidator(createIgnoringResponseToAssertionValidator(sonarqubeSaml2ResponseValidator));</span>
+<span class="fc" id="L38">    openSaml4AuthenticationProvider.setResponseValidator(sonarqubeSaml2ResponseValidator);</span>
+<span class="fc" id="L39">    return openSaml4AuthenticationProvider;</span>
+  }
+
+  private static Converter&lt;OpenSaml4AuthenticationProvider.AssertionToken, Saml2ResponseValidatorResult&gt; createIgnoringResponseToAssertionValidator(
+    Converter&lt;OpenSaml4AuthenticationProvider.ResponseToken, Saml2ResponseValidatorResult&gt; customResponseValidator) {
+<span class="fc" id="L44">    Consumer&lt;Map&lt;String, Object&gt;&gt; validationContextParameters = validationContextParameterConsumer(((SonarqubeSaml2ResponseValidator) customResponseValidator));</span>
+<span class="fc" id="L45">    return OpenSaml4AuthenticationProvider.createDefaultAssertionValidatorWithParameters(validationContextParameters);</span>
+  }
+
+  private static Consumer&lt;Map&lt;String, Object&gt;&gt; validationContextParameterConsumer(SonarqubeSaml2ResponseValidator saml2CustomResponseValidator) {
+<span class="fc" id="L49">    return params -&gt; {</span>
+<span class="fc" id="L50">      String dynamicValidInResponseToValue = saml2CustomResponseValidator.getValidInResponseToSupplier().get();</span>
+<span class="fc" id="L51">      params.put(SAML2AssertionValidationParameters.SC_VALID_IN_RESPONSE_TO, dynamicValidInResponseToValue);</span>
+<span class="fc" id="L52">    };</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BranchesWs.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.branch.ws</a> &gt; <span class="el_source">BranchesWs.java</span></div><h1>BranchesWs.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.branch.ws;
+
+import java.util.Arrays;
+import org.sonar.api.server.ws.WebService;
+
+import static org.sonar.server.ws.KeyExamples.KEY_PROJECT_EXAMPLE_001;
+import static org.sonar.server.branch.ws.ProjectBranchesParameters.CONTROLLER;
+import static org.sonar.server.branch.ws.ProjectBranchesParameters.PARAM_BRANCH;
+import static org.sonar.server.branch.ws.ProjectBranchesParameters.PARAM_PROJECT;
+
+public class BranchesWs implements WebService {
+  private final BranchWsAction[] actions;
+
+<span class="fc" id="L33">  public BranchesWs(BranchWsAction... actions) {</span>
+<span class="fc" id="L34">    this.actions = actions;</span>
+<span class="fc" id="L35">  }</span>
+
+  @Override
+  public void define(Context context) {
+<span class="fc" id="L39">    NewController controller = context.createController(CONTROLLER)</span>
+<span class="fc" id="L40">      .setSince(&quot;6.6&quot;)</span>
+<span class="fc" id="L41">      .setDescription(&quot;Manage branch&quot;);</span>
+<span class="fc" id="L42">    Arrays.stream(actions).forEach(action -&gt; action.define(controller));</span>
+<span class="fc" id="L43">    controller.done();</span>
+<span class="fc" id="L44">  }</span>
+
+  static void addProjectParam(NewAction action) {
+<span class="fc" id="L47">    action</span>
+<span class="fc" id="L48">      .createParam(PARAM_PROJECT)</span>
+<span class="fc" id="L49">      .setDescription(&quot;Project key&quot;)</span>
+<span class="fc" id="L50">      .setExampleValue(KEY_PROJECT_EXAMPLE_001)</span>
+<span class="fc" id="L51">      .setRequired(true);</span>
+<span class="fc" id="L52">  }</span>
+
+  static void addBranchParam(NewAction action) {
+<span class="fc" id="L55">    action</span>
+<span class="fc" id="L56">      .createParam(PARAM_BRANCH)</span>
+<span class="fc" id="L57">      .setDescription(&quot;Branch key&quot;)</span>
+<span class="fc" id="L58">      .setExampleValue(&quot;feature/my_branch&quot;)</span>
+<span class="fc" id="L59">      .setRequired(true);</span>
+<span class="fc" id="L60">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

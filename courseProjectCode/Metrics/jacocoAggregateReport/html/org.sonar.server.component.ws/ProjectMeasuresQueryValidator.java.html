@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ProjectMeasuresQueryValidator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.component.ws</a> &gt; <span class="el_source">ProjectMeasuresQueryValidator.java</span></div><h1>ProjectMeasuresQueryValidator.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.component.ws;
+
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.stream.Collectors;
+import javax.annotation.Nullable;
+import org.sonar.server.measure.index.ProjectMeasuresQuery;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.util.Arrays.asList;
+import static org.sonar.db.measure.ProjectMeasuresIndexerIterator.METRIC_KEYS;
+import static org.sonar.server.measure.index.ProjectMeasuresQuery.MetricCriterion;
+import static org.sonar.server.measure.index.ProjectMeasuresQuery.SORT_BY_CREATION_DATE;
+import static org.sonar.server.measure.index.ProjectMeasuresQuery.SORT_BY_LAST_ANALYSIS_DATE;
+import static org.sonar.server.measure.index.ProjectMeasuresQuery.SORT_BY_NAME;
+
+public class ProjectMeasuresQueryValidator {
+
+<span class="fc" id="L39">  static final Set&lt;String&gt; NON_METRIC_SORT_KEYS = new HashSet&lt;&gt;(asList(SORT_BY_NAME, SORT_BY_LAST_ANALYSIS_DATE, SORT_BY_CREATION_DATE));</span>
+
+  private ProjectMeasuresQueryValidator() {
+  }
+
+  public static void validate(ProjectMeasuresQuery query) {
+<span class="fc" id="L45">    validateFilterKeys(query.getMetricCriteria().stream().map(MetricCriterion::getMetricKey).collect(Collectors.toSet()));</span>
+<span class="fc" id="L46">    validateSort(query.getSort());</span>
+<span class="fc" id="L47">  }</span>
+
+  private static void validateFilterKeys(Set&lt;String&gt; metricsKeys) {
+<span class="fc" id="L50">    String invalidKeys = metricsKeys.stream()</span>
+<span class="fc bfc" id="L51" title="All 2 branches covered.">      .filter(metric -&gt; !METRIC_KEYS.contains(metric))</span>
+<span class="fc" id="L52">      .map(metric -&gt; '\''+metric+'\'')</span>
+<span class="fc" id="L53">      .collect(Collectors.joining(&quot;, &quot;));</span>
+<span class="fc" id="L54">    checkArgument(invalidKeys.isEmpty(), &quot;Following metrics are not supported: %s&quot;, invalidKeys);</span>
+<span class="fc" id="L55">  }</span>
+
+  private static void validateSort(@Nullable String sort) {
+<span class="pc bpc" id="L58" title="1 of 2 branches missed.">    if (sort == null) {</span>
+<span class="nc" id="L59">      return;</span>
+    }
+<span class="fc bfc" id="L61" title="All 2 branches covered.">    if (NON_METRIC_SORT_KEYS.contains(sort)) {</span>
+<span class="fc" id="L62">      return;</span>
+    }
+<span class="fc" id="L64">    validateFilterKeys(Collections.singleton(sort));</span>
+<span class="fc" id="L65">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

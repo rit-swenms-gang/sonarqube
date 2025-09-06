@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ReportSubmitter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.ce.queue</a> &gt; <span class="el_source">ReportSubmitter.java</span></div><h1>ReportSubmitter.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.ce.queue;
+
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import javax.annotation.Nullable;
+import org.sonar.db.component.ComponentQualifiers;
+import org.sonar.db.component.ComponentScopes;
+import org.sonar.api.server.ServerSide;
+import org.sonar.db.permission.ProjectPermission;
+import org.sonar.ce.queue.CeQueue;
+import org.sonar.ce.queue.CeTaskSubmit;
+import org.sonar.ce.task.CeTask;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.ce.CeTaskTypes;
+import org.sonar.db.component.BranchDto;
+import org.sonar.db.component.ComponentDto;
+import org.sonar.db.permission.GlobalPermission;
+import org.sonar.server.common.almsettings.DevOpsProjectCreator;
+import org.sonar.server.common.almsettings.DevOpsProjectCreatorFactory;
+import org.sonar.server.component.ComponentCreationData;
+import org.sonar.server.common.component.ComponentUpdater;
+import org.sonar.server.exceptions.BadRequestException;
+import org.sonar.server.management.ManagedInstanceService;
+import org.sonar.server.common.permission.PermissionTemplateService;
+import org.sonar.server.common.project.ProjectCreator;
+import org.sonar.server.user.UserSession;
+
+import static java.lang.String.format;
+import static org.apache.commons.lang3.StringUtils.defaultIfBlank;
+import static org.sonar.db.permission.GlobalPermission.SCAN;
+import static org.sonar.db.project.CreationMethod.SCANNER_API;
+import static org.sonar.db.project.CreationMethod.SCANNER_API_DEVOPS_AUTO_CONFIG;
+import static org.sonar.server.user.AbstractUserSession.insufficientPrivilegesException;
+
+@ServerSide
+public class ReportSubmitter {
+
+  private final CeQueue queue;
+  private final UserSession userSession;
+
+  private final ProjectCreator projectCreator;
+  private final ComponentUpdater componentUpdater;
+  private final PermissionTemplateService permissionTemplateService;
+  private final DbClient dbClient;
+  private final BranchSupport branchSupport;
+  private final DevOpsProjectCreatorFactory devOpsProjectCreatorFactory;
+  private final ManagedInstanceService managedInstanceService;
+
+  public ReportSubmitter(CeQueue queue, UserSession userSession, ProjectCreator projectCreator, ComponentUpdater componentUpdater,
+    PermissionTemplateService permissionTemplateService, DbClient dbClient, BranchSupport branchSupport,
+<span class="fc" id="L74">    DevOpsProjectCreatorFactory devOpsProjectCreatorFactory, ManagedInstanceService managedInstanceService) {</span>
+<span class="fc" id="L75">    this.queue = queue;</span>
+<span class="fc" id="L76">    this.userSession = userSession;</span>
+<span class="fc" id="L77">    this.projectCreator = projectCreator;</span>
+<span class="fc" id="L78">    this.componentUpdater = componentUpdater;</span>
+<span class="fc" id="L79">    this.permissionTemplateService = permissionTemplateService;</span>
+<span class="fc" id="L80">    this.dbClient = dbClient;</span>
+<span class="fc" id="L81">    this.branchSupport = branchSupport;</span>
+<span class="fc" id="L82">    this.devOpsProjectCreatorFactory = devOpsProjectCreatorFactory;</span>
+<span class="fc" id="L83">    this.managedInstanceService = managedInstanceService;</span>
+<span class="fc" id="L84">  }</span>
+
+  public CeTask submit(String projectKey, @Nullable String projectName, Map&lt;String, String&gt; characteristics, InputStream reportInput) {
+<span class="fc" id="L87">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L88">      ComponentCreationData componentCreationData = null;</span>
+      // Note: when the main branch is analyzed, the characteristics may or may not have the branch name, so componentKey#isMainBranch is not
+      // reliable!
+<span class="fc" id="L91">      BranchSupport.ComponentKey componentKey = branchSupport.createComponentKey(projectKey, characteristics);</span>
+<span class="fc" id="L92">      Optional&lt;ComponentDto&gt; mainBranchComponentOpt = dbClient.componentDao().selectByKey(dbSession, componentKey.getKey());</span>
+      ComponentDto mainBranchComponent;
+
+<span class="fc bfc" id="L95" title="All 2 branches covered.">      if (mainBranchComponentOpt.isPresent()) {</span>
+<span class="fc" id="L96">        mainBranchComponent = mainBranchComponentOpt.get();</span>
+<span class="fc" id="L97">        validateProject(dbSession, mainBranchComponent, projectKey);</span>
+      } else {
+<span class="fc" id="L99">        componentCreationData = createProject(projectKey, projectName, characteristics, dbSession, componentKey);</span>
+<span class="fc" id="L100">        mainBranchComponent = componentCreationData.mainBranchComponent();</span>
+      }
+
+<span class="fc" id="L103">      BranchDto mainBranch = dbClient.branchDao().selectByUuid(dbSession, mainBranchComponent.branchUuid())</span>
+<span class="pc" id="L104">        .orElseThrow(() -&gt; new IllegalStateException(&quot;Couldn't find the main branch of the project&quot;));</span>
+      ComponentDto branchComponent;
+<span class="fc bfc" id="L106" title="All 2 branches covered.">      if (isMainBranch(componentKey, mainBranch)) {</span>
+<span class="fc" id="L107">        branchComponent = mainBranchComponent;</span>
+<span class="pc bpc" id="L108" title="1 of 2 branches missed.">      } else if (componentKey.getBranchName().isPresent()) {</span>
+<span class="fc" id="L109">        branchComponent = dbClient.componentDao().selectByKeyAndBranch(dbSession, componentKey.getKey(), componentKey.getBranchName().get())</span>
+<span class="fc" id="L110">          .orElseGet(() -&gt; branchSupport.createBranchComponent(dbSession, componentKey, mainBranchComponent, mainBranch));</span>
+      } else {
+<span class="nc" id="L112">        branchComponent = dbClient.componentDao().selectByKeyAndPullRequest(dbSession, componentKey.getKey(), componentKey.getPullRequestKey().get())</span>
+<span class="nc" id="L113">          .orElseGet(() -&gt; branchSupport.createBranchComponent(dbSession, componentKey, mainBranchComponent, mainBranch));</span>
+      }
+
+<span class="fc bfc" id="L116" title="All 2 branches covered.">      if (componentCreationData != null) {</span>
+<span class="fc" id="L117">        componentUpdater.commitAndIndex(dbSession, componentCreationData);</span>
+      } else {
+<span class="fc" id="L119">        dbSession.commit();</span>
+      }
+
+<span class="fc" id="L122">      checkScanPermission(branchComponent);</span>
+<span class="fc" id="L123">      return submitReport(dbSession, reportInput, branchComponent, mainBranch, characteristics);</span>
+    }
+  }
+
+  private static boolean isMainBranch(BranchSupport.ComponentKey componentKey, BranchDto mainBranch) {
+<span class="fc bfc" id="L128" title="All 2 branches covered.">    if (componentKey.isMainBranch()) {</span>
+<span class="fc" id="L129">      return true;</span>
+    }
+
+<span class="pc bpc" id="L132" title="2 of 4 branches missed.">    return componentKey.getBranchName().isPresent() &amp;&amp; componentKey.getBranchName().get().equals(mainBranch.getKey());</span>
+  }
+
+  private void checkScanPermission(ComponentDto project) {
+    // this is a specific and inconsistent behavior. For legacy reasons, &quot;technical users&quot;
+    // defined with global scan permission should be able to analyze a project even if
+    // they don't have the direct permission on the project.
+    // That means that dropping the permission on the project does not have any effects
+    // if user has still the global permission
+<span class="pc bpc" id="L141" title="1 of 4 branches missed.">    if (!userSession.hasComponentPermission(ProjectPermission.SCAN, project) &amp;&amp; !userSession.hasPermission(GlobalPermission.SCAN)) {</span>
+<span class="nc" id="L142">      throw insufficientPrivilegesException();</span>
+    }
+<span class="fc" id="L144">  }</span>
+
+  private void validateProject(DbSession dbSession, ComponentDto component, String rawProjectKey) {
+<span class="fc" id="L147">    List&lt;String&gt; errors = new ArrayList&lt;&gt;();</span>
+
+<span class="pc bpc" id="L149" title="1 of 4 branches missed.">    if (!ComponentQualifiers.PROJECT.equals(component.qualifier()) || !ComponentScopes.PROJECT.equals(component.scope())) {</span>
+<span class="fc" id="L150">      errors.add(format(&quot;Component '%s' is not a project&quot;, rawProjectKey));</span>
+    }
+<span class="fc bfc" id="L152" title="All 2 branches covered.">    if (!component.branchUuid().equals(component.uuid())) {</span>
+      // Project key is already used as a module of another project
+<span class="fc" id="L154">      ComponentDto anotherBaseProject = dbClient.componentDao().selectOrFailByUuid(dbSession, component.branchUuid());</span>
+<span class="fc" id="L155">      errors.add(format(&quot;The project '%s' is already defined in SonarQube but as a module of project '%s'. &quot;</span>
+        + &quot;If you really want to stop directly analysing project '%s', please first delete it from SonarQube and then relaunch the analysis of project '%s'.&quot;,
+<span class="fc" id="L157">        rawProjectKey, anotherBaseProject.getKey(), anotherBaseProject.getKey(), rawProjectKey));</span>
+    }
+<span class="fc bfc" id="L159" title="All 2 branches covered.">    if (!errors.isEmpty()) {</span>
+<span class="fc" id="L160">      throw BadRequestException.create(errors);</span>
+    }
+<span class="fc" id="L162">  }</span>
+
+  private ComponentCreationData createProject(String projectKey, @Nullable String projectName, Map&lt;String, String&gt; characteristics,
+    DbSession dbSession, BranchSupport.ComponentKey componentKey) {
+<span class="fc" id="L166">    userSession.checkPermission(GlobalPermission.PROVISION_PROJECTS);</span>
+
+<span class="fc" id="L168">    DevOpsProjectCreator devOpsProjectCreator = devOpsProjectCreatorFactory.getDevOpsProjectCreator(dbSession, characteristics).orElse(null);</span>
+
+<span class="fc" id="L170">    throwIfCurrentUserWouldNotHaveScanPermission(projectKey, dbSession, devOpsProjectCreator);</span>
+
+<span class="fc bfc" id="L172" title="All 2 branches covered.">    if (devOpsProjectCreator != null) {</span>
+<span class="fc" id="L173">      return devOpsProjectCreator.createProjectAndBindToDevOpsPlatform(dbSession, SCANNER_API_DEVOPS_AUTO_CONFIG, false, projectKey, projectName);</span>
+    }
+<span class="fc" id="L175">    return projectCreator.createProject(dbSession, componentKey.getKey(), defaultIfBlank(projectName, projectKey), null, SCANNER_API);</span>
+  }
+
+  private void throwIfCurrentUserWouldNotHaveScanPermission(String projectKey, DbSession dbSession, @Nullable DevOpsProjectCreator devOpsProjectCreator) {
+<span class="pc bpc" id="L179" title="1 of 2 branches missed.">    if (!wouldCurrentUserHaveScanPermission(projectKey, dbSession, devOpsProjectCreator)) {</span>
+<span class="nc" id="L180">      throw insufficientPrivilegesException();</span>
+    }
+<span class="fc" id="L182">  }</span>
+
+  private boolean wouldCurrentUserHaveScanPermission(String projectKey, DbSession dbSession, @Nullable DevOpsProjectCreator devOpsProjectCreator) {
+<span class="pc bpc" id="L185" title="1 of 2 branches missed.">    if (userSession.hasPermission(SCAN)) {</span>
+<span class="fc" id="L186">      return true;</span>
+    }
+<span class="nc bnc" id="L188" title="All 4 branches missed.">    if (managedInstanceService.isInstanceExternallyManaged() &amp;&amp; devOpsProjectCreator != null) {</span>
+<span class="nc" id="L189">      return devOpsProjectCreator.isScanAllowedUsingPermissionsFromDevopsPlatform();</span>
+    }
+<span class="nc" id="L191">    return permissionTemplateService.wouldUserHaveScanPermissionWithDefaultTemplate(dbSession, userSession.getUuid(), projectKey);</span>
+  }
+
+  private CeTask submitReport(DbSession dbSession, InputStream reportInput, ComponentDto branch, BranchDto mainBranch, Map&lt;String, String&gt; characteristics) {
+<span class="fc" id="L195">    CeTaskSubmit.Builder submit = queue.prepareSubmit();</span>
+
+    // the report file must be saved before submitting the task
+<span class="fc" id="L198">    dbClient.ceTaskInputDao().insert(dbSession, submit.getUuid(), reportInput);</span>
+<span class="fc" id="L199">    dbSession.commit();</span>
+<span class="fc" id="L200">    submit.setType(CeTaskTypes.REPORT);</span>
+<span class="fc" id="L201">    submit.setComponent(CeTaskSubmit.Component.fromDto(branch.uuid(), mainBranch.getProjectUuid()));</span>
+<span class="fc" id="L202">    submit.setSubmitterUuid(userSession.getUuid());</span>
+<span class="fc" id="L203">    submit.setCharacteristics(characteristics);</span>
+<span class="fc" id="L204">    return queue.submit(submit.build());</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

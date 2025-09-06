@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LinesAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.source.ws</a> &gt; <span class="el_source">LinesAction.java</span></div><h1>LinesAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.source.ws;
+
+import com.google.common.base.MoreObjects;
+import com.google.common.io.Resources;
+import java.util.Optional;
+import java.util.function.Supplier;
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.api.utils.text.JsonWriter;
+import org.sonar.db.permission.ProjectPermission;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.ComponentDto;
+import org.sonar.db.component.SnapshotDto;
+import org.sonar.db.protobuf.DbFileSources;
+import org.sonar.server.component.ComponentFinder;
+import org.sonar.server.source.SourceService;
+import org.sonar.server.user.UserSession;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static org.sonar.server.component.ComponentFinder.ParamNames.UUID_AND_KEY;
+import static org.sonar.server.exceptions.BadRequestException.checkRequest;
+import static org.sonar.server.exceptions.NotFoundException.checkFoundWithOptional;
+import static org.sonar.server.ws.KeyExamples.KEY_BRANCH_EXAMPLE_001;
+import static org.sonar.server.ws.KeyExamples.KEY_FILE_EXAMPLE_001;
+import static org.sonar.server.ws.KeyExamples.KEY_PULL_REQUEST_EXAMPLE_001;
+
+public class LinesAction implements SourcesWsAction {
+
+  private static final String PARAM_UUID = &quot;uuid&quot;;
+  private static final String PARAM_KEY = &quot;key&quot;;
+  private static final String PARAM_FROM = &quot;from&quot;;
+  private static final String PARAM_TO = &quot;to&quot;;
+  private static final String PARAM_BRANCH = &quot;branch&quot;;
+  private static final String PARAM_PULL_REQUEST = &quot;pullRequest&quot;;
+
+  private final ComponentFinder componentFinder;
+  private final SourceService sourceService;
+  private final LinesJsonWriter linesJsonWriter;
+  private final DbClient dbClient;
+  private final UserSession userSession;
+
+  public LinesAction(ComponentFinder componentFinder, DbClient dbClient, SourceService sourceService,
+<span class="fc" id="L65">    LinesJsonWriter linesJsonWriter, UserSession userSession) {</span>
+<span class="fc" id="L66">    this.componentFinder = componentFinder;</span>
+<span class="fc" id="L67">    this.sourceService = sourceService;</span>
+<span class="fc" id="L68">    this.linesJsonWriter = linesJsonWriter;</span>
+<span class="fc" id="L69">    this.dbClient = dbClient;</span>
+<span class="fc" id="L70">    this.userSession = userSession;</span>
+<span class="fc" id="L71">  }</span>
+
+  @Override
+  public void define(WebService.NewController controller) {
+<span class="fc" id="L75">    WebService.NewAction action = controller.createAction(&quot;lines&quot;)</span>
+<span class="fc" id="L76">      .setDescription(&quot;Show source code with line oriented info. Requires See Source Code permission on file's project&lt;br/&gt;&quot; +</span>
+        &quot;Each element of the result array is an object which contains:&quot; +
+        &quot;&lt;ol&gt;&quot; +
+        &quot;&lt;li&gt;Line number&lt;/li&gt;&quot; +
+        &quot;&lt;li&gt;Content of the line&lt;/li&gt;&quot; +
+        &quot;&lt;li&gt;Author of the line (from SCM information)&lt;/li&gt;&quot; +
+        &quot;&lt;li&gt;Revision of the line (from SCM information)&lt;/li&gt;&quot; +
+        &quot;&lt;li&gt;Last commit date of the line (from SCM information)&lt;/li&gt;&quot; +
+        &quot;&lt;li&gt;Line hits from coverage&lt;/li&gt;&quot; +
+        &quot;&lt;li&gt;Number of conditions to cover in tests&lt;/li&gt;&quot; +
+        &quot;&lt;li&gt;Number of conditions covered by tests&lt;/li&gt;&quot; +
+        &quot;&lt;li&gt;Whether the line is new&lt;/li&gt;&quot; +
+        &quot;&lt;/ol&gt;&quot;)
+<span class="fc" id="L89">      .setSince(&quot;5.0&quot;)</span>
+<span class="fc" id="L90">      .setInternal(true)</span>
+<span class="fc" id="L91">      .setResponseExample(Resources.getResource(getClass(), &quot;lines-example.json&quot;))</span>
+<span class="fc" id="L92">      .setChangelog(</span>
+        new Change(&quot;6.2&quot;, &quot;fields \&quot;utLineHits\&quot;, \&quot;utConditions\&quot; and \&quot;utCoveredConditions\&quot; &quot; +
+          &quot;has been renamed \&quot;lineHits\&quot;, \&quot;conditions\&quot; and \&quot;coveredConditions\&quot;&quot;),
+        new Change(&quot;6.2&quot;, &quot;fields \&quot;itLineHits\&quot;, \&quot;itConditions\&quot; and \&quot;itCoveredConditions\&quot; &quot; +
+          &quot;are no more returned&quot;),
+        new Change(&quot;6.6&quot;, &quot;field \&quot;branch\&quot; added&quot;),
+        new Change(&quot;7.4&quot;, &quot;field \&quot;isNew\&quot; added&quot;))
+<span class="fc" id="L99">      .setHandler(this);</span>
+
+<span class="fc" id="L101">    action</span>
+<span class="fc" id="L102">      .createParam(PARAM_UUID)</span>
+<span class="fc" id="L103">      .setDescription(&quot;File uuid. Mandatory if param 'key' is not set&quot;)</span>
+<span class="fc" id="L104">      .setExampleValue(&quot;f333aab4-7e3a-4d70-87e1-f4c491f05e5c&quot;);</span>
+
+<span class="fc" id="L106">    action</span>
+<span class="fc" id="L107">      .createParam(PARAM_KEY)</span>
+<span class="fc" id="L108">      .setDescription(&quot;File key. Mandatory if param 'uuid' is not set. Available since 5.2&quot;)</span>
+<span class="fc" id="L109">      .setExampleValue(KEY_FILE_EXAMPLE_001);</span>
+
+<span class="fc" id="L111">    action</span>
+<span class="fc" id="L112">      .createParam(PARAM_BRANCH)</span>
+<span class="fc" id="L113">      .setDescription(&quot;Branch key&quot;)</span>
+<span class="fc" id="L114">      .setInternal(true)</span>
+<span class="fc" id="L115">      .setExampleValue(KEY_BRANCH_EXAMPLE_001);</span>
+
+<span class="fc" id="L117">    action</span>
+<span class="fc" id="L118">      .createParam(PARAM_PULL_REQUEST)</span>
+<span class="fc" id="L119">      .setDescription(&quot;Pull request id&quot;)</span>
+<span class="fc" id="L120">      .setInternal(true)</span>
+<span class="fc" id="L121">      .setExampleValue(KEY_PULL_REQUEST_EXAMPLE_001);</span>
+
+<span class="fc" id="L123">    action</span>
+<span class="fc" id="L124">      .createParam(PARAM_FROM)</span>
+<span class="fc" id="L125">      .setDescription(&quot;First line to return. Starts from 1&quot;)</span>
+<span class="fc" id="L126">      .setExampleValue(&quot;10&quot;)</span>
+<span class="fc" id="L127">      .setDefaultValue(&quot;1&quot;);</span>
+
+<span class="fc" id="L129">    action</span>
+<span class="fc" id="L130">      .createParam(PARAM_TO)</span>
+<span class="fc" id="L131">      .setDescription(&quot;Optional last line to return (inclusive). It must be greater than &quot; +</span>
+        &quot;or equal to parameter 'from'. If unset, then all the lines greater than or equal to 'from' &quot; +
+        &quot;are returned.&quot;)
+<span class="fc" id="L134">      .setExampleValue(&quot;20&quot;);</span>
+<span class="fc" id="L135">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) {
+<span class="fc" id="L139">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L140">      ComponentDto file = loadComponent(dbSession, request);</span>
+<span class="fc" id="L141">      Supplier&lt;Optional&lt;Long&gt;&gt; periodDateSupplier = () -&gt; dbClient.snapshotDao()</span>
+<span class="fc" id="L142">        .selectLastAnalysisByComponentUuid(dbSession, file.branchUuid())</span>
+<span class="fc" id="L143">        .map(SnapshotDto::getPeriodDate);</span>
+
+<span class="fc" id="L145">      userSession.checkComponentPermission(ProjectPermission.CODEVIEWER, file);</span>
+<span class="fc" id="L146">      int from = request.mandatoryParamAsInt(PARAM_FROM);</span>
+<span class="fc" id="L147">      int to = MoreObjects.firstNonNull(request.paramAsInt(PARAM_TO), Integer.MAX_VALUE);</span>
+
+<span class="fc" id="L149">      Iterable&lt;DbFileSources.Line&gt; lines = checkFoundWithOptional(sourceService.getLines(dbSession, file.uuid(), from, to),</span>
+<span class="fc" id="L150">        &quot;No source found for file '%s' (uuid: %s)&quot;, file.getKey(), file.uuid());</span>
+<span class="fc" id="L151">      try (JsonWriter json = response.newJsonWriter()) {</span>
+<span class="fc" id="L152">        json.beginObject();</span>
+<span class="fc" id="L153">        linesJsonWriter.writeSource(lines, json, periodDateSupplier, userSession.isLoggedIn());</span>
+<span class="fc" id="L154">        json.endObject();</span>
+      }
+    }
+<span class="fc" id="L157">  }</span>
+
+  private ComponentDto loadComponent(DbSession dbSession, Request wsRequest) {
+<span class="fc" id="L160">    String componentKey = wsRequest.param(PARAM_KEY);</span>
+<span class="fc" id="L161">    String componentUuid = wsRequest.param(PARAM_UUID);</span>
+<span class="fc" id="L162">    String branch = wsRequest.param(PARAM_BRANCH);</span>
+<span class="fc" id="L163">    String pullRequest = wsRequest.param(PARAM_PULL_REQUEST);</span>
+<span class="pc bpc" id="L164" title="1 of 6 branches missed.">    checkArgument(componentUuid == null || (branch == null &amp;&amp; pullRequest == null), &quot;Parameter '%s' cannot be used at the same time as '%s' or '%s'&quot;,</span>
+      PARAM_UUID, PARAM_BRANCH, PARAM_PULL_REQUEST);
+<span class="fc bfc" id="L166" title="All 4 branches covered.">    if (branch == null &amp;&amp; pullRequest == null) {</span>
+<span class="fc" id="L167">      return componentFinder.getByUuidOrKey(dbSession, componentUuid, componentKey, UUID_AND_KEY);</span>
+    }
+
+<span class="pc bpc" id="L170" title="1 of 2 branches missed.">    checkRequest(componentKey != null, &quot;The '%s' parameter is missing&quot;, PARAM_KEY);</span>
+<span class="fc" id="L171">    return componentFinder.getByKeyAndOptionalBranchOrPullRequest(dbSession, componentKey, branch, pullRequest);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

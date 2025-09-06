@@ -1,0 +1,311 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PropertiesDao.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.property</a> &gt; <span class="el_source">PropertiesDao.java</span></div><h1>PropertiesDao.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.property;
+
+import com.google.common.base.Strings;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.api.utils.System2;
+import org.sonar.core.util.UuidFactory;
+import org.sonar.db.Dao;
+import org.sonar.db.DbSession;
+import org.sonar.db.EmailSubscriberDto;
+import org.sonar.db.MyBatis;
+import org.sonar.db.audit.AuditPersister;
+import org.sonar.db.audit.model.PropertyNewValue;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.util.Collections.singletonList;
+import static org.apache.commons.lang3.StringUtils.repeat;
+import static org.sonar.db.DatabaseUtils.executeLargeInputs;
+import static org.sonar.db.DatabaseUtils.executeLargeInputsIntoSet;
+
+public class PropertiesDao implements Dao {
+
+  private static final String NOTIFICATION_PREFIX = &quot;notification.&quot;;
+  private static final int VARCHAR_MAXSIZE = 4000;
+
+  private final MyBatis mybatis;
+  private final System2 system2;
+  private final UuidFactory uuidFactory;
+  private final AuditPersister auditPersister;
+
+<span class="fc" id="L59">  public PropertiesDao(MyBatis mybatis, System2 system2, UuidFactory uuidFactory, AuditPersister auditPersister) {</span>
+<span class="fc" id="L60">    this.mybatis = mybatis;</span>
+<span class="fc" id="L61">    this.system2 = system2;</span>
+<span class="fc" id="L62">    this.uuidFactory = uuidFactory;</span>
+<span class="fc" id="L63">    this.auditPersister = auditPersister;</span>
+<span class="fc" id="L64">  }</span>
+
+  public Set&lt;EmailSubscriberDto&gt; findEnabledEmailSubscribersForNotification(DbSession dbSession, String notificationDispatcherKey, String notificationChannelKey,
+    @Nullable String projectKey) {
+<span class="fc" id="L68">    return getMapper(dbSession).findEmailRecipientsForNotification(NOTIFICATION_PREFIX + notificationDispatcherKey + &quot;.&quot; + notificationChannelKey, projectKey, null,</span>
+<span class="fc" id="L69">      Boolean.toString(true));</span>
+  }
+
+  public Set&lt;EmailSubscriberDto&gt; findEnabledEmailSubscribersForNotification(DbSession dbSession, String notificationDispatcherKey, String notificationChannelKey,
+    @Nullable String projectKey, Set&lt;String&gt; logins) {
+<span class="fc" id="L74">    return findEmailSubscribersForNotification(dbSession, notificationDispatcherKey, notificationChannelKey, projectKey, logins, true);</span>
+  }
+
+  public Set&lt;EmailSubscriberDto&gt; findDisabledEmailSubscribersForNotification(DbSession dbSession, String notificationDispatcherKey, String notificationChannelKey,
+    @Nullable String projectKey, Set&lt;String&gt; logins) {
+<span class="fc" id="L79">    return findEmailSubscribersForNotification(dbSession, notificationDispatcherKey, notificationChannelKey, projectKey, logins, false);</span>
+  }
+
+  public Set&lt;EmailSubscriberDto&gt; findEmailSubscribersForNotification(DbSession dbSession, String notificationDispatcherKey, String notificationChannelKey,
+    @Nullable String projectKey, Set&lt;String&gt; logins, boolean enabled) {
+<span class="fc bfc" id="L84" title="All 2 branches covered.">    if (logins.isEmpty()) {</span>
+<span class="fc" id="L85">      return Collections.emptySet();</span>
+    }
+
+<span class="fc" id="L88">    return executeLargeInputsIntoSet(</span>
+      logins,
+      loginsPartition -&gt; {
+<span class="fc" id="L91">        String notificationKey = NOTIFICATION_PREFIX + notificationDispatcherKey + &quot;.&quot; + notificationChannelKey;</span>
+<span class="fc" id="L92">        return getMapper(dbSession).findEmailRecipientsForNotification(notificationKey, projectKey, loginsPartition, Boolean.toString(enabled));</span>
+      },
+<span class="fc bfc" id="L94" title="All 2 branches covered.">      partitionSize -&gt; projectKey == null ? partitionSize : (partitionSize / 2));</span>
+  }
+
+  public boolean hasProjectNotificationSubscribersForDispatchers(String projectUuid, Collection&lt;String&gt; dispatcherKeys) {
+<span class="pc bpc" id="L98" title="1 of 2 branches missed.">    if (dispatcherKeys.isEmpty()) {</span>
+<span class="nc" id="L99">      return false;</span>
+    }
+
+<span class="fc" id="L102">    try (DbSession session = mybatis.openSession(false);</span>
+<span class="fc" id="L103">      Connection connection = session.getConnection();</span>
+<span class="fc" id="L104">      PreparedStatement pstmt = createStatement(projectUuid, dispatcherKeys, connection);</span>
+<span class="fc" id="L105">      ResultSet rs = pstmt.executeQuery()) {</span>
+<span class="pc bpc" id="L106" title="1 of 4 branches missed.">      return rs.next() &amp;&amp; rs.getInt(1) &gt; 0;</span>
+<span class="nc" id="L107">    } catch (SQLException e) {</span>
+<span class="nc" id="L108">      throw new IllegalStateException(&quot;Fail to execute SQL for hasProjectNotificationSubscribersForDispatchers&quot;, e);</span>
+    }
+  }
+
+  private static PreparedStatement createStatement(String projectUuid, Collection&lt;String&gt; dispatcherKeys, Connection connection) throws SQLException {
+<span class="fc" id="L113">    String sql = &quot;SELECT count(1) FROM properties pp &quot; +</span>
+      &quot;where pp.user_uuid is not null and (pp.entity_uuid is null or pp.entity_uuid=?) &quot; +
+<span class="fc" id="L115">      &quot;and (&quot; + repeat(&quot;pp.prop_key like ?&quot;, &quot; or &quot;, dispatcherKeys.size()) + &quot;)&quot;;</span>
+<span class="fc" id="L116">    PreparedStatement res = connection.prepareStatement(sql);</span>
+<span class="fc" id="L117">    res.setString(1, projectUuid);</span>
+<span class="fc" id="L118">    int index = 2;</span>
+<span class="fc bfc" id="L119" title="All 2 branches covered.">    for (String dispatcherKey : dispatcherKeys) {</span>
+<span class="fc" id="L120">      res.setString(index, NOTIFICATION_PREFIX + dispatcherKey + &quot;.%&quot;);</span>
+<span class="fc" id="L121">      index++;</span>
+<span class="fc" id="L122">    }</span>
+<span class="fc" id="L123">    return res;</span>
+  }
+
+  public List&lt;PropertyDto&gt; selectGlobalProperties(DbSession session) {
+<span class="fc" id="L127">    return getMapper(session).selectGlobalProperties();</span>
+  }
+
+  @CheckForNull
+  public PropertyDto selectGlobalProperty(DbSession session, String propertyKey) {
+<span class="fc" id="L132">    return getMapper(session).selectByKey(new PropertyDto().setKey(propertyKey));</span>
+  }
+
+  @CheckForNull
+  public PropertyDto selectGlobalProperty(String propertyKey) {
+<span class="fc" id="L137">    try (DbSession session = mybatis.openSession(false)) {</span>
+<span class="fc" id="L138">      return selectGlobalProperty(session, propertyKey);</span>
+    }
+  }
+
+  public List&lt;PropertyDto&gt; selectEntityProperties(DbSession session, String entityUuid) {
+<span class="fc" id="L143">    return getMapper(session).selectByEntityUuids(singletonList(entityUuid));</span>
+  }
+
+  @CheckForNull
+  public PropertyDto selectProjectProperty(DbSession dbSession, String projectUuid, String propertyKey) {
+<span class="fc" id="L148">    return getMapper(dbSession).selectByKey(new PropertyDto().setKey(propertyKey).setEntityUuid(projectUuid));</span>
+  }
+
+  public Optional&lt;PropertyDto&gt; selectProjectProperty(String projectUuid, String propertyKey) {
+<span class="fc" id="L152">    try (DbSession session = mybatis.openSession(false)) {</span>
+<span class="fc" id="L153">      return Optional.ofNullable(selectProjectProperty(session, projectUuid, propertyKey));</span>
+    }
+  }
+
+  public List&lt;PropertyDto&gt; selectByQuery(PropertyQuery query, DbSession session) {
+<span class="fc" id="L158">    return getMapper(session).selectByQuery(query);</span>
+  }
+
+  public List&lt;PropertyDto&gt; selectGlobalPropertiesByKeys(DbSession session, Collection&lt;String&gt; keys) {
+<span class="fc" id="L162">    return executeLargeInputs(keys, partitionKeys -&gt; getMapper(session).selectByKeys(partitionKeys));</span>
+  }
+
+  public List&lt;PropertyDto&gt; selectPropertiesByKeysAndEntityUuids(DbSession session, Collection&lt;String&gt; keys, Collection&lt;String&gt; entityUuids) {
+<span class="fc" id="L166">    return executeLargeInputs(keys, partitionKeys -&gt; executeLargeInputs(entityUuids,</span>
+<span class="fc" id="L167">      partitionEntityUuids -&gt; getMapper(session).selectByKeysAndEntityUuids(partitionKeys, partitionEntityUuids)));</span>
+  }
+
+  public List&lt;PropertyDto&gt; selectByKeyAndMatchingValue(DbSession session, String key, String value) {
+<span class="fc" id="L171">    return getMapper(session).selectByKeyAndMatchingValue(key, value);</span>
+  }
+
+  public List&lt;PropertyDto&gt; selectEntityPropertyByKeyAndUserUuid(DbSession session, String key, String userUuid) {
+<span class="fc" id="L175">    return getMapper(session).selectEntityPropertyByKeyAndUserUuid(key, userUuid);</span>
+  }
+
+  public List&lt;PropertyDto&gt; selectProjectPropertyByKey(DbSession session, String key) {
+<span class="nc" id="L179">    return getMapper(session).selectProjectPropertyByKey(key);</span>
+  }
+
+  public List&lt;PropertyDto&gt; selectUserPropertiesByKey(DbSession session, String key) {
+<span class="fc" id="L183">    return getMapper(session).selectUserPropertiesByKey(key);</span>
+  }
+
+  /**
+   * Saves the specified property and its value.
+   * &lt;p&gt;
+   * If {@link PropertyDto#getValue()} is {@code null} or empty, the properties is persisted as empty.
+   * &lt;/p&gt;
+   *
+   * @throws IllegalArgumentException if {@link PropertyDto#getKey()} is {@code null} or empty
+   */
+  public void saveProperty(DbSession session, PropertyDto property) {
+<span class="fc" id="L195">    saveProperty(session, property, null, null, null, null);</span>
+<span class="fc" id="L196">  }</span>
+
+  public void saveProperty(DbSession session, PropertyDto property, @Nullable String userLogin, @Nullable String projectKey, @Nullable String projectName,
+    @Nullable String qualifier) {
+<span class="fc" id="L200">    int affectedRows = save(getMapper(session), property.getKey(), property.getUserUuid(), property.getEntityUuid(), property.getValue());</span>
+
+<span class="fc bfc" id="L202" title="All 2 branches covered.">    if (affectedRows &gt; 0) {</span>
+<span class="fc" id="L203">      auditPersister.updateProperty(session, new PropertyNewValue(property, userLogin, projectKey, projectName, qualifier), false);</span>
+    } else {
+<span class="fc" id="L205">      auditPersister.addProperty(session, new PropertyNewValue(property, userLogin, projectKey, projectName, qualifier), false);</span>
+    }
+<span class="fc" id="L207">  }</span>
+
+  private int save(PropertiesMapper mapper, String key, @Nullable String userUuid, @Nullable String entityUuids, @Nullable String value) {
+<span class="fc" id="L210">    checkKey(key);</span>
+
+<span class="fc" id="L212">    long now = system2.now();</span>
+<span class="fc" id="L213">    int affectedRows = mapper.delete(key, userUuid, entityUuids);</span>
+<span class="fc" id="L214">    String uuid = uuidFactory.create();</span>
+<span class="fc bfc" id="L215" title="All 2 branches covered.">    if (isEmpty(value)) {</span>
+<span class="fc" id="L216">      mapper.insertAsEmpty(uuid, key, userUuid, entityUuids, now);</span>
+<span class="fc bfc" id="L217" title="All 2 branches covered.">    } else if (mustBeStoredInClob(value)) {</span>
+<span class="fc" id="L218">      mapper.insertAsClob(uuid, key, userUuid, entityUuids, value, now);</span>
+    } else {
+<span class="fc" id="L220">      mapper.insertAsText(uuid, key, userUuid, entityUuids, value, now);</span>
+    }
+<span class="fc" id="L222">    return affectedRows;</span>
+  }
+
+  private static boolean mustBeStoredInClob(String value) {
+<span class="fc bfc" id="L226" title="All 2 branches covered.">    return value.length() &gt; VARCHAR_MAXSIZE;</span>
+  }
+
+  private static void checkKey(@Nullable String key) {
+<span class="pc bpc" id="L230" title="1 of 2 branches missed.">    checkArgument(!isEmpty(key), &quot;key can't be null nor empty&quot;);</span>
+<span class="fc" id="L231">  }</span>
+
+  private static boolean isEmpty(@Nullable String str) {
+<span class="fc bfc" id="L234" title="All 4 branches covered.">    return str == null || str.isEmpty();</span>
+  }
+
+  public void saveProperty(PropertyDto property) {
+<span class="fc" id="L238">    try (DbSession session = mybatis.openSession(false)) {</span>
+<span class="fc" id="L239">      saveProperty(session, property);</span>
+<span class="fc" id="L240">      session.commit();</span>
+    }
+<span class="fc" id="L242">  }</span>
+
+  /**
+   * Delete either global, user, entity or entity per user properties.
+   * &lt;p&gt;Behaves in exactly the same way as {@link #selectByQuery(PropertyQuery, DbSession)} but deletes rather than
+   * selects&lt;/p&gt;
+   * Used by Governance.
+   */
+  public int deleteByQuery(DbSession dbSession, PropertyQuery query) {
+<span class="fc" id="L251">    int deletedRows = getMapper(dbSession).deleteByQuery(query);</span>
+
+<span class="fc bfc" id="L253" title="All 4 branches covered.">    if (deletedRows &gt; 0 &amp;&amp; query.key() != null) {</span>
+<span class="fc" id="L254">      auditPersister.deleteProperty(dbSession, new PropertyNewValue(query.key(), query.entityUuid(),</span>
+<span class="fc" id="L255">        null, null, null, query.userUuid()), false);</span>
+    }
+
+<span class="fc" id="L258">    return deletedRows;</span>
+  }
+
+  public int delete(DbSession dbSession, PropertyDto dto, @Nullable String userLogin, @Nullable String projectKey,
+    @Nullable String projectName, @Nullable String qualifier) {
+<span class="fc" id="L263">    int deletedRows = getMapper(dbSession).delete(dto.getKey(), dto.getUserUuid(), dto.getEntityUuid());</span>
+
+<span class="fc bfc" id="L265" title="All 2 branches covered.">    if (deletedRows &gt; 0) {</span>
+<span class="fc" id="L266">      auditPersister.deleteProperty(dbSession, new PropertyNewValue(dto, userLogin, projectKey, projectName, qualifier), false);</span>
+    }
+<span class="fc" id="L268">    return deletedRows;</span>
+  }
+
+  public void deleteProjectProperty(DbSession session, String key, String projectUuid, String projectKey, String projectName, String qualifier) {
+<span class="fc" id="L272">    int deletedRows = getMapper(session).deleteProjectProperty(key, projectUuid);</span>
+
+<span class="fc bfc" id="L274" title="All 2 branches covered.">    if (deletedRows &gt; 0) {</span>
+<span class="fc" id="L275">      auditPersister.deleteProperty(session, new PropertyNewValue(key, projectUuid, projectKey, projectName, qualifier, null), false);</span>
+    }
+<span class="fc" id="L277">  }</span>
+
+  public void deleteGlobalProperty(String key, DbSession session) {
+<span class="fc" id="L280">    int deletedRows = getMapper(session).deleteGlobalProperty(key);</span>
+
+<span class="fc bfc" id="L282" title="All 2 branches covered.">    if (deletedRows &gt; 0) {</span>
+<span class="fc" id="L283">      auditPersister.deleteProperty(session, new PropertyNewValue(key), false);</span>
+    }
+<span class="fc" id="L285">  }</span>
+
+  public void deleteByKeyAndValue(DbSession dbSession, String key, String value) {
+<span class="fc" id="L288">    int deletedRows = getMapper(dbSession).deleteByKeyAndValue(key, value);</span>
+
+<span class="fc bfc" id="L290" title="All 2 branches covered.">    if (deletedRows &gt; 0) {</span>
+<span class="fc" id="L291">      auditPersister.deleteProperty(dbSession, new PropertyNewValue(key, value), false);</span>
+    }
+<span class="fc" id="L293">  }</span>
+
+  public void renamePropertyKey(String oldKey, String newKey) {
+<span class="fc bfc" id="L296" title="All 2 branches covered.">    checkArgument(!Strings.isNullOrEmpty(oldKey), &quot;Old property key must not be empty&quot;);</span>
+<span class="fc bfc" id="L297" title="All 2 branches covered.">    checkArgument(!Strings.isNullOrEmpty(newKey), &quot;New property key must not be empty&quot;);</span>
+
+<span class="fc bfc" id="L299" title="All 2 branches covered.">    if (!newKey.equals(oldKey)) {</span>
+<span class="fc" id="L300">      try (DbSession session = mybatis.openSession(false)) {</span>
+<span class="fc" id="L301">        getMapper(session).renamePropertyKey(oldKey, newKey);</span>
+<span class="fc" id="L302">        session.commit();</span>
+      }
+    }
+<span class="fc" id="L305">  }</span>
+
+  private static PropertiesMapper getMapper(DbSession session) {
+<span class="fc" id="L308">    return session.getMapper(PropertiesMapper.class);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

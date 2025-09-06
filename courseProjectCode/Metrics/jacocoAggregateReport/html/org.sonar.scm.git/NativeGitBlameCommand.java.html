@@ -1,0 +1,226 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NativeGitBlameCommand.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scm.git</a> &gt; <span class="el_source">NativeGitBlameCommand.java</span></div><h1>NativeGitBlameCommand.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scm.git;
+
+import java.io.IOException;
+import java.nio.file.Path;
+import java.time.Instant;
+import java.util.Date;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import org.apache.commons.lang3.math.NumberUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.batch.scm.BlameLine;
+import org.sonar.api.utils.System2;
+import org.sonar.api.utils.Version;
+import org.sonar.core.util.ProcessWrapperFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import static java.util.Collections.emptyList;
+import static org.sonar.api.utils.Preconditions.checkState;
+
+public class NativeGitBlameCommand {
+  protected static final String BLAME_COMMAND = &quot;blame&quot;;
+  protected static final String GIT_DIR_FLAG = &quot;--git-dir&quot;;
+  protected static final String GIT_DIR_ARGUMENT = &quot;%s/.git&quot;;
+  protected static final String GIT_DIR_FORCE_FLAG = &quot;-C&quot;;
+
+<span class="fc" id="L50">  private static final Logger LOG = LoggerFactory.getLogger(NativeGitBlameCommand.class);</span>
+<span class="fc" id="L51">  private static final Pattern EMAIL_PATTERN = Pattern.compile(&quot;&lt;(.*?)&gt;&quot;);</span>
+  private static final String COMMITTER_TIME = &quot;committer-time &quot;;
+  private static final String AUTHOR_MAIL = &quot;author-mail &quot;;
+
+  private static final String MINIMUM_REQUIRED_GIT_VERSION = &quot;2.24.0&quot;;
+  private static final String DEFAULT_GIT_COMMAND = &quot;git&quot;;
+  private static final String BLAME_LINE_PORCELAIN_FLAG = &quot;--line-porcelain&quot;;
+  private static final String FILENAME_SEPARATOR_FLAG = &quot;--&quot;;
+  private static final String IGNORE_WHITESPACES = &quot;-w&quot;;
+
+<span class="fc" id="L61">  private static final Pattern whitespaceRegex = Pattern.compile(&quot;\\s+&quot;);</span>
+<span class="fc" id="L62">  private static final Pattern semanticVersionDelimiter = Pattern.compile(&quot;\\.&quot;);</span>
+
+  private final System2 system;
+  private final ProcessWrapperFactory processWrapperFactory;
+<span class="fc" id="L66">  private final Consumer&lt;String&gt; stderrConsumer = line -&gt; LOG.debug(&quot;[stderr] {}&quot;, line);</span>
+  private String gitCommand;
+
+  @Autowired
+<span class="fc" id="L70">  public NativeGitBlameCommand(System2 system, ProcessWrapperFactory processWrapperFactory) {</span>
+<span class="fc" id="L71">    this.system = system;</span>
+<span class="fc" id="L72">    this.processWrapperFactory = processWrapperFactory;</span>
+<span class="fc" id="L73">  }</span>
+
+<span class="fc" id="L75">  NativeGitBlameCommand(String gitCommand, System2 system, ProcessWrapperFactory processWrapperFactory) {</span>
+<span class="fc" id="L76">    this.gitCommand = gitCommand;</span>
+<span class="fc" id="L77">    this.system = system;</span>
+<span class="fc" id="L78">    this.processWrapperFactory = processWrapperFactory;</span>
+<span class="fc" id="L79">  }</span>
+
+  /**
+   * This method must be executed before org.sonar.scm.git.GitBlameCommand#blame
+   *
+   * @return true, if native git is installed
+   */
+  public boolean checkIfEnabled() {
+    try {
+<span class="fc" id="L88">      this.gitCommand = locateDefaultGit();</span>
+<span class="fc" id="L89">      MutableString stdOut = new MutableString();</span>
+<span class="fc" id="L90">      this.processWrapperFactory.create(null, l -&gt; stdOut.string = l, stderrConsumer, gitCommand, &quot;--version&quot;).execute();</span>
+<span class="fc bfc" id="L91" title="All 6 branches covered.">      return stdOut.string != null &amp;&amp; stdOut.string.startsWith(&quot;git version&quot;) &amp;&amp; isCompatibleGitVersion(stdOut.string);</span>
+<span class="fc" id="L92">    } catch (Exception e) {</span>
+<span class="fc" id="L93">      LOG.debug(&quot;Failed to find git native client&quot;, e);</span>
+<span class="fc" id="L94">      return false;</span>
+    }
+  }
+
+  private String locateDefaultGit() throws IOException {
+<span class="fc bfc" id="L99" title="All 2 branches covered.">    if (this.gitCommand != null) {</span>
+<span class="fc" id="L100">      return this.gitCommand;</span>
+    }
+    // if not set fall back to defaults
+<span class="fc bfc" id="L103" title="All 2 branches covered.">    if (system.isOsWindows()) {</span>
+<span class="fc" id="L104">      return locateGitOnWindows();</span>
+    }
+<span class="fc" id="L106">    return DEFAULT_GIT_COMMAND;</span>
+  }
+
+  private String locateGitOnWindows() throws IOException {
+    // Windows will search current directory in addition to the PATH variable, which is unsecure.
+    // To avoid it we use where.exe to find git binary only in PATH.
+<span class="fc" id="L112">    LOG.debug(&quot;Looking for git command in the PATH using where.exe (Windows)&quot;);</span>
+<span class="fc" id="L113">    List&lt;String&gt; whereCommandResult = new LinkedList&lt;&gt;();</span>
+<span class="fc" id="L114">    this.processWrapperFactory.create(null, whereCommandResult::add, stderrConsumer, &quot;C:\\Windows\\System32\\where.exe&quot;, &quot;$PATH:git.exe&quot;)</span>
+<span class="fc" id="L115">      .execute();</span>
+
+<span class="pc bpc" id="L117" title="1 of 2 branches missed.">    if (!whereCommandResult.isEmpty()) {</span>
+<span class="fc" id="L118">      String out = whereCommandResult.get(0).trim();</span>
+<span class="fc" id="L119">      LOG.debug(&quot;Found git.exe at {}&quot;, out);</span>
+<span class="fc" id="L120">      return out;</span>
+    }
+<span class="nc" id="L122">    throw new IllegalStateException(&quot;git.exe not found in PATH. PATH value was: &quot; + system.property(&quot;PATH&quot;));</span>
+  }
+
+  public List&lt;BlameLine&gt; blame(Path baseDir, String fileName) throws IOException {
+<span class="fc" id="L126">    BlameOutputProcessor outputProcessor = new BlameOutputProcessor();</span>
+<span class="fc" id="L127">    var processWrapper = this.processWrapperFactory.create(</span>
+      baseDir,
+<span class="fc" id="L129">      outputProcessor::process,</span>
+      stderrConsumer,
+      gitCommand,
+<span class="fc" id="L132">      GIT_DIR_FLAG, String.format(GIT_DIR_ARGUMENT, baseDir), GIT_DIR_FORCE_FLAG, baseDir.toString(),</span>
+      BLAME_COMMAND,
+      BLAME_LINE_PORCELAIN_FLAG, IGNORE_WHITESPACES, FILENAME_SEPARATOR_FLAG, fileName);
+<span class="fc" id="L135">    outputProcessor.setProcessWrapper(processWrapper);</span>
+<span class="fc" id="L136">    processWrapper.execute();</span>
+<span class="fc bfc" id="L137" title="All 2 branches covered.">    if (outputProcessor.hasEncounteredUncommittedLine()) {</span>
+<span class="fc" id="L138">      LOG.debug(&quot;Unable to blame file '{}' - it has uncommitted changes&quot;, fileName);</span>
+<span class="fc" id="L139">      return emptyList();</span>
+    }
+<span class="fc" id="L141">    return outputProcessor.getBlameLines();</span>
+  }
+
+<span class="fc" id="L144">  private static class BlameOutputProcessor {</span>
+<span class="fc" id="L145">    private final List&lt;BlameLine&gt; blameLines = new LinkedList&lt;&gt;();</span>
+<span class="fc" id="L146">    private String sha1 = null;</span>
+<span class="fc" id="L147">    private String committerTime = null;</span>
+<span class="fc" id="L148">    private String authorMail = null;</span>
+<span class="fc" id="L149">    private ProcessWrapperFactory.ProcessWrapper processWrapper = null;</span>
+<span class="fc" id="L150">    private volatile boolean encounteredUncommittedLine = false;</span>
+
+    public List&lt;BlameLine&gt; getBlameLines() {
+<span class="fc" id="L153">      return blameLines;</span>
+    }
+
+    public void process(String line) {
+<span class="fc bfc" id="L157" title="All 2 branches covered.">      if (sha1 == null) {</span>
+<span class="fc" id="L158">        sha1 = line.split(&quot; &quot;)[0];</span>
+<span class="fc bfc" id="L159" title="All 2 branches covered.">      } else if (line.startsWith(&quot;\t&quot;)) {</span>
+<span class="fc" id="L160">        saveEntry();</span>
+<span class="fc bfc" id="L161" title="All 2 branches covered.">      } else if (line.startsWith(COMMITTER_TIME)) {</span>
+<span class="fc" id="L162">        committerTime = line.substring(COMMITTER_TIME.length());</span>
+<span class="fc bfc" id="L163" title="All 2 branches covered.">      } else if (line.startsWith(AUTHOR_MAIL)) {</span>
+<span class="fc" id="L164">        Matcher matcher = EMAIL_PATTERN.matcher(line);</span>
+<span class="pc bpc" id="L165" title="1 of 2 branches missed.">        if (matcher.find(AUTHOR_MAIL.length())) {</span>
+<span class="fc" id="L166">          authorMail = matcher.group(1);</span>
+        }
+<span class="fc bfc" id="L168" title="All 2 branches covered.">        if (authorMail.equals(&quot;not.committed.yet&quot;)) {</span>
+<span class="fc" id="L169">          encounteredUncommittedLine = true;</span>
+<span class="fc" id="L170">          processWrapper.destroy();</span>
+        }
+      }
+<span class="fc" id="L173">    }</span>
+
+    public boolean hasEncounteredUncommittedLine() {
+<span class="fc" id="L176">      return encounteredUncommittedLine;</span>
+    }
+
+    private void saveEntry() {
+<span class="pc bpc" id="L180" title="1 of 2 branches missed.">      checkState(authorMail != null, &quot;Did not find an author email for an entry&quot;);</span>
+<span class="pc bpc" id="L181" title="1 of 2 branches missed.">      checkState(committerTime != null, &quot;Did not find a committer time for an entry&quot;);</span>
+<span class="pc bpc" id="L182" title="1 of 2 branches missed.">      checkState(sha1 != null, &quot;Did not find a commit sha1 for an entry&quot;);</span>
+      try {
+<span class="fc" id="L184">        blameLines.add(new BlameLine()</span>
+<span class="fc" id="L185">          .revision(sha1)</span>
+<span class="fc" id="L186">          .author(authorMail)</span>
+<span class="fc" id="L187">          .date(Date.from(Instant.ofEpochSecond(Long.parseLong(committerTime)))));</span>
+<span class="nc" id="L188">      } catch (NumberFormatException e) {</span>
+<span class="nc" id="L189">        throw new IllegalStateException(&quot;Invalid committer time found: &quot; + committerTime);</span>
+<span class="fc" id="L190">      }</span>
+<span class="fc" id="L191">      authorMail = null;</span>
+<span class="fc" id="L192">      sha1 = null;</span>
+<span class="fc" id="L193">      committerTime = null;</span>
+<span class="fc" id="L194">    }</span>
+
+    public void setProcessWrapper(ProcessWrapperFactory.ProcessWrapper processWrapper) {
+<span class="fc" id="L197">      this.processWrapper = processWrapper;</span>
+<span class="fc" id="L198">    }</span>
+  }
+
+  private static boolean isCompatibleGitVersion(String gitVersionCommandOutput) {
+    // Due to the danger of argument injection on git blame the use of `--end-of-options` flag is necessary
+    // The flag is available only on git versions &gt;= 2.24.0
+<span class="fc" id="L204">    String gitVersion = whitespaceRegex</span>
+<span class="fc" id="L205">      .splitAsStream(gitVersionCommandOutput)</span>
+<span class="fc" id="L206">      .skip(2)</span>
+<span class="fc" id="L207">      .findFirst()</span>
+<span class="fc" id="L208">      .orElse(&quot;&quot;);</span>
+
+<span class="fc" id="L210">    String formattedGitVersion = formatGitSemanticVersion(gitVersion);</span>
+<span class="fc" id="L211">    return Version.parse(formattedGitVersion).isGreaterThanOrEqual(Version.parse(MINIMUM_REQUIRED_GIT_VERSION));</span>
+  }
+
+  private static String formatGitSemanticVersion(String version) {
+<span class="fc" id="L215">    return semanticVersionDelimiter</span>
+<span class="fc" id="L216">      .splitAsStream(version)</span>
+<span class="fc" id="L217">      .takeWhile(NumberUtils::isCreatable)</span>
+<span class="fc" id="L218">      .collect(Collectors.joining(&quot;.&quot;));</span>
+  }
+
+  private static class MutableString {
+    String string;
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

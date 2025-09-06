@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DecimalColumnDef.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform.db.migration.def</a> &gt; <span class="el_source">DecimalColumnDef.java</span></div><h1>DecimalColumnDef.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform.db.migration.def;
+
+import javax.annotation.CheckForNull;
+import javax.annotation.concurrent.Immutable;
+import org.sonar.db.dialect.Dialect;
+import org.sonar.db.dialect.H2;
+import org.sonar.db.dialect.MsSql;
+import org.sonar.db.dialect.Oracle;
+import org.sonar.db.dialect.PostgreSql;
+
+import static org.sonar.server.platform.db.migration.def.Validations.validateColumnName;
+
+@Immutable
+public class DecimalColumnDef extends AbstractColumnDef {
+
+  public static final int DEFAULT_PRECISION = 38;
+  public static final int DEFAULT_SCALE = 20;
+
+  private final int precision;
+  private final int scale;
+
+  private DecimalColumnDef(Builder builder) {
+<span class="fc" id="L42">    super(builder.columnName, builder.isNullable, null);</span>
+<span class="fc" id="L43">    this.precision = builder.precision;</span>
+<span class="fc" id="L44">    this.scale = builder.scale;</span>
+<span class="fc" id="L45">  }</span>
+
+  public static Builder newDecimalColumnDefBuilder() {
+<span class="fc" id="L48">    return new Builder();</span>
+  }
+
+  public int getPrecision() {
+<span class="fc" id="L52">    return precision;</span>
+  }
+
+  public int getScale() {
+<span class="fc" id="L56">    return scale;</span>
+  }
+
+  @Override
+  public String generateSqlType(Dialect dialect) {
+<span class="fc bfc" id="L61" title="All 4 branches covered.">    return switch (dialect.getId()) {</span>
+<span class="fc" id="L62">      case PostgreSql.ID, Oracle.ID -&gt; String.format(&quot;NUMERIC (%s,%s)&quot;, precision, scale);</span>
+<span class="fc" id="L63">      case MsSql.ID -&gt; String.format(&quot;DECIMAL (%s,%s)&quot;, precision, scale);</span>
+<span class="fc" id="L64">      case H2.ID -&gt; &quot;DOUBLE&quot;;</span>
+<span class="fc" id="L65">      default -&gt; throw new UnsupportedOperationException(String.format(&quot;Unknown dialect '%s'&quot;, dialect.getId()));</span>
+    };
+  }
+
+<span class="fc" id="L69">  public static class Builder {</span>
+    @CheckForNull
+    private String columnName;
+<span class="fc" id="L72">    private int precision = DEFAULT_PRECISION;</span>
+<span class="fc" id="L73">    private int scale = DEFAULT_SCALE;</span>
+<span class="fc" id="L74">    private boolean isNullable = true;</span>
+
+    public Builder setColumnName(String columnName) {
+<span class="fc" id="L77">      this.columnName = validateColumnName(columnName);</span>
+<span class="fc" id="L78">      return this;</span>
+    }
+
+    public Builder setIsNullable(boolean isNullable) {
+<span class="fc" id="L82">      this.isNullable = isNullable;</span>
+<span class="fc" id="L83">      return this;</span>
+    }
+
+    public Builder setPrecision(int precision) {
+<span class="fc" id="L87">      this.precision = precision;</span>
+<span class="fc" id="L88">      return this;</span>
+    }
+
+    public Builder setScale(int scale) {
+<span class="fc" id="L92">      this.scale = scale;</span>
+<span class="fc" id="L93">      return this;</span>
+    }
+
+    public DecimalColumnDef build() {
+<span class="fc" id="L97">      validateColumnName(columnName);</span>
+<span class="fc" id="L98">      return new DecimalColumnDef(this);</span>
+    }
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

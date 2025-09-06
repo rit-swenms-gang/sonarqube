@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserSessionFactoryImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.user</a> &gt; <span class="el_source">UserSessionFactoryImpl.java</span></div><h1>UserSessionFactoryImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.user;
+
+import org.sonar.api.server.ServerSide;
+import org.sonar.db.DbClient;
+import org.sonar.db.user.UserDto;
+import org.sonar.db.user.UserTokenDto;
+import org.sonar.server.authentication.UserLastConnectionDatesUpdater;
+
+import static java.util.Objects.requireNonNull;
+
+@ServerSide
+public class UserSessionFactoryImpl implements UserSessionFactory {
+
+  private final DbClient dbClient;
+  private final UserLastConnectionDatesUpdater userLastConnectionDatesUpdater;
+
+<span class="fc" id="L36">  public UserSessionFactoryImpl(DbClient dbClient, UserLastConnectionDatesUpdater userLastConnectionDatesUpdater) {</span>
+<span class="fc" id="L37">    this.dbClient = dbClient;</span>
+<span class="fc" id="L38">    this.userLastConnectionDatesUpdater = userLastConnectionDatesUpdater;</span>
+<span class="fc" id="L39">  }</span>
+
+  @Override
+  public ServerUserSession create(UserDto user, boolean isAuthenticatedGuiSession) {
+<span class="nc" id="L43">    requireNonNull(user, &quot;UserDto must not be null&quot;);</span>
+<span class="nc" id="L44">    userLastConnectionDatesUpdater.updateLastConnectionDateIfNeeded(user);</span>
+<span class="nc" id="L45">    return new ServerUserSession(dbClient, user, isAuthenticatedGuiSession);</span>
+  }
+
+  @Override
+  public TokenUserSession create(UserDto user, UserTokenDto userToken) {
+<span class="nc" id="L50">    requireNonNull(user, &quot;UserDto must not be null&quot;);</span>
+<span class="nc" id="L51">    requireNonNull(userToken, &quot;UserTokenDto must not be null&quot;);</span>
+<span class="nc" id="L52">    userLastConnectionDatesUpdater.updateLastConnectionDateIfNeeded(user);</span>
+<span class="nc" id="L53">    return new TokenUserSession(dbClient, user, userToken);</span>
+  }
+
+  @Override
+  public GithubWebhookUserSession createGithubWebhookUserSession() {
+<span class="fc" id="L58">    return new GithubWebhookUserSession();</span>
+  }
+
+  @Override
+  public ServerUserSession createAnonymous() {
+<span class="nc" id="L63">    return new ServerUserSession(dbClient, null, false);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

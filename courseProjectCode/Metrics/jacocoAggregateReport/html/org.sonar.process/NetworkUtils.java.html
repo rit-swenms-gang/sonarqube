@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NetworkUtils.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.process</a> &gt; <span class="el_source">NetworkUtils.java</span></div><h1>NetworkUtils.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.process;
+
+import java.net.Inet4Address;
+import java.net.Inet6Address;
+import java.net.InetAddress;
+import java.util.Optional;
+import java.util.OptionalInt;
+import java.util.function.Predicate;
+
+public interface NetworkUtils {
+
+  int getNextLoopbackAvailablePort();
+
+  OptionalInt getNextAvailablePort(String hostOrAddress);
+
+  /**
+   * Identifying the localhost machine
+   * It will try to retrieve the hostname
+   *
+   * @return &quot;hostname&quot;
+   */
+  String getHostname();
+
+  /**
+   * Converts a text representation of an IP address or host name to
+   * a {@link InetAddress}.
+   * If text value references an IPv4 or IPv6 address, then DNS is
+   * not used.
+   */
+  Optional&lt;InetAddress&gt; toInetAddress(String hostOrAddress);
+
+  boolean isLocal(String hostOrAddress);
+
+  boolean isLoopback(String hostOrAddress);
+
+  boolean isIpv6Address(String hostOrAddress);
+
+  /**
+   * Returns the machine {@link InetAddress} that matches the specified
+   * predicate. If multiple addresses match then a single one
+   * is picked in a non deterministic way.
+   */
+  Optional&lt;InetAddress&gt; getLocalInetAddress(Predicate&lt;InetAddress&gt; predicate);
+
+  /**
+   * Returns a local {@link InetAddress} that is IPv4 and not
+   * loopback. If multiple addresses match then a single one
+   * is picked in a non deterministic way.
+   */
+  default Optional&lt;InetAddress&gt; getLocalNonLoopbackIpv4Address() {
+<span class="pc bpc" id="L70" title="1 of 4 branches missed.">    return getLocalInetAddress(a -&gt; !a.isLoopbackAddress() &amp;&amp; a instanceof Inet4Address);</span>
+  }
+
+  /**
+   * Returns a local {@link InetAddress} that is IPv6 and not
+   * loopback. If multiple addresses match then a single one
+   * is picked in a non deterministic way.
+   */
+  default Optional&lt;InetAddress&gt; getLocalNonLoopbackIpv6Address() {
+<span class="nc bnc" id="L79" title="All 4 branches missed.">    return getLocalInetAddress(a -&gt; !a.isLoopbackAddress() &amp;&amp; a instanceof Inet6Address);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

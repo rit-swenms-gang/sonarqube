@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ValidationInitAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.saml.ws</a> &gt; <span class="el_source">ValidationInitAction.java</span></div><h1>ValidationInitAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.saml.ws;
+
+import java.io.IOException;
+import org.sonar.api.server.http.HttpRequest;
+import org.sonar.api.server.http.HttpResponse;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.api.web.FilterChain;
+import org.sonar.api.web.HttpFilter;
+import org.sonar.api.web.UrlPattern;
+import org.sonar.auth.saml.SamlAuthenticator;
+import org.sonar.auth.saml.SamlIdentityProvider;
+import org.sonar.server.authentication.AuthenticationError;
+import org.sonar.server.authentication.OAuth2ContextFactory;
+import org.sonar.server.authentication.OAuthCsrfVerifier;
+import org.sonar.server.exceptions.ForbiddenException;
+import org.sonar.server.user.UserSession;
+import org.sonar.server.ws.ServletFilterHandler;
+
+import static org.sonar.server.authentication.SamlValidationRedirectionFilter.SAML_VALIDATION_CONTROLLER_CONTEXT;
+import static org.sonar.server.authentication.SamlValidationRedirectionFilter.SAML_VALIDATION_KEY;
+
+public class ValidationInitAction extends HttpFilter implements SamlAction {
+
+  public static final String VALIDATION_RELAY_STATE = &quot;validation-query&quot;;
+  public static final String VALIDATION_INIT_KEY = &quot;validation_init&quot;;
+  private final SamlAuthenticator samlAuthenticator;
+  private final OAuthCsrfVerifier oAuthCsrfVerifier;
+  private final OAuth2ContextFactory oAuth2ContextFactory;
+  private final UserSession userSession;
+
+<span class="fc" id="L51">  public ValidationInitAction(SamlAuthenticator samlAuthenticator, OAuthCsrfVerifier oAuthCsrfVerifier, OAuth2ContextFactory oAuth2ContextFactory, UserSession userSession) {</span>
+<span class="fc" id="L52">    this.samlAuthenticator = samlAuthenticator;</span>
+<span class="fc" id="L53">    this.oAuthCsrfVerifier = oAuthCsrfVerifier;</span>
+<span class="fc" id="L54">    this.oAuth2ContextFactory = oAuth2ContextFactory;</span>
+<span class="fc" id="L55">    this.userSession = userSession;</span>
+<span class="fc" id="L56">  }</span>
+
+  @Override
+  public UrlPattern doGetPattern() {
+<span class="fc" id="L60">    return UrlPattern.create(&quot;/&quot; + SamlValidationWs.SAML_VALIDATION_CONTROLLER + &quot;/&quot; + VALIDATION_INIT_KEY);</span>
+  }
+
+  @Override
+  public void define(WebService.NewController controller) {
+<span class="fc" id="L65">    controller</span>
+<span class="fc" id="L66">      .createAction(VALIDATION_INIT_KEY)</span>
+<span class="fc" id="L67">      .setInternal(true)</span>
+<span class="fc" id="L68">      .setPost(false)</span>
+<span class="fc" id="L69">      .setHandler(ServletFilterHandler.INSTANCE)</span>
+<span class="fc" id="L70">      .setDescription(&quot;Initiate a SAML request to the identity Provider for configuration validation purpose.&quot;)</span>
+<span class="fc" id="L71">      .setContentType(Response.ContentType.NO_CONTENT)</span>
+<span class="fc" id="L72">      .setSince(&quot;9.7&quot;);</span>
+<span class="fc" id="L73">  }</span>
+
+  @Override
+  public void doFilter(HttpRequest request, HttpResponse response, FilterChain chain) throws IOException {
+    try {
+<span class="fc" id="L78">      userSession.checkIsSystemAdministrator();</span>
+<span class="fc" id="L79">    } catch (ForbiddenException e) {</span>
+<span class="fc" id="L80">      AuthenticationError.handleError(request, response, &quot;User needs to be logged in as system administrator to access this page.&quot;);</span>
+<span class="fc" id="L81">      return;</span>
+<span class="fc" id="L82">    }</span>
+
+<span class="fc" id="L84">    String csrfState = oAuthCsrfVerifier.generateState(request, response);</span>
+
+    try {
+<span class="fc" id="L87">      samlAuthenticator.initLogin(oAuth2ContextFactory.generateCallbackUrl(SamlIdentityProvider.KEY),</span>
+        VALIDATION_RELAY_STATE + &quot;/&quot; + csrfState, request, response);
+<span class="fc" id="L89">    } catch (IllegalArgumentException | IllegalStateException e) {</span>
+<span class="fc" id="L90">      response.sendRedirect(&quot;/&quot; + SAML_VALIDATION_CONTROLLER_CONTEXT + &quot;/&quot; + SAML_VALIDATION_KEY + &quot;?CSRFToken=&quot; + csrfState);</span>
+<span class="fc" id="L91">    }</span>
+<span class="fc" id="L92">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

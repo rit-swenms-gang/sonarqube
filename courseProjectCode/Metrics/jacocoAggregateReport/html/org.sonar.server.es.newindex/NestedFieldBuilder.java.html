@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NestedFieldBuilder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.es.newindex</a> &gt; <span class="el_source">NestedFieldBuilder.java</span></div><h1>NestedFieldBuilder.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.es.newindex;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSortedMap;
+import java.util.Map;
+import java.util.TreeMap;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.FIELD_TYPE_KEYWORD;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.INDEX;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.INDEX_SEARCHABLE;
+
+public class NestedFieldBuilder&lt;U extends FieldAware&lt;U&gt;&gt; {
+  private final U parent;
+  private final String fieldName;
+<span class="fc" id="L35">  private final Map&lt;String, Object&gt; properties = new TreeMap&lt;&gt;();</span>
+
+<span class="fc" id="L37">  protected NestedFieldBuilder(U parent, String fieldName) {</span>
+<span class="fc" id="L38">    this.parent = parent;</span>
+<span class="fc" id="L39">    this.fieldName = fieldName;</span>
+<span class="fc" id="L40">  }</span>
+
+  private NestedFieldBuilder setProperty(String fieldName, Object value) {
+<span class="fc" id="L43">    properties.put(fieldName, value);</span>
+
+<span class="fc" id="L45">    return this;</span>
+  }
+
+  public NestedFieldBuilder addKeywordField(String fieldName) {
+<span class="fc" id="L49">    return setProperty(fieldName, ImmutableSortedMap.of(</span>
+      &quot;type&quot;, FIELD_TYPE_KEYWORD,
+      INDEX, INDEX_SEARCHABLE));
+  }
+
+  public NestedFieldBuilder addDoubleField(String fieldName) {
+<span class="fc" id="L55">    return setProperty(fieldName, ImmutableMap.of(&quot;type&quot;, &quot;double&quot;));</span>
+  }
+
+  public NestedFieldBuilder addIntegerField(String fieldName) {
+<span class="fc" id="L59">    return setProperty(fieldName, ImmutableMap.of(&quot;type&quot;, &quot;integer&quot;));</span>
+  }
+
+  public U build() {
+<span class="fc bfc" id="L63" title="All 2 branches covered.">    checkArgument(!properties.isEmpty(), &quot;At least one sub-field must be declared in nested property '%s'&quot;, fieldName);</span>
+
+<span class="fc" id="L65">    return parent.setField(fieldName, ImmutableSortedMap.of(</span>
+      &quot;type&quot;, &quot;nested&quot;,
+      &quot;properties&quot;, properties));
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

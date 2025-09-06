@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ActivateRuleAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.qualityprofile.ws</a> &gt; <span class="el_source">ActivateRuleAction.java</span></div><h1>ActivateRuleAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.qualityprofile.ws;
+
+import java.util.EnumMap;
+import java.util.Map;
+import java.util.stream.Collectors;
+import org.jetbrains.annotations.NotNull;
+import org.sonar.api.issue.impact.SoftwareQuality;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.api.rule.Severity;
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.api.utils.KeyValueFormat;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.qualityprofile.QProfileDto;
+import org.sonar.db.rule.RuleDto;
+import org.sonar.server.exceptions.BadRequestException;
+import org.sonar.server.qualityprofile.QProfileRules;
+import org.sonar.server.qualityprofile.RuleActivation;
+import org.sonar.server.user.UserSession;
+
+import static java.lang.Boolean.TRUE;
+import static java.lang.String.format;
+import static java.util.Collections.singletonList;
+import static org.sonar.core.util.Uuids.UUID_EXAMPLE_01;
+import static org.sonarqube.ws.client.qualityprofile.QualityProfileWsParameters.ACTION_ACTIVATE_RULE;
+import static org.sonarqube.ws.client.qualityprofile.QualityProfileWsParameters.PARAM_IMPACTS;
+import static org.sonarqube.ws.client.qualityprofile.QualityProfileWsParameters.PARAM_KEY;
+import static org.sonarqube.ws.client.qualityprofile.QualityProfileWsParameters.PARAM_PARAMS;
+import static org.sonarqube.ws.client.qualityprofile.QualityProfileWsParameters.PARAM_PRIORITIZED_RULE;
+import static org.sonarqube.ws.client.qualityprofile.QualityProfileWsParameters.PARAM_RESET;
+import static org.sonarqube.ws.client.qualityprofile.QualityProfileWsParameters.PARAM_RULE;
+import static org.sonarqube.ws.client.qualityprofile.QualityProfileWsParameters.PARAM_SEVERITY;
+
+public class ActivateRuleAction implements QProfileWsAction {
+
+  private final DbClient dbClient;
+  private final QProfileRules ruleActivator;
+  private final UserSession userSession;
+  private final QProfileWsSupport wsSupport;
+
+<span class="fc" id="L63">  public ActivateRuleAction(DbClient dbClient, QProfileRules ruleActivator, UserSession userSession, QProfileWsSupport wsSupport) {</span>
+<span class="fc" id="L64">    this.dbClient = dbClient;</span>
+<span class="fc" id="L65">    this.ruleActivator = ruleActivator;</span>
+<span class="fc" id="L66">    this.userSession = userSession;</span>
+<span class="fc" id="L67">    this.wsSupport = wsSupport;</span>
+<span class="fc" id="L68">  }</span>
+
+  public void define(WebService.NewController controller) {
+<span class="fc" id="L71">    WebService.NewAction activate = controller</span>
+<span class="fc" id="L72">      .createAction(ACTION_ACTIVATE_RULE)</span>
+<span class="fc" id="L73">      .setDescription(&quot;Activate a rule on a Quality Profile.&lt;br&gt; &quot; +</span>
+        &quot;Requires one of the following permissions:&quot; +
+        &quot;&lt;ul&gt;&quot; +
+        &quot;  &lt;li&gt;'Administer Quality Profiles'&lt;/li&gt;&quot; +
+        &quot;  &lt;li&gt;Edit right on the specified quality profile&lt;/li&gt;&quot; +
+        &quot;&lt;/ul&gt;&quot;)
+<span class="fc" id="L79">      .setChangelog(</span>
+<span class="fc" id="L80">        new Change(&quot;10.8&quot;, format(&quot;The parameter '%s' is not deprecated anymore.&quot;, PARAM_SEVERITY)),</span>
+<span class="fc" id="L81">        new Change(&quot;10.8&quot;, format(&quot;Add new parameter '%s'&quot;, PARAM_IMPACTS)),</span>
+<span class="fc" id="L82">        new Change(&quot;10.6&quot;, format(&quot;Add parameter '%s'.&quot;, PARAM_PRIORITIZED_RULE)),</span>
+<span class="fc" id="L83">        new Change(&quot;10.2&quot;, format(&quot;Parameter '%s' is now deprecated.&quot;, PARAM_SEVERITY)))</span>
+<span class="fc" id="L84">      .setHandler(this)</span>
+<span class="fc" id="L85">      .setPost(true)</span>
+<span class="fc" id="L86">      .setSince(&quot;4.4&quot;);</span>
+
+<span class="fc" id="L88">    activate.createParam(PARAM_KEY)</span>
+<span class="fc" id="L89">      .setDescription(&quot;Quality Profile key. Can be obtained through &lt;code&gt;api/qualityprofiles/search&lt;/code&gt;&quot;)</span>
+<span class="fc" id="L90">      .setRequired(true)</span>
+<span class="fc" id="L91">      .setExampleValue(UUID_EXAMPLE_01);</span>
+
+<span class="fc" id="L93">    activate.createParam(PARAM_RULE)</span>
+<span class="fc" id="L94">      .setDescription(&quot;Rule key&quot;)</span>
+<span class="fc" id="L95">      .setRequired(true)</span>
+<span class="fc" id="L96">      .setExampleValue(&quot;java:AvoidCycles&quot;);</span>
+
+<span class="fc" id="L98">    activate.createParam(PARAM_SEVERITY)</span>
+<span class="fc" id="L99">      .setDescription(format(&quot;Severity. Cannot be used as the same time as '%s'.Ignored if parameter %s is true.&quot;, PARAM_IMPACTS, PARAM_RESET))</span>
+<span class="fc" id="L100">      .setPossibleValues(Severity.ALL);</span>
+
+<span class="fc" id="L102">    activate.createParam(PARAM_IMPACTS)</span>
+<span class="fc" id="L103">      .setDescription(format(&quot;Override of impact severities for the rule. Cannot be used as the same time as '%s'. Ignored if parameter %s is true.&quot;, PARAM_SEVERITY, PARAM_RESET))</span>
+<span class="fc" id="L104">      .setExampleValue(&quot;impacts=MAINTAINABILITY=HIGH;SECURITY=MEDIUM&quot;);</span>
+
+<span class="fc" id="L106">    activate.createParam(PARAM_PARAMS)</span>
+<span class="fc" id="L107">      .setDescription(format(&quot;Parameters as semi-colon list of &lt;code&gt;key=value&lt;/code&gt;. Ignored if parameter %s is true.&quot;, PARAM_RESET))</span>
+<span class="fc" id="L108">      .setExampleValue(&quot;params=key1=v1;key2=v2&quot;);</span>
+
+<span class="fc" id="L110">    activate.createParam(PARAM_RESET)</span>
+<span class="fc" id="L111">      .setDescription(&quot;Reset severity and parameters of activated rule. Set the values defined on parent profile or from rule default &quot; +</span>
+        &quot;values.&quot;)
+<span class="fc" id="L113">      .setBooleanPossibleValues();</span>
+
+<span class="fc" id="L115">    activate.createParam(PARAM_PRIORITIZED_RULE)</span>
+<span class="fc" id="L116">      .setDescription(&quot;Mark activated rule as prioritized, so all corresponding Issues will have to be fixed.&quot;)</span>
+<span class="fc" id="L117">      .setBooleanPossibleValues()</span>
+<span class="fc" id="L118">      .setSince(&quot;10.6&quot;);</span>
+<span class="fc" id="L119">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L123">    userSession.checkLoggedIn();</span>
+<span class="fc" id="L124">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L125">      String profileKey = request.mandatoryParam(PARAM_KEY);</span>
+<span class="fc" id="L126">      QProfileDto profile = wsSupport.getProfile(dbSession, QProfileReference.fromKey(profileKey));</span>
+<span class="fc" id="L127">      wsSupport.checkCanEdit(dbSession, profile);</span>
+<span class="fc" id="L128">      RuleActivation activation = readActivation(dbSession, request);</span>
+<span class="fc" id="L129">      ruleActivator.activateAndCommit(dbSession, profile, singletonList(activation));</span>
+    }
+
+<span class="fc" id="L132">    response.noContent();</span>
+<span class="fc" id="L133">  }</span>
+
+  private RuleActivation readActivation(DbSession dbSession, Request request) {
+<span class="fc" id="L136">    RuleKey ruleKey = RuleKey.parse(request.mandatoryParam(PARAM_RULE));</span>
+<span class="fc" id="L137">    RuleDto ruleDto = wsSupport.getRule(dbSession, ruleKey);</span>
+<span class="fc" id="L138">    boolean reset = TRUE.equals(request.paramAsBoolean(PARAM_RESET));</span>
+<span class="fc bfc" id="L139" title="All 2 branches covered.">    if (reset) {</span>
+<span class="fc" id="L140">      return RuleActivation.createReset(ruleDto.getUuid());</span>
+    }
+<span class="fc" id="L142">    String severity = request.param(PARAM_SEVERITY);</span>
+<span class="fc" id="L143">    String impactsAsString = request.param(PARAM_IMPACTS);</span>
+
+<span class="fc bfc" id="L145" title="All 4 branches covered.">    if (impactsAsString != null &amp;&amp; severity != null) {</span>
+<span class="fc" id="L146">      throw BadRequestException.create(format(&quot;'%s' and '%s' parameters can't be provided both at the same time&quot;, PARAM_SEVERITY, PARAM_IMPACTS));</span>
+    }
+
+<span class="fc" id="L149">    Map&lt;SoftwareQuality, org.sonar.api.issue.impact.Severity&gt; impacts = new EnumMap&lt;&gt;(SoftwareQuality.class);</span>
+<span class="fc bfc" id="L150" title="All 2 branches covered.">    if (impactsAsString != null) {</span>
+<span class="fc" id="L151">      impacts = getImpacts(impactsAsString, ruleDto);</span>
+    }
+
+<span class="fc" id="L154">    Boolean prioritizedRule = request.paramAsBoolean(PARAM_PRIORITIZED_RULE);</span>
+<span class="fc" id="L155">    Map&lt;String, String&gt; params = null;</span>
+<span class="fc" id="L156">    String paramsAsString = request.param(PARAM_PARAMS);</span>
+<span class="fc bfc" id="L157" title="All 2 branches covered.">    if (paramsAsString != null) {</span>
+<span class="fc" id="L158">      params = KeyValueFormat.parse(paramsAsString);</span>
+    }
+<span class="fc" id="L160">    return RuleActivation.create(ruleDto.getUuid(), severity, impacts, prioritizedRule, params);</span>
+  }
+
+  @NotNull
+  private static Map&lt;SoftwareQuality, org.sonar.api.issue.impact.Severity&gt; getImpacts(String impactsAsString, RuleDto ruleDto) {
+    Map&lt;SoftwareQuality, org.sonar.api.issue.impact.Severity&gt; result;
+    try {
+<span class="fc" id="L167">      result = KeyValueFormat.parse(impactsAsString)</span>
+<span class="fc" id="L168">        .entrySet()</span>
+<span class="fc" id="L169">        .stream().collect(Collectors.toMap(e -&gt; SoftwareQuality.valueOf(e.getKey()), e -&gt; org.sonar.api.issue.impact.Severity.valueOf(e.getValue())));</span>
+<span class="fc" id="L170">    } catch (Exception e) {</span>
+<span class="fc" id="L171">      throw BadRequestException.create(format(&quot;Unexpected value for parameter '%s': %s&quot;, PARAM_IMPACTS, impactsAsString));</span>
+<span class="fc" id="L172">    }</span>
+<span class="fc bfc" id="L173" title="All 2 branches covered.">    if (!ruleDto.getDefaultImpactsMap().keySet().containsAll(result.keySet())) {</span>
+<span class="fc" id="L174">      throw BadRequestException.create(</span>
+<span class="fc" id="L175">        format(&quot;Only impacts defined on the rule can be overridden. (%s)&quot;, ruleDto.getDefaultImpactsMap().keySet().stream().map(Enum::name).collect(Collectors.joining(&quot;,&quot;))));</span>
+    }
+<span class="fc" id="L177">    return result;</span>
+
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,319 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GitlabConfigurationService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.common.gitlab.config</a> &gt; <span class="el_source">GitlabConfigurationService.java</span></div><h1>GitlabConfigurationService.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.common.gitlab.config;
+
+import com.google.common.base.Strings;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import javax.annotation.Nullable;
+import org.sonar.alm.client.gitlab.GitlabGlobalSettingsValidator;
+import org.sonar.api.server.ServerSide;
+import org.sonar.auth.gitlab.GitLabIdentityProvider;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.property.PropertyDto;
+import org.sonar.server.common.UpdatedValue;
+import org.sonar.server.exceptions.BadRequestException;
+import org.sonar.server.exceptions.NotFoundException;
+import org.sonar.server.management.ManagedInstanceService;
+import org.sonar.server.setting.ThreadLocalSettings;
+
+import static java.lang.String.format;
+import static org.apache.commons.lang3.StringUtils.isNotBlank;
+import static org.sonar.alm.client.gitlab.GitlabGlobalSettingsValidator.ValidationMode.AUTH_ONLY;
+import static org.sonar.alm.client.gitlab.GitlabGlobalSettingsValidator.ValidationMode.COMPLETE;
+import static org.sonar.api.utils.Preconditions.checkArgument;
+import static org.sonar.api.utils.Preconditions.checkState;
+import static org.sonar.auth.gitlab.GitLabSettings.GITLAB_AUTH_ALLOWED_GROUPS;
+import static org.sonar.auth.gitlab.GitLabSettings.GITLAB_AUTH_ALLOW_USERS_TO_SIGNUP;
+import static org.sonar.auth.gitlab.GitLabSettings.GITLAB_AUTH_APPLICATION_ID;
+import static org.sonar.auth.gitlab.GitLabSettings.GITLAB_AUTH_ENABLED;
+import static org.sonar.auth.gitlab.GitLabSettings.GITLAB_AUTH_PROVISIONING_ENABLED;
+import static org.sonar.auth.gitlab.GitLabSettings.GITLAB_AUTH_PROVISIONING_TOKEN;
+import static org.sonar.auth.gitlab.GitLabSettings.GITLAB_AUTH_SECRET;
+import static org.sonar.auth.gitlab.GitLabSettings.GITLAB_AUTH_SYNC_USER_GROUPS;
+import static org.sonar.auth.gitlab.GitLabSettings.GITLAB_AUTH_URL;
+import static org.sonar.server.common.gitlab.config.ProvisioningType.AUTO_PROVISIONING;
+import static org.sonar.server.common.gitlab.config.ProvisioningType.JIT;
+import static org.sonar.server.exceptions.NotFoundException.checkFound;
+
+@ServerSide
+public class GitlabConfigurationService {
+
+<span class="fc" id="L63">  private static final List&lt;String&gt; GITLAB_CONFIGURATION_PROPERTIES = List.of(</span>
+    GITLAB_AUTH_ENABLED,
+    GITLAB_AUTH_APPLICATION_ID,
+    GITLAB_AUTH_URL,
+    GITLAB_AUTH_SECRET,
+    GITLAB_AUTH_SYNC_USER_GROUPS,
+    GITLAB_AUTH_ALLOWED_GROUPS,
+    GITLAB_AUTH_PROVISIONING_ENABLED,
+    GITLAB_AUTH_ALLOW_USERS_TO_SIGNUP,
+    GITLAB_AUTH_PROVISIONING_TOKEN);
+
+  public static final String UNIQUE_GITLAB_CONFIGURATION_ID = &quot;gitlab-configuration&quot;;
+  private final DbClient dbClient;
+  private final ManagedInstanceService managedInstanceService;
+  private final GitlabGlobalSettingsValidator gitlabGlobalSettingsValidator;
+  private final ThreadLocalSettings threadLocalSettings;
+
+  public GitlabConfigurationService(DbClient dbClient,
+<span class="fc" id="L81">    ManagedInstanceService managedInstanceService, GitlabGlobalSettingsValidator gitlabGlobalSettingsValidator, ThreadLocalSettings threadLocalSettings) {</span>
+<span class="fc" id="L82">    this.dbClient = dbClient;</span>
+<span class="fc" id="L83">    this.managedInstanceService = managedInstanceService;</span>
+<span class="fc" id="L84">    this.gitlabGlobalSettingsValidator = gitlabGlobalSettingsValidator;</span>
+<span class="fc" id="L85">    this.threadLocalSettings = threadLocalSettings;</span>
+<span class="fc" id="L86">  }</span>
+
+  public GitlabConfiguration updateConfiguration(UpdateGitlabConfigurationRequest updateRequest) {
+<span class="fc" id="L89">    UpdatedValue&lt;Boolean&gt; provisioningEnabled = updateRequest.provisioningType().map(GitlabConfigurationService::shouldEnableAutoProvisioning);</span>
+<span class="fc" id="L90">    throwIfUrlIsUpdatedWithoutSecrets(updateRequest);</span>
+<span class="fc" id="L91">    try (DbSession dbSession = dbClient.openSession(true)) {</span>
+<span class="fc" id="L92">      throwIfConfigurationDoesntExist(dbSession);</span>
+<span class="fc" id="L93">      GitlabConfiguration currentConfiguration = getConfiguration(updateRequest.gitlabConfigurationId(), dbSession);</span>
+
+<span class="fc" id="L95">      ProvisioningType provisioningType = updateRequest.provisioningType().orElse(currentConfiguration.provisioningType());</span>
+<span class="fc" id="L96">      Set&lt;String&gt; allowedGroups = updateRequest.allowedGroups().orElse(currentConfiguration.allowedGroups());</span>
+<span class="fc" id="L97">      throwIfAllowedGroupsEmptyAndAutoProvisioning(provisioningType, allowedGroups);</span>
+
+<span class="fc" id="L99">      setIfDefined(dbSession, GITLAB_AUTH_ENABLED, updateRequest.enabled().map(String::valueOf));</span>
+<span class="fc" id="L100">      setIfDefined(dbSession, GITLAB_AUTH_APPLICATION_ID, updateRequest.applicationId());</span>
+<span class="fc" id="L101">      setIfDefined(dbSession, GITLAB_AUTH_URL, updateRequest.url());</span>
+<span class="fc" id="L102">      setIfDefined(dbSession, GITLAB_AUTH_SECRET, updateRequest.secret());</span>
+<span class="fc" id="L103">      setIfDefined(dbSession, GITLAB_AUTH_SYNC_USER_GROUPS, updateRequest.synchronizeGroups().map(String::valueOf));</span>
+<span class="fc" id="L104">      setIfDefined(dbSession, GITLAB_AUTH_ALLOWED_GROUPS, updateRequest.allowedGroups().map(groups -&gt; String.join(&quot;,&quot;, groups)));</span>
+<span class="fc" id="L105">      setIfDefined(dbSession, GITLAB_AUTH_PROVISIONING_ENABLED, provisioningEnabled.map(String::valueOf));</span>
+<span class="fc" id="L106">      setIfDefined(dbSession, GITLAB_AUTH_ALLOW_USERS_TO_SIGNUP, updateRequest.allowUsersToSignUp().map(String::valueOf));</span>
+<span class="fc" id="L107">      setIfDefined(dbSession, GITLAB_AUTH_PROVISIONING_TOKEN, updateRequest.provisioningToken());</span>
+<span class="fc" id="L108">      boolean shouldTriggerProvisioning = provisioningEnabled.orElse(false);</span>
+<span class="fc" id="L109">      deleteExternalGroupsWhenDisablingAutoProvisioning(dbSession, currentConfiguration, updateRequest.provisioningType());</span>
+<span class="fc" id="L110">      GitlabConfiguration updatedConfiguration = getConfiguration(UNIQUE_GITLAB_CONFIGURATION_ID, dbSession);</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">      if (shouldTriggerProvisioning) {</span>
+<span class="fc" id="L112">        triggerRun(updatedConfiguration);</span>
+      }
+<span class="fc" id="L114">      dbSession.commit();</span>
+<span class="fc" id="L115">      return updatedConfiguration;</span>
+    }
+  }
+
+  private static void throwIfUrlIsUpdatedWithoutSecrets(UpdateGitlabConfigurationRequest request) {
+<span class="fc bfc" id="L120" title="All 2 branches covered.">    if (request.url().isDefined()) {</span>
+<span class="fc" id="L121">      checkArgument(request.secret().isDefined(), &quot;For security reasons, the URL can't be updated without providing the secret.&quot;);</span>
+    }
+<span class="fc" id="L123">  }</span>
+
+  private void setIfDefined(DbSession dbSession, String propertyName, UpdatedValue&lt;String&gt; value) {
+<span class="fc" id="L126">    value</span>
+<span class="fc" id="L127">      .map(definedValue -&gt; new PropertyDto().setKey(propertyName).setValue(definedValue))</span>
+<span class="fc" id="L128">      .applyIfDefined(property -&gt; dbClient.propertiesDao().saveProperty(dbSession, property));</span>
+<span class="fc" id="L129">    threadLocalSettings.setProperty(propertyName, value.orElse(null));</span>
+<span class="fc" id="L130">  }</span>
+
+  private void deleteExternalGroupsWhenDisablingAutoProvisioning(
+    DbSession dbSession,
+    GitlabConfiguration currentConfiguration,
+    UpdatedValue&lt;ProvisioningType&gt; provisioningTypeFromUpdate) {
+<span class="fc bfc" id="L136" title="All 2 branches covered.">    boolean disableAutoProvisioning = provisioningTypeFromUpdate.map(provisioningType -&gt; provisioningType.equals(JIT)).orElse(false)</span>
+<span class="pc bpc" id="L137" title="1 of 2 branches missed.">      &amp;&amp; currentConfiguration.provisioningType().equals(AUTO_PROVISIONING);</span>
+<span class="fc bfc" id="L138" title="All 2 branches covered.">    if (disableAutoProvisioning) {</span>
+<span class="fc" id="L139">      dbClient.externalGroupDao().deleteByExternalIdentityProvider(dbSession, GitLabIdentityProvider.KEY);</span>
+    }
+<span class="fc" id="L141">  }</span>
+
+  public GitlabConfiguration getConfiguration(String id) {
+<span class="fc" id="L144">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L145">      throwIfNotUniqueConfigurationId(id);</span>
+<span class="fc" id="L146">      throwIfConfigurationDoesntExist(dbSession);</span>
+<span class="fc" id="L147">      return getConfiguration(id, dbSession);</span>
+    }
+  }
+
+  public Optional&lt;GitlabConfiguration&gt; findConfigurations() {
+<span class="nc" id="L152">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="nc bnc" id="L153" title="All 2 branches missed.">      if (dbClient.propertiesDao().selectGlobalProperty(dbSession, GITLAB_AUTH_ENABLED) == null) {</span>
+<span class="nc" id="L154">        return Optional.empty();</span>
+      }
+<span class="nc" id="L156">      return Optional.of(getConfiguration(UNIQUE_GITLAB_CONFIGURATION_ID, dbSession));</span>
+<span class="nc bnc" id="L157" title="All 2 branches missed.">    }</span>
+  }
+
+  private Boolean getBooleanOrFalse(DbSession dbSession, String property) {
+<span class="fc" id="L161">    return Optional.ofNullable(dbClient.propertiesDao().selectGlobalProperty(dbSession, property))</span>
+<span class="fc" id="L162">      .map(dto -&gt; Boolean.valueOf(dto.getValue())).orElse(false);</span>
+  }
+
+  private String getStringPropertyOrEmpty(DbSession dbSession, String property) {
+<span class="fc" id="L166">    return Optional.ofNullable(dbClient.propertiesDao().selectGlobalProperty(dbSession, property))</span>
+<span class="fc" id="L167">      .map(PropertyDto::getValue).orElse(&quot;&quot;);</span>
+  }
+
+  private String getStringPropertyOrNull(DbSession dbSession, String property) {
+<span class="fc" id="L171">    return Optional.ofNullable(dbClient.propertiesDao().selectGlobalProperty(dbSession, property))</span>
+<span class="fc" id="L172">      .map(dto -&gt; Strings.emptyToNull(dto.getValue())).orElse(null);</span>
+  }
+
+  private static void throwIfNotUniqueConfigurationId(String id) {
+<span class="fc bfc" id="L176" title="All 2 branches covered.">    if (!UNIQUE_GITLAB_CONFIGURATION_ID.equals(id)) {</span>
+<span class="fc" id="L177">      throw new NotFoundException(format(&quot;Gitlab configuration with id %s not found&quot;, id));</span>
+    }
+<span class="fc" id="L179">  }</span>
+
+  public void deleteConfiguration(String id) {
+<span class="fc" id="L182">    throwIfNotUniqueConfigurationId(id);</span>
+<span class="fc" id="L183">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L184">      throwIfConfigurationDoesntExist(dbSession);</span>
+<span class="fc" id="L185">      GITLAB_CONFIGURATION_PROPERTIES.forEach(property -&gt; dbClient.propertiesDao().deleteGlobalProperty(property, dbSession));</span>
+<span class="fc" id="L186">      dbClient.externalGroupDao().deleteByExternalIdentityProvider(dbSession, GitLabIdentityProvider.KEY);</span>
+<span class="fc" id="L187">      dbSession.commit();</span>
+    }
+<span class="fc" id="L189">  }</span>
+
+  private void throwIfConfigurationDoesntExist(DbSession dbSession) {
+<span class="fc" id="L192">    checkFound(dbClient.propertiesDao().selectGlobalProperty(dbSession, GITLAB_AUTH_ENABLED), &quot;GitLab configuration doesn't exist.&quot;);</span>
+<span class="fc" id="L193">  }</span>
+
+  private static ProvisioningType toProvisioningType(boolean provisioningEnabled) {
+<span class="fc bfc" id="L196" title="All 2 branches covered.">    return provisioningEnabled ? AUTO_PROVISIONING : JIT;</span>
+  }
+
+  public GitlabConfiguration createConfiguration(GitlabConfiguration configuration) {
+<span class="fc" id="L200">    throwIfConfigurationAlreadyExists();</span>
+<span class="fc" id="L201">    throwIfAllowedGroupsEmptyAndAutoProvisioning(configuration.provisioningType(), configuration.allowedGroups());</span>
+
+<span class="fc" id="L203">    boolean enableAutoProvisioning = shouldEnableAutoProvisioning(configuration.provisioningType());</span>
+<span class="fc" id="L204">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L205">      setProperty(dbSession, GITLAB_AUTH_ENABLED, String.valueOf(configuration.enabled()));</span>
+<span class="fc" id="L206">      setProperty(dbSession, GITLAB_AUTH_APPLICATION_ID, configuration.applicationId());</span>
+<span class="fc" id="L207">      setProperty(dbSession, GITLAB_AUTH_URL, configuration.url());</span>
+<span class="fc" id="L208">      setProperty(dbSession, GITLAB_AUTH_SECRET, configuration.secret());</span>
+<span class="fc" id="L209">      setProperty(dbSession, GITLAB_AUTH_SYNC_USER_GROUPS, String.valueOf(configuration.synchronizeGroups()));</span>
+<span class="fc" id="L210">      setProperty(dbSession, GITLAB_AUTH_ALLOWED_GROUPS, String.join(&quot;,&quot;, configuration.allowedGroups()));</span>
+<span class="fc" id="L211">      setProperty(dbSession, GITLAB_AUTH_PROVISIONING_ENABLED, String.valueOf(enableAutoProvisioning));</span>
+<span class="fc" id="L212">      setProperty(dbSession, GITLAB_AUTH_ALLOW_USERS_TO_SIGNUP, String.valueOf(configuration.allowUsersToSignUp()));</span>
+<span class="fc" id="L213">      setProperty(dbSession, GITLAB_AUTH_PROVISIONING_TOKEN, configuration.provisioningToken());</span>
+<span class="fc bfc" id="L214" title="All 2 branches covered.">      if (enableAutoProvisioning) {</span>
+<span class="fc" id="L215">        triggerRun(configuration);</span>
+      }
+<span class="fc" id="L217">      GitlabConfiguration createdConfiguration = getConfiguration(UNIQUE_GITLAB_CONFIGURATION_ID, dbSession);</span>
+<span class="fc" id="L218">      dbSession.commit();</span>
+<span class="fc" id="L219">      return createdConfiguration;</span>
+    }
+
+  }
+
+  private void throwIfConfigurationAlreadyExists() {
+<span class="fc" id="L225">    Optional.ofNullable(dbClient.propertiesDao().selectGlobalProperty(GITLAB_AUTH_ENABLED)).ifPresent(property -&gt; {</span>
+<span class="fc" id="L226">      throw BadRequestException.create(&quot;GitLab configuration already exists. Only one Gitlab configuration is supported.&quot;);</span>
+    });
+<span class="fc" id="L228">  }</span>
+
+  private static void throwIfAllowedGroupsEmptyAndAutoProvisioning(ProvisioningType provisioningType, Set&lt;String&gt; allowedGroups) {
+<span class="fc bfc" id="L231" title="All 4 branches covered.">    if (provisioningType == AUTO_PROVISIONING &amp;&amp; allowedGroups.isEmpty()) {</span>
+<span class="fc" id="L232">      throw new IllegalArgumentException(&quot;allowedGroups cannot be empty when Auto-provisioning is enabled.&quot;);</span>
+    }
+<span class="fc" id="L234">  }</span>
+
+  private static boolean shouldEnableAutoProvisioning(ProvisioningType provisioningType) {
+<span class="fc" id="L237">    return AUTO_PROVISIONING.equals(provisioningType);</span>
+  }
+
+  private void setProperty(DbSession dbSession, String propertyName, @Nullable String value) {
+<span class="fc" id="L241">    dbClient.propertiesDao().saveProperty(dbSession, new PropertyDto().setKey(propertyName).setValue(value));</span>
+<span class="fc" id="L242">  }</span>
+
+  private GitlabConfiguration getConfiguration(String id, DbSession dbSession) {
+<span class="fc" id="L245">    throwIfNotUniqueConfigurationId(id);</span>
+<span class="fc" id="L246">    throwIfConfigurationDoesntExist(dbSession);</span>
+<span class="fc" id="L247">    return new GitlabConfiguration(</span>
+      UNIQUE_GITLAB_CONFIGURATION_ID,
+<span class="fc" id="L249">      getBooleanOrFalse(dbSession, GITLAB_AUTH_ENABLED),</span>
+<span class="fc" id="L250">      getStringPropertyOrEmpty(dbSession, GITLAB_AUTH_APPLICATION_ID),</span>
+<span class="fc" id="L251">      getStringPropertyOrEmpty(dbSession, GITLAB_AUTH_URL),</span>
+<span class="fc" id="L252">      getStringPropertyOrEmpty(dbSession, GITLAB_AUTH_SECRET),</span>
+<span class="fc" id="L253">      getBooleanOrFalse(dbSession, GITLAB_AUTH_SYNC_USER_GROUPS),</span>
+<span class="fc" id="L254">      getAllowedGroups(dbSession),</span>
+<span class="fc" id="L255">      getBooleanOrFalse(dbSession, GITLAB_AUTH_ALLOW_USERS_TO_SIGNUP),</span>
+<span class="fc" id="L256">      toProvisioningType(getBooleanOrFalse(dbSession, GITLAB_AUTH_PROVISIONING_ENABLED)),</span>
+<span class="fc" id="L257">      getStringPropertyOrNull(dbSession, GITLAB_AUTH_PROVISIONING_TOKEN));</span>
+  }
+
+  private Set&lt;String&gt; getAllowedGroups(DbSession dbSession) {
+<span class="fc" id="L261">    return Optional.ofNullable(dbClient.propertiesDao().selectGlobalProperty(dbSession, GITLAB_AUTH_ALLOWED_GROUPS))</span>
+<span class="fc" id="L262">      .map(dto -&gt; Arrays.stream(dto.getValue().split(&quot;,&quot;))</span>
+<span class="fc bfc" id="L263" title="All 2 branches covered.">        .filter(s -&gt; !s.isEmpty())</span>
+<span class="fc" id="L264">        .collect(Collectors.toSet()))</span>
+<span class="fc" id="L265">      .orElse(Set.of());</span>
+  }
+
+  public void triggerRun() {
+<span class="fc" id="L269">    GitlabConfiguration configuration = getConfiguration(UNIQUE_GITLAB_CONFIGURATION_ID);</span>
+<span class="fc" id="L270">    triggerRun(configuration);</span>
+<span class="fc" id="L271">  }</span>
+
+  private void triggerRun(GitlabConfiguration gitlabConfiguration) {
+<span class="fc" id="L274">    throwIfConfigIncompleteOrInstanceAlreadyManaged(gitlabConfiguration);</span>
+<span class="fc" id="L275">    managedInstanceService.queueSynchronisationTask();</span>
+<span class="fc" id="L276">  }</span>
+
+  private void throwIfConfigIncompleteOrInstanceAlreadyManaged(GitlabConfiguration configuration) {
+<span class="fc" id="L279">    checkInstanceNotManagedByAnotherProvider();</span>
+<span class="fc" id="L280">    checkState(AUTO_PROVISIONING.equals(configuration.provisioningType()), &quot;Auto provisioning must be activated&quot;);</span>
+<span class="fc" id="L281">    checkState(configuration.enabled(), getErrorMessage(&quot;GitLab authentication must be turned on&quot;));</span>
+<span class="fc" id="L282">    checkState(isNotBlank(configuration.provisioningToken()), getErrorMessage(&quot;Provisioning token must be set&quot;));</span>
+<span class="fc" id="L283">  }</span>
+
+  private void checkInstanceNotManagedByAnotherProvider() {
+<span class="fc bfc" id="L286" title="All 2 branches covered.">    if (managedInstanceService.isInstanceExternallyManaged()) {</span>
+<span class="pc bpc" id="L287" title="1 of 2 branches missed.">      Optional.of(managedInstanceService.getProviderName()).filter(providerName -&gt; !&quot;gitlab&quot;.equals(providerName))</span>
+<span class="nc" id="L288">        .ifPresent(providerName -&gt; {</span>
+<span class="fc" id="L289">          throw new IllegalStateException(&quot;It is not possible to synchronize SonarQube using GitLab, as it is already managed by &quot;</span>
+            + providerName + &quot;.&quot;);
+        });
+    }
+<span class="fc" id="L293">  }</span>
+
+  private static String getErrorMessage(String prefix) {
+<span class="fc" id="L296">    return format(&quot;%s to enable GitLab provisioning.&quot;, prefix);</span>
+  }
+
+  public Optional&lt;String&gt; validate(GitlabConfiguration gitlabConfiguration) {
+<span class="fc bfc" id="L300" title="All 2 branches covered.">    if (!gitlabConfiguration.enabled()) {</span>
+<span class="fc" id="L301">      return Optional.empty();</span>
+    }
+<span class="fc" id="L303">    String url = (gitlabConfiguration.url() + &quot;/api/v4&quot;).replace(&quot;//&quot;, &quot;/&quot;);</span>
+    try {
+<span class="fc" id="L305">      gitlabGlobalSettingsValidator.validate(</span>
+<span class="fc" id="L306">        toValidationMode(gitlabConfiguration.provisioningType()),</span>
+        url,
+<span class="fc" id="L308">        gitlabConfiguration.provisioningToken());</span>
+<span class="fc" id="L309">    } catch (Exception e) {</span>
+<span class="fc" id="L310">      return Optional.of(e.getMessage());</span>
+<span class="fc" id="L311">    }</span>
+<span class="fc" id="L312">    return Optional.empty();</span>
+  }
+
+  private static GitlabGlobalSettingsValidator.ValidationMode toValidationMode(ProvisioningType provisioningType) {
+<span class="fc bfc" id="L316" title="All 2 branches covered.">    return AUTO_PROVISIONING.equals(provisioningType) ? COMPLETE : AUTH_ONLY;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

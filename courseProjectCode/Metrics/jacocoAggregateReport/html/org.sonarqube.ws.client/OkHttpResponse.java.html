@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OkHttpResponse.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonarqube.ws.client</a> &gt; <span class="el_source">OkHttpResponse.java</span></div><h1>OkHttpResponse.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonarqube.ws.client;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.Reader;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
+
+class OkHttpResponse extends BaseResponse {
+
+  private final Response okResponse;
+
+<span class="fc" id="L35">  OkHttpResponse(Response okResponse) {</span>
+<span class="fc" id="L36">    this.okResponse = okResponse;</span>
+<span class="fc" id="L37">  }</span>
+
+  @Override
+  public int code() {
+<span class="fc" id="L41">    return okResponse.code();</span>
+  }
+
+  @Override
+  public String requestUrl() {
+<span class="fc" id="L46">    return okResponse.request().url().toString();</span>
+  }
+
+  @Override
+  public String contentType() {
+<span class="nc" id="L51">    return okResponse.header(&quot;Content-Type&quot;);</span>
+  }
+
+  @Override
+  public Optional&lt;String&gt; header(String name) {
+<span class="fc" id="L56">    return Optional.ofNullable(okResponse.header(name));</span>
+  }
+
+  @Override
+  public Map&lt;String, List&lt;String&gt;&gt; headers() {
+<span class="fc" id="L61">    return okResponse.headers().toMultimap();</span>
+  }
+
+  /**
+   * Get stream of bytes
+   */
+  @Override
+  public InputStream contentStream() {
+<span class="fc" id="L69">    return okResponse.body().byteStream();</span>
+  }
+
+  /**
+   * Get stream of characters, decoded with the charset
+   * of the Content-Type header. If that header is either absent or lacks a
+   * charset, this will attempt to decode the response body as UTF-8.
+   */
+  @Override
+  public Reader contentReader() {
+<span class="fc" id="L79">    return okResponse.body().charStream();</span>
+  }
+
+  /**
+   * Get body content as a String. This response will be automatically closed.
+   */
+  @Override
+  public String content() {
+<span class="fc" id="L87">    try (ResponseBody body = okResponse.body()) {</span>
+<span class="fc" id="L88">      return body.string();</span>
+<span class="fc" id="L89">    } catch (IOException e) {</span>
+<span class="nc" id="L90">      throw fail(e);</span>
+    }
+  }
+
+  private RuntimeException fail(Exception e) {
+<span class="fc" id="L95">    throw new IllegalStateException(&quot;Fail to read response of &quot; + requestUrl(), e);</span>
+  }
+
+  /**
+   * Equivalent to closing contentReader or contentStream.
+   */
+  @Override
+  public void close() {
+<span class="fc" id="L103">    okResponse.close();</span>
+<span class="fc" id="L104">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ScannerEngineHandlerImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.v2.api.analysis.service</a> &gt; <span class="el_source">ScannerEngineHandlerImpl.java</span></div><h1>ScannerEngineHandlerImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.v2.api.analysis.service;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import org.sonar.server.exceptions.NotFoundException;
+import org.sonar.server.platform.ServerFileSystem;
+
+import static java.lang.String.format;
+import static org.apache.commons.codec.digest.DigestUtils.sha256Hex;
+import static org.apache.commons.io.FileUtils.listFiles;
+import static org.apache.commons.io.filefilter.FileFilterUtils.directoryFileFilter;
+import static org.apache.commons.io.filefilter.HiddenFileFilter.VISIBLE;
+
+public class ScannerEngineHandlerImpl implements ScannerEngineHandler {
+
+  private final ServerFileSystem fs;
+
+  private ScannerEngineMetadata scannerEngineMetadata;
+
+<span class="fc" id="L41">  public ScannerEngineHandlerImpl(ServerFileSystem fs) {</span>
+<span class="fc" id="L42">    this.fs = fs;</span>
+<span class="fc" id="L43">  }</span>
+
+  @Override
+  public File getScannerEngine() {
+<span class="fc" id="L47">    File scannerDir = new File(fs.getHomeDir(), &quot;lib/scanner&quot;);</span>
+<span class="fc bfc" id="L48" title="All 2 branches covered.">    if (!scannerDir.exists()) {</span>
+<span class="fc" id="L49">      throw new NotFoundException(format(&quot;Scanner directory not found: %s&quot;, scannerDir.getAbsolutePath()));</span>
+    }
+<span class="fc" id="L51">    return listFiles(scannerDir, VISIBLE, directoryFileFilter())</span>
+<span class="fc" id="L52">      .stream()</span>
+<span class="fc" id="L53">      .filter(file -&gt; file.getName().endsWith(&quot;.jar&quot;))</span>
+<span class="fc" id="L54">      .findFirst()</span>
+<span class="fc" id="L55">      .orElseThrow(() -&gt; new NotFoundException(format(&quot;Scanner JAR not found in directory: %s&quot;, scannerDir.getAbsolutePath())));</span>
+  }
+
+  private static String getSha256(File file) {
+<span class="fc" id="L59">    try (FileInputStream fileInputStream = new FileInputStream(file)) {</span>
+<span class="fc" id="L60">      return sha256Hex(fileInputStream);</span>
+<span class="fc" id="L61">    } catch (IOException exception) {</span>
+<span class="fc" id="L62">      throw new UncheckedIOException(new IOException(&quot;Unable to compute SHA-256 checksum of the Scanner Engine&quot;, exception));</span>
+    }
+  }
+
+  @Override
+  public ScannerEngineMetadata getScannerEngineMetadata() {
+<span class="pc bpc" id="L68" title="1 of 2 branches missed.">    if (scannerEngineMetadata == null) {</span>
+<span class="fc" id="L69">      File scannerEngine = getScannerEngine();</span>
+<span class="fc" id="L70">      scannerEngineMetadata = new ScannerEngineMetadata(scannerEngine.getName(), getSha256(scannerEngine));</span>
+    }
+<span class="fc" id="L72">    return scannerEngineMetadata;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

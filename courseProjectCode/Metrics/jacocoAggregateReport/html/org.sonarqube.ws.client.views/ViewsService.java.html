@@ -1,0 +1,445 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ViewsService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonarqube.ws.client.views</a> &gt; <span class="el_source">ViewsService.java</span></div><h1>ViewsService.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonarqube.ws.client.views;
+
+import java.util.stream.Collectors;
+import jakarta.annotation.Generated;
+import org.sonarqube.ws.MediaTypes;
+import org.sonarqube.ws.client.BaseService;
+import org.sonarqube.ws.client.GetRequest;
+import org.sonarqube.ws.client.PostRequest;
+import org.sonarqube.ws.client.WsConnector;
+
+/**
+ * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/views&quot;&gt;Further information about this web service online&lt;/a&gt;
+ */
+@Generated(&quot;sonar-ws-generator&quot;)
+public class ViewsService extends BaseService {
+
+  public ViewsService(WsConnector wsConnector) {
+<span class="fc" id="L37">    super(wsConnector, &quot;api/views&quot;);</span>
+<span class="fc" id="L38">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/views/add_application&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 9.3
+   */
+  public void addApplication(AddApplicationRequest request) {
+<span class="nc" id="L48">    call(</span>
+<span class="nc" id="L49">      new PostRequest(path(&quot;add_application&quot;))</span>
+<span class="nc" id="L50">        .setParam(&quot;application&quot;, request.getApplication())</span>
+<span class="nc" id="L51">        .setParam(&quot;portfolio&quot;, request.getPortfolio())</span>
+<span class="nc" id="L52">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L53">      ).content();</span>
+<span class="nc" id="L54">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/views/add_portfolio&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 9.3
+   */
+  public void addPortfolio(AddPortfolioRequest request) {
+<span class="nc" id="L64">    call(</span>
+<span class="nc" id="L65">      new PostRequest(path(&quot;add_portfolio&quot;))</span>
+<span class="nc" id="L66">        .setParam(&quot;portfolio&quot;, request.getPortfolio())</span>
+<span class="nc" id="L67">        .setParam(&quot;reference&quot;, request.getReference())</span>
+<span class="nc" id="L68">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L69">      ).content();</span>
+<span class="nc" id="L70">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/views/add_project&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 1.0
+   */
+  public void addProject(AddProjectRequest request) {
+<span class="nc" id="L80">    call(</span>
+<span class="nc" id="L81">      new PostRequest(path(&quot;add_project&quot;))</span>
+<span class="nc" id="L82">        .setParam(&quot;key&quot;, request.getKey())</span>
+<span class="nc" id="L83">        .setParam(&quot;project&quot;, request.getProject())</span>
+<span class="nc" id="L84">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L85">      ).content();</span>
+<span class="nc" id="L86">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/views/add_project_branch&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 9.2
+   */
+  public void addProjectBranch(AddProjectBranchRequest request) {
+<span class="nc" id="L96">    call(</span>
+<span class="nc" id="L97">      new PostRequest(path(&quot;add_project_branch&quot;))</span>
+<span class="nc" id="L98">        .setParam(&quot;branch&quot;, request.getBranch())</span>
+<span class="nc" id="L99">        .setParam(&quot;key&quot;, request.getKey())</span>
+<span class="nc" id="L100">        .setParam(&quot;project&quot;, request.getProject())</span>
+<span class="nc" id="L101">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L102">      ).content();</span>
+<span class="nc" id="L103">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/views/applications&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 9.3
+   */
+  public String applications(ApplicationsRequest request) {
+<span class="nc" id="L113">    return call(</span>
+<span class="nc" id="L114">      new GetRequest(path(&quot;applications&quot;))</span>
+<span class="nc" id="L115">        .setParam(&quot;portfolio&quot;, request.getPortfolio())</span>
+<span class="nc" id="L116">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L117">      ).content();</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/views/create&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 1.0
+   */
+  public void create(CreateRequest request) {
+<span class="nc" id="L128">    call(</span>
+<span class="nc" id="L129">      new PostRequest(path(&quot;create&quot;))</span>
+<span class="nc" id="L130">        .setParam(&quot;description&quot;, request.getDescription())</span>
+<span class="nc" id="L131">        .setParam(&quot;key&quot;, request.getKey())</span>
+<span class="nc" id="L132">        .setParam(&quot;name&quot;, request.getName())</span>
+<span class="nc" id="L133">        .setParam(&quot;parent&quot;, request.getParent())</span>
+<span class="nc" id="L134">        .setParam(&quot;visibility&quot;, request.getVisibility())</span>
+<span class="nc" id="L135">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L136">      ).content();</span>
+<span class="nc" id="L137">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/views/delete&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 1.0
+   */
+  public void delete(DeleteRequest request) {
+<span class="nc" id="L147">    call(</span>
+<span class="nc" id="L148">      new PostRequest(path(&quot;delete&quot;))</span>
+<span class="nc" id="L149">        .setParam(&quot;key&quot;, request.getKey())</span>
+<span class="nc" id="L150">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L151">      ).content();</span>
+<span class="nc" id="L152">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/views/list&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 1.0
+   */
+  public String list() {
+<span class="nc" id="L162">    return call(</span>
+<span class="nc" id="L163">      new GetRequest(path(&quot;list&quot;))</span>
+<span class="nc" id="L164">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L165">      ).content();</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/views/move&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 1.0
+   */
+  public void move(MoveRequest request) {
+<span class="nc" id="L176">    call(</span>
+<span class="nc" id="L177">      new PostRequest(path(&quot;move&quot;))</span>
+<span class="nc" id="L178">        .setParam(&quot;destination&quot;, request.getDestination())</span>
+<span class="nc" id="L179">        .setParam(&quot;key&quot;, request.getKey())</span>
+<span class="nc" id="L180">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L181">      ).content();</span>
+<span class="nc" id="L182">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/views/move_options&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 1.0
+   */
+  public String moveOptions(MoveOptionsRequest request) {
+<span class="nc" id="L192">    return call(</span>
+<span class="nc" id="L193">      new GetRequest(path(&quot;move_options&quot;))</span>
+<span class="nc" id="L194">        .setParam(&quot;key&quot;, request.getKey())</span>
+<span class="nc" id="L195">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L196">      ).content();</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/views/portfolios&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 9.3
+   */
+  public String portfolios(PortfoliosRequest request) {
+<span class="nc" id="L207">    return call(</span>
+<span class="nc" id="L208">      new GetRequest(path(&quot;portfolios&quot;))</span>
+<span class="nc" id="L209">        .setParam(&quot;portfolio&quot;, request.getPortfolio())</span>
+<span class="nc" id="L210">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L211">      ).content();</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/views/projects&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 1.0
+   */
+  public String projects(ProjectsRequest request) {
+<span class="nc" id="L222">    return call(</span>
+<span class="nc" id="L223">      new GetRequest(path(&quot;projects&quot;))</span>
+<span class="nc" id="L224">        .setParam(&quot;key&quot;, request.getKey())</span>
+<span class="nc" id="L225">        .setParam(&quot;p&quot;, request.getP())</span>
+<span class="nc" id="L226">        .setParam(&quot;ps&quot;, request.getPs())</span>
+<span class="nc" id="L227">        .setParam(&quot;query&quot;, request.getQuery())</span>
+<span class="nc" id="L228">        .setParam(&quot;selected&quot;, request.getSelected())</span>
+<span class="nc" id="L229">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L230">      ).content();</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/views/refresh&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 7.1
+   */
+  public void refresh(RefreshRequest request) {
+<span class="nc" id="L241">    call(</span>
+<span class="nc" id="L242">      new PostRequest(path(&quot;refresh&quot;))</span>
+<span class="nc" id="L243">        .setParam(&quot;key&quot;, request.getKey())</span>
+<span class="nc" id="L244">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L245">      ).content();</span>
+<span class="nc" id="L246">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/views/remove_application&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 9.3
+   */
+  public void removeApplication(RemoveApplicationRequest request) {
+<span class="nc" id="L256">    call(</span>
+<span class="nc" id="L257">      new PostRequest(path(&quot;remove_application&quot;))</span>
+<span class="nc" id="L258">        .setParam(&quot;application&quot;, request.getApplication())</span>
+<span class="nc" id="L259">        .setParam(&quot;portfolio&quot;, request.getPortfolio())</span>
+<span class="nc" id="L260">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L261">      ).content();</span>
+<span class="nc" id="L262">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/views/remove_portfolio&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 9.3
+   */
+  public void removePortfolio(RemovePortfolioRequest request) {
+<span class="nc" id="L272">    call(</span>
+<span class="nc" id="L273">      new PostRequest(path(&quot;remove_portfolio&quot;))</span>
+<span class="nc" id="L274">        .setParam(&quot;portfolio&quot;, request.getPortfolio())</span>
+<span class="nc" id="L275">        .setParam(&quot;reference&quot;, request.getReference())</span>
+<span class="nc" id="L276">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L277">      ).content();</span>
+<span class="nc" id="L278">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/views/remove_project&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 1.0
+   */
+  public void removeProject(RemoveProjectRequest request) {
+<span class="nc" id="L288">    call(</span>
+<span class="nc" id="L289">      new PostRequest(path(&quot;remove_project&quot;))</span>
+<span class="nc" id="L290">        .setParam(&quot;key&quot;, request.getKey())</span>
+<span class="nc" id="L291">        .setParam(&quot;project&quot;, request.getProject())</span>
+<span class="nc" id="L292">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L293">      ).content();</span>
+<span class="nc" id="L294">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/views/remove_project_branch&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 9.2
+   */
+  public void removeProjectBranch(RemoveProjectBranchRequest request) {
+<span class="nc" id="L304">    call(</span>
+<span class="nc" id="L305">      new PostRequest(path(&quot;remove_project_branch&quot;))</span>
+<span class="nc" id="L306">        .setParam(&quot;branch&quot;, request.getBranch())</span>
+<span class="nc" id="L307">        .setParam(&quot;key&quot;, request.getKey())</span>
+<span class="nc" id="L308">        .setParam(&quot;project&quot;, request.getProject())</span>
+<span class="nc" id="L309">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L310">      ).content();</span>
+<span class="nc" id="L311">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/views/search&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 2.0
+   */
+  public String search(SearchRequest request) {
+<span class="nc" id="L321">    return call(</span>
+<span class="nc" id="L322">      new GetRequest(path(&quot;search&quot;))</span>
+<span class="nc" id="L323">        .setParam(&quot;onlyFavorites&quot;, request.getOnlyFavorites())</span>
+<span class="nc" id="L324">        .setParam(&quot;p&quot;, request.getP())</span>
+<span class="nc" id="L325">        .setParam(&quot;ps&quot;, request.getPs())</span>
+<span class="nc" id="L326">        .setParam(&quot;q&quot;, request.getQ())</span>
+<span class="nc" id="L327">        .setParam(&quot;qualifiers&quot;, request.getQualifiers())</span>
+<span class="nc" id="L328">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L329">      ).content();</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/views/set_manual_mode&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 7.4
+   */
+  public void setManualMode(SetManualModeRequest request) {
+<span class="nc" id="L340">    call(</span>
+<span class="nc" id="L341">      new PostRequest(path(&quot;set_manual_mode&quot;))</span>
+<span class="nc" id="L342">        .setParam(&quot;portfolio&quot;, request.getPortfolio())</span>
+<span class="nc" id="L343">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L344">      ).content();</span>
+<span class="nc" id="L345">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/views/set_none_mode&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 9.1
+   */
+  public void setNoneMode(SetNoneModeRequest request) {
+<span class="nc" id="L355">    call(</span>
+<span class="nc" id="L356">      new PostRequest(path(&quot;set_none_mode&quot;))</span>
+<span class="nc" id="L357">        .setParam(&quot;portfolio&quot;, request.getPortfolio())</span>
+<span class="nc" id="L358">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L359">      ).content();</span>
+<span class="nc" id="L360">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/views/set_regexp_mode&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 7.4
+   */
+  public void setRegexpMode(SetRegexpModeRequest request) {
+<span class="nc" id="L370">    call(</span>
+<span class="nc" id="L371">      new PostRequest(path(&quot;set_regexp_mode&quot;))</span>
+<span class="nc" id="L372">        .setParam(&quot;branch&quot;, request.getBranch())</span>
+<span class="nc" id="L373">        .setParam(&quot;portfolio&quot;, request.getPortfolio())</span>
+<span class="nc" id="L374">        .setParam(&quot;regexp&quot;, request.getRegexp())</span>
+<span class="nc" id="L375">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L376">      ).content();</span>
+<span class="nc" id="L377">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/views/set_remaining_projects_mode&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 7.4
+   */
+  public void setRemainingProjectsMode(SetRemainingProjectsModeRequest request) {
+<span class="nc" id="L387">    call(</span>
+<span class="nc" id="L388">      new PostRequest(path(&quot;set_remaining_projects_mode&quot;))</span>
+<span class="nc" id="L389">        .setParam(&quot;branch&quot;, request.getBranch())</span>
+<span class="nc" id="L390">        .setParam(&quot;portfolio&quot;, request.getPortfolio())</span>
+<span class="nc" id="L391">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L392">      ).content();</span>
+<span class="nc" id="L393">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/views/set_tags_mode&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 7.4
+   */
+  public void setTagsMode(SetTagsModeRequest request) {
+<span class="nc" id="L403">    call(</span>
+<span class="nc" id="L404">      new PostRequest(path(&quot;set_tags_mode&quot;))</span>
+<span class="nc" id="L405">        .setParam(&quot;branch&quot;, request.getBranch())</span>
+<span class="nc" id="L406">        .setParam(&quot;portfolio&quot;, request.getPortfolio())</span>
+<span class="nc bnc" id="L407" title="All 2 branches missed.">        .setParam(&quot;tags&quot;, request.getTags() == null ? null : request.getTags().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc" id="L408">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L409">      ).content();</span>
+<span class="nc" id="L410">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/views/show&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 1.0
+   */
+  public String show(ShowRequest request) {
+<span class="nc" id="L420">    return call(</span>
+<span class="nc" id="L421">      new GetRequest(path(&quot;show&quot;))</span>
+<span class="nc" id="L422">        .setParam(&quot;key&quot;, request.getKey())</span>
+<span class="nc" id="L423">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L424">      ).content();</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/views/update&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 1.0
+   */
+  public void update(UpdateRequest request) {
+<span class="nc" id="L435">    call(</span>
+<span class="nc" id="L436">      new PostRequest(path(&quot;update&quot;))</span>
+<span class="nc" id="L437">        .setParam(&quot;description&quot;, request.getDescription())</span>
+<span class="nc" id="L438">        .setParam(&quot;key&quot;, request.getKey())</span>
+<span class="nc" id="L439">        .setParam(&quot;name&quot;, request.getName())</span>
+<span class="nc" id="L440">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L441">      ).content();</span>
+<span class="nc" id="L442">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

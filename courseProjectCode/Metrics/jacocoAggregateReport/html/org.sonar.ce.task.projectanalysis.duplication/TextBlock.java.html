@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TextBlock.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.duplication</a> &gt; <span class="el_source">TextBlock.java</span></div><h1>TextBlock.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.duplication;
+
+import java.util.Objects;
+import javax.annotation.Nullable;
+
+import static com.google.common.base.Preconditions.checkArgument;
+
+/**
+ * A block of text in some file represented by its first line index (1-based) and its last line index (included).
+ * &lt;p&gt;
+ * This class defines a natural ordering which sorts {@link TextBlock} by lowest start line first and then, in case of
+ * same start line, by smallest size (ie. lowest end line).
+ * &lt;/p&gt;
+ */
+public class TextBlock implements Comparable&lt;TextBlock&gt; {
+  private final int start;
+  private final int end;
+
+  /**
+   * @throws IllegalArgumentException if {@code start} is 0 or less
+   * @throws IllegalStateException if {@code end} is less than {@code start}
+   */
+<span class="fc" id="L42">  public TextBlock(int start, int end) {</span>
+<span class="fc bfc" id="L43" title="All 2 branches covered.">    checkArgument(start &gt; 0, &quot;First line index must be &gt;= 1&quot;);</span>
+<span class="fc bfc" id="L44" title="All 2 branches covered.">    checkArgument(end &gt;= start, &quot;Last line index must be &gt;= first line index&quot;);</span>
+<span class="fc" id="L45">    this.start = start;</span>
+<span class="fc" id="L46">    this.end = end;</span>
+<span class="fc" id="L47">  }</span>
+
+  public int getStart() {
+<span class="fc" id="L50">    return start;</span>
+  }
+
+  public int getEnd() {
+<span class="fc" id="L54">    return end;</span>
+  }
+
+  @Override
+  public int compareTo(TextBlock other) {
+<span class="fc" id="L59">    int res = start - other.start;</span>
+<span class="fc bfc" id="L60" title="All 2 branches covered.">    if (res == 0) {</span>
+<span class="fc" id="L61">      return end - other.end;</span>
+    }
+<span class="fc" id="L63">    return res;</span>
+  }
+
+  @Override
+  public boolean equals(@Nullable Object o) {
+<span class="fc bfc" id="L68" title="All 2 branches covered.">    if (this == o) {</span>
+<span class="fc" id="L69">      return true;</span>
+    }
+<span class="pc bpc" id="L71" title="2 of 4 branches missed.">    if (o == null || getClass() != o.getClass()) {</span>
+<span class="nc" id="L72">      return false;</span>
+    }
+<span class="fc" id="L74">    TextBlock textBlock = (TextBlock) o;</span>
+<span class="fc bfc" id="L75" title="All 4 branches covered.">    return start == textBlock.start &amp;&amp; end == textBlock.end;</span>
+  }
+
+  @Override
+  public int hashCode() {
+<span class="fc" id="L80">    return Objects.hash(start, end);</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="fc" id="L85">    return &quot;TextBlock{&quot; +</span>
+      &quot;start=&quot; + start +
+      &quot;, end=&quot; + end +
+      '}';
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

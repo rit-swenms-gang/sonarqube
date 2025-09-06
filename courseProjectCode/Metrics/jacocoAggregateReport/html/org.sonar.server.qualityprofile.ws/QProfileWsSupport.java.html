@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>QProfileWsSupport.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.qualityprofile.ws</a> &gt; <span class="el_source">QProfileWsSupport.java</span></div><h1>QProfileWsSupport.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.qualityprofile.ws;
+
+import java.util.Optional;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.api.server.ServerSide;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.permission.GlobalPermission;
+import org.sonar.db.qualityprofile.QProfileDto;
+import org.sonar.db.rule.RuleDto;
+import org.sonar.db.user.GroupDto;
+import org.sonar.db.user.UserDto;
+import org.sonar.server.user.UserSession;
+
+import static com.google.common.base.Preconditions.checkState;
+import static org.sonar.server.exceptions.BadRequestException.checkRequest;
+import static org.sonar.server.exceptions.NotFoundException.checkFound;
+import static org.sonar.server.exceptions.NotFoundException.checkFoundWithOptional;
+import static org.sonar.server.user.AbstractUserSession.insufficientPrivilegesException;
+
+@ServerSide
+public class QProfileWsSupport {
+
+  private final DbClient dbClient;
+  private final UserSession userSession;
+
+<span class="fc" id="L46">  public QProfileWsSupport(DbClient dbClient, UserSession userSession) {</span>
+<span class="fc" id="L47">    this.dbClient = dbClient;</span>
+<span class="fc" id="L48">    this.userSession = userSession;</span>
+<span class="fc" id="L49">  }</span>
+
+  public RuleDto getRule(DbSession dbSession, RuleKey ruleKey) {
+<span class="fc" id="L52">    Optional&lt;RuleDto&gt; ruleDefinitionDto = dbClient.ruleDao().selectByKey(dbSession, ruleKey);</span>
+<span class="fc" id="L53">    RuleDto rule = checkFoundWithOptional(ruleDefinitionDto, &quot;Rule with key '%s' not found&quot;, ruleKey);</span>
+<span class="fc bfc" id="L54" title="All 2 branches covered.">    checkRequest(!rule.isExternal(), &quot;Operation forbidden for rule '%s' imported from an external rule engine.&quot;, ruleKey);</span>
+<span class="fc" id="L55">    return rule;</span>
+  }
+
+  /**
+   * Get the Quality profile specified by the reference {@code ref}.
+   *
+   * @throws org.sonar.server.exceptions.NotFoundException if the specified profile do not exist
+   */
+  public QProfileDto getProfile(DbSession dbSession, QProfileReference ref) {
+    QProfileDto profile;
+<span class="fc bfc" id="L65" title="All 2 branches covered.">    if (ref.hasKey()) {</span>
+<span class="fc" id="L66">      profile = dbClient.qualityProfileDao().selectByUuid(dbSession, ref.getKey());</span>
+<span class="fc" id="L67">      checkFound(profile, &quot;Quality Profile with key '%s' does not exist&quot;, ref.getKey());</span>
+    } else {
+<span class="fc" id="L69">      profile = dbClient.qualityProfileDao().selectByNameAndLanguage(dbSession, ref.getName(), ref.getLanguage());</span>
+<span class="fc" id="L70">      checkFound(profile, &quot;Quality Profile for language '%s' and name '%s' does not exist&quot;, ref.getLanguage(), ref.getName());</span>
+    }
+<span class="fc" id="L72">    return profile;</span>
+  }
+
+  public QProfileDto getProfile(DbSession dbSession, String name, String language) {
+<span class="fc" id="L76">    QProfileDto profile = dbClient.qualityProfileDao().selectByNameAndLanguage(dbSession, name, language);</span>
+<span class="fc" id="L77">    checkFound(profile, &quot;Quality Profile for language '%s' and name '%s' does not exist&quot;, language, name);</span>
+<span class="fc" id="L78">    return profile;</span>
+  }
+
+  public UserDto getUser(DbSession dbSession, String login) {
+<span class="fc" id="L82">    UserDto user = dbClient.userDao().selectActiveUserByLogin(dbSession, login);</span>
+<span class="fc" id="L83">    checkFound(user, &quot;User with login '%s' is not found'&quot;, login);</span>
+<span class="fc" id="L84">    return user;</span>
+  }
+
+  GroupDto getGroup(DbSession dbSession, String groupName) {
+<span class="fc" id="L88">    Optional&lt;GroupDto&gt; group = dbClient.groupDao().selectByName(dbSession, groupName);</span>
+<span class="fc" id="L89">    checkFoundWithOptional(group, &quot;No group with name '%s'&quot;, groupName);</span>
+<span class="fc" id="L90">    return group.get();</span>
+  }
+
+  boolean canEdit(DbSession dbSession, QProfileDto profile) {
+<span class="fc bfc" id="L94" title="All 2 branches covered.">    if (canAdministrate(profile)) {</span>
+<span class="fc" id="L95">      return true;</span>
+    }
+<span class="fc" id="L97">    UserDto user = dbClient.userDao().selectByLogin(dbSession, userSession.getLogin());</span>
+<span class="pc bpc" id="L98" title="1 of 2 branches missed.">    checkState(user != null, &quot;User from session does not exist&quot;);</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">    return dbClient.qProfileEditUsersDao().exists(dbSession, profile, user)</span>
+<span class="fc bfc" id="L100" title="All 2 branches covered.">      || dbClient.qProfileEditGroupsDao().exists(dbSession, profile, userSession.getGroups());</span>
+  }
+
+  boolean canAdministrate(QProfileDto profile) {
+<span class="pc bpc" id="L104" title="2 of 4 branches missed.">    if (profile.isBuiltIn() || !userSession.isLoggedIn()) {</span>
+<span class="nc" id="L105">      return false;</span>
+    }
+<span class="fc" id="L107">    return userSession.hasPermission(GlobalPermission.ADMINISTER_QUALITY_PROFILES);</span>
+  }
+
+  public void checkCanEdit(DbSession dbSession, QProfileDto profile) {
+<span class="fc" id="L111">    checkNotBuiltIn(profile);</span>
+<span class="fc bfc" id="L112" title="All 2 branches covered.">    if (!canEdit(dbSession, profile)) {</span>
+<span class="fc" id="L113">      throw insufficientPrivilegesException();</span>
+    }
+<span class="fc" id="L115">  }</span>
+
+  public void checkCanAdministrate(QProfileDto profile) {
+<span class="fc" id="L118">    checkNotBuiltIn(profile);</span>
+<span class="fc bfc" id="L119" title="All 2 branches covered.">    if (!canAdministrate(profile)) {</span>
+<span class="fc" id="L120">      throw insufficientPrivilegesException();</span>
+    }
+<span class="fc" id="L122">  }</span>
+
+  void checkNotBuiltIn(QProfileDto profile) {
+<span class="fc bfc" id="L125" title="All 2 branches covered.">    checkRequest(!profile.isBuiltIn(), &quot;Operation forbidden for built-in Quality Profile '%s' with language '%s'&quot;, profile.getName(), profile.getLanguage());</span>
+<span class="fc" id="L126">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

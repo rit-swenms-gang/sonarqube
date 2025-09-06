@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LiveMeasureComputerImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.measure.live</a> &gt; <span class="el_source">LiveMeasureComputerImpl.java</span></div><h1>LiveMeasureComputerImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.measure.live;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import org.sonar.api.measures.Metric;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.ComponentDto;
+import org.sonar.db.component.SnapshotDto;
+import org.sonar.server.es.Indexers;
+import org.sonar.server.qualitygate.EvaluatedQualityGate;
+import org.sonar.server.qualitygate.changeevent.QGChangeEvent;
+import org.sonar.server.setting.ProjectConfigurationLoader;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singleton;
+import static java.util.stream.Collectors.groupingBy;
+
+public class LiveMeasureComputerImpl implements LiveMeasureComputer {
+
+  private final DbClient dbClient;
+  private final MeasureUpdateFormulaFactory formulaFactory;
+  private final ComponentIndexFactory componentIndexFactory;
+  private final LiveQualityGateComputer qGateComputer;
+  private final ProjectConfigurationLoader projectConfigurationLoader;
+  private final Indexers projectIndexer;
+  private final LiveMeasureTreeUpdater treeUpdater;
+
+  public LiveMeasureComputerImpl(DbClient dbClient, MeasureUpdateFormulaFactory formulaFactory, ComponentIndexFactory componentIndexFactory,
+<span class="fc" id="L53">    LiveQualityGateComputer qGateComputer, ProjectConfigurationLoader projectConfigurationLoader, Indexers projectIndexer, LiveMeasureTreeUpdater treeUpdater) {</span>
+<span class="fc" id="L54">    this.dbClient = dbClient;</span>
+<span class="fc" id="L55">    this.formulaFactory = formulaFactory;</span>
+<span class="fc" id="L56">    this.componentIndexFactory = componentIndexFactory;</span>
+<span class="fc" id="L57">    this.qGateComputer = qGateComputer;</span>
+<span class="fc" id="L58">    this.projectConfigurationLoader = projectConfigurationLoader;</span>
+<span class="fc" id="L59">    this.projectIndexer = projectIndexer;</span>
+<span class="fc" id="L60">    this.treeUpdater = treeUpdater;</span>
+<span class="fc" id="L61">  }</span>
+
+  @Override
+  public List&lt;QGChangeEvent&gt; refresh(DbSession dbSession, Collection&lt;ComponentDto&gt; components) {
+<span class="pc bpc" id="L65" title="1 of 2 branches missed.">    if (components.isEmpty()) {</span>
+<span class="nc" id="L66">      return emptyList();</span>
+    }
+
+<span class="fc" id="L69">    List&lt;QGChangeEvent&gt; result = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L70">    Map&lt;String, List&lt;ComponentDto&gt;&gt; componentsByProjectUuid = components.stream().collect(groupingBy(ComponentDto::branchUuid));</span>
+<span class="fc bfc" id="L71" title="All 2 branches covered.">    for (List&lt;ComponentDto&gt; groupedComponents : componentsByProjectUuid.values()) {</span>
+<span class="fc" id="L72">      Optional&lt;QGChangeEvent&gt; qgChangeEvent = refreshComponentsOnSameProject(dbSession, groupedComponents);</span>
+<span class="fc" id="L73">      qgChangeEvent.ifPresent(result::add);</span>
+<span class="fc" id="L74">    }</span>
+<span class="fc" id="L75">    return result;</span>
+  }
+
+  private Optional&lt;QGChangeEvent&gt; refreshComponentsOnSameProject(DbSession dbSession, List&lt;ComponentDto&gt; touchedComponents) {
+<span class="fc" id="L79">    ComponentIndex components = componentIndexFactory.create(dbSession, touchedComponents);</span>
+<span class="fc" id="L80">    ComponentDto branchComponent = components.getBranch();</span>
+<span class="fc" id="L81">    Optional&lt;SnapshotDto&gt; lastAnalysis = dbClient.snapshotDao().selectLastAnalysisByRootComponentUuid(dbSession, branchComponent.uuid());</span>
+<span class="fc bfc" id="L82" title="All 2 branches covered.">    if (lastAnalysis.isEmpty()) {</span>
+<span class="fc" id="L83">      return Optional.empty();</span>
+    }
+
+<span class="fc" id="L86">    LiveMeasureUpdaterWorkflow liveMeasureUpdaterWorkflow = LiveMeasureUpdaterWorkflow.build(</span>
+      dbClient,
+      dbSession,
+      branchComponent,
+      projectConfigurationLoader,
+      qGateComputer);
+
+<span class="fc" id="L93">    Set&lt;String&gt; metricKeys = liveMeasureUpdaterWorkflow.getKeysOfAllInvolvedMetrics(formulaFactory);</span>
+<span class="fc" id="L94">    MeasureMatrix matrix = liveMeasureUpdaterWorkflow.buildMeasureMatrix(</span>
+      metricKeys,
+<span class="fc" id="L96">      components.getAllUuids());</span>
+
+<span class="fc" id="L98">    treeUpdater.update(</span>
+      dbSession,
+<span class="fc" id="L100">      lastAnalysis.get(),</span>
+<span class="fc" id="L101">      liveMeasureUpdaterWorkflow.getConfig(),</span>
+      components,
+<span class="fc" id="L103">      liveMeasureUpdaterWorkflow.getBranchDto(),</span>
+      matrix);
+
+<span class="fc" id="L106">    Metric.Level previousStatus = liveMeasureUpdaterWorkflow.loadPreviousStatus();</span>
+<span class="fc" id="L107">    EvaluatedQualityGate evaluatedQualityGate = liveMeasureUpdaterWorkflow.updateQualityGateMeasures(matrix);</span>
+
+<span class="fc" id="L109">    projectIndexer.commitAndIndexBranches(dbSession, singleton(liveMeasureUpdaterWorkflow.getBranchDto()), Indexers.BranchEvent.MEASURE_CHANGE);</span>
+
+<span class="fc" id="L111">    return Optional.of(new QGChangeEvent(</span>
+<span class="fc" id="L112">      liveMeasureUpdaterWorkflow.getProjectDto(),</span>
+<span class="fc" id="L113">      liveMeasureUpdaterWorkflow.getBranchDto(),</span>
+<span class="fc" id="L114">      lastAnalysis.get(),</span>
+<span class="fc" id="L115">      liveMeasureUpdaterWorkflow.getConfig(),</span>
+<span class="fc" id="L116">      previousStatus, () -&gt; Optional.of(evaluatedQualityGate)));</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

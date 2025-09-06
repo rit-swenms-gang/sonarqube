@@ -1,0 +1,398 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ManagedProcessHandler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.application.process</a> &gt; <span class="el_source">ManagedProcessHandler.java</span></div><h1>ManagedProcessHandler.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.application.process;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
+import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.application.config.AppSettings;
+import org.sonar.process.ProcessId;
+
+import static java.lang.String.format;
+import static java.util.Objects.requireNonNull;
+
+public class ManagedProcessHandler {
+
+  public static final long DEFAULT_WATCHER_DELAY_MS = 500L;
+<span class="fc" id="L39">  private static final Logger LOG = LoggerFactory.getLogger(ManagedProcessHandler.class);</span>
+
+  private final ProcessId processId;
+  private final ManagedProcessLifecycle lifecycle;
+  private final List&lt;ManagedProcessEventListener&gt; eventListeners;
+  private final Timeout stopTimeout;
+  private final Timeout hardStopTimeout;
+  private final long watcherDelayMs;
+  private final AppSettings appSettings;
+
+  private ManagedProcess process;
+  private StreamGobbler stdOutGobbler;
+  private StreamGobbler stdErrGobbler;
+  private final StopWatcher stopWatcher;
+  private final EventWatcher eventWatcher;
+  // keep flag so that the operational event is sent only once
+  // to listeners
+<span class="fc" id="L56">  private boolean operational = false;</span>
+
+<span class="fc" id="L58">  private ManagedProcessHandler(Builder builder) {</span>
+<span class="fc" id="L59">    this.processId = requireNonNull(builder.processId, &quot;processId can't be null&quot;);</span>
+<span class="fc" id="L60">    this.lifecycle = new ManagedProcessLifecycle(this.processId, builder.lifecycleListeners);</span>
+<span class="fc" id="L61">    this.eventListeners = builder.eventListeners;</span>
+<span class="fc" id="L62">    this.stopTimeout = builder.stopTimeout;</span>
+<span class="fc" id="L63">    this.hardStopTimeout = builder.hardStopTimeout;</span>
+<span class="fc" id="L64">    this.watcherDelayMs = builder.watcherDelayMs;</span>
+<span class="fc" id="L65">    this.stopWatcher = new StopWatcher();</span>
+<span class="fc" id="L66">    this.eventWatcher = new EventWatcher();</span>
+<span class="fc" id="L67">    this.appSettings = builder.settings;</span>
+<span class="fc" id="L68">  }</span>
+
+  public boolean start(Supplier&lt;ManagedProcess&gt; commandLauncher) {
+<span class="fc bfc" id="L71" title="All 2 branches covered.">    if (!lifecycle.tryToMoveTo(ManagedProcessLifecycle.State.STARTING)) {</span>
+      // has already been started
+<span class="fc" id="L73">      return false;</span>
+    }
+    try {
+<span class="fc" id="L76">      this.process = commandLauncher.get();</span>
+<span class="fc" id="L77">    } catch (RuntimeException e) {</span>
+<span class="fc" id="L78">      LOG.error(&quot;Failed to launch process [{}]&quot;, processId.getHumanReadableName(), e);</span>
+<span class="fc" id="L79">      lifecycle.tryToMoveTo(ManagedProcessLifecycle.State.STOPPING);</span>
+<span class="fc" id="L80">      finalizeStop();</span>
+<span class="fc" id="L81">      throw e;</span>
+<span class="fc" id="L82">    }</span>
+<span class="fc" id="L83">    this.stdOutGobbler = new StreamGobbler(process.getInputStream(), appSettings, processId.getKey());</span>
+<span class="fc" id="L84">    this.stdOutGobbler.start();</span>
+<span class="fc" id="L85">    this.stdErrGobbler = new StreamGobbler(process.getErrorStream(), appSettings, processId.getKey());</span>
+<span class="fc" id="L86">    this.stdErrGobbler.start();</span>
+<span class="fc" id="L87">    this.stopWatcher.start();</span>
+<span class="fc" id="L88">    this.eventWatcher.start();</span>
+    // Could be improved by checking the status &quot;up&quot; in shared memory.
+    // Not a problem so far as this state is not used by listeners.
+<span class="fc" id="L91">    lifecycle.tryToMoveTo(ManagedProcessLifecycle.State.STARTED);</span>
+<span class="fc" id="L92">    return true;</span>
+  }
+
+  public ProcessId getProcessId() {
+<span class="fc" id="L96">    return processId;</span>
+  }
+
+  ManagedProcessLifecycle.State getState() {
+<span class="fc" id="L100">    return lifecycle.getState();</span>
+  }
+
+  public void stop() throws InterruptedException {
+<span class="pc bpc" id="L104" title="1 of 2 branches missed.">    if (lifecycle.tryToMoveTo(ManagedProcessLifecycle.State.STOPPING)) {</span>
+<span class="fc" id="L105">      stopImpl();</span>
+<span class="pc bpc" id="L106" title="1 of 4 branches missed.">      if (process != null &amp;&amp; process.isAlive()) {</span>
+<span class="fc" id="L107">        LOG.info(&quot;{} failed to stop in a graceful fashion. Hard stopping it.&quot;, processId.getHumanReadableName());</span>
+<span class="fc" id="L108">        hardStop();</span>
+      } else {
+        // enforce stop and clean-up even if process has been quickly stopped
+<span class="fc" id="L111">        finalizeStop();</span>
+      }
+    } else {
+      // already stopping or stopped
+<span class="nc" id="L115">      waitForDown();</span>
+    }
+<span class="fc" id="L117">  }</span>
+
+  /**
+   * Sends kill signal and awaits termination. No guarantee that process is gracefully terminated (=shutdown hooks
+   * executed). It depends on OS.
+   */
+  public void hardStop() throws InterruptedException {
+<span class="fc bfc" id="L124" title="All 2 branches covered.">    if (lifecycle.tryToMoveTo(ManagedProcessLifecycle.State.HARD_STOPPING)) {</span>
+<span class="fc" id="L125">      hardStopImpl();</span>
+<span class="pc bpc" id="L126" title="1 of 4 branches missed.">      if (process != null &amp;&amp; process.isAlive()) {</span>
+<span class="fc" id="L127">        LOG.info(&quot;{} failed to stop in a quick fashion. Killing it.&quot;, processId.getHumanReadableName());</span>
+      }
+      // enforce stop and clean-up even if process has been quickly stopped
+<span class="fc" id="L130">      finalizeStop();</span>
+    } else {
+      // already stopping or stopped
+<span class="fc" id="L133">      waitForDown();</span>
+    }
+<span class="fc" id="L135">  }</span>
+
+  private void waitForDown() {
+<span class="pc bpc" id="L138" title="1 of 4 branches missed.">    while (process != null &amp;&amp; process.isAlive()) {</span>
+      try {
+<span class="nc" id="L140">        process.waitFor();</span>
+<span class="nc" id="L141">      } catch (InterruptedException ignored) {</span>
+        // ignore, waiting for process to stop
+<span class="nc" id="L143">        Thread.currentThread().interrupt();</span>
+<span class="nc" id="L144">      }</span>
+    }
+<span class="fc" id="L146">  }</span>
+
+  private void stopImpl() throws InterruptedException {
+<span class="pc bpc" id="L149" title="1 of 2 branches missed.">    if (process == null) {</span>
+<span class="nc" id="L150">      return;</span>
+    }
+    try {
+<span class="fc" id="L153">      process.askForStop();</span>
+<span class="fc" id="L154">      process.waitFor(stopTimeout.getDuration(), stopTimeout.getUnit());</span>
+<span class="nc" id="L155">    } catch (InterruptedException e) {</span>
+      // can't wait for the termination of process. Let's assume it's down.
+<span class="nc" id="L157">      throw rethrowWithWarn(e, format(&quot;Interrupted while stopping process %s&quot;, processId));</span>
+<span class="nc" id="L158">    } catch (Throwable e) {</span>
+<span class="nc" id="L159">      LOG.error(&quot;Failed asking for graceful stop of process {}&quot;, processId, e);</span>
+<span class="fc" id="L160">    }</span>
+<span class="fc" id="L161">  }</span>
+
+  private void hardStopImpl() throws InterruptedException {
+<span class="pc bpc" id="L164" title="1 of 2 branches missed.">    if (process == null) {</span>
+<span class="nc" id="L165">      return;</span>
+    }
+    try {
+<span class="fc" id="L168">      process.askForHardStop();</span>
+<span class="fc" id="L169">      process.waitFor(hardStopTimeout.getDuration(), hardStopTimeout.getUnit());</span>
+<span class="nc" id="L170">    } catch (InterruptedException e) {</span>
+      // can't wait for the termination of process. Let's assume it's down.
+<span class="nc" id="L172">      throw rethrowWithWarn(e,</span>
+<span class="nc" id="L173">        format(&quot;Interrupted while hard stopping process %s (currentThread=%s)&quot;, processId, Thread.currentThread().getName()));</span>
+<span class="nc" id="L174">    } catch (Throwable e) {</span>
+<span class="nc" id="L175">      LOG.error(&quot;Failed while asking for hard stop of process {}&quot;, processId, e);</span>
+<span class="fc" id="L176">    }</span>
+<span class="fc" id="L177">  }</span>
+
+  private static InterruptedException rethrowWithWarn(InterruptedException e, String errorMessage) {
+<span class="nc" id="L180">    LOG.warn(errorMessage, e);</span>
+<span class="nc" id="L181">    Thread.currentThread().interrupt();</span>
+<span class="nc" id="L182">    return new InterruptedException(errorMessage);</span>
+  }
+
+  private void finalizeStop() {
+<span class="pc bpc" id="L186" title="1 of 2 branches missed.">    if (!lifecycle.tryToMoveTo(ManagedProcessLifecycle.State.FINALIZE_STOPPING)) {</span>
+<span class="nc" id="L187">      return;</span>
+    }
+
+<span class="fc" id="L190">    interrupt(eventWatcher);</span>
+<span class="fc" id="L191">    interrupt(stopWatcher);</span>
+<span class="fc bfc" id="L192" title="All 2 branches covered.">    if (process != null) {</span>
+<span class="fc" id="L193">      process.destroyForcibly();</span>
+<span class="fc" id="L194">      waitForDown();</span>
+<span class="fc" id="L195">      process.closeStreams();</span>
+    }
+<span class="fc bfc" id="L197" title="All 2 branches covered.">    if (stdOutGobbler != null) {</span>
+<span class="fc" id="L198">      StreamGobbler.waitUntilFinish(stdOutGobbler);</span>
+<span class="fc" id="L199">      stdOutGobbler.interrupt();</span>
+    }
+<span class="fc bfc" id="L201" title="All 2 branches covered.">    if (stdErrGobbler != null) {</span>
+<span class="fc" id="L202">      StreamGobbler.waitUntilFinish(stdErrGobbler);</span>
+<span class="fc" id="L203">      stdErrGobbler.interrupt();</span>
+    }
+    // will trigger state listeners
+<span class="fc" id="L206">    lifecycle.tryToMoveTo(ManagedProcessLifecycle.State.STOPPED);</span>
+<span class="fc" id="L207">  }</span>
+
+  private static void interrupt(@Nullable Thread thread) {
+<span class="fc" id="L210">    Thread currentThread = Thread.currentThread();</span>
+    // prevent current thread from interrupting itself
+<span class="pc bpc" id="L212" title="1 of 4 branches missed.">    if (thread != null &amp;&amp; currentThread != thread) {</span>
+<span class="fc" id="L213">      thread.interrupt();</span>
+<span class="fc" id="L214">      LOG.trace(&quot;{} interrupted {}&quot;, currentThread.getName(), thread.getName(), new Exception(&quot;(capturing stack trace for debugging purpose)&quot;));</span>
+    }
+<span class="fc" id="L216">  }</span>
+
+  void refreshState() {
+<span class="pc bpc" id="L219" title="1 of 2 branches missed.">    if (process.isAlive()) {</span>
+<span class="fc bfc" id="L220" title="All 4 branches covered.">      if (!operational &amp;&amp; process.isOperational()) {</span>
+<span class="fc" id="L221">        operational = true;</span>
+<span class="fc" id="L222">        eventListeners.forEach(l -&gt; l.onManagedProcessEvent(processId, ManagedProcessEventListener.Type.OPERATIONAL));</span>
+      }
+<span class="fc bfc" id="L224" title="All 2 branches covered.">      if (process.askedForRestart()) {</span>
+<span class="fc" id="L225">        process.acknowledgeAskForRestart();</span>
+<span class="fc" id="L226">        eventListeners.forEach(l -&gt; l.onManagedProcessEvent(processId, ManagedProcessEventListener.Type.ASK_FOR_RESTART));</span>
+      }
+    }
+<span class="fc" id="L229">  }</span>
+
+  @Override
+  public String toString() {
+<span class="fc" id="L233">    return format(&quot;Process[%s]&quot;, processId.getHumanReadableName());</span>
+  }
+
+  /**
+   * This thread blocks as long as the monitored process is physically alive.
+   * It avoids from executing {@link Process#exitValue()} at a fixed rate :
+   * &lt;ul&gt;
+   * &lt;li&gt;no usage of exception for flow control. Indeed {@link Process#exitValue()} throws an exception
+   * if process is alive. There's no method &lt;code&gt;Process#isAlive()&lt;/code&gt;&lt;/li&gt;
+   * &lt;li&gt;no delay, instantaneous notification that process is down&lt;/li&gt;
+   * &lt;/ul&gt;
+   */
+  private class StopWatcher extends Thread {
+<span class="fc" id="L246">    StopWatcher() {</span>
+      // this name is different than Thread#toString(), which includes name, priority
+      // and thread group
+      // -&gt; do not override toString()
+<span class="fc" id="L250">      super(format(&quot;StopWatcher[%s]&quot;, processId.getHumanReadableName()));</span>
+<span class="fc" id="L251">    }</span>
+
+    @Override
+    public void run() {
+      try {
+<span class="fc" id="L256">        process.waitFor();</span>
+<span class="fc" id="L257">      } catch (InterruptedException e) {</span>
+<span class="fc" id="L258">        Thread.currentThread().interrupt();</span>
+        // stop watching process
+<span class="fc" id="L260">      }</span>
+      // since process is already stopped, this will only finalize the stop sequence
+      // call hardStop() rather than finalizeStop() directly because hardStop() checks lifeCycle state and this
+      // avoid running to concurrent stop finalization pieces of code
+      try {
+<span class="fc" id="L265">        hardStop();</span>
+<span class="nc" id="L266">      } catch (InterruptedException e) {</span>
+<span class="nc" id="L267">        LOG.debug(&quot;Interrupted while stopping [{}] after process ended&quot;, processId.getHumanReadableName(), e);</span>
+<span class="nc" id="L268">        Thread.currentThread().interrupt();</span>
+<span class="fc" id="L269">      }</span>
+<span class="fc" id="L270">    }</span>
+  }
+
+  private class EventWatcher extends Thread {
+<span class="fc" id="L274">    EventWatcher() {</span>
+      // this name is different than Thread#toString(), which includes name, priority
+      // and thread group
+      // -&gt; do not override toString()
+<span class="fc" id="L278">      super(format(&quot;EventWatcher[%s]&quot;, processId.getHumanReadableName()));</span>
+<span class="fc" id="L279">    }</span>
+
+    @Override
+    public void run() {
+      try {
+<span class="fc bfc" id="L284" title="All 2 branches covered.">        while (process.isAlive()) {</span>
+<span class="fc" id="L285">          refreshState();</span>
+<span class="fc" id="L286">          Thread.sleep(watcherDelayMs);</span>
+        }
+<span class="fc" id="L288">      } catch (InterruptedException e) {</span>
+<span class="fc" id="L289">        Thread.currentThread().interrupt();</span>
+<span class="fc" id="L290">      }</span>
+<span class="fc" id="L291">    }</span>
+  }
+
+  public static Builder builder(ProcessId processId) {
+<span class="fc" id="L295">    return new Builder(processId);</span>
+  }
+
+  public static class Builder {
+    private final ProcessId processId;
+<span class="fc" id="L300">    private final List&lt;ManagedProcessEventListener&gt; eventListeners = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L301">    private final List&lt;ProcessLifecycleListener&gt; lifecycleListeners = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L302">    private long watcherDelayMs = DEFAULT_WATCHER_DELAY_MS;</span>
+    private Timeout stopTimeout;
+    private Timeout hardStopTimeout;
+    private AppSettings settings;
+
+<span class="fc" id="L307">    private Builder(ProcessId processId) {</span>
+<span class="fc" id="L308">      this.processId = processId;</span>
+<span class="fc" id="L309">    }</span>
+
+    public Builder addEventListener(ManagedProcessEventListener listener) {
+<span class="fc" id="L312">      this.eventListeners.add(listener);</span>
+<span class="fc" id="L313">      return this;</span>
+    }
+
+    public Builder addProcessLifecycleListener(ProcessLifecycleListener listener) {
+<span class="fc" id="L317">      this.lifecycleListeners.add(listener);</span>
+<span class="fc" id="L318">      return this;</span>
+    }
+
+    /**
+     * Default delay is {@link #DEFAULT_WATCHER_DELAY_MS}
+     */
+    public Builder setWatcherDelayMs(long l) {
+<span class="fc" id="L325">      this.watcherDelayMs = l;</span>
+<span class="fc" id="L326">      return this;</span>
+    }
+
+    public Builder setStopTimeout(Timeout stopTimeout) {
+<span class="fc" id="L330">      this.stopTimeout = ensureStopTimeoutNonNull(stopTimeout);</span>
+<span class="fc" id="L331">      return this;</span>
+    }
+
+    public Builder setHardStopTimeout(Timeout hardStopTimeout) {
+<span class="fc" id="L335">      this.hardStopTimeout = ensureHardStopTimeoutNonNull(hardStopTimeout);</span>
+<span class="fc" id="L336">      return this;</span>
+    }
+
+    private static Timeout ensureStopTimeoutNonNull(Timeout stopTimeout) {
+<span class="fc" id="L340">      return requireNonNull(stopTimeout, &quot;stopTimeout can't be null&quot;);</span>
+    }
+
+    private static Timeout ensureHardStopTimeoutNonNull(Timeout hardStopTimeout) {
+<span class="fc" id="L344">      return requireNonNull(hardStopTimeout, &quot;hardStopTimeout can't be null&quot;);</span>
+    }
+
+    public ManagedProcessHandler build() {
+<span class="fc" id="L348">      ensureStopTimeoutNonNull(this.stopTimeout);</span>
+<span class="fc" id="L349">      ensureHardStopTimeoutNonNull(this.hardStopTimeout);</span>
+<span class="fc" id="L350">      return new ManagedProcessHandler(this);</span>
+    }
+
+    public Builder setAppSettings(AppSettings settings) {
+<span class="fc" id="L354">      this.settings = settings;</span>
+<span class="fc" id="L355">      return this;</span>
+    }
+  }
+
+  public static final class Timeout {
+    private final long duration;
+    private final TimeUnit timeoutUnit;
+
+<span class="fc" id="L363">    private Timeout(long duration, TimeUnit unit) {</span>
+<span class="fc" id="L364">      this.duration = duration;</span>
+<span class="fc" id="L365">      this.timeoutUnit = Objects.requireNonNull(unit, &quot;unit can't be null&quot;);</span>
+<span class="fc" id="L366">    }</span>
+
+    public static Timeout newTimeout(long duration, TimeUnit unit) {
+<span class="fc" id="L369">      return new Timeout(duration, unit);</span>
+    }
+
+    public long getDuration() {
+<span class="fc" id="L373">      return duration;</span>
+    }
+
+    public TimeUnit getUnit() {
+<span class="fc" id="L377">      return timeoutUnit;</span>
+    }
+
+    @Override
+    public boolean equals(Object o) {
+<span class="nc bnc" id="L382" title="All 2 branches missed.">      if (this == o) {</span>
+<span class="nc" id="L383">        return true;</span>
+      }
+<span class="nc bnc" id="L385" title="All 4 branches missed.">      if (o == null || getClass() != o.getClass()) {</span>
+<span class="nc" id="L386">        return false;</span>
+      }
+<span class="nc" id="L388">      Timeout timeout = (Timeout) o;</span>
+<span class="nc bnc" id="L389" title="All 4 branches missed.">      return duration == timeout.duration &amp;&amp; timeoutUnit == timeout.timeoutUnit;</span>
+    }
+
+    @Override
+    public int hashCode() {
+<span class="nc" id="L394">      return Objects.hash(duration, timeoutUnit);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ComponentTypes.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.component</a> &gt; <span class="el_source">ComponentTypes.java</span></div><h1>ComponentTypes.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.component;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import org.sonar.api.ce.ComputeEngineSide;
+import org.sonar.api.server.ServerSide;
+
+import static java.util.Collections.unmodifiableList;
+import static java.util.Collections.unmodifiableMap;
+import static java.util.Objects.requireNonNull;
+
+@ServerSide
+@ComputeEngineSide
+public class ComponentTypes {
+
+  private final Map&lt;String, ComponentTypeTree&gt; treeByQualifier;
+  private final Map&lt;String, ComponentType&gt; typeByQualifier;
+  private final Collection&lt;ComponentType&gt; rootTypes;
+
+<span class="fc" id="L44">  public ComponentTypes(ComponentTypeTree[] trees) {</span>
+<span class="fc" id="L45">    requireNonNull(trees);</span>
+
+<span class="fc" id="L47">    Map&lt;String, ComponentTypeTree&gt; treeMap = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L48">    Map&lt;String, ComponentType&gt; typeMap = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L49">    Collection&lt;ComponentType&gt; rootsSet = new LinkedHashSet&lt;&gt;();</span>
+
+<span class="fc bfc" id="L51" title="All 2 branches covered.">    for (ComponentTypeTree tree : trees) {</span>
+<span class="fc" id="L52">      rootsSet.add(tree.getRootType());</span>
+<span class="fc bfc" id="L53" title="All 2 branches covered.">      for (ComponentType type : tree.getTypes()) {</span>
+<span class="fc bfc" id="L54" title="All 2 branches covered.">        if (treeMap.containsKey(type.getQualifier())) {</span>
+<span class="fc" id="L55">          throw new IllegalStateException(&quot;Qualifier &quot; + type.getQualifier() + &quot; is defined in several trees&quot;);</span>
+        }
+<span class="fc" id="L57">        treeMap.put(type.getQualifier(), tree);</span>
+<span class="fc" id="L58">        typeMap.put(type.getQualifier(), type);</span>
+<span class="fc" id="L59">      }</span>
+    }
+<span class="fc" id="L61">    treeByQualifier = unmodifiableMap(new LinkedHashMap&lt;&gt;(treeMap));</span>
+<span class="fc" id="L62">    typeByQualifier = unmodifiableMap(new LinkedHashMap&lt;&gt;(typeMap));</span>
+<span class="fc" id="L63">    rootTypes = unmodifiableList(new ArrayList&lt;&gt;(rootsSet));</span>
+<span class="fc" id="L64">  }</span>
+
+  public ComponentType get(String qualifier) {
+<span class="fc" id="L67">    ComponentType type = typeByQualifier.get(qualifier);</span>
+<span class="fc bfc" id="L68" title="All 2 branches covered.">    return type != null ? type : ComponentType.builder(qualifier).build();</span>
+  }
+
+  public Collection&lt;ComponentType&gt; getAll() {
+<span class="fc" id="L72">    return typeByQualifier.values();</span>
+  }
+
+  public Collection&lt;ComponentType&gt; getRoots() {
+<span class="fc" id="L76">    return rootTypes;</span>
+  }
+
+  public boolean isQualifierPresent(String qualifier) {
+<span class="fc bfc" id="L80" title="All 2 branches covered.">    return typeByQualifier.get(qualifier) != null;</span>
+  }
+
+  public List&lt;String&gt; getLeavesQualifiers(String qualifier) {
+<span class="fc" id="L84">    ComponentTypeTree tree = getTree(qualifier);</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">    if (tree != null) {</span>
+<span class="fc" id="L86">      return tree.getLeaves();</span>
+    }
+<span class="fc" id="L88">    return Collections.emptyList();</span>
+  }
+
+  private ComponentTypeTree getTree(String qualifier) {
+<span class="fc" id="L92">    return treeByQualifier.get(qualifier);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultExternalIssue.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.api.batch.sensor.issue.internal</a> &gt; <span class="el_source">DefaultExternalIssue.java</span></div><h1>DefaultExternalIssue.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.api.batch.sensor.issue.internal;
+
+import java.util.EnumMap;
+import java.util.Map;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.api.batch.fs.internal.DefaultInputProject;
+import org.sonar.api.batch.rule.Severity;
+import org.sonar.api.batch.sensor.internal.SensorStorage;
+import org.sonar.api.batch.sensor.issue.ExternalIssue;
+import org.sonar.api.batch.sensor.issue.NewExternalIssue;
+import org.sonar.api.issue.impact.SoftwareQuality;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.api.rules.CleanCodeAttribute;
+import org.sonar.api.rules.RuleType;
+
+import static java.lang.String.format;
+import static java.util.Objects.requireNonNull;
+import static org.sonar.api.utils.Preconditions.checkArgument;
+import static org.sonar.api.utils.Preconditions.checkState;
+
+public class DefaultExternalIssue extends AbstractDefaultIssue&lt;DefaultExternalIssue&gt; implements ExternalIssue, NewExternalIssue {
+  private Long effort;
+  private Severity severity;
+  private RuleType type;
+  private String engineId;
+  private String ruleId;
+<span class="fc" id="L47">  private Map&lt;SoftwareQuality, org.sonar.api.issue.impact.Severity&gt; impacts = new EnumMap&lt;&gt;(SoftwareQuality.class);</span>
+  private CleanCodeAttribute cleanCodeAttribute;
+
+  public DefaultExternalIssue(DefaultInputProject project) {
+<span class="fc" id="L51">    this(project, null);</span>
+<span class="fc" id="L52">  }</span>
+
+  public DefaultExternalIssue(DefaultInputProject project, @Nullable SensorStorage storage) {
+<span class="fc" id="L55">    super(project, storage);</span>
+<span class="fc" id="L56">  }</span>
+
+  @Override
+  public DefaultExternalIssue remediationEffortMinutes(@Nullable Long effort) {
+<span class="pc bpc" id="L60" title="2 of 4 branches missed.">    checkArgument(effort == null || effort &gt;= 0, format(&quot;effort must be greater than or equal 0 (got %s)&quot;, effort));</span>
+<span class="fc" id="L61">    this.effort = effort;</span>
+<span class="fc" id="L62">    return this;</span>
+  }
+
+  @Override
+  public DefaultExternalIssue severity(Severity severity) {
+<span class="fc" id="L67">    this.severity = severity;</span>
+<span class="fc" id="L68">    return this;</span>
+  }
+
+  @Override
+  public DefaultExternalIssue addImpact(SoftwareQuality softwareQuality, org.sonar.api.issue.impact.Severity severity) {
+<span class="fc" id="L73">    this.impacts.put(softwareQuality, severity);</span>
+<span class="fc" id="L74">    return this;</span>
+  }
+
+  @Override
+  public String engineId() {
+<span class="fc" id="L79">    return engineId;</span>
+  }
+
+  @Override
+  public String ruleId() {
+<span class="fc" id="L84">    return ruleId;</span>
+  }
+
+  @Override
+  public Severity severity() {
+<span class="fc" id="L89">    return this.severity;</span>
+  }
+
+  @Override
+  public Long remediationEffort() {
+<span class="fc" id="L94">    return this.effort;</span>
+  }
+
+  @Override
+  public void doSave() {
+<span class="fc" id="L99">    requireNonNull(this.engineId, &quot;Engine id is mandatory on external issue&quot;);</span>
+<span class="fc" id="L100">    requireNonNull(this.ruleId, &quot;Rule id is mandatory on external issue&quot;);</span>
+<span class="pc bpc" id="L101" title="1 of 2 branches missed.">    checkState(primaryLocation != null, &quot;Primary location is mandatory on every external issue&quot;);</span>
+<span class="fc bfc" id="L102" title="All 2 branches covered.">    checkState(primaryLocation.message() != null, &quot;External issues must have a message&quot;);</span>
+<span class="fc" id="L103">    storage.store(this);</span>
+<span class="fc" id="L104">  }</span>
+
+  @Override
+  public RuleType type() {
+<span class="fc" id="L108">    return type;</span>
+  }
+
+  @Override
+  public Map&lt;SoftwareQuality, org.sonar.api.issue.impact.Severity&gt; impacts() {
+<span class="fc" id="L113">    return impacts;</span>
+  }
+
+  @CheckForNull
+  @Override
+  public CleanCodeAttribute cleanCodeAttribute() {
+<span class="fc" id="L119">    return cleanCodeAttribute;</span>
+  }
+
+  @Override
+  public NewExternalIssue engineId(String engineId) {
+<span class="fc" id="L124">    this.engineId = engineId;</span>
+<span class="fc" id="L125">    return this;</span>
+  }
+
+  @Override
+  public NewExternalIssue ruleId(String ruleId) {
+<span class="fc" id="L130">    this.ruleId = ruleId;</span>
+<span class="fc" id="L131">    return this;</span>
+  }
+
+  @Override
+  public DefaultExternalIssue forRule(RuleKey ruleKey) {
+<span class="fc" id="L136">    this.engineId = ruleKey.repository();</span>
+<span class="fc" id="L137">    this.ruleId = ruleKey.rule();</span>
+<span class="fc" id="L138">    return this;</span>
+  }
+
+  @Override
+  public RuleKey ruleKey() {
+<span class="pc bpc" id="L143" title="2 of 4 branches missed.">    if (engineId != null &amp;&amp; ruleId != null) {</span>
+<span class="fc" id="L144">      return RuleKey.of(RuleKey.EXTERNAL_RULE_REPO_PREFIX + engineId, ruleId);</span>
+    }
+<span class="nc" id="L146">    return null;</span>
+  }
+
+  @Override
+  public DefaultExternalIssue type(RuleType type) {
+<span class="fc" id="L151">    this.type = type;</span>
+<span class="fc" id="L152">    return this;</span>
+  }
+
+  @Override
+  public DefaultExternalIssue cleanCodeAttribute(CleanCodeAttribute attribute) {
+<span class="fc" id="L157">    this.cleanCodeAttribute = attribute;</span>
+<span class="fc" id="L158">    return this;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

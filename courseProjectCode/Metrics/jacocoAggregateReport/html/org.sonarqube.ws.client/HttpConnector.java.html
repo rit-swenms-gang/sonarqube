@@ -1,0 +1,393 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HttpConnector.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonarqube.ws.client</a> &gt; <span class="el_source">HttpConnector.java</span></div><h1>HttpConnector.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonarqube.ws.client;
+
+import java.io.IOException;
+import java.net.Proxy;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import javax.annotation.Nullable;
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.X509TrustManager;
+import okhttp3.Call;
+import okhttp3.Credentials;
+import okhttp3.FormBody;
+import okhttp3.HttpUrl;
+import okhttp3.MediaType;
+import okhttp3.MultipartBody;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+import org.sonarqube.ws.client.RequestWithPayload.Part;
+
+import static java.lang.String.format;
+import static java.net.HttpURLConnection.HTTP_MOVED_PERM;
+import static java.net.HttpURLConnection.HTTP_MOVED_TEMP;
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static okhttp3.internal.http.StatusLine.HTTP_PERM_REDIRECT;
+import static okhttp3.internal.http.StatusLine.HTTP_TEMP_REDIRECT;
+import static org.sonarqube.ws.WsUtils.checkArgument;
+import static org.sonarqube.ws.WsUtils.isNullOrEmpty;
+import static org.sonarqube.ws.WsUtils.nullToEmpty;
+
+/**
+ * Connect to any SonarQube server available through HTTP or HTTPS.
+ * &lt;p&gt;The JVM system proxies are used.&lt;/p&gt;
+ */
+public class HttpConnector implements WsConnector {
+
+  public static final int DEFAULT_CONNECT_TIMEOUT_MILLISECONDS = 30_000;
+  public static final int DEFAULT_READ_TIMEOUT_MILLISECONDS = 60_000;
+  public static final int DEFAULT_RESPONSE_TIMEOUT_MILLISECONDS = 0;
+  private static final String JSON = &quot;application/json; charset=utf-8&quot;;
+
+  /**
+   * Base URL with trailing slash, for instance &quot;https://localhost/sonarqube/&quot;.
+   * It is required for further usage of {@link HttpUrl#resolve(String)}.
+   */
+  private final HttpUrl baseUrl;
+  private final String systemPassCode;
+  private final OkHttpClient okHttpClient;
+  private final OkHttpClient noRedirectOkHttpClient;
+
+<span class="fc" id="L72">  private HttpConnector(Builder builder) {</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">    this.baseUrl = HttpUrl.parse(builder.url.endsWith(&quot;/&quot;) ? builder.url : format(&quot;%s/&quot;, builder.url));</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">    checkArgument(this.baseUrl != null, &quot;Malformed URL: '%s'&quot;, builder.url);</span>
+
+<span class="fc" id="L76">    OkHttpClientBuilder okHttpClientBuilder = new OkHttpClientBuilder();</span>
+<span class="fc" id="L77">    okHttpClientBuilder.setUserAgent(builder.userAgent);</span>
+
+<span class="fc bfc" id="L79" title="All 2 branches covered.">    if (!isNullOrEmpty(builder.login)) {</span>
+      // password is null when login represents an access token. In this case
+      // the Basic credentials consider an empty password.
+<span class="fc" id="L82">      okHttpClientBuilder.setCredentials(Credentials.basic(builder.login, nullToEmpty(builder.password), UTF_8));</span>
+    }
+<span class="fc" id="L84">    this.systemPassCode = builder.systemPassCode;</span>
+<span class="fc" id="L85">    okHttpClientBuilder.setProxy(builder.proxy);</span>
+<span class="fc" id="L86">    okHttpClientBuilder.setProxyLogin(builder.proxyLogin);</span>
+<span class="fc" id="L87">    okHttpClientBuilder.setProxyPassword(builder.proxyPassword);</span>
+<span class="fc" id="L88">    okHttpClientBuilder.setConnectTimeoutMs(builder.connectTimeoutMs);</span>
+<span class="fc" id="L89">    okHttpClientBuilder.setResponseTimeoutMs(builder.responseTimeoutMs);</span>
+<span class="fc" id="L90">    okHttpClientBuilder.setReadTimeoutMs(builder.readTimeoutMs);</span>
+<span class="fc" id="L91">    okHttpClientBuilder.setSSLSocketFactory(builder.sslSocketFactory);</span>
+<span class="fc" id="L92">    okHttpClientBuilder.setTrustManager(builder.sslTrustManager);</span>
+<span class="fc" id="L93">    okHttpClientBuilder.acceptGzip(builder.acceptGzip);</span>
+
+<span class="fc" id="L95">    this.okHttpClient = okHttpClientBuilder.build();</span>
+<span class="fc" id="L96">    this.noRedirectOkHttpClient = newClientWithoutRedirect(this.okHttpClient);</span>
+<span class="fc" id="L97">  }</span>
+
+  private static OkHttpClient newClientWithoutRedirect(OkHttpClient client) {
+<span class="fc" id="L100">    return client.newBuilder()</span>
+<span class="fc" id="L101">      .followRedirects(false)</span>
+<span class="fc" id="L102">      .followSslRedirects(false)</span>
+<span class="fc" id="L103">      .build();</span>
+  }
+
+  @Override
+  public String baseUrl() {
+<span class="fc" id="L108">    return baseUrl.url().toExternalForm();</span>
+  }
+
+  public OkHttpClient okHttpClient() {
+<span class="fc" id="L112">    return okHttpClient;</span>
+  }
+
+  @Override
+  public WsResponse call(WsRequest httpRequest) {
+<span class="fc bfc" id="L117" title="All 2 branches covered.">    if (httpRequest instanceof RequestWithoutPayload httpRequestWithoutPayload) {</span>
+<span class="fc" id="L118">      return executeRequest(httpRequestWithoutPayload);</span>
+    }
+<span class="fc bfc" id="L120" title="All 2 branches covered.">    if (httpRequest instanceof RequestWithPayload httpRequestWithPayload) {</span>
+<span class="fc" id="L121">      return executeRequest(httpRequestWithPayload);</span>
+    }
+<span class="fc" id="L123">    throw new IllegalArgumentException(format(&quot;Unsupported implementation: %s&quot;, httpRequest.getClass()));</span>
+  }
+
+  private WsResponse executeRequest(RequestWithoutPayload&lt;?&gt; request) {
+<span class="fc" id="L127">    HttpUrl.Builder urlBuilder = prepareUrlBuilder(request);</span>
+<span class="fc" id="L128">    completeUrlQueryParameters(request, urlBuilder);</span>
+
+<span class="fc" id="L130">    Request.Builder okRequestBuilder = prepareOkRequestBuilder(request, urlBuilder);</span>
+<span class="fc" id="L131">    okRequestBuilder = request.addVerbToBuilder().apply(okRequestBuilder);</span>
+<span class="fc" id="L132">    return new OkHttpResponse(doCall(prepareOkHttpClient(okHttpClient, request), okRequestBuilder.build()));</span>
+  }
+
+  private WsResponse executeRequest(RequestWithPayload&lt;?&gt; request) {
+<span class="fc" id="L136">    HttpUrl.Builder urlBuilder = prepareUrlBuilder(request);</span>
+
+    RequestBody body;
+<span class="fc" id="L139">    Map&lt;String, Part&gt; parts = request.getParts();</span>
+<span class="fc bfc" id="L140" title="All 2 branches covered.">    if (request.hasBody()) {</span>
+<span class="fc" id="L141">      MediaType contentType = MediaType.parse(request.getContentType().orElse(JSON));</span>
+<span class="fc" id="L142">      body = RequestBody.create(contentType, request.getBody());</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">    } else if (parts.isEmpty()) {</span>
+      // parameters are defined in the body (application/x-www-form-urlencoded)
+<span class="fc" id="L145">      FormBody.Builder formBody = new FormBody.Builder();</span>
+<span class="fc" id="L146">      request.getParameters().getKeys()</span>
+<span class="fc" id="L147">        .forEach(key -&gt; request.getParameters().getValues(key)</span>
+<span class="fc" id="L148">          .forEach(value -&gt; formBody.add(key, value)));</span>
+<span class="fc" id="L149">      body = formBody.build();</span>
+
+<span class="fc" id="L151">    } else {</span>
+      // parameters are defined in the URL (as GET)
+<span class="fc" id="L153">      completeUrlQueryParameters(request, urlBuilder);</span>
+
+<span class="fc" id="L155">      MultipartBody.Builder bodyBuilder = new MultipartBody.Builder().setType(MultipartBody.FORM);</span>
+<span class="fc" id="L156">      parts.entrySet().forEach(param -&gt; {</span>
+<span class="fc" id="L157">        Part part = param.getValue();</span>
+<span class="fc" id="L158">        bodyBuilder.addFormDataPart(</span>
+<span class="fc" id="L159">          param.getKey(),</span>
+<span class="fc" id="L160">          part.getFile().getName(),</span>
+<span class="fc" id="L161">          RequestBody.create(MediaType.parse(part.getMediaType()), part.getFile()));</span>
+<span class="fc" id="L162">      });</span>
+<span class="fc" id="L163">      body = bodyBuilder.build();</span>
+    }
+<span class="fc" id="L165">    Request.Builder okRequestBuilder = prepareOkRequestBuilder(request, urlBuilder);</span>
+<span class="fc" id="L166">    okRequestBuilder = request.addVerbToBuilder(body).apply(okRequestBuilder);</span>
+<span class="fc" id="L167">    Response response = doCall(prepareOkHttpClient(noRedirectOkHttpClient, request), okRequestBuilder.build());</span>
+<span class="fc" id="L168">    response = checkRedirect(response, request);</span>
+<span class="fc" id="L169">    return new OkHttpResponse(response);</span>
+  }
+
+  private HttpUrl.Builder prepareUrlBuilder(WsRequest wsRequest) {
+<span class="fc" id="L173">    String path = wsRequest.getPath();</span>
+<span class="fc" id="L174">    return baseUrl</span>
+<span class="fc bfc" id="L175" title="All 2 branches covered.">      .resolve(path.startsWith(&quot;/&quot;) ? path.replaceAll(&quot;^(/)+&quot;, &quot;&quot;) : path)</span>
+<span class="fc" id="L176">      .newBuilder();</span>
+  }
+
+  static OkHttpClient prepareOkHttpClient(OkHttpClient okHttpClient, WsRequest wsRequest) {
+<span class="fc bfc" id="L180" title="All 4 branches covered.">    if (!wsRequest.getTimeOutInMs().isPresent() &amp;&amp; !wsRequest.getWriteTimeOutInMs().isPresent()) {</span>
+<span class="fc" id="L181">      return okHttpClient;</span>
+    }
+<span class="fc" id="L183">    OkHttpClient.Builder builder = okHttpClient.newBuilder();</span>
+<span class="fc bfc" id="L184" title="All 2 branches covered.">    if (wsRequest.getTimeOutInMs().isPresent()) {</span>
+<span class="fc" id="L185">      builder.readTimeout(wsRequest.getTimeOutInMs().getAsInt(), TimeUnit.MILLISECONDS);</span>
+    }
+<span class="fc bfc" id="L187" title="All 2 branches covered.">    if (wsRequest.getWriteTimeOutInMs().isPresent()) {</span>
+<span class="fc" id="L188">      builder.writeTimeout(wsRequest.getWriteTimeOutInMs().getAsInt(), TimeUnit.MILLISECONDS);</span>
+    }
+
+<span class="fc" id="L191">    return builder.build();</span>
+  }
+
+  private static void completeUrlQueryParameters(BaseRequest&lt;?&gt; request, HttpUrl.Builder urlBuilder) {
+<span class="fc" id="L195">    request.getParameters().getKeys()</span>
+<span class="fc" id="L196">      .forEach(key -&gt; request.getParameters().getValues(key)</span>
+<span class="fc" id="L197">        .forEach(value -&gt; urlBuilder.addQueryParameter(key, value)));</span>
+<span class="fc" id="L198">  }</span>
+
+  private Request.Builder prepareOkRequestBuilder(WsRequest getRequest, HttpUrl.Builder urlBuilder) {
+<span class="fc" id="L201">    Request.Builder okHttpRequestBuilder = new Request.Builder()</span>
+<span class="fc" id="L202">      .url(urlBuilder.build())</span>
+<span class="fc" id="L203">      .header(&quot;Accept&quot;, getRequest.getMediaType())</span>
+<span class="fc" id="L204">      .header(&quot;Accept-Charset&quot;, &quot;UTF-8&quot;);</span>
+<span class="fc bfc" id="L205" title="All 2 branches covered.">    if (systemPassCode != null) {</span>
+<span class="fc" id="L206">      okHttpRequestBuilder.header(&quot;X-Sonar-Passcode&quot;, systemPassCode);</span>
+    }
+<span class="fc" id="L208">    getRequest.getHeaders().getNames().forEach(name -&gt; okHttpRequestBuilder.header(name, getRequest.getHeaders().getValue(name).get()));</span>
+<span class="fc" id="L209">    return okHttpRequestBuilder;</span>
+  }
+
+  private static Response doCall(OkHttpClient client, Request okRequest) {
+<span class="fc" id="L213">    Call call = client.newCall(okRequest);</span>
+    try {
+<span class="fc" id="L215">      return call.execute();</span>
+<span class="fc" id="L216">    } catch (IOException e) {</span>
+<span class="fc" id="L217">      throw new IllegalStateException(&quot;Fail to request url: &quot; + okRequest.url(), e);</span>
+    }
+  }
+
+  private Response checkRedirect(Response response, RequestWithPayload&lt;?&gt; postRequest) {
+<span class="fc bfc" id="L222" title="All 2 branches covered.">    if (List.of(HTTP_MOVED_PERM, HTTP_MOVED_TEMP, HTTP_TEMP_REDIRECT, HTTP_PERM_REDIRECT).contains(response.code())) {</span>
+      // OkHttpClient does not follow the redirect with the same HTTP method. A POST is
+      // redirected to a GET. Because of that the redirect must be manually implemented.
+      // See:
+      // https://github.com/square/okhttp/blob/07309c1c7d9e296014268ebd155ebf7ef8679f6c/okhttp/src/main/java/okhttp3/internal/http/RetryAndFollowUpInterceptor.java#L316
+      // https://github.com/square/okhttp/issues/936#issuecomment-266430151
+<span class="fc" id="L228">      return followPostRedirect(response, postRequest);</span>
+    } else {
+<span class="fc" id="L230">      return response;</span>
+    }
+  }
+
+  private Response followPostRedirect(Response response, RequestWithPayload&lt;?&gt; postRequest) {
+<span class="fc" id="L235">    String location = response.header(&quot;Location&quot;);</span>
+<span class="pc bpc" id="L236" title="1 of 2 branches missed.">    if (location == null) {</span>
+<span class="nc" id="L237">      throw new IllegalStateException(format(&quot;Missing HTTP header 'Location' in redirect of %s&quot;, response.request().url()));</span>
+    }
+<span class="fc" id="L239">    HttpUrl url = response.request().url().resolve(location);</span>
+
+    // Don't follow redirects to unsupported protocols.
+<span class="pc bpc" id="L242" title="1 of 2 branches missed.">    if (url == null) {</span>
+<span class="nc" id="L243">      throw new IllegalStateException(format(&quot;Unsupported protocol in redirect of %s to %s&quot;, response.request().url(), location));</span>
+    }
+
+<span class="fc" id="L246">    Request.Builder redirectRequest = response.request().newBuilder();</span>
+<span class="fc" id="L247">    redirectRequest.post(response.request().body());</span>
+<span class="fc" id="L248">    response.body().close();</span>
+<span class="fc" id="L249">    return doCall(prepareOkHttpClient(noRedirectOkHttpClient, postRequest), redirectRequest.url(url).build());</span>
+  }
+
+  /**
+   * @since 5.5
+   */
+  public static Builder newBuilder() {
+<span class="fc" id="L256">    return new Builder();</span>
+  }
+
+  public static class Builder {
+    private String url;
+    private String userAgent;
+    private String login;
+    private String password;
+    private Proxy proxy;
+    private String proxyLogin;
+    private String proxyPassword;
+    private String systemPassCode;
+<span class="fc" id="L268">    private int connectTimeoutMs = DEFAULT_CONNECT_TIMEOUT_MILLISECONDS;</span>
+<span class="fc" id="L269">    private int readTimeoutMs = DEFAULT_READ_TIMEOUT_MILLISECONDS;</span>
+<span class="fc" id="L270">    private int responseTimeoutMs = DEFAULT_RESPONSE_TIMEOUT_MILLISECONDS;</span>
+<span class="fc" id="L271">    private SSLSocketFactory sslSocketFactory = null;</span>
+<span class="fc" id="L272">    private X509TrustManager sslTrustManager = null;</span>
+<span class="fc" id="L273">    private boolean acceptGzip = false;</span>
+
+    /**
+     * Private since 5.5.
+     *
+     * @see HttpConnector#newBuilder()
+     */
+<span class="fc" id="L280">    private Builder() {</span>
+<span class="fc" id="L281">    }</span>
+
+    /**
+     * Optional User  Agent
+     */
+    public Builder userAgent(@Nullable String userAgent) {
+<span class="fc" id="L287">      this.userAgent = userAgent;</span>
+<span class="fc" id="L288">      return this;</span>
+    }
+
+    /**
+     * Mandatory HTTP server URL, eg &quot;http://localhost:9000&quot;
+     */
+    public Builder url(String url) {
+<span class="fc" id="L295">      this.url = url;</span>
+<span class="fc" id="L296">      return this;</span>
+    }
+
+    /**
+     * Optional login/password, for example &quot;admin&quot;
+     */
+    public Builder credentials(@Nullable String login, @Nullable String password) {
+<span class="fc" id="L303">      this.login = login;</span>
+<span class="fc" id="L304">      this.password = password;</span>
+<span class="fc" id="L305">      return this;</span>
+    }
+
+    /**
+     * Optional access token, for example {@code &quot;ABCDE&quot;}. Alternative to {@link #credentials(String, String)}
+     */
+    public Builder token(@Nullable String token) {
+<span class="fc" id="L312">      this.login = token;</span>
+<span class="fc" id="L313">      this.password = null;</span>
+<span class="fc" id="L314">      return this;</span>
+    }
+
+    /**
+     * This flag decides whether the client should accept GZIP encoding. Default is false.
+     */
+    public Builder acceptGzip(boolean acceptGzip) {
+<span class="fc" id="L321">      this.acceptGzip = acceptGzip;</span>
+<span class="fc" id="L322">      return this;</span>
+    }
+
+    /**
+     * Sets a specified timeout value, in milliseconds, to be used when opening HTTP connection.
+     * A timeout of zero is interpreted as an infinite timeout. Default value is {@link #DEFAULT_CONNECT_TIMEOUT_MILLISECONDS}
+     */
+    public Builder connectTimeoutMilliseconds(int i) {
+<span class="fc" id="L330">      this.connectTimeoutMs = i;</span>
+<span class="fc" id="L331">      return this;</span>
+    }
+
+    /**
+     * Optional SSL socket factory with which SSL sockets will be created to establish SSL connections.
+     * If not set, a default SSL socket factory will be used, base d on the JVM's default key store.
+     */
+    public Builder setSSLSocketFactory(@Nullable SSLSocketFactory sslSocketFactory) {
+<span class="fc" id="L339">      this.sslSocketFactory = sslSocketFactory;</span>
+<span class="fc" id="L340">      return this;</span>
+    }
+
+    /**
+     * Optional SSL trust manager used to validate certificates.
+     * If not set, a default system trust manager will be used, based on the JVM's default truststore.
+     */
+    public Builder setTrustManager(@Nullable X509TrustManager sslTrustManager) {
+<span class="fc" id="L348">      this.sslTrustManager = sslTrustManager;</span>
+<span class="fc" id="L349">      return this;</span>
+    }
+
+    /**
+     * Sets the read timeout to a specified timeout, in milliseconds.
+     * A timeout of zero is interpreted as an infinite timeout. Default value is {@link #DEFAULT_READ_TIMEOUT_MILLISECONDS}
+     */
+    public Builder readTimeoutMilliseconds(int i) {
+<span class="fc" id="L357">      this.readTimeoutMs = i;</span>
+<span class="fc" id="L358">      return this;</span>
+    }
+
+    /**
+     * Sets the response timeout to a specified timeout, in milliseconds.
+     * A timeout of zero is interpreted as an infinite timeout. Default value is {@link #DEFAULT_RESPONSE_TIMEOUT_MILLISECONDS}
+     */
+    public Builder responseTimeoutMilliseconds(int i) {
+<span class="fc" id="L366">      this.responseTimeoutMs = i;</span>
+<span class="fc" id="L367">      return this;</span>
+    }
+
+    public Builder proxy(@Nullable Proxy proxy) {
+<span class="fc" id="L371">      this.proxy = proxy;</span>
+<span class="fc" id="L372">      return this;</span>
+    }
+
+    public Builder proxyCredentials(@Nullable String proxyLogin, @Nullable String proxyPassword) {
+<span class="fc" id="L376">      this.proxyLogin = proxyLogin;</span>
+<span class="fc" id="L377">      this.proxyPassword = proxyPassword;</span>
+<span class="fc" id="L378">      return this;</span>
+    }
+
+    public Builder systemPassCode(@Nullable String systemPassCode) {
+<span class="fc" id="L382">      this.systemPassCode = systemPassCode;</span>
+<span class="fc" id="L383">      return this;</span>
+    }
+
+    public HttpConnector build() {
+<span class="pc bpc" id="L387" title="1 of 2 branches missed.">      checkArgument(!isNullOrEmpty(url), &quot;Server URL is not defined&quot;);</span>
+<span class="fc" id="L388">      return new HttpConnector(this);</span>
+    }
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

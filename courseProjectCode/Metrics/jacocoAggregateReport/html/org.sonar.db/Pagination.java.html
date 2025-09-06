@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Pagination.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db</a> &gt; <span class="el_source">Pagination.java</span></div><h1>Pagination.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db;
+
+import javax.annotation.concurrent.Immutable;
+
+import static com.google.common.base.Preconditions.checkArgument;
+
+@Immutable
+public final class Pagination implements Pagineable {
+<span class="fc" id="L28">  private static final Pagination ALL = new Builder(1).andSize(Integer.MAX_VALUE);</span>
+
+<span class="fc" id="L30">  private static final Pagination FIRST = new Builder(1).andSize(1);</span>
+
+  private final int page;
+  private final int pageSize;
+
+<span class="fc" id="L35">  private Pagination(Builder builder) {</span>
+<span class="fc" id="L36">    this.page = builder.page;</span>
+<span class="fc" id="L37">    this.pageSize = builder.pageSize;</span>
+<span class="fc" id="L38">  }</span>
+
+  public static Pagination all() {
+<span class="fc" id="L41">    return ALL;</span>
+  }
+
+  public static Pagination first() {
+<span class="fc" id="L45">    return FIRST;</span>
+  }
+
+  /**
+   * @param page minimum value is 1
+   */
+  public static Builder forPage(int page) {
+<span class="fc" id="L52">    return new Builder(page);</span>
+  }
+
+  public int getPage() {
+<span class="fc" id="L56">    return page;</span>
+  }
+
+  @Override
+  public int getPageSize() {
+<span class="fc" id="L61">    return pageSize;</span>
+  }
+
+  @Override
+  public int getOffset() {
+<span class="fc" id="L66">    return (page - 1) * pageSize;</span>
+  }
+
+  public int getEndRowNumber() {
+<span class="fc" id="L70">    return page * pageSize;</span>
+  }
+
+  public static final class Builder {
+    private final int page;
+<span class="fc" id="L75">    private int pageSize = 0;</span>
+
+<span class="fc" id="L77">    public Builder(int page) {</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">      checkArgument(page &gt;= 1, &quot;page index must be &gt;= 1&quot;);</span>
+<span class="fc" id="L79">      this.page = page;</span>
+<span class="fc" id="L80">    }</span>
+
+    public Pagination andSize(int pageSize) {
+<span class="fc bfc" id="L83" title="All 2 branches covered.">      checkArgument(pageSize &gt;= 1, &quot;page size must be &gt;= 1&quot;);</span>
+<span class="fc" id="L84">      this.pageSize = pageSize;</span>
+<span class="fc" id="L85">      return new Pagination(this);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

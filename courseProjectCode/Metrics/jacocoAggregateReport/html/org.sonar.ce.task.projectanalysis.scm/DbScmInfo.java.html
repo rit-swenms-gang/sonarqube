@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DbScmInfo.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.scm</a> &gt; <span class="el_source">DbScmInfo.java</span></div><h1>DbScmInfo.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.scm;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.Function;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
+import org.sonar.db.protobuf.DbFileSources;
+
+/**
+ * ScmInfo implementation based on the lines stored in DB
+ */
+@Immutable
+class DbScmInfo implements ScmInfo {
+
+  private final ScmInfo delegate;
+  private final String fileHash;
+
+<span class="fc" id="L41">  private DbScmInfo(ScmInfo delegate, String fileHash) {</span>
+<span class="fc" id="L42">    this.delegate = delegate;</span>
+<span class="fc" id="L43">    this.fileHash = fileHash;</span>
+<span class="fc" id="L44">  }</span>
+
+  public static Optional&lt;DbScmInfo&gt; create(List&lt;DbFileSources.Line&gt; lines, int lineCount, String fileHash) {
+<span class="fc" id="L47">    LineToChangeset lineToChangeset = new LineToChangeset();</span>
+<span class="fc" id="L48">    Changeset[] lineChanges = new Changeset[lineCount];</span>
+
+<span class="fc" id="L50">    boolean lineAdded = false;</span>
+
+<span class="fc bfc" id="L52" title="All 2 branches covered.">    for (DbFileSources.Line line : lines) {</span>
+<span class="fc" id="L53">      Changeset changeset = lineToChangeset.apply(line);</span>
+<span class="fc bfc" id="L54" title="All 2 branches covered.">      if (changeset == null) {</span>
+<span class="fc" id="L55">        continue;</span>
+      }
+<span class="fc" id="L57">      lineChanges[line.getLine() - 1] = changeset;</span>
+<span class="fc" id="L58">      lineAdded = true;</span>
+<span class="fc" id="L59">    }</span>
+<span class="fc bfc" id="L60" title="All 2 branches covered.">    if (!lineAdded) {</span>
+<span class="fc" id="L61">      return Optional.empty();</span>
+    }
+<span class="fc" id="L63">    return Optional.of(new DbScmInfo(new ScmInfoImpl(lineChanges), fileHash));</span>
+  }
+
+  public String fileHash() {
+<span class="fc" id="L67">    return fileHash;</span>
+  }
+
+  @Override
+  public Changeset getLatestChangeset() {
+<span class="fc" id="L72">    return delegate.getLatestChangeset();</span>
+  }
+
+  @Override
+  public Changeset getChangesetForLine(int lineNumber) {
+<span class="fc" id="L77">    return delegate.getChangesetForLine(lineNumber);</span>
+  }
+
+  @Override
+  public boolean hasChangesetForLine(int lineNumber) {
+<span class="fc" id="L82">    return delegate.hasChangesetForLine(lineNumber);</span>
+  }
+
+  @Override
+  public Changeset[] getAllChangesets() {
+<span class="fc" id="L87">    return delegate.getAllChangesets();</span>
+  }
+
+  /**
+   * Transforms {@link org.sonar.db.protobuf.DbFileSources.Line} into {@link Changeset}
+   */
+<span class="fc" id="L93">  private static class LineToChangeset implements Function&lt;DbFileSources.Line, Changeset&gt; {</span>
+<span class="fc" id="L94">    private final Changeset.Builder builder = Changeset.newChangesetBuilder();</span>
+<span class="fc" id="L95">    private final Map&lt;Changeset, Changeset&gt; cache = new HashMap&lt;&gt;();</span>
+
+    @Override
+    @Nullable
+    public Changeset apply(@Nonnull DbFileSources.Line input) {
+<span class="fc bfc" id="L100" title="All 2 branches covered.">      if (input.hasScmDate()) {</span>
+<span class="fc" id="L101">        Changeset cs = builder</span>
+<span class="pc bpc" id="L102" title="1 of 2 branches missed.">          .setRevision(input.hasScmRevision() ? input.getScmRevision().intern() : null)</span>
+<span class="fc bfc" id="L103" title="All 2 branches covered.">          .setAuthor(input.hasScmAuthor() ? input.getScmAuthor().intern() : null)</span>
+<span class="fc" id="L104">          .setDate(input.getScmDate())</span>
+<span class="fc" id="L105">          .build();</span>
+<span class="fc bfc" id="L106" title="All 2 branches covered.">        if (cache.containsKey(cs)) {</span>
+<span class="fc" id="L107">          return cache.get(cs);</span>
+        }
+<span class="fc" id="L109">        cache.put(cs, cs);</span>
+<span class="fc" id="L110">        return cs;</span>
+      }
+
+<span class="fc" id="L113">      return null;</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

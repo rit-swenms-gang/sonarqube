@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>InsertDefaultAiSuggestionProviderKeyAndModelKeyProperties.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform.db.migration.version.v202502</a> &gt; <span class="el_source">InsertDefaultAiSuggestionProviderKeyAndModelKeyProperties.java</span></div><h1>InsertDefaultAiSuggestionProviderKeyAndModelKeyProperties.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform.db.migration.version.v202502;
+
+import java.sql.SQLException;
+import java.util.Optional;
+import org.sonar.api.utils.System2;
+import org.sonar.core.util.UuidFactory;
+import org.sonar.db.Database;
+import org.sonar.server.platform.db.migration.step.DataChange;
+
+import static org.sonar.core.config.AiCodeFixEnablementConstants.SUGGESTION_FEATURE_ENABLED_PROPERTY;
+import static org.sonar.core.config.AiCodeFixEnablementConstants.SUGGESTION_PROVIDER_KEY_PROPERTY;
+import static org.sonar.core.config.AiCodeFixEnablementConstants.SUGGESTION_PROVIDER_MODEL_KEY_PROPERTY;
+
+public class InsertDefaultAiSuggestionProviderKeyAndModelKeyProperties extends DataChange {
+
+  static final String DISABLED = &quot;DISABLED&quot;;
+  static final String DEFAULT_PROVIDER_KEY = &quot;OPENAI&quot;;
+  static final String DEFAULT_PROVIDER_MODEL_KEY = &quot;OPENAI_GPT_4O&quot;;
+  private final System2 system2;
+  private final UuidFactory uuidFactory;
+
+  public InsertDefaultAiSuggestionProviderKeyAndModelKeyProperties(Database db, System2 system2, UuidFactory uuidFactory) {
+<span class="fc" id="L42">    super(db);</span>
+<span class="fc" id="L43">    this.system2 = system2;</span>
+<span class="fc" id="L44">    this.uuidFactory = uuidFactory;</span>
+<span class="fc" id="L45">  }</span>
+
+  @Override
+  protected void execute(Context context) throws SQLException {
+<span class="fc" id="L49">    boolean isAiCodeFixEnabled = Optional.ofNullable(context.prepareSelect(&quot;select text_value from properties where prop_key=?&quot;)</span>
+<span class="fc" id="L50">      .setString(1, SUGGESTION_FEATURE_ENABLED_PROPERTY)</span>
+<span class="fc" id="L51">      .get(r -&gt; r.getString(1)))</span>
+<span class="fc bfc" id="L52" title="All 2 branches covered.">      .map(value -&gt; !DISABLED.equals(value))</span>
+<span class="fc" id="L53">      .orElse(false);</span>
+
+<span class="fc bfc" id="L55" title="All 2 branches covered.">    if (isAiCodeFixEnabled) {</span>
+<span class="fc" id="L56">      insertProperty(context, SUGGESTION_PROVIDER_KEY_PROPERTY, DEFAULT_PROVIDER_KEY);</span>
+<span class="fc" id="L57">      insertProperty(context, SUGGESTION_PROVIDER_MODEL_KEY_PROPERTY, DEFAULT_PROVIDER_MODEL_KEY);</span>
+    }
+<span class="fc" id="L59">  }</span>
+
+  private void insertProperty(Context context, String key, String value) throws SQLException {
+<span class="fc" id="L62">    context.prepareUpsert(&quot;&quot;&quot;</span>
+        INSERT INTO properties
+        (prop_key, is_empty, text_value, created_at, uuid)
+        VALUES(?, ?, ?, ?, ?)
+      &quot;&quot;&quot;)
+<span class="fc" id="L67">      .setString(1, key)</span>
+<span class="fc" id="L68">      .setBoolean(2, false)</span>
+<span class="fc" id="L69">      .setString(3, value)</span>
+<span class="fc" id="L70">      .setLong(4, system2.now())</span>
+<span class="fc" id="L71">      .setString(5, uuidFactory.create())</span>
+<span class="fc" id="L72">      .execute()</span>
+<span class="fc" id="L73">      .commit();</span>
+<span class="fc" id="L74">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

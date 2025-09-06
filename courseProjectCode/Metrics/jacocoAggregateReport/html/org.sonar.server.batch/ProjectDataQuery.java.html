@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ProjectDataQuery.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.batch</a> &gt; <span class="el_source">ProjectDataQuery.java</span></div><h1>ProjectDataQuery.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.batch;
+
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+
+public class ProjectDataQuery {
+
+  private String projectKey;
+  private String profileName;
+  private String branch;
+  private String pullRequest;
+
+  private ProjectDataQuery() {
+    // No direct call
+  }
+
+  @CheckForNull
+  public String getProfileName() {
+<span class="fc" id="L38">    return profileName;</span>
+  }
+
+  public ProjectDataQuery setProfileName(@Nullable String profileName) {
+<span class="fc" id="L42">    this.profileName = profileName;</span>
+<span class="fc" id="L43">    return this;</span>
+  }
+
+  public String getProjectKey() {
+<span class="fc" id="L47">    return projectKey;</span>
+  }
+
+  public ProjectDataQuery setProjectKey(String projectKey) {
+<span class="fc" id="L51">    this.projectKey = projectKey;</span>
+<span class="fc" id="L52">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getBranch() {
+<span class="fc" id="L57">    return branch;</span>
+  }
+
+  public ProjectDataQuery setBranch(@Nullable String branch) {
+<span class="fc" id="L61">    this.branch = branch;</span>
+<span class="fc" id="L62">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getPullRequest() {
+<span class="fc" id="L67">    return pullRequest;</span>
+  }
+
+  public ProjectDataQuery setPullRequest(@Nullable String pullRequest) {
+<span class="fc" id="L71">    this.pullRequest = pullRequest;</span>
+<span class="fc" id="L72">    return this;</span>
+  }
+
+  public static ProjectDataQuery create() {
+<span class="fc" id="L76">    return new ProjectDataQuery();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

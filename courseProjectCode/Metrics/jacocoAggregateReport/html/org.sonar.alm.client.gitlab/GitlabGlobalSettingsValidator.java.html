@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GitlabGlobalSettingsValidator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.alm.client.gitlab</a> &gt; <span class="el_source">GitlabGlobalSettingsValidator.java</span></div><h1>GitlabGlobalSettingsValidator.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.alm.client.gitlab;
+
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.api.ce.ComputeEngineSide;
+import org.sonar.api.config.internal.Encryption;
+import org.sonar.api.config.internal.Settings;
+import org.sonar.api.server.ServerSide;
+import org.sonar.db.alm.setting.AlmSettingDto;
+
+import static com.google.common.base.Strings.isNullOrEmpty;
+
+@ComputeEngineSide
+@ServerSide
+public class GitlabGlobalSettingsValidator {
+
+<span class="fc" id="L36">  public enum ValidationMode {COMPLETE, AUTH_ONLY}</span>
+  private final Encryption encryption;
+  private final GitlabApplicationClient gitlabApplicationClient;
+
+<span class="fc" id="L40">  public GitlabGlobalSettingsValidator(GitlabApplicationClient gitlabApplicationClient, Settings settings) {</span>
+<span class="fc" id="L41">    this.encryption = settings.getEncryption();</span>
+<span class="fc" id="L42">    this.gitlabApplicationClient = gitlabApplicationClient;</span>
+<span class="fc" id="L43">  }</span>
+
+  public void validate(AlmSettingDto almSettingDto) {
+<span class="fc" id="L46">    String gitlabUrl = almSettingDto.getUrl();</span>
+<span class="fc" id="L47">    String accessToken = almSettingDto.getDecryptedPersonalAccessToken(encryption);</span>
+<span class="fc" id="L48">    validate(ValidationMode.COMPLETE, gitlabUrl, accessToken);</span>
+<span class="fc" id="L49">  }</span>
+
+  public void validate(ValidationMode validationMode, @Nullable String gitlabApiUrl, @Nullable String accessToken) {
+<span class="fc bfc" id="L52" title="All 2 branches covered.">    if (gitlabApiUrl == null) {</span>
+<span class="fc" id="L53">      throw new IllegalArgumentException(&quot;Your Gitlab global configuration is incomplete. The GitLab URL must be set.&quot;);</span>
+    }
+<span class="fc" id="L55">    gitlabApplicationClient.checkUrl(gitlabApiUrl);</span>
+<span class="fc bfc" id="L56" title="All 2 branches covered.">    if (ValidationMode.AUTH_ONLY.equals(validationMode)) {</span>
+<span class="fc" id="L57">      return;</span>
+    }
+
+<span class="fc" id="L60">    String decryptedToken = getDecryptedToken(accessToken);</span>
+<span class="fc bfc" id="L61" title="All 2 branches covered.">    if (decryptedToken == null) {</span>
+<span class="fc" id="L62">      throw new IllegalArgumentException(&quot;Your Gitlab global configuration is incomplete. The GitLab access token must be set.&quot;);</span>
+    }
+<span class="fc" id="L64">    gitlabApplicationClient.checkToken(gitlabApiUrl, decryptedToken);</span>
+<span class="fc" id="L65">    gitlabApplicationClient.checkReadPermission(gitlabApiUrl, decryptedToken);</span>
+<span class="fc" id="L66">    gitlabApplicationClient.checkWritePermission(gitlabApiUrl, decryptedToken);</span>
+<span class="fc" id="L67">  }</span>
+
+  @CheckForNull
+  public String getDecryptedToken(@Nullable String token) {
+<span class="fc bfc" id="L71" title="All 4 branches covered.">    if (!isNullOrEmpty(token) &amp;&amp; encryption.isEncrypted(token)) {</span>
+<span class="fc" id="L72">      return encryption.decrypt(token);</span>
+    }
+<span class="fc" id="L74">    return token;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

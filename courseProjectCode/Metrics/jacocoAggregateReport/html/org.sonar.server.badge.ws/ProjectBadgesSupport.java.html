@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ProjectBadgesSupport.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.badge.ws</a> &gt; <span class="el_source">ProjectBadgesSupport.java</span></div><h1>ProjectBadgesSupport.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.badge.ws;
+
+import javax.annotation.Nullable;
+import org.sonar.api.config.Configuration;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.BranchDto;
+import org.sonar.db.project.ProjectBadgeTokenDto;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.server.component.ComponentFinder;
+import org.sonar.server.exceptions.NotFoundException;
+
+import static org.sonar.api.CoreProperties.CORE_FORCE_AUTHENTICATION_DEFAULT_VALUE;
+import static org.sonar.api.CoreProperties.CORE_FORCE_AUTHENTICATION_PROPERTY;
+import static org.sonar.db.component.BranchType.BRANCH;
+import static org.sonar.server.ws.KeyExamples.KEY_BRANCH_EXAMPLE_001;
+import static org.sonar.server.ws.KeyExamples.KEY_PROJECT_EXAMPLE_001;
+import static org.sonar.server.ws.KeyExamples.PROJECT_BADGE_TOKEN_EXAMPLE;
+
+public class ProjectBadgesSupport {
+
+  private static final String PARAM_PROJECT = &quot;project&quot;;
+  private static final String PARAM_BRANCH = &quot;branch&quot;;
+  private static final String PARAM_TOKEN = &quot;token&quot;;
+  public static final String PROJECT_HAS_NOT_BEEN_FOUND = &quot;Project has not been found&quot;;
+
+  private final ComponentFinder componentFinder;
+  private final DbClient dbClient;
+  private final Configuration config;
+
+<span class="fc" id="L52">  public ProjectBadgesSupport(ComponentFinder componentFinder, DbClient dbClient, Configuration config) {</span>
+<span class="fc" id="L53">    this.componentFinder = componentFinder;</span>
+<span class="fc" id="L54">    this.dbClient = dbClient;</span>
+<span class="fc" id="L55">    this.config = config;</span>
+<span class="fc" id="L56">  }</span>
+
+  void addProjectAndBranchParams(WebService.NewAction action) {
+<span class="fc" id="L59">    addProjectAndTokenParams(action);</span>
+<span class="fc" id="L60">    action</span>
+<span class="fc" id="L61">      .createParam(PARAM_BRANCH)</span>
+<span class="fc" id="L62">      .setDescription(&quot;Branch key&quot;)</span>
+<span class="fc" id="L63">      .setExampleValue(KEY_BRANCH_EXAMPLE_001);</span>
+<span class="fc" id="L64">  }</span>
+
+  public void addProjectAndTokenParams(WebService.NewAction action) {
+<span class="fc" id="L67">    action.createParam(PARAM_PROJECT)</span>
+<span class="fc" id="L68">      .setDescription(&quot;Project or application key&quot;)</span>
+<span class="fc" id="L69">      .setRequired(true)</span>
+<span class="fc" id="L70">      .setExampleValue(KEY_PROJECT_EXAMPLE_001);</span>
+<span class="fc" id="L71">    action</span>
+<span class="fc" id="L72">      .createParam(PARAM_TOKEN)</span>
+<span class="fc" id="L73">      .setDescription(&quot;Project badge token&quot;)</span>
+<span class="fc" id="L74">      .setExampleValue(PROJECT_BADGE_TOKEN_EXAMPLE);</span>
+<span class="fc" id="L75">  }</span>
+
+  BranchDto getBranch(DbSession dbSession, Request request) {
+    try {
+<span class="fc" id="L79">      String branchName = request.param(PARAM_BRANCH);</span>
+<span class="fc" id="L80">      ProjectDto project = getProject(dbSession, request);</span>
+
+<span class="fc" id="L82">      BranchDto branch = componentFinder.getBranchOrPullRequest(dbSession, project, branchName, null);</span>
+
+<span class="pc bpc" id="L84" title="1 of 2 branches missed.">      if (!branch.getBranchType().equals(BRANCH)) {</span>
+<span class="nc" id="L85">        throw generateInvalidProjectException();</span>
+      }
+
+<span class="fc" id="L88">      return branch;</span>
+<span class="fc" id="L89">    } catch (NotFoundException e) {</span>
+<span class="fc" id="L90">      throw new NotFoundException(PROJECT_HAS_NOT_BEEN_FOUND);</span>
+    }
+  }
+
+  public ProjectDto getProject(DbSession dbSession, Request request) {
+<span class="fc" id="L95">    String projectKey = request.mandatoryParam(PARAM_PROJECT);</span>
+<span class="fc" id="L96">    return componentFinder.getProjectOrApplicationByKey(dbSession, projectKey);</span>
+  }
+
+  private static ProjectBadgesException generateInvalidProjectException() {
+<span class="nc" id="L100">    return new ProjectBadgesException(&quot;Project is invalid&quot;);</span>
+  }
+
+  public void validateToken(Request request) {
+<span class="fc" id="L104">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L105">      String projectKey = request.mandatoryParam(PARAM_PROJECT);</span>
+      ProjectDto projectDto;
+      try {
+<span class="fc" id="L108">        projectDto = componentFinder.getProjectOrApplicationByKey(dbSession, projectKey);</span>
+<span class="fc" id="L109">      } catch (NotFoundException e) {</span>
+<span class="fc" id="L110">        throw new NotFoundException(PROJECT_HAS_NOT_BEEN_FOUND);</span>
+<span class="fc" id="L111">      }</span>
+<span class="fc bfc" id="L112" title="All 2 branches covered.">      boolean tokenInvalid = !isTokenValid(dbSession, projectDto, request.param(PARAM_TOKEN));</span>
+<span class="fc" id="L113">      boolean forceAuthEnabled = config.getBoolean(CORE_FORCE_AUTHENTICATION_PROPERTY).orElse(CORE_FORCE_AUTHENTICATION_DEFAULT_VALUE);</span>
+<span class="fc bfc" id="L114" title="All 6 branches covered.">      if ((projectDto.isPrivate() || forceAuthEnabled) &amp;&amp; tokenInvalid) {</span>
+<span class="fc" id="L115">        throw new NotFoundException(PROJECT_HAS_NOT_BEEN_FOUND);</span>
+      }
+    }
+<span class="fc" id="L118">  }</span>
+
+  private boolean isTokenValid(DbSession dbSession, ProjectDto projectDto, @Nullable String token) {
+<span class="fc" id="L121">    ProjectBadgeTokenDto projectBadgeTokenDto = dbClient.projectBadgeTokenDao().selectTokenByProject(dbSession, projectDto);</span>
+<span class="pc bpc" id="L122" title="1 of 6 branches missed.">    return token != null &amp;&amp; projectBadgeTokenDto != null &amp;&amp; token.equals(projectBadgeTokenDto.getToken());</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

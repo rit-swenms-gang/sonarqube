@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BatchSession.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db</a> &gt; <span class="el_source">BatchSession.java</span></div><h1>BatchSession.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db;
+
+import java.util.List;
+import java.util.Map;
+import org.apache.ibatis.executor.BatchResult;
+import org.apache.ibatis.executor.keygen.Jdbc3KeyGenerator;
+import org.apache.ibatis.executor.keygen.KeyGenerator;
+import org.apache.ibatis.mapping.MappedStatement;
+import org.apache.ibatis.session.Configuration;
+import org.apache.ibatis.session.ResultHandler;
+import org.apache.ibatis.session.RowBounds;
+import org.apache.ibatis.session.SqlSession;
+
+public class BatchSession extends DbSessionImpl {
+
+  public static final int MAX_BATCH_SIZE = 250;
+
+  private final int batchSize;
+<span class="fc" id="L38">  private int count = 0;</span>
+
+  public BatchSession(SqlSession session) {
+<span class="fc" id="L41">    this(session, MAX_BATCH_SIZE);</span>
+<span class="fc" id="L42">  }</span>
+
+  BatchSession(SqlSession session, int batchSize) {
+<span class="fc" id="L45">    super(session);</span>
+<span class="fc" id="L46">    this.batchSize = batchSize;</span>
+<span class="fc" id="L47">  }</span>
+
+  @Override
+  public void select(String statement, Object parameter, ResultHandler handler) {
+<span class="nc" id="L51">    reset();</span>
+<span class="nc" id="L52">    super.select(statement, parameter, handler);</span>
+<span class="nc" id="L53">  }</span>
+
+  @Override
+  public void select(String statement, ResultHandler handler) {
+<span class="nc" id="L57">    reset();</span>
+<span class="nc" id="L58">    super.select(statement, handler);</span>
+<span class="nc" id="L59">  }</span>
+
+  @Override
+  public &lt;T&gt; T selectOne(String statement) {
+<span class="nc" id="L63">    reset();</span>
+<span class="nc" id="L64">    return super.selectOne(statement);</span>
+  }
+
+  @Override
+  public &lt;T&gt; T selectOne(String statement, Object parameter) {
+<span class="nc" id="L69">    reset();</span>
+<span class="nc" id="L70">    return super.selectOne(statement, parameter);</span>
+  }
+
+  @Override
+  public &lt;E&gt; List&lt;E&gt; selectList(String statement) {
+<span class="nc" id="L75">    reset();</span>
+<span class="nc" id="L76">    return super.selectList(statement);</span>
+  }
+
+  @Override
+  public &lt;E&gt; List&lt;E&gt; selectList(String statement, Object parameter) {
+<span class="nc" id="L81">    reset();</span>
+<span class="nc" id="L82">    return super.selectList(statement, parameter);</span>
+  }
+
+  @Override
+  public &lt;E&gt; List&lt;E&gt; selectList(String statement, Object parameter, RowBounds rowBounds) {
+<span class="nc" id="L87">    reset();</span>
+<span class="nc" id="L88">    return super.selectList(statement, parameter, rowBounds);</span>
+  }
+
+  @Override
+  public &lt;K, V&gt; Map&lt;K, V&gt; selectMap(String statement, String mapKey) {
+<span class="nc" id="L93">    reset();</span>
+<span class="nc" id="L94">    return super.selectMap(statement, mapKey);</span>
+  }
+
+  @Override
+  public &lt;K, V&gt; Map&lt;K, V&gt; selectMap(String statement, Object parameter, String mapKey) {
+<span class="nc" id="L99">    reset();</span>
+<span class="nc" id="L100">    return super.selectMap(statement, parameter, mapKey);</span>
+  }
+
+  @Override
+  public &lt;K, V&gt; Map&lt;K, V&gt; selectMap(String statement, Object parameter, String mapKey, RowBounds rowBounds) {
+<span class="nc" id="L105">    reset();</span>
+<span class="nc" id="L106">    return super.selectMap(statement, parameter, mapKey, rowBounds);</span>
+  }
+
+  @Override
+  public void select(String statement, Object parameter, RowBounds rowBounds, ResultHandler handler) {
+<span class="nc" id="L111">    reset();</span>
+<span class="nc" id="L112">    super.select(statement, parameter, rowBounds, handler);</span>
+<span class="nc" id="L113">  }</span>
+
+  @Override
+  public int insert(String statement) {
+<span class="fc" id="L117">    makeSureGeneratedKeysAreNotUsedInBatchInserts(statement);</span>
+<span class="fc" id="L118">    increment();</span>
+<span class="fc" id="L119">    return super.insert(statement);</span>
+  }
+
+  @Override
+  public int insert(String statement, Object parameter) {
+<span class="fc" id="L124">    makeSureGeneratedKeysAreNotUsedInBatchInserts(statement);</span>
+<span class="fc" id="L125">    increment();</span>
+<span class="fc" id="L126">    return super.insert(statement, parameter);</span>
+  }
+
+  private void makeSureGeneratedKeysAreNotUsedInBatchInserts(String statement) {
+<span class="fc" id="L130">    Configuration configuration = super.getConfiguration();</span>
+<span class="fc bfc" id="L131" title="All 2 branches covered.">    if (null != configuration) {</span>
+<span class="fc" id="L132">      MappedStatement mappedStatement = configuration.getMappedStatement(statement);</span>
+<span class="pc bpc" id="L133" title="1 of 2 branches missed.">      if (null != mappedStatement) {</span>
+<span class="fc" id="L134">        KeyGenerator keyGenerator = mappedStatement.getKeyGenerator();</span>
+<span class="pc bpc" id="L135" title="1 of 2 branches missed.">        if (keyGenerator instanceof Jdbc3KeyGenerator) {</span>
+<span class="nc" id="L136">          throw new IllegalStateException(&quot;Batch inserts cannot use generated keys&quot;);</span>
+        }
+      }
+    }
+<span class="fc" id="L140">  }</span>
+
+  @Override
+  public int update(String statement) {
+<span class="nc" id="L144">    increment();</span>
+<span class="nc" id="L145">    return super.update(statement);</span>
+  }
+
+  @Override
+  public int update(String statement, Object parameter) {
+<span class="nc" id="L150">    increment();</span>
+<span class="nc" id="L151">    return super.update(statement, parameter);</span>
+  }
+
+  @Override
+  public int delete(String statement) {
+<span class="fc" id="L156">    increment();</span>
+<span class="fc" id="L157">    return super.delete(statement);</span>
+  }
+
+  @Override
+  public int delete(String statement, Object parameter) {
+<span class="fc" id="L162">    increment();</span>
+<span class="fc" id="L163">    return super.delete(statement, parameter);</span>
+  }
+
+  @Override
+  public void commit() {
+<span class="fc" id="L168">    super.commit();</span>
+<span class="fc" id="L169">    reset();</span>
+<span class="fc" id="L170">  }</span>
+
+  @Override
+  public void commit(boolean force) {
+<span class="nc" id="L174">    super.commit(force);</span>
+<span class="nc" id="L175">    reset();</span>
+<span class="nc" id="L176">  }</span>
+
+  @Override
+  public void rollback() {
+<span class="nc" id="L180">    super.rollback();</span>
+<span class="nc" id="L181">    reset();</span>
+<span class="nc" id="L182">  }</span>
+
+  @Override
+  public void rollback(boolean force) {
+<span class="nc" id="L186">    super.rollback(force);</span>
+<span class="nc" id="L187">    reset();</span>
+<span class="nc" id="L188">  }</span>
+
+  @Override
+  public List&lt;BatchResult&gt; flushStatements() {
+<span class="nc" id="L192">    List&lt;BatchResult&gt; batchResults = super.flushStatements();</span>
+<span class="nc" id="L193">    reset();</span>
+<span class="nc" id="L194">    return batchResults;</span>
+  }
+
+  @Override
+  public &lt;T&gt; T getMapper(Class&lt;T&gt; type) {
+<span class="fc" id="L199">    return getConfiguration().getMapper(type, this);</span>
+  }
+
+  private BatchSession increment() {
+<span class="fc" id="L203">    count += 1;</span>
+<span class="fc bfc" id="L204" title="All 2 branches covered.">    if (count &gt;= batchSize) {</span>
+<span class="fc" id="L205">      commit();</span>
+    }
+<span class="fc" id="L207">    return this;</span>
+  }
+
+  private void reset() {
+<span class="fc" id="L211">    count = 0;</span>
+<span class="fc" id="L212">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

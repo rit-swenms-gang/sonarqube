@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Helper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonarqube.wsgenerator</a> &gt; <span class="el_source">Helper.java</span></div><h1>Helper.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonarqube.wsgenerator;
+
+import com.google.common.base.CaseFormat;
+import com.google.gson.JsonPrimitive;
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static java.util.Arrays.asList;
+
+public class Helper {
+
+<span class="nc" id="L39">  static final Set&lt;String&gt; PATH_EXCLUSIONS = new HashSet&lt;&gt;(asList(&quot;api/orchestrator&quot;));</span>
+  private static final String OUTPUT_DIR = &quot;build/generated-sources/results&quot;;
+  private final Map&lt;String, List&lt;String[]&gt;&gt; responseTypes;
+
+<span class="nc" id="L43">  public Helper() {</span>
+<span class="nc" id="L44">    InputStream inputStream = Helper.class.getResourceAsStream(&quot;/responseClasses.config&quot;);</span>
+<span class="nc" id="L45">    responseTypes = new BufferedReader(new InputStreamReader(inputStream))</span>
+<span class="nc" id="L46">      .lines()</span>
+<span class="nc" id="L47">      .map(line -&gt; line.split(&quot;\\s+&quot;))</span>
+<span class="nc" id="L48">      .collect(Collectors.groupingBy(arr -&gt; arr[0]));</span>
+<span class="nc" id="L49">  }</span>
+
+  public boolean isIncluded(String path) {
+<span class="nc bnc" id="L52" title="All 2 branches missed.">    return !PATH_EXCLUSIONS.contains(path);</span>
+  }
+
+  public String packageName() {
+<span class="nc" id="L56">    return &quot;org.sonarqube.ws.client&quot;;</span>
+  }
+
+  public String packageName(String path) {
+<span class="nc" id="L60">    return packageName() + &quot;.&quot; + rawName(path).toLowerCase();</span>
+  }
+
+  private String rawName(String path) {
+<span class="nc" id="L64">    String x = path.replaceFirst(&quot;^api\\/&quot;, &quot;&quot;);</span>
+<span class="nc bnc" id="L65" title="All 2 branches missed.">    if (x.contains(&quot;_&quot;)) {</span>
+<span class="nc" id="L66">      return CaseFormat.LOWER_UNDERSCORE.to(CaseFormat.UPPER_CAMEL, x.toLowerCase());</span>
+    }
+<span class="nc" id="L68">    return capitalizeFirstLetter(x);</span>
+  }
+
+  public String className(String path) {
+<span class="nc" id="L72">    String name = rawName(path);</span>
+<span class="nc" id="L73">    return capitalizeFirstLetter(name) + &quot;Service&quot;;</span>
+  }
+  public String defaultWsClientFieldName(String path) {
+<span class="nc" id="L76">    String name = rawName(path);</span>
+<span class="nc" id="L77">    return lowercaseFirstLetter(name) + &quot;Service&quot;;</span>
+  }
+
+  public String defaultWsClientMethodName(String path) {
+<span class="nc" id="L81">    String name = rawName(path);</span>
+<span class="nc" id="L82">    return lowercaseFirstLetter(name);</span>
+  }
+
+  public String webserviceTypeImport(String path) {
+<span class="nc" id="L86">    return &quot;import &quot; + packageName(path) + &quot;.&quot; + className(path) + &quot;;&quot;;</span>
+  }
+
+  private String capitalizeFirstLetter(String name) {
+<span class="nc" id="L90">    return name.substring(0, 1).toUpperCase() + name.substring(1);</span>
+  }
+
+  private String lowercaseFirstLetter(String name) {
+<span class="nc" id="L94">    return name.substring(0, 1).toLowerCase() + name.substring(1);</span>
+  }
+
+  public String responseType(String path, String action) {
+<span class="nc" id="L98">    return responseTypeFullyQualified(path, action).replaceFirst(&quot;^.*\\.&quot;, &quot;&quot;);</span>
+  }
+
+  private String responseTypeFullyQualified(String path, String action) {
+<span class="nc" id="L102">    String fullPath = path + &quot;/&quot; + action;</span>
+<span class="nc" id="L103">    List&lt;String[]&gt; responseTypesConfig = responseTypes.get(fullPath);</span>
+    String fullyQualified;
+<span class="nc bnc" id="L105" title="All 2 branches missed.">    if (responseTypesConfig == null) {</span>
+<span class="nc" id="L106">      fullyQualified = guessResponseType(path, action);</span>
+<span class="nc" id="L107">      responseTypes.put(fullPath, Collections.singletonList(new String[] {fullPath, fullyQualified}));</span>
+    } else {
+<span class="nc" id="L109">      fullyQualified = responseTypesConfig.get(0)[1];</span>
+    }
+<span class="nc" id="L111">    return fullyQualified;</span>
+  }
+
+  private String guessResponseType(String path, String action) {
+<span class="nc" id="L115">    return guessResponseOuterClassName(path).flatMap(</span>
+<span class="nc" id="L116">      potentialClassName -&gt; guessResponseInnerClassName(action).flatMap(potentialInnerClassName -&gt; {</span>
+        try {
+<span class="nc" id="L118">          String guess = &quot;org.sonarqube.ws.&quot; + potentialClassName + &quot;$&quot; + potentialInnerClassName;</span>
+<span class="nc" id="L119">          Helper.class.forName(guess);</span>
+<span class="nc" id="L120">          return Stream.of(guess.replaceFirst(&quot;\\$&quot;, &quot;.&quot;));</span>
+<span class="nc" id="L121">        } catch (ClassNotFoundException e) {</span>
+        }
+<span class="nc" id="L123">        return Stream.empty();</span>
+<span class="nc" id="L124">      })).findFirst().orElseGet(() -&gt; &quot;String&quot;);</span>
+  }
+
+  private Stream&lt;String&gt; guessResponseInnerClassName(String action) {
+<span class="nc" id="L128">    return Stream.of(</span>
+<span class="nc" id="L129">      rawName(action) + &quot;Response&quot;,</span>
+<span class="nc" id="L130">      rawName(action) + &quot;WsResponse&quot;,</span>
+<span class="nc" id="L131">      &quot;Ws&quot; + rawName(action) + &quot;Response&quot;);</span>
+  }
+
+  private Stream&lt;String&gt; guessResponseOuterClassName(String path) {
+<span class="nc" id="L135">    return Stream.of(</span>
+<span class="nc" id="L136">      rawName(path),</span>
+<span class="nc" id="L137">      &quot;Ws&quot; + rawName(path),</span>
+<span class="nc" id="L138">      rawName(path) + &quot;Ws&quot;);</span>
+  }
+
+  public String responseTypeImport(String path, String action) {
+<span class="nc" id="L142">    String fullyQualified = responseTypeFullyQualified(path, action);</span>
+<span class="nc bnc" id="L143" title="All 2 branches missed.">    if (&quot;String&quot;.equals(fullyQualified)) {</span>
+<span class="nc" id="L144">      return null;</span>
+    }
+<span class="nc" id="L146">    return &quot;import &quot; + fullyQualified + &quot;;&quot;;</span>
+  }
+
+  public String methodName(String path, String action) {
+<span class="nc" id="L150">    return lowercaseFirstLetter(rawName(action));</span>
+  }
+
+  public String requestType(String path, String action) {
+<span class="nc" id="L154">    return rawName(action) + &quot;Request&quot;;</span>
+  }
+
+  public String parameterGetter(String parameter) {
+<span class="nc" id="L158">    return &quot;get&quot; + rawName(parameter);</span>
+  }
+
+  public String parameterSetter(String parameter) {
+<span class="nc" id="L162">    return &quot;set&quot; + rawName(parameter);</span>
+  }
+
+  public String setterParameter(String parameter) {
+<span class="nc" id="L166">    return lowercaseFirstLetter(rawName(parameter));</span>
+  }
+
+  public String setterParameterType(String parameter, JsonPrimitive parameterDescription) {
+<span class="nc bnc" id="L170" title="All 6 branches missed.">    if (parameter.equals(&quot;values&quot;) || parameter.equals(&quot;fieldValues&quot;) || parameter.equals(&quot;keys&quot;)) {</span>
+<span class="nc" id="L171">      return &quot;List&lt;String&gt;&quot;;</span>
+    }
+<span class="nc bnc" id="L173" title="All 4 branches missed.">    if (parameterDescription != null &amp;&amp; parameterDescription.getAsString().matches(&quot;.*[Cc]omma.?separated.*|.*[Ll]ist of.*&quot;)) {</span>
+<span class="nc" id="L174">      return &quot;List&lt;String&gt;&quot;;</span>
+    }
+<span class="nc" id="L176">    return &quot;String&quot;;</span>
+  }
+
+  public String apiDocUrl(String path) {
+<span class="nc" id="L180">    return &quot;https://next.sonarqube.com/sonarqube/web_api/&quot; + path;</span>
+  }
+
+  public String apiDocUrl(String path, String action) {
+<span class="nc" id="L184">    return apiDocUrl(path) + &quot;/&quot; + action;</span>
+  }
+
+  public String file(String path) {
+<span class="nc" id="L188">    return OUTPUT_DIR + &quot;/org/sonarqube/ws/client/&quot; + rawName(path).toLowerCase() + &quot;/&quot; + className(path) + &quot;.java&quot;;</span>
+  }
+
+  public String defaultWsClientFile() {
+<span class="nc" id="L192">    return OUTPUT_DIR + &quot;/org/sonarqube/ws/client/DefaultWsClient.java&quot;;</span>
+  }
+
+  public String wsClientFile() {
+<span class="nc" id="L196">    return OUTPUT_DIR + &quot;/org/sonarqube/ws/client/WsClient.java&quot;;</span>
+  }
+
+  public String packageInfoFile() {
+<span class="nc" id="L200">    return OUTPUT_DIR + &quot;/org/sonarqube/ws/client/package-info.java&quot;;</span>
+  }
+
+  public String packageInfoFile(String path) {
+<span class="nc" id="L204">    return OUTPUT_DIR + &quot;/org/sonarqube/ws/client/&quot; + rawName(path).toLowerCase() + &quot;/package-info.java&quot;;</span>
+  }
+
+  public String requestFile(String path, String action) {
+<span class="nc" id="L208">    return OUTPUT_DIR + &quot;/org/sonarqube/ws/client/&quot; + rawName(path).toLowerCase() + &quot;/&quot; + requestType(path, action) + &quot;.java&quot;;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

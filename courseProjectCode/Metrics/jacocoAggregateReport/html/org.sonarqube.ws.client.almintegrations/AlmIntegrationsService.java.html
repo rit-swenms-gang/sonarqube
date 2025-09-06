@@ -1,0 +1,264 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AlmIntegrationsService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonarqube.ws.client.almintegrations</a> &gt; <span class="el_source">AlmIntegrationsService.java</span></div><h1>AlmIntegrationsService.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonarqube.ws.client.almintegrations;
+
+import jakarta.annotation.Generated;
+import org.sonarqube.ws.AlmIntegrations;
+import org.sonarqube.ws.MediaTypes;
+import org.sonarqube.ws.Projects;
+import org.sonarqube.ws.client.BaseService;
+import org.sonarqube.ws.client.GetRequest;
+import org.sonarqube.ws.client.PostRequest;
+import org.sonarqube.ws.client.WsConnector;
+
+/**
+ * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_integrations&quot;&gt;Further information about this web service online&lt;/a&gt;
+ */
+@Generated(&quot;sonar-ws-generator&quot;)
+public class AlmIntegrationsService extends BaseService {
+
+  public AlmIntegrationsService(WsConnector wsConnector) {
+<span class="fc" id="L38">    super(wsConnector, &quot;api/alm_integrations&quot;);</span>
+<span class="fc" id="L39">  }</span>
+
+  /**
+   * This is part of the internal API.
+   * This is a GET request.
+   *
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_integrations/check_pat&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 8.2
+   */
+  public void checkPat(CheckPatRequest request) {
+<span class="nc" id="L49">    call(</span>
+<span class="nc" id="L50">      new GetRequest(path(&quot;check_pat&quot;))</span>
+<span class="nc" id="L51">        .setParam(&quot;almSetting&quot;, request.getAlmSetting())</span>
+<span class="nc" id="L52">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L53">    ).content();</span>
+<span class="nc" id="L54">  }</span>
+
+  /**
+   * This is part of the internal API.
+   * This is a POST request.
+   *
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_integrations/import_bitbucketserver_project&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 8.2
+   */
+  public Projects.CreateWsResponse importBitbucketserverProject(ImportBitbucketserverProjectRequest request) {
+<span class="nc" id="L64">    return call(</span>
+<span class="nc" id="L65">      new PostRequest(path(&quot;import_bitbucketserver_project&quot;))</span>
+<span class="nc" id="L66">        .setParam(&quot;almSetting&quot;, request.getAlmSetting())</span>
+<span class="nc" id="L67">        .setParam(&quot;projectKey&quot;, request.getProjectKey())</span>
+<span class="nc" id="L68">        .setParam(&quot;repositorySlug&quot;, request.getRepositorySlug())</span>
+<span class="nc" id="L69">        .setMediaType(MediaTypes.JSON),</span>
+<span class="nc" id="L70">      Projects.CreateWsResponse.parser());</span>
+  }
+
+  /**
+   * This is part of the internal API.
+   * This is a POST request.
+   *
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_integrations/import_bitbucketcloud_project&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 8.2
+   */
+  public Projects.CreateWsResponse importBitbucketcloudProject(ImportBitbucketcloudRepoRequest request) {
+<span class="nc" id="L81">    return call(</span>
+<span class="nc" id="L82">      new PostRequest(path(&quot;import_bitbucketcloud_repo&quot;))</span>
+<span class="nc" id="L83">        .setParam(&quot;almSetting&quot;, request.getAlmSetting())</span>
+<span class="nc" id="L84">        .setParam(&quot;repositorySlug&quot;, request.getRepositorySlug())</span>
+<span class="nc" id="L85">        .setMediaType(MediaTypes.JSON),</span>
+<span class="nc" id="L86">      Projects.CreateWsResponse.parser());</span>
+  }
+
+  /**
+   * This is a POST request.
+   *
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_integrations/import_gitlab_project&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 8.5
+   */
+  public Projects.CreateWsResponse importGitLabProject(ImportGitLabProjectRequest request) {
+<span class="nc" id="L96">    return call(</span>
+<span class="nc" id="L97">      new PostRequest(path(&quot;import_gitlab_project&quot;))</span>
+<span class="nc" id="L98">        .setParam(&quot;almSetting&quot;, request.getAlmSetting())</span>
+<span class="nc" id="L99">        .setParam(&quot;gitlabProjectId&quot;, request.getGitlabProjectId())</span>
+<span class="nc" id="L100">        .setMediaType(MediaTypes.JSON),</span>
+<span class="nc" id="L101">      Projects.CreateWsResponse.parser());</span>
+  }
+
+  /**
+   * This is a POST request.
+   *
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_integrations/import_github_project&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   */
+  public Projects.CreateWsResponse importGithubProject(ImportGithubProjectRequest request) {
+<span class="nc" id="L110">    return call(</span>
+<span class="nc" id="L111">      new PostRequest(path(&quot;import_github_project&quot;))</span>
+<span class="nc" id="L112">        .setParam(&quot;almSetting&quot;, request.getAlmSetting())</span>
+<span class="nc" id="L113">        .setParam(&quot;repositoryKey&quot;, request.getRepositoryKey())</span>
+<span class="nc" id="L114">        .setMediaType(MediaTypes.JSON),</span>
+<span class="nc" id="L115">      Projects.CreateWsResponse.parser());</span>
+  }
+
+  /**
+   * This is a GET request.
+   *
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_integrations/list_github_organizations&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   */
+  public void listGithubOrganizations(ListGithubOrganizationsRequest request) {
+<span class="nc" id="L124">    call(</span>
+<span class="nc" id="L125">      new GetRequest(path(&quot;list_github_organizations&quot;))</span>
+<span class="nc" id="L126">        .setParam(&quot;almSetting&quot;, request.getAlmSetting())</span>
+<span class="nc" id="L127">        .setParam(&quot;token&quot;, request.getToken())</span>
+<span class="nc" id="L128">        .setMediaType(MediaTypes.JSON),</span>
+<span class="nc" id="L129">      Projects.CreateWsResponse.parser());</span>
+<span class="nc" id="L130">  }</span>
+
+  /**
+   * This is part of the internal API.
+   * This is a POST request.
+   *
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_integrations/import_azure_project&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 8.6
+   */
+  public Projects.CreateWsResponse importAzureProject(ImportAzureProjectRequest request) {
+<span class="nc" id="L140">    return call(</span>
+<span class="nc" id="L141">      new PostRequest(path(&quot;import_azure_project&quot;))</span>
+<span class="nc" id="L142">        .setParam(&quot;almSetting&quot;, request.getAlmSetting())</span>
+<span class="nc" id="L143">        .setParam(&quot;projectName&quot;, request.getProjectName())</span>
+<span class="nc" id="L144">        .setParam(&quot;repositoryName&quot;, request.getRepositoryName())</span>
+<span class="nc" id="L145">        .setMediaType(MediaTypes.JSON),</span>
+<span class="nc" id="L146">      Projects.CreateWsResponse.parser()</span>
+    );
+  }
+
+  /**
+   * This is part of the internal API.
+   * This is a GET request.
+   *
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_integrations/search_gitlab_repos&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 8.5
+   */
+  public AlmIntegrations.SearchGitlabReposWsResponse searchGitlabRepos(SearchGitlabReposRequest request) {
+<span class="nc" id="L158">    return call(</span>
+<span class="nc" id="L159">      new GetRequest(path(&quot;search_gitlab_repos&quot;))</span>
+<span class="nc" id="L160">        .setParam(&quot;almSetting&quot;, request.getAlmSetting())</span>
+<span class="nc" id="L161">        .setParam(&quot;projectName&quot;, request.getProjectName())</span>
+<span class="nc" id="L162">        .setMediaType(MediaTypes.JSON),</span>
+<span class="nc" id="L163">      AlmIntegrations.SearchGitlabReposWsResponse.parser());</span>
+  }
+
+  /**
+   * This is part of the internal API.
+   * This is a GET request.
+   *
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_integrations/list_azure_projects&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 8.2
+   */
+  public AlmIntegrations.ListAzureProjectsWsResponse listAzureProjects(ListAzureProjectsRequest request) {
+<span class="nc" id="L174">    return call(</span>
+<span class="nc" id="L175">      new GetRequest(path(&quot;list_azure_projects&quot;))</span>
+<span class="nc" id="L176">        .setParam(&quot;almSetting&quot;, request.getAlmSetting())</span>
+<span class="nc" id="L177">        .setMediaType(MediaTypes.JSON),</span>
+<span class="nc" id="L178">      AlmIntegrations.ListAzureProjectsWsResponse.parser());</span>
+  }
+
+  /**
+   * This is part of the internal API.
+   * This is a GET request.
+   *
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_integrations/list_bitbucketserver_projects&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 8.2
+   */
+  public AlmIntegrations.ListBitbucketserverProjectsWsResponse listBitbucketserverProjects(ListBitbucketserverProjectsRequest request) {
+<span class="nc" id="L189">    return call(</span>
+<span class="nc" id="L190">      new GetRequest(path(&quot;list_bitbucketserver_projects&quot;))</span>
+<span class="nc" id="L191">        .setParam(&quot;almSetting&quot;, request.getAlmSetting())</span>
+<span class="nc" id="L192">        .setMediaType(MediaTypes.JSON),</span>
+<span class="nc" id="L193">      AlmIntegrations.ListBitbucketserverProjectsWsResponse.parser());</span>
+  }
+
+  /**
+   * This is part of the internal API.
+   * This is a GET request.
+   *
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_integrations/search_bitbucketserver_repos&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 8.2
+   */
+  public AlmIntegrations.SearchBitbucketserverReposWsResponse searchBitbucketserverRepos(SearchBitbucketserverReposRequest request) {
+<span class="nc" id="L204">    return call(</span>
+<span class="nc" id="L205">      new GetRequest(path(&quot;search_bitbucketserver_repos&quot;))</span>
+<span class="nc" id="L206">        .setParam(&quot;almSetting&quot;, request.getAlmSetting())</span>
+<span class="nc" id="L207">        .setParam(&quot;projectName&quot;, request.getProjectName())</span>
+<span class="nc" id="L208">        .setParam(&quot;repositoryName&quot;, request.getRepositoryName())</span>
+<span class="nc" id="L209">        .setMediaType(MediaTypes.JSON),</span>
+<span class="nc" id="L210">      AlmIntegrations.SearchBitbucketserverReposWsResponse.parser());</span>
+  }
+
+  /**
+   * This is part of the internal API.
+   * This is a GET request.
+   *
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_integrations/search_bitbucketcloud_repos&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 8.2
+   */
+  public AlmIntegrations.SearchBitbucketcloudReposWsResponse searchBitbucketcloudRepos(SearchBitbucketcloudReposRequest request) {
+<span class="nc" id="L221">    return call(</span>
+<span class="nc" id="L222">      new GetRequest(path(&quot;search_bitbucketcloud_repos&quot;))</span>
+<span class="nc" id="L223">        .setParam(&quot;almSetting&quot;, request.getAlmSetting())</span>
+<span class="nc" id="L224">        .setMediaType(MediaTypes.JSON),</span>
+<span class="nc" id="L225">      AlmIntegrations.SearchBitbucketcloudReposWsResponse.parser());</span>
+  }
+
+  /**
+   * This is part of the internal API.
+   * This is a POST request.
+   *
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_integrations/webhook_github&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 9.7
+   */
+  public void sendGitubCodeScanningAlertWebhookPayload(SendGithubCodeScanningAlertWebhookPayloadRequest request) {
+<span class="nc" id="L236">    call(</span>
+<span class="nc" id="L237">      new PostRequest(path(&quot;webhook_github&quot;))</span>
+<span class="nc" id="L238">        .setHeader(&quot;X-GitHub-Event&quot;, request.getGithubEventHeader())</span>
+<span class="nc" id="L239">        .setHeader(&quot;X-Hub-Signature&quot;, request.getGithubSignatureHeader())</span>
+<span class="nc" id="L240">        .setHeader(&quot;X-Hub-Signature-256&quot;, request.getGithubSignature256Header())</span>
+<span class="nc" id="L241">        .setHeader(&quot;x-github-hook-installation-target-id&quot;, request.getGithubAppId())</span>
+<span class="nc" id="L242">        .setBody(request.getPayload())</span>
+<span class="nc" id="L243">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L244">    ).content();</span>
+<span class="nc" id="L245">  }</span>
+
+  /**
+   * This is part of the internal API.
+   * This is a POST request.
+   *
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_integrations/set_pat&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 8.2
+   */
+  public void setPat(SetPatRequest request) {
+<span class="nc" id="L255">    call(</span>
+<span class="nc" id="L256">      new PostRequest(path(&quot;set_pat&quot;))</span>
+<span class="nc" id="L257">        .setParam(&quot;almSetting&quot;, request.getAlmSetting())</span>
+<span class="nc" id="L258">        .setParam(&quot;pat&quot;, request.getPat())</span>
+<span class="nc" id="L259">        .setParam(&quot;username&quot;, request.getUsername())</span>
+<span class="nc" id="L260">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L261">    ).content();</span>
+<span class="nc" id="L262">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

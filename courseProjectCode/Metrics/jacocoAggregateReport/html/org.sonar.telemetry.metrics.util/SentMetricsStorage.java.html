@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SentMetricsStorage.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.telemetry.metrics.util</a> &gt; <span class="el_source">SentMetricsStorage.java</span></div><h1>SentMetricsStorage.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.telemetry.metrics.util;
+
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import org.sonar.db.telemetry.TelemetryMetricsSentDto;
+import org.sonar.telemetry.core.Dimension;
+import org.sonar.telemetry.core.Granularity;
+
+public class SentMetricsStorage {
+<span class="fc" id="L36">  private final Map&lt;Dimension, Map&lt;String, TelemetryMetricsSentDto&gt;&gt; dimensionMetricKeyMap = new EnumMap&lt;&gt;(Dimension.class);</span>
+
+<span class="fc" id="L38">  public SentMetricsStorage(List&lt;TelemetryMetricsSentDto&gt; dtoList) {</span>
+<span class="fc" id="L39">    dtoList.forEach(dto -&gt; dimensionMetricKeyMap</span>
+<span class="fc" id="L40">      .computeIfAbsent(Dimension.fromValue(dto.getDimension()), k -&gt; new HashMap&lt;&gt;())</span>
+<span class="fc" id="L41">      .put(dto.getMetricKey(), dto));</span>
+<span class="fc" id="L42">  }</span>
+
+  public Optional&lt;TelemetryMetricsSentDto&gt; getMetricsSentDto(Dimension dimension, String metricKey) {
+<span class="fc" id="L45">    Map&lt;String, TelemetryMetricsSentDto&gt; metricKeyMap = dimensionMetricKeyMap.get(dimension);</span>
+<span class="fc bfc" id="L46" title="All 4 branches covered.">    if (metricKeyMap != null &amp;&amp; metricKeyMap.containsKey(metricKey)) {</span>
+<span class="fc" id="L47">      return Optional.of(metricKeyMap.get(metricKey));</span>
+    }
+
+<span class="fc" id="L50">    return Optional.empty();</span>
+  }
+
+  public boolean shouldSendMetric(Dimension dimension, String metricKey, Granularity granularity, long now) {
+<span class="fc bfc" id="L54" title="All 2 branches covered.">    if (granularity == Granularity.ADHOC) {</span>
+<span class="fc" id="L55">      return true;</span>
+    }
+
+<span class="fc" id="L58">    Map&lt;String, TelemetryMetricsSentDto&gt; metricKeyMap = dimensionMetricKeyMap.get(dimension);</span>
+<span class="fc bfc" id="L59" title="All 4 branches covered.">    boolean exists = metricKeyMap != null &amp;&amp; metricKeyMap.containsKey(metricKey);</span>
+<span class="fc bfc" id="L60" title="All 2 branches covered.">    if (!exists) {</span>
+<span class="fc" id="L61">      return true;</span>
+    }
+
+<span class="fc" id="L64">    TelemetryMetricsSentDto dto = metricKeyMap.get(metricKey);</span>
+
+<span class="fc" id="L66">    ZonedDateTime lastSentInstant = Instant.ofEpochMilli(dto.getLastSent()).atZone(ZoneId.systemDefault());</span>
+<span class="fc" id="L67">    ZonedDateTime nowInstant = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault());</span>
+
+<span class="pc bpc" id="L69" title="1 of 4 branches missed.">    switch (granularity) {</span>
+      case DAILY -&gt; {
+<span class="fc bfc" id="L71" title="All 2 branches covered.">        return ChronoUnit.DAYS.between(lastSentInstant, nowInstant) &gt; 0;</span>
+      } case WEEKLY -&gt; {
+<span class="fc bfc" id="L73" title="All 2 branches covered.">        return ChronoUnit.WEEKS.between(lastSentInstant, nowInstant) &gt; 0;</span>
+      } case MONTHLY -&gt; {
+<span class="fc bfc" id="L75" title="All 2 branches covered.">        return ChronoUnit.MONTHS.between(lastSentInstant, nowInstant) &gt; 0;</span>
+<span class="nc" id="L76">      } default -&gt; throw new IllegalArgumentException(&quot;Unknown granularity: &quot; + granularity);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

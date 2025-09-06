@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NewIssuesStatistics.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.issue.notification</a> &gt; <span class="el_source">NewIssuesStatistics.java</span></div><h1>NewIssuesStatistics.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.issue.notification;
+
+import java.util.EnumMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.function.Predicate;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.core.issue.DefaultIssue;
+
+import static org.sonar.server.issue.notification.NewIssuesStatistics.Metric.ASSIGNEE;
+import static org.sonar.server.issue.notification.NewIssuesStatistics.Metric.COMPONENT;
+import static org.sonar.server.issue.notification.NewIssuesStatistics.Metric.RULE;
+import static org.sonar.server.issue.notification.NewIssuesStatistics.Metric.TAG;
+
+public class NewIssuesStatistics {
+  private final Predicate&lt;DefaultIssue&gt; onCurrentAnalysisPredicate;
+<span class="fc" id="L36">  private final Map&lt;String, Stats&gt; assigneesStatistics = new LinkedHashMap&lt;&gt;();</span>
+  private final Stats globalStatistics;
+
+<span class="fc" id="L39">  public NewIssuesStatistics(Predicate&lt;DefaultIssue&gt; onCurrentAnalysisPredicate) {</span>
+<span class="fc" id="L40">    this.onCurrentAnalysisPredicate = onCurrentAnalysisPredicate;</span>
+<span class="fc" id="L41">    this.globalStatistics = new Stats(onCurrentAnalysisPredicate);</span>
+<span class="fc" id="L42">  }</span>
+
+  public void add(DefaultIssue issue) {
+<span class="fc" id="L45">    globalStatistics.add(issue);</span>
+<span class="fc" id="L46">    String userUuid = issue.assignee();</span>
+<span class="fc bfc" id="L47" title="All 2 branches covered.">    if (userUuid != null) {</span>
+<span class="fc" id="L48">      assigneesStatistics.computeIfAbsent(userUuid, a -&gt; new Stats(onCurrentAnalysisPredicate)).add(issue);</span>
+    }
+<span class="fc" id="L50">  }</span>
+
+  public Map&lt;String, Stats&gt; getAssigneesStatistics() {
+<span class="fc" id="L53">    return assigneesStatistics;</span>
+  }
+
+  public Stats globalStatistics() {
+<span class="fc" id="L57">    return globalStatistics;</span>
+  }
+
+  public boolean hasIssues() {
+<span class="fc" id="L61">    return globalStatistics.hasIssues();</span>
+  }
+
+  public boolean hasIssuesOnCurrentAnalysis() {
+<span class="fc" id="L65">    return globalStatistics.hasIssuesOnCurrentAnalysis();</span>
+  }
+
+<span class="fc" id="L68">  public enum Metric {</span>
+<span class="fc" id="L69">    ISSUE(false), TAG(true), COMPONENT(true), ASSIGNEE(true), RULE(true);</span>
+    private final boolean isComputedByDistribution;
+
+<span class="fc" id="L72">    Metric(boolean isComputedByDistribution) {</span>
+<span class="fc" id="L73">      this.isComputedByDistribution = isComputedByDistribution;</span>
+<span class="fc" id="L74">    }</span>
+
+    boolean isComputedByDistribution() {
+<span class="fc" id="L77">      return this.isComputedByDistribution;</span>
+    }
+  }
+
+  @Override
+  public String toString() {
+<span class="fc" id="L83">    return &quot;NewIssuesStatistics{&quot; +</span>
+      &quot;assigneesStatistics=&quot; + assigneesStatistics +
+      &quot;, globalStatistics=&quot; + globalStatistics +
+      '}';
+  }
+
+  public static class Stats {
+    private final Predicate&lt;DefaultIssue&gt; onCurrentAnalysisPredicate;
+<span class="fc" id="L91">    private final Map&lt;Metric, DistributedMetricStatsInt&gt; distributions = new EnumMap&lt;&gt;(Metric.class);</span>
+<span class="fc" id="L92">    private final MetricStatsInt issueCount = new MetricStatsInt();</span>
+
+<span class="fc" id="L94">    public Stats(Predicate&lt;DefaultIssue&gt; onCurrentAnalysisPredicate) {</span>
+<span class="fc" id="L95">      this.onCurrentAnalysisPredicate = onCurrentAnalysisPredicate;</span>
+<span class="fc bfc" id="L96" title="All 2 branches covered.">      for (Metric metric : Metric.values()) {</span>
+<span class="fc bfc" id="L97" title="All 2 branches covered.">        if (metric.isComputedByDistribution()) {</span>
+<span class="fc" id="L98">          distributions.put(metric, new DistributedMetricStatsInt());</span>
+        }
+      }
+<span class="fc" id="L101">    }</span>
+
+    public void add(DefaultIssue issue) {
+<span class="fc" id="L104">      boolean onCurrentAnalysis = onCurrentAnalysisPredicate.test(issue);</span>
+<span class="fc" id="L105">      issueCount.increment(onCurrentAnalysis);</span>
+<span class="fc" id="L106">      String componentUuid = issue.componentUuid();</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">      if (componentUuid != null) {</span>
+<span class="fc" id="L108">        distributions.get(COMPONENT).increment(componentUuid, onCurrentAnalysis);</span>
+      }
+<span class="fc" id="L110">      RuleKey ruleKey = issue.ruleKey();</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">      if (ruleKey != null) {</span>
+<span class="fc" id="L112">        distributions.get(RULE).increment(ruleKey.toString(), onCurrentAnalysis);</span>
+      }
+<span class="fc" id="L114">      String assigneeUuid = issue.assignee();</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">      if (assigneeUuid != null) {</span>
+<span class="fc" id="L116">        distributions.get(ASSIGNEE).increment(assigneeUuid, onCurrentAnalysis);</span>
+      }
+<span class="fc bfc" id="L118" title="All 2 branches covered.">      for (String tag : issue.tags()) {</span>
+<span class="fc" id="L119">        distributions.get(TAG).increment(tag, onCurrentAnalysis);</span>
+<span class="fc" id="L120">      }</span>
+<span class="fc" id="L121">    }</span>
+
+    public DistributedMetricStatsInt getDistributedMetricStats(Metric metric) {
+<span class="fc" id="L124">      return distributions.get(metric);</span>
+    }
+
+    public MetricStatsInt getIssueCount() {
+<span class="fc" id="L128">      return issueCount;</span>
+    }
+
+    public boolean hasIssues() {
+<span class="fc bfc" id="L132" title="All 2 branches covered.">      return getIssueCount().getTotal() &gt; 0;</span>
+    }
+
+    public boolean hasIssuesOnCurrentAnalysis() {
+<span class="fc bfc" id="L136" title="All 2 branches covered.">      return getIssueCount().getOnCurrentAnalysis() &gt; 0;</span>
+    }
+
+    @Override
+    public String toString() {
+<span class="fc" id="L141">      return &quot;Stats{&quot; +</span>
+        &quot;distributions=&quot; + distributions +
+        &quot;, issueCount=&quot; + issueCount +
+        '}';
+    }
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

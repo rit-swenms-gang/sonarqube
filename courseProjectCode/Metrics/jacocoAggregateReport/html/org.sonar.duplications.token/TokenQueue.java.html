@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TokenQueue.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.duplications.token</a> &gt; <span class="el_source">TokenQueue.java</span></div><h1>TokenQueue.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.duplications.token;
+
+import java.util.Deque;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.ListIterator;
+
+public class TokenQueue implements Iterable&lt;Token&gt; {
+
+  private final Deque&lt;Token&gt; tokenQueue;
+
+<span class="fc" id="L32">  public TokenQueue(List&lt;Token&gt; tokenList) {</span>
+<span class="fc" id="L33">    tokenQueue = new LinkedList&lt;&gt;(tokenList);</span>
+<span class="fc" id="L34">  }</span>
+
+<span class="fc" id="L36">  public TokenQueue() {</span>
+<span class="fc" id="L37">    tokenQueue = new LinkedList&lt;&gt;();</span>
+<span class="fc" id="L38">  }</span>
+
+  /**
+   * Retrieves, but does not remove, token from this queue.
+   * 
+   * @return token from this queue, or &lt;tt&gt;null&lt;/tt&gt; if this queue is empty.
+   */
+  public Token peek() {
+<span class="fc" id="L46">    return tokenQueue.peek();</span>
+  }
+
+  /**
+   * Retrieves and removes token from this queue.
+   * 
+   * @return token from this queue, or &lt;tt&gt;null&lt;/tt&gt; if this queue is empty.
+   */
+  public Token poll() {
+<span class="fc" id="L55">    return tokenQueue.poll();</span>
+  }
+
+  public int size() {
+<span class="fc" id="L59">    return tokenQueue.size();</span>
+  }
+
+  public void add(Token token) {
+<span class="fc" id="L63">    tokenQueue.addLast(token);</span>
+<span class="fc" id="L64">  }</span>
+
+  public boolean isNextTokenValue(String expectedValue) {
+<span class="fc" id="L67">    Token nextToken = tokenQueue.peek();</span>
+<span class="pc bpc" id="L68" title="1 of 2 branches missed.">    if (nextToken == null) {</span>
+      // queue is empty
+<span class="nc" id="L70">      return false;</span>
+    }
+<span class="fc" id="L72">    return nextToken.getValue().equals(expectedValue);</span>
+  }
+
+  @Override
+  public Iterator&lt;Token&gt; iterator() {
+<span class="fc" id="L77">    return tokenQueue.iterator();</span>
+  }
+
+  public void pushForward(List&lt;Token&gt; matchedTokenList) {
+<span class="fc" id="L81">    ListIterator&lt;Token&gt; iter = matchedTokenList.listIterator(matchedTokenList.size());</span>
+<span class="fc bfc" id="L82" title="All 2 branches covered.">    while (iter.hasPrevious()) {</span>
+<span class="fc" id="L83">      tokenQueue.addFirst(iter.previous());</span>
+    }
+<span class="fc" id="L85">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

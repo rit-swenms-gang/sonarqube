@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ComponentResponseCommon.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.measure.ws</a> &gt; <span class="el_source">ComponentResponseCommon.java</span></div><h1>ComponentResponseCommon.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.measure.ws;
+
+import java.util.Collection;
+import java.util.function.Consumer;
+import org.sonar.db.metric.MetricDto;
+import org.sonar.db.metric.RemovedMetricConverter;
+import org.sonarqube.ws.Measures;
+
+import static org.sonar.db.metric.RemovedMetricConverter.REMOVED_METRIC;
+import static org.sonar.db.metric.RemovedMetricConverter.DEPRECATED_METRIC_REPLACEMENT;
+import static org.sonar.server.measure.ws.MetricDtoToWsMetric.metricDtoToWsMetric;
+import static org.sonar.server.measure.ws.MetricDtoToWsMetric.wontFixToAcceptedWsMetric;
+
+public class ComponentResponseCommon {
+
+  private ComponentResponseCommon() {
+    // static methods only
+  }
+
+  static void addMetricToResponseIncludingRenamedMetric(Consumer&lt;org.sonarqube.ws.Common.Metric&gt; responseBuilder, Collection&lt;String&gt; requestedMetrics,
+    MetricDto metricDto) {
+<span class="fc bfc" id="L41" title="All 2 branches covered.">    if (metricDto.getKey().equals(DEPRECATED_METRIC_REPLACEMENT)) {</span>
+<span class="fc bfc" id="L42" title="All 2 branches covered.">      if (requestedMetrics.contains(DEPRECATED_METRIC_REPLACEMENT)) {</span>
+<span class="fc" id="L43">        responseBuilder.accept(metricDtoToWsMetric(metricDto));</span>
+      }
+<span class="fc bfc" id="L45" title="All 2 branches covered.">      if (requestedMetrics.contains(REMOVED_METRIC)) {</span>
+<span class="fc" id="L46">        responseBuilder.accept(wontFixToAcceptedWsMetric(metricDto));</span>
+      }
+    } else {
+<span class="fc" id="L49">      responseBuilder.accept(metricDtoToWsMetric(metricDto));</span>
+    }
+<span class="fc" id="L51">  }</span>
+
+  public static void addMetricToSearchHistoryResponseIncludingRenamedMetric(Measures.SearchHistoryResponse.Builder response,
+    Collection&lt;String&gt; requestedMetrics, Measures.SearchHistoryResponse.HistoryMeasure.Builder measure) {
+<span class="fc bfc" id="L55" title="All 2 branches covered.">    if (measure.getMetric().equals(DEPRECATED_METRIC_REPLACEMENT)) {</span>
+<span class="fc bfc" id="L56" title="All 2 branches covered.">      if (requestedMetrics.contains(DEPRECATED_METRIC_REPLACEMENT)) {</span>
+<span class="fc" id="L57">        response.addMeasures(measure.build());</span>
+      }
+<span class="fc bfc" id="L59" title="All 2 branches covered.">      if (requestedMetrics.contains(RemovedMetricConverter.REMOVED_METRIC)) {</span>
+<span class="fc" id="L60">        response.addMeasures(measure.setMetric(RemovedMetricConverter.REMOVED_METRIC).build());</span>
+      }
+    } else {
+<span class="fc" id="L63">      response.addMeasures(measure.build());</span>
+    }
+<span class="fc" id="L65">  }</span>
+
+  static void addMeasureIncludingRenamedMetric(Collection&lt;String&gt; requestedMetrics, Measures.Component.Builder componentBuilder,
+    Measures.Measure.Builder measureBuilder) {
+<span class="fc bfc" id="L69" title="All 2 branches covered.">    if (measureBuilder.getMetric().equals(DEPRECATED_METRIC_REPLACEMENT)) {</span>
+<span class="fc bfc" id="L70" title="All 2 branches covered.">      if (requestedMetrics.contains(DEPRECATED_METRIC_REPLACEMENT)) {</span>
+<span class="fc" id="L71">        componentBuilder.addMeasures(measureBuilder.build());</span>
+      }
+<span class="fc bfc" id="L73" title="All 2 branches covered.">      if (requestedMetrics.contains(REMOVED_METRIC)) {</span>
+<span class="fc" id="L74">        componentBuilder.addMeasures(measureBuilder.setMetric(REMOVED_METRIC).build());</span>
+      }
+    } else {
+<span class="fc" id="L77">      componentBuilder.addMeasures(measureBuilder.build());</span>
+    }
+<span class="fc" id="L79">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

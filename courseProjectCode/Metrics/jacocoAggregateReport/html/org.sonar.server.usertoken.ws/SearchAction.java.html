@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SearchAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.usertoken.ws</a> &gt; <span class="el_source">SearchAction.java</span></div><h1>SearchAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.usertoken.ws;
+
+import java.util.List;
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.user.UserDto;
+import org.sonar.db.user.UserTokenDto;
+import org.sonarqube.ws.UserTokens.SearchWsResponse;
+import org.sonarqube.ws.UserTokens.SearchWsResponse.UserToken;
+
+import static java.util.Optional.ofNullable;
+import static org.elasticsearch.common.Strings.isNullOrEmpty;
+import static org.sonar.api.utils.DateUtils.formatDateTime;
+import static org.sonar.server.usertoken.ws.UserTokenSupport.ACTION_SEARCH;
+import static org.sonar.server.usertoken.ws.UserTokenSupport.PARAM_LOGIN;
+import static org.sonar.server.ws.WsUtils.writeProtobuf;
+import static org.sonarqube.ws.UserTokens.SearchWsResponse.UserToken.Project;
+import static org.sonarqube.ws.UserTokens.SearchWsResponse.UserToken.newBuilder;
+
+public class SearchAction implements UserTokensWsAction {
+
+  private final DbClient dbClient;
+  private final UserTokenSupport userTokenSupport;
+
+<span class="fc" id="L48">  public SearchAction(DbClient dbClient, UserTokenSupport userTokenSupport) {</span>
+<span class="fc" id="L49">    this.dbClient = dbClient;</span>
+<span class="fc" id="L50">    this.userTokenSupport = userTokenSupport;</span>
+<span class="fc" id="L51">  }</span>
+
+  @Override
+  public void define(WebService.NewController context) {
+<span class="fc" id="L55">    WebService.NewAction action = context.createAction(ACTION_SEARCH)</span>
+<span class="fc" id="L56">      .setDescription(&quot;List the access tokens of a user.&lt;br&gt;&quot; +</span>
+        &quot;The login must exist and active.&lt;br&gt;&quot; +
+        &quot;Field 'lastConnectionDate' is only updated every hour, so it may not be accurate, for instance when a user is using a token many times in less than one hour.&lt;br&gt; &quot; +
+        &quot;It requires administration permissions to specify a 'login' and list the tokens of another user. Otherwise, tokens for the current user are listed. &lt;br&gt; &quot; +
+        &quot;Authentication is required for this API endpoint&quot;)
+<span class="fc" id="L61">      .setChangelog(new Change(&quot;9.6&quot;, &quot;New field 'expirationDate' is added to response&quot;))</span>
+<span class="fc" id="L62">      .setChangelog(new Change(&quot;7.7&quot;, &quot;New field 'lastConnectionDate' is added to response&quot;))</span>
+<span class="fc" id="L63">      .setResponseExample(getClass().getResource(&quot;search-example.json&quot;))</span>
+<span class="fc" id="L64">      .setSince(&quot;5.3&quot;)</span>
+<span class="fc" id="L65">      .setHandler(this);</span>
+
+<span class="fc" id="L67">    action.createParam(PARAM_LOGIN)</span>
+<span class="fc" id="L68">      .setDescription(&quot;User login&quot;)</span>
+<span class="fc" id="L69">      .setExampleValue(&quot;g.hopper&quot;);</span>
+<span class="fc" id="L70">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L74">    SearchWsResponse searchWsResponse = doHandle(request);</span>
+<span class="fc" id="L75">    writeProtobuf(searchWsResponse, request, response);</span>
+<span class="fc" id="L76">  }</span>
+
+  private SearchWsResponse doHandle(Request request) {
+<span class="fc" id="L79">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L80">      UserDto user = userTokenSupport.getUser(dbSession, request);</span>
+<span class="fc" id="L81">      List&lt;UserTokenDto&gt; userTokens = dbClient.userTokenDao().selectByUser(dbSession, user);</span>
+<span class="fc" id="L82">      return buildResponse(user, userTokens);</span>
+    }
+  }
+
+  private static SearchWsResponse buildResponse(UserDto user, List&lt;UserTokenDto&gt; userTokensDto) {
+<span class="fc" id="L87">    SearchWsResponse.Builder searchWsResponse = SearchWsResponse.newBuilder();</span>
+<span class="fc" id="L88">    UserToken.Builder userTokenBuilder = newBuilder();</span>
+<span class="fc" id="L89">    searchWsResponse.setLogin(user.getLogin());</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">    for (UserTokenDto userTokenDto : userTokensDto) {</span>
+<span class="fc" id="L91">      userTokenBuilder</span>
+<span class="fc" id="L92">        .clear()</span>
+<span class="fc" id="L93">        .setName(userTokenDto.getName())</span>
+<span class="fc" id="L94">        .setCreatedAt(formatDateTime(userTokenDto.getCreatedAt()))</span>
+<span class="fc" id="L95">        .setType(userTokenDto.getType());</span>
+<span class="fc" id="L96">      ofNullable(userTokenDto.getLastConnectionDate()).ifPresent(date -&gt; userTokenBuilder.setLastConnectionDate(formatDateTime(date)));</span>
+<span class="fc" id="L97">      ofNullable(userTokenDto.getExpirationDate()).ifPresent(expirationDate -&gt; {</span>
+<span class="fc" id="L98">        userTokenBuilder.setExpirationDate(formatDateTime(expirationDate));</span>
+<span class="fc" id="L99">        userTokenBuilder.setIsExpired(userTokenDto.isExpired());</span>
+<span class="fc" id="L100">      });</span>
+
+<span class="pc bpc" id="L102" title="1 of 4 branches missed.">      if (!isNullOrEmpty(userTokenDto.getProjectKey()) &amp;&amp; !isNullOrEmpty(userTokenDto.getProjectName())) {</span>
+<span class="fc" id="L103">        Project.Builder projectBuilder = newBuilder().getProjectBuilder()</span>
+<span class="fc" id="L104">          .setKey(userTokenDto.getProjectKey())</span>
+<span class="fc" id="L105">          .setName(userTokenDto.getProjectName());</span>
+<span class="fc" id="L106">        userTokenBuilder.setProject(projectBuilder.build());</span>
+      }
+<span class="fc" id="L108">      searchWsResponse.addUserTokens(userTokenBuilder);</span>
+<span class="fc" id="L109">    }</span>
+
+<span class="fc" id="L111">    return searchWsResponse.build();</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

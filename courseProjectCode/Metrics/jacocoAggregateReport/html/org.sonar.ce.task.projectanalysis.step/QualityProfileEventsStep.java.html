@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>QualityProfileEventsStep.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.step</a> &gt; <span class="el_source">QualityProfileEventsStep.java</span></div><h1>QualityProfileEventsStep.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.step;
+
+import com.google.common.collect.ImmutableSortedMap;
+import java.util.Collections;
+import java.util.Date;
+import java.util.Map;
+import java.util.Optional;
+import javax.annotation.Nullable;
+import org.apache.commons.lang3.time.DateUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.measures.CoreMetrics;
+import org.sonar.api.resources.Language;
+import org.sonar.api.utils.KeyValueFormat;
+import org.sonar.ce.task.projectanalysis.component.Component;
+import org.sonar.ce.task.projectanalysis.component.TreeRootHolder;
+import org.sonar.ce.task.projectanalysis.event.Event;
+import org.sonar.ce.task.projectanalysis.event.EventRepository;
+import org.sonar.ce.task.projectanalysis.language.LanguageRepository;
+import org.sonar.ce.task.projectanalysis.measure.Measure;
+import org.sonar.ce.task.projectanalysis.measure.MeasureRepository;
+import org.sonar.ce.task.projectanalysis.metric.MetricRepository;
+import org.sonar.ce.task.projectanalysis.qualityprofile.QProfileStatusRepository;
+import org.sonar.ce.task.projectanalysis.qualityprofile.QualityProfileRuleChangeResolver;
+import org.sonar.ce.task.projectanalysis.qualityprofile.QualityProfileTextGenerator;
+import org.sonar.ce.task.step.ComputationStep;
+import org.sonar.core.util.UtcDateUtils;
+import org.sonar.server.qualityprofile.ActiveRuleChange;
+import org.sonar.server.qualityprofile.QPMeasureData;
+import org.sonar.server.qualityprofile.QualityProfile;
+
+import static org.sonar.ce.task.projectanalysis.qualityprofile.QProfileStatusRepository.Status.ADDED;
+import static org.sonar.ce.task.projectanalysis.qualityprofile.QProfileStatusRepository.Status.REMOVED;
+import static org.sonar.ce.task.projectanalysis.qualityprofile.QProfileStatusRepository.Status.UPDATED;
+
+/**
+ * Computation of quality profile events
+ * As it depends upon {@link CoreMetrics#QUALITY_PROFILES_KEY}, it must be executed after {@link ComputeQProfileMeasureStep}
+ */
+public class QualityProfileEventsStep implements ComputationStep {
+<span class="fc" id="L60">  private static final Logger LOG = LoggerFactory.getLogger(QualityProfileEventsStep.class);</span>
+  private final TreeRootHolder treeRootHolder;
+  private final MetricRepository metricRepository;
+  private final MeasureRepository measureRepository;
+  private final EventRepository eventRepository;
+  private final LanguageRepository languageRepository;
+  private final QProfileStatusRepository qProfileStatusRepository;
+  private final QualityProfileRuleChangeResolver qualityProfileRuleChangeTextResolver;
+
+  public QualityProfileEventsStep(TreeRootHolder treeRootHolder,
+    MetricRepository metricRepository, MeasureRepository measureRepository, LanguageRepository languageRepository,
+<span class="fc" id="L71">    EventRepository eventRepository, QProfileStatusRepository qProfileStatusRepository, QualityProfileRuleChangeResolver qualityProfileRuleChangeTextResolver) {</span>
+<span class="fc" id="L72">    this.treeRootHolder = treeRootHolder;</span>
+<span class="fc" id="L73">    this.metricRepository = metricRepository;</span>
+<span class="fc" id="L74">    this.measureRepository = measureRepository;</span>
+<span class="fc" id="L75">    this.eventRepository = eventRepository;</span>
+<span class="fc" id="L76">    this.languageRepository = languageRepository;</span>
+<span class="fc" id="L77">    this.qProfileStatusRepository = qProfileStatusRepository;</span>
+<span class="fc" id="L78">    this.qualityProfileRuleChangeTextResolver = qualityProfileRuleChangeTextResolver;</span>
+<span class="fc" id="L79">  }</span>
+
+  @Override
+  public void execute(ComputationStep.Context context) {
+<span class="fc" id="L83">    executeForBranch(treeRootHolder.getRoot());</span>
+<span class="fc" id="L84">  }</span>
+
+  private void executeForBranch(Component branchComponent) {
+<span class="fc" id="L87">    Optional&lt;Measure&gt; baseMeasure = measureRepository.getBaseMeasure(branchComponent, metricRepository.getByKey(CoreMetrics.QUALITY_PROFILES_KEY));</span>
+<span class="fc bfc" id="L88" title="All 2 branches covered.">    if (baseMeasure.isEmpty()) {</span>
+      // first analysis -&gt; do not generate events
+<span class="fc" id="L90">      return;</span>
+    }
+
+    // Load profiles used in current analysis for which at least one file of the corresponding language exists
+<span class="fc" id="L94">    Optional&lt;Measure&gt; rawMeasure = measureRepository.getRawMeasure(branchComponent, metricRepository.getByKey(CoreMetrics.QUALITY_PROFILES_KEY));</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">    if (rawMeasure.isEmpty()) {</span>
+      // No qualify profile computed on the project
+<span class="fc" id="L97">      return;</span>
+    }
+<span class="fc" id="L99">    Map&lt;String, QualityProfile&gt; rawProfiles = QPMeasureData.fromJson(rawMeasure.get().getStringValue()).getProfilesByKey();</span>
+
+<span class="fc" id="L101">    Map&lt;String, QualityProfile&gt; baseProfiles = parseJsonData(baseMeasure.get());</span>
+<span class="fc" id="L102">    detectNewOrUpdatedProfiles(baseProfiles, rawProfiles, branchComponent.getUuid());</span>
+<span class="fc" id="L103">    detectNoMoreUsedProfiles(baseProfiles);</span>
+<span class="fc" id="L104">  }</span>
+
+  private static Map&lt;String, QualityProfile&gt; parseJsonData(Measure measure) {
+<span class="fc" id="L107">    String data = measure.getStringValue();</span>
+<span class="pc bpc" id="L108" title="1 of 2 branches missed.">    if (data == null) {</span>
+<span class="nc" id="L109">      return Collections.emptyMap();</span>
+    }
+<span class="fc" id="L111">    return QPMeasureData.fromJson(data).getProfilesByKey();</span>
+  }
+
+  private void detectNoMoreUsedProfiles(Map&lt;String, QualityProfile&gt; baseProfiles) {
+<span class="fc bfc" id="L115" title="All 2 branches covered.">    for (QualityProfile baseProfile : baseProfiles.values()) {</span>
+<span class="fc bfc" id="L116" title="All 2 branches covered.">      if (qProfileStatusRepository.get(baseProfile.getQpKey()).filter(REMOVED::equals).isPresent()) {</span>
+<span class="fc" id="L117">        markAsRemoved(baseProfile);</span>
+      }
+<span class="fc" id="L119">    }</span>
+<span class="fc" id="L120">  }</span>
+
+  private void detectNewOrUpdatedProfiles(Map&lt;String, QualityProfile&gt; baseProfiles, Map&lt;String, QualityProfile&gt; rawProfiles, String componentUuid) {
+<span class="fc bfc" id="L123" title="All 2 branches covered.">    for (QualityProfile profile : rawProfiles.values()) {</span>
+<span class="fc" id="L124">      qProfileStatusRepository.get(profile.getQpKey()).ifPresent(status -&gt; {</span>
+<span class="fc bfc" id="L125" title="All 2 branches covered.">        if (status.equals(ADDED)) {</span>
+<span class="fc" id="L126">          markAsAdded(profile);</span>
+<span class="fc bfc" id="L127" title="All 2 branches covered.">        } else if (status.equals(UPDATED)) {</span>
+<span class="fc" id="L128">          markAsChanged(baseProfiles.get(profile.getQpKey()), profile, componentUuid);</span>
+        }
+<span class="fc" id="L130">      });</span>
+<span class="fc" id="L131">    }</span>
+<span class="fc" id="L132">  }</span>
+
+  private void markAsChanged(QualityProfile baseProfile, QualityProfile profile, String componentUuid) {
+    try {
+<span class="fc" id="L136">      Map&lt;ActiveRuleChange.Type, Long&gt; changesMappedToNumberOfRules = qualityProfileRuleChangeTextResolver.mapChangeToNumberOfRules(baseProfile, componentUuid);</span>
+
+<span class="fc bfc" id="L138" title="All 2 branches covered.">      if (changesMappedToNumberOfRules.isEmpty()) {</span>
+<span class="fc" id="L139">        LOG.debug(&quot;No changes found for Quality Profile {}. Quality Profile event skipped.&quot;, profile.getQpKey());</span>
+<span class="fc" id="L140">        return;</span>
+      }
+
+<span class="fc" id="L143">      String data = KeyValueFormat.format(ImmutableSortedMap.of(</span>
+<span class="fc" id="L144">        &quot;key&quot;, profile.getQpKey(),</span>
+<span class="fc" id="L145">        &quot;from&quot;, UtcDateUtils.formatDateTime(fixDate(baseProfile.getRulesUpdatedAt())),</span>
+<span class="fc" id="L146">        &quot;to&quot;, UtcDateUtils.formatDateTime(fixDate(profile.getRulesUpdatedAt())),</span>
+<span class="fc" id="L147">        &quot;name&quot;, profile.getQpName(),</span>
+<span class="fc" id="L148">        &quot;languageKey&quot;, profile.getLanguageKey()));</span>
+<span class="fc" id="L149">      String ruleChangeText = QualityProfileTextGenerator.generateRuleChangeText(changesMappedToNumberOfRules);</span>
+
+<span class="fc" id="L151">      eventRepository.add(createQProfileEvent(profile, &quot;%s updated with &quot; + ruleChangeText, data, ruleChangeText));</span>
+<span class="fc" id="L152">    } catch (Exception e) {</span>
+<span class="fc" id="L153">      LOG.error(&quot;Failed to generate 'change' event for Quality Profile &quot; + profile.getQpKey(), e);</span>
+<span class="fc" id="L154">    }</span>
+<span class="fc" id="L155">  }</span>
+
+  private void markAsRemoved(QualityProfile profile) {
+<span class="fc" id="L158">    eventRepository.add(createQProfileEvent(profile, &quot;Stop using %s&quot;));</span>
+<span class="fc" id="L159">  }</span>
+
+  private void markAsAdded(QualityProfile profile) {
+<span class="fc" id="L162">    eventRepository.add(createQProfileEvent(profile, &quot;Use %s&quot;));</span>
+<span class="fc" id="L163">  }</span>
+
+  private Event createQProfileEvent(QualityProfile profile, String namePattern) {
+<span class="fc" id="L166">    return createQProfileEvent(profile, namePattern, null);</span>
+  }
+
+  private Event createQProfileEvent(QualityProfile profile, String namePattern, @Nullable String data) {
+<span class="fc" id="L170">    return Event.createProfile(String.format(namePattern, profileLabel(profile)), data, null);</span>
+  }
+
+  private Event createQProfileEvent(QualityProfile profile, String namePattern, @Nullable String data, @Nullable String description) {
+<span class="fc" id="L174">    return Event.createProfile(String.format(namePattern, profileLabel(profile)), data, description);</span>
+  }
+
+  private String profileLabel(QualityProfile profile) {
+<span class="fc" id="L178">    Optional&lt;Language&gt; language = languageRepository.find(profile.getLanguageKey());</span>
+<span class="fc bfc" id="L179" title="All 2 branches covered.">    String languageName = language.isPresent() ? language.get().getName() : profile.getLanguageKey();</span>
+<span class="fc" id="L180">    return String.format(&quot;\&quot;%s\&quot; (%s)&quot;, profile.getQpName(), languageName);</span>
+  }
+
+  /**
+   * This hack must be done because date precision is millisecond in db/es and date format is select only
+   */
+  private static Date fixDate(Date date) {
+<span class="fc" id="L187">    return DateUtils.addSeconds(date, 1);</span>
+  }
+
+  @Override
+  public String getDescription() {
+<span class="nc" id="L192">    return &quot;Generate Quality profile events&quot;;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

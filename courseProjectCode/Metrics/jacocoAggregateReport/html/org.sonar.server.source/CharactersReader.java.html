@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CharactersReader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.source</a> &gt; <span class="el_source">CharactersReader.java</span></div><h1>CharactersReader.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.source;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.util.ArrayDeque;
+import java.util.Deque;
+
+class CharactersReader {
+
+  static final int END_OF_STREAM = -1;
+
+  private final BufferedReader stringBuffer;
+  private final Deque&lt;String&gt; openTags;
+
+  private int currentValue;
+  private int previousValue;
+<span class="fc" id="L36">  private int currentIndex = -1;</span>
+
+<span class="fc" id="L38">  public CharactersReader(BufferedReader stringBuffer) {</span>
+<span class="fc" id="L39">    this.stringBuffer = stringBuffer;</span>
+<span class="fc" id="L40">    this.openTags = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L41">  }</span>
+
+  boolean readNextChar() throws IOException {
+<span class="fc" id="L44">    previousValue = currentValue;</span>
+<span class="fc" id="L45">    currentValue = stringBuffer.read();</span>
+<span class="fc" id="L46">    currentIndex++;</span>
+<span class="fc bfc" id="L47" title="All 2 branches covered.">    return currentValue != END_OF_STREAM;</span>
+  }
+
+  int getCurrentValue() {
+<span class="fc" id="L51">    return currentValue;</span>
+  }
+
+  int getPreviousValue() {
+<span class="fc" id="L55">    return previousValue;</span>
+  }
+
+  int getCurrentIndex() {
+<span class="fc" id="L59">    return currentIndex;</span>
+  }
+
+  void registerOpenTag(String textType) {
+<span class="fc" id="L63">    openTags.push(textType);</span>
+<span class="fc" id="L64">  }</span>
+
+  void removeLastOpenTag() {
+<span class="fc" id="L67">    openTags.remove();</span>
+<span class="fc" id="L68">  }</span>
+
+  Deque&lt;String&gt; getOpenTags() {
+<span class="fc" id="L71">    return openTags;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

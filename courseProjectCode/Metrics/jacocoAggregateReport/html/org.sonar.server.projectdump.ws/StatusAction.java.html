@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StatusAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.projectdump.ws</a> &gt; <span class="el_source">StatusAction.java</span></div><h1>StatusAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.projectdump.ws;
+
+import java.io.File;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import javax.annotation.Nullable;
+import org.sonar.api.config.Configuration;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.api.utils.text.JsonWriter;
+import org.sonar.db.permission.ProjectPermission;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.BranchDto;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.server.component.ComponentFinder;
+import org.sonar.server.user.UserSession;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static org.apache.commons.lang3.StringUtils.isNotBlank;
+import static org.sonar.core.util.Slug.slugify;
+import static org.sonar.core.util.Uuids.UUID_EXAMPLE_01;
+import static org.sonar.db.DatabaseUtils.closeQuietly;
+import static org.sonar.process.ProcessProperties.Property.PATH_DATA;
+import static org.sonar.server.component.ComponentFinder.ParamNames.ID_AND_KEY;
+import static org.sonar.server.exceptions.BadRequestException.checkRequest;
+
+public class StatusAction implements ProjectDumpAction {
+  private static final String PARAM_PROJECT_KEY = &quot;key&quot;;
+  private static final String PARAM_PROJECT_ID = &quot;id&quot;;
+  private static final String DUMP_FILE_EXTENSION = &quot;.zip&quot;;
+
+  private static final String GOVERNANCE_DIR_NAME = &quot;governance&quot;;
+  private static final String PROJECT_DUMPS_DIR_NAME = &quot;project_dumps&quot;;
+
+  private final DbClient dbClient;
+  private final UserSession userSession;
+  private final ComponentFinder componentFinder;
+
+  private final String dataPath;
+  private final File importDir;
+  private final File exportDir;
+
+<span class="fc" id="L65">  public StatusAction(DbClient dbClient, UserSession userSession, ComponentFinder componentFinder, Configuration config) {</span>
+<span class="fc" id="L66">    this.dbClient = dbClient;</span>
+<span class="fc" id="L67">    this.userSession = userSession;</span>
+<span class="fc" id="L68">    this.componentFinder = componentFinder;</span>
+<span class="fc" id="L69">    this.dataPath = config.get(PATH_DATA.getKey()).get();</span>
+<span class="fc" id="L70">    this.importDir = this.getProjectDumpDir(&quot;import&quot;);</span>
+<span class="fc" id="L71">    this.exportDir = this.getProjectDumpDir(&quot;export&quot;);</span>
+<span class="fc" id="L72">  }</span>
+
+  @Override
+  public void define(WebService.NewController controller) {
+<span class="fc" id="L76">    WebService.NewAction action = controller.createAction(&quot;status&quot;)</span>
+<span class="fc" id="L77">      .setDescription(&quot;Provide the import and export status of a project. Permission 'Administer' is required. &quot; +</span>
+        &quot;The project id or project key must be provided.&quot;)
+<span class="fc" id="L79">      .setSince(&quot;1.0&quot;)</span>
+<span class="fc" id="L80">      .setInternal(true)</span>
+<span class="fc" id="L81">      .setPost(false)</span>
+<span class="fc" id="L82">      .setHandler(this)</span>
+<span class="fc" id="L83">      .setResponseExample(getClass().getResource(&quot;example-status.json&quot;));</span>
+<span class="fc" id="L84">    action.createParam(PARAM_PROJECT_ID)</span>
+<span class="fc" id="L85">      .setDescription(&quot;Project id&quot;)</span>
+<span class="fc" id="L86">      .setExampleValue(UUID_EXAMPLE_01);</span>
+<span class="fc" id="L87">    action.createParam(PARAM_PROJECT_KEY)</span>
+<span class="fc" id="L88">      .setDescription(&quot;Project key&quot;)</span>
+<span class="fc" id="L89">      .setExampleValue(&quot;my_project&quot;);</span>
+<span class="fc" id="L90">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L94">    String uuid = request.param(PARAM_PROJECT_ID);</span>
+<span class="fc" id="L95">    String key = request.param(PARAM_PROJECT_KEY);</span>
+<span class="fc bfc" id="L96" title="All 4 branches covered.">    checkRequest(uuid == null ^ key == null, &quot;Project id or project key must be provided, not both.&quot;);</span>
+
+<span class="fc" id="L98">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L99">      ProjectDto project = getProject(dbSession, uuid, key);</span>
+<span class="fc" id="L100">      BranchDto mainBranch = componentFinder.getMainBranch(dbSession, project);</span>
+<span class="fc" id="L101">      userSession.checkEntityPermission(ProjectPermission.ADMIN, project);</span>
+
+<span class="fc" id="L103">      WsResponse wsResponse = new WsResponse();</span>
+<span class="fc" id="L104">      checkDumps(project, wsResponse);</span>
+
+<span class="fc" id="L106">      SnapshotsStatus snapshots = checkSnapshots(dbSession, mainBranch);</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">      if (snapshots.hasLast) {</span>
+<span class="fc" id="L108">        wsResponse.setCanBeExported();</span>
+<span class="fc bfc" id="L109" title="All 2 branches covered.">      } else if (!snapshots.hasAny) {</span>
+<span class="fc" id="L110">        wsResponse.setCanBeImported();</span>
+      }
+<span class="fc" id="L112">      write(response, wsResponse);</span>
+    }
+<span class="fc" id="L114">  }</span>
+
+  private SnapshotsStatus checkSnapshots(DbSession dbSession, BranchDto mainBranch) throws SQLException {
+<span class="fc" id="L117">    PreparedStatement stmt = null;</span>
+<span class="fc" id="L118">    ResultSet rs = null;</span>
+    try {
+<span class="fc" id="L120">      String sql = &quot;select&quot; +</span>
+        &quot; count(*), islast&quot; +
+        &quot; from snapshots&quot; +
+        &quot; where&quot; +
+        &quot; root_component_uuid = ?&quot; +
+        &quot; group by&quot; +
+        &quot; islast&quot;;
+<span class="fc" id="L127">      stmt = dbClient.getMyBatis().newScrollingSelectStatement(dbSession, sql);</span>
+<span class="fc" id="L128">      stmt.setString(1, mainBranch.getUuid());</span>
+<span class="fc" id="L129">      rs = stmt.executeQuery();</span>
+<span class="fc" id="L130">      SnapshotsStatus res = new SnapshotsStatus();</span>
+<span class="fc bfc" id="L131" title="All 2 branches covered.">      while (rs.next()) {</span>
+<span class="fc" id="L132">        long count = rs.getLong(1);</span>
+<span class="fc" id="L133">        boolean isLast = rs.getBoolean(2);</span>
+<span class="fc bfc" id="L134" title="All 2 branches covered.">        if (isLast) {</span>
+<span class="pc bpc" id="L135" title="1 of 2 branches missed.">          res.setHasLast(count &gt; 0);</span>
+        }
+<span class="pc bpc" id="L137" title="1 of 2 branches missed.">        if (count &gt; 0) {</span>
+<span class="fc" id="L138">          res.setHasAny(true);</span>
+        }
+<span class="fc" id="L140">      }</span>
+<span class="fc" id="L141">      return res;</span>
+    } finally {
+<span class="fc" id="L143">      closeQuietly(rs);</span>
+<span class="fc" id="L144">      closeQuietly(stmt);</span>
+    }
+  }
+
+  private File getProjectDumpDir(String type) {
+<span class="fc" id="L149">    final File governanceDir = new File(this.dataPath, GOVERNANCE_DIR_NAME);</span>
+<span class="fc" id="L150">    final File projectDumpDir = new File(governanceDir, PROJECT_DUMPS_DIR_NAME);</span>
+
+<span class="fc" id="L152">    return new File(projectDumpDir, type);</span>
+  }
+
+  private void checkDumps(ProjectDto project, WsResponse wsResponse) {
+<span class="fc" id="L156">    String fileName = slugify(project.getKey()) + DUMP_FILE_EXTENSION;</span>
+
+<span class="fc" id="L158">    final File importFile = new File(this.importDir, fileName);</span>
+<span class="fc" id="L159">    final File exportFile = new File(this.exportDir, fileName);</span>
+
+<span class="pc bpc" id="L161" title="1 of 4 branches missed.">    if (importFile.exists() &amp;&amp; importFile.isFile()) {</span>
+<span class="fc" id="L162">      wsResponse.setDumpToImport(importFile.toPath().toString());</span>
+    }
+
+<span class="pc bpc" id="L165" title="1 of 4 branches missed.">    if (exportFile.exists() &amp;&amp; exportFile.isFile()) {</span>
+<span class="fc" id="L166">      wsResponse.setExportedDump(exportFile.toPath().toString());</span>
+    }
+<span class="fc" id="L168">  }</span>
+
+  private static void write(Response response, WsResponse wsResponse) {
+<span class="fc" id="L171">    JsonWriter jsonWriter = response.newJsonWriter();</span>
+<span class="fc" id="L172">    jsonWriter</span>
+<span class="fc" id="L173">      .beginObject()</span>
+<span class="fc" id="L174">      .prop(&quot;canBeExported&quot;, wsResponse.canBeExported)</span>
+<span class="fc" id="L175">      .prop(&quot;canBeImported&quot;, wsResponse.canBeImported)</span>
+<span class="fc" id="L176">      .prop(&quot;exportedDump&quot;, wsResponse.exportedDump)</span>
+<span class="fc" id="L177">      .prop(&quot;dumpToImport&quot;, wsResponse.dumpToImport)</span>
+<span class="fc" id="L178">      .endObject();</span>
+<span class="fc" id="L179">    jsonWriter.close();</span>
+<span class="fc" id="L180">  }</span>
+
+<span class="fc" id="L182">  private static class WsResponse {</span>
+<span class="fc" id="L183">    private String exportedDump = null;</span>
+<span class="fc" id="L184">    private String dumpToImport = null;</span>
+<span class="fc" id="L185">    private boolean canBeExported = false;</span>
+<span class="fc" id="L186">    private boolean canBeImported = false;</span>
+
+    public void setExportedDump(String exportedDump) {
+<span class="fc" id="L189">      checkArgument(isNotBlank(exportedDump), &quot;exportedDump can not be null nor empty&quot;);</span>
+<span class="fc" id="L190">      this.exportedDump = exportedDump;</span>
+<span class="fc" id="L191">    }</span>
+
+    public void setDumpToImport(String dumpToImport) {
+<span class="fc" id="L194">      checkArgument(isNotBlank(dumpToImport), &quot;dumpToImport can not be null nor empty&quot;);</span>
+<span class="fc" id="L195">      this.dumpToImport = dumpToImport;</span>
+<span class="fc" id="L196">    }</span>
+
+    public void setCanBeExported() {
+<span class="fc" id="L199">      this.canBeExported = true;</span>
+<span class="fc" id="L200">    }</span>
+
+    public void setCanBeImported() {
+<span class="fc" id="L203">      this.canBeImported = true;</span>
+<span class="fc" id="L204">    }</span>
+  }
+
+<span class="fc" id="L207">  private static class SnapshotsStatus {</span>
+<span class="fc" id="L208">    private boolean hasLast = false;</span>
+<span class="fc" id="L209">    private boolean hasAny = false;</span>
+
+    public void setHasLast(boolean hasLast) {
+<span class="fc" id="L212">      this.hasLast = hasLast;</span>
+<span class="fc" id="L213">    }</span>
+
+    public void setHasAny(boolean hasAny) {
+<span class="fc" id="L216">      this.hasAny = hasAny;</span>
+<span class="fc" id="L217">    }</span>
+  }
+
+  private ProjectDto getProject(DbSession dbSession, @Nullable String uuid, @Nullable String key) {
+<span class="fc" id="L221">    return componentFinder.getProjectByUuidOrKey(dbSession, uuid, key, ID_AND_KEY);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

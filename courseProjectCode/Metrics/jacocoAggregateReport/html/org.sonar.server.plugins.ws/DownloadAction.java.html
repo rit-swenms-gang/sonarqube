@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DownloadAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.plugins.ws</a> &gt; <span class="el_source">DownloadAction.java</span></div><h1>DownloadAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.plugins.ws;
+
+import java.io.InputStream;
+import java.util.Optional;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.server.exceptions.NotFoundException;
+import org.sonar.server.plugins.PluginFilesAndMd5.FileAndMd5;
+import org.sonar.server.plugins.ServerPlugin;
+import org.sonar.server.plugins.ServerPluginRepository;
+
+public class DownloadAction implements PluginsWsAction {
+  private static final String PLUGIN_PARAM = &quot;plugin&quot;;
+
+  private final ServerPluginRepository pluginRepository;
+
+<span class="fc" id="L40">  public DownloadAction(ServerPluginRepository pluginRepository) {</span>
+<span class="fc" id="L41">    this.pluginRepository = pluginRepository;</span>
+<span class="fc" id="L42">  }</span>
+
+  @Override
+  public void define(WebService.NewController controller) {
+<span class="fc" id="L46">    WebService.NewAction action = controller.createAction(&quot;download&quot;)</span>
+<span class="fc" id="L47">      .setSince(&quot;7.2&quot;)</span>
+<span class="fc" id="L48">      .setDescription(&quot;Download plugin JAR, for usage by scanner engine&quot;)</span>
+<span class="fc" id="L49">      .setInternal(true)</span>
+<span class="fc" id="L50">      .setContentType(Response.ContentType.BINARY)</span>
+<span class="fc" id="L51">      .setHandler(this);</span>
+
+<span class="fc" id="L53">    action.createParam(PLUGIN_PARAM)</span>
+<span class="fc" id="L54">      .setRequired(true)</span>
+<span class="fc" id="L55">      .setDescription(&quot;The key identifying the plugin to download&quot;)</span>
+<span class="fc" id="L56">      .setExampleValue(&quot;cobol&quot;);</span>
+
+<span class="fc" id="L58">    action.setChangelog(new Change(&quot;9.8&quot;, &quot;Parameter 'acceptCompressions' removed&quot;));</span>
+<span class="fc" id="L59">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L63">    String pluginKey = request.mandatoryParam(PLUGIN_PARAM);</span>
+
+<span class="fc" id="L65">    Optional&lt;ServerPlugin&gt; file = pluginRepository.findPlugin(pluginKey);</span>
+<span class="fc bfc" id="L66" title="All 2 branches covered.">    if (!file.isPresent()) {</span>
+<span class="fc" id="L67">      throw new NotFoundException(&quot;Plugin &quot; + pluginKey + &quot; not found&quot;);</span>
+    }
+
+    FileAndMd5 downloadedFile;
+
+<span class="fc" id="L72">    response.stream().setMediaType(&quot;application/java-archive&quot;);</span>
+<span class="fc" id="L73">    downloadedFile = file.get().getJar();</span>
+
+<span class="fc" id="L75">    response.setHeader(&quot;Sonar-MD5&quot;, downloadedFile.getMd5());</span>
+<span class="fc" id="L76">    try (InputStream input = FileUtils.openInputStream(downloadedFile.getFile())) {</span>
+<span class="fc" id="L77">      IOUtils.copyLarge(input, response.stream().output());</span>
+    }
+<span class="fc" id="L79">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

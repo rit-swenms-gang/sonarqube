@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DbSection.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform.monitoring</a> &gt; <span class="el_source">DbSection.java</span></div><h1>DbSection.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform.monitoring;
+
+import java.sql.DatabaseMetaData;
+import java.sql.SQLException;
+import java.util.Map;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.process.systeminfo.Global;
+import org.sonar.process.systeminfo.SystemInfoSection;
+import org.sonar.process.systeminfo.protobuf.ProtobufSystemInfo.Section;
+
+import static java.sql.Connection.TRANSACTION_NONE;
+import static java.sql.Connection.TRANSACTION_READ_COMMITTED;
+import static java.sql.Connection.TRANSACTION_READ_UNCOMMITTED;
+import static java.sql.Connection.TRANSACTION_REPEATABLE_READ;
+import static java.sql.Connection.TRANSACTION_SERIALIZABLE;
+import static org.sonar.process.systeminfo.SystemInfoUtils.setAttribute;
+
+/**
+ * Information about database
+ */
+public class DbSection implements SystemInfoSection, Global {
+
+<span class="fc" id="L43">  private static final Map&lt;Integer, String&gt; ISOLATION_LEVEL_BY_ID = Map.of(</span>
+<span class="fc" id="L44">    TRANSACTION_NONE, &quot;TRANSACTION_NONE&quot;,</span>
+<span class="fc" id="L45">    TRANSACTION_READ_UNCOMMITTED, &quot;TRANSACTION_READ_UNCOMMITTED&quot;,</span>
+<span class="fc" id="L46">    TRANSACTION_READ_COMMITTED, &quot;TRANSACTION_READ_COMMITTED&quot;,</span>
+<span class="fc" id="L47">    TRANSACTION_REPEATABLE_READ, &quot;TRANSACTION_REPEATABLE_READ&quot;,</span>
+<span class="fc" id="L48">    TRANSACTION_SERIALIZABLE, &quot;TRANSACTION_SERIALIZABLE&quot;);</span>
+
+  private final DbClient dbClient;
+
+<span class="fc" id="L52">  public DbSection(DbClient dbClient) {</span>
+<span class="fc" id="L53">    this.dbClient = dbClient;</span>
+<span class="fc" id="L54">  }</span>
+
+  @Override
+  public Section toProtobuf() {
+<span class="fc" id="L58">    Section.Builder protobuf = Section.newBuilder();</span>
+<span class="fc" id="L59">    protobuf.setName(&quot;Database&quot;);</span>
+<span class="fc" id="L60">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L61">      DatabaseMetaData metadata = dbSession.getConnection().getMetaData();</span>
+<span class="fc" id="L62">      setAttribute(protobuf, &quot;Database&quot;, metadata.getDatabaseProductName());</span>
+<span class="fc" id="L63">      setAttribute(protobuf, &quot;Database Version&quot;, metadata.getDatabaseProductVersion());</span>
+<span class="fc" id="L64">      setAttribute(protobuf, &quot;Username&quot;, metadata.getUserName());</span>
+<span class="fc" id="L65">      setAttribute(protobuf, &quot;URL&quot;, metadata.getURL());</span>
+<span class="fc" id="L66">      setAttribute(protobuf, &quot;Driver&quot;, metadata.getDriverName());</span>
+<span class="fc" id="L67">      setAttribute(protobuf, &quot;Driver Version&quot;, metadata.getDriverVersion());</span>
+<span class="fc" id="L68">      setAttribute(protobuf, &quot;Default transaction isolation&quot;, toTransactionIsolationLevelName(metadata.getDefaultTransactionIsolation()));</span>
+<span class="nc" id="L69">    } catch (SQLException e) {</span>
+<span class="nc" id="L70">      throw new IllegalStateException(&quot;Fail to get DB metadata&quot;, e);</span>
+<span class="fc" id="L71">    }</span>
+<span class="fc" id="L72">    return protobuf.build();</span>
+  }
+
+  private static String toTransactionIsolationLevelName(int level) {
+<span class="fc" id="L76">    return ISOLATION_LEVEL_BY_ID.getOrDefault(level, &quot;Unknown transaction level: &quot; + level);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

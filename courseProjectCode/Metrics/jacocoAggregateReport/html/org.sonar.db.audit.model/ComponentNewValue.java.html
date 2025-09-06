@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ComponentNewValue.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.audit.model</a> &gt; <span class="el_source">ComponentNewValue.java</span></div><h1>ComponentNewValue.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.audit.model;
+
+import java.util.Objects;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.db.component.ComponentDto;
+
+import static java.util.Objects.requireNonNull;
+
+public class ComponentNewValue extends NewValue {
+
+  /**
+   * @deprecated The uuids in the audit logs are not product requirement anymore and will be removed in 11.x
+   */
+  @Deprecated(since = &quot;10.2&quot;)
+  private final String componentUuid;
+  private final String componentKey;
+  private final String componentName;
+  private final String description;
+  private final Boolean isPrivate;
+  private final String qualifier;
+  private Boolean isEnabled;
+  private String path;
+
+  public ComponentNewValue(ComponentDto component) {
+<span class="fc" id="L45">    this(component.uuid(), component.name(), component.getKey(), component.isPrivate(), component.description(), component.qualifier());</span>
+<span class="fc" id="L46">  }</span>
+
+  public ComponentNewValue(String componentUuid, String componentName, String componentKey, String qualifier) {
+<span class="fc" id="L49">    this(componentUuid, componentName, componentKey, null, null, qualifier);</span>
+<span class="fc" id="L50">  }</span>
+
+  public ComponentNewValue(String componentUuid, String componentName, String componentKey, boolean isPrivate, String qualifier) {
+<span class="fc" id="L53">    this(componentUuid, isPrivate, componentName, componentKey, null, qualifier);</span>
+<span class="fc" id="L54">  }</span>
+
+  public ComponentNewValue(String uuid, String name, String key, boolean enabled, String path, String qualifier) {
+<span class="fc" id="L57">    this(uuid, name, key, null, null, qualifier);</span>
+<span class="fc" id="L58">    this.isEnabled = enabled;</span>
+<span class="fc" id="L59">    this.path = path;</span>
+<span class="fc" id="L60">  }</span>
+
+  public ComponentNewValue(String uuid, @Nullable Boolean isPrivate, String name, String key, @Nullable String description, String qualifier) {
+<span class="fc" id="L63">    this(uuid, name, key, isPrivate, description, qualifier);</span>
+<span class="fc" id="L64">  }</span>
+
+<span class="fc" id="L66">  ComponentNewValue(String uuid, String name, String key, @Nullable Boolean isPrivate, @Nullable String description, String qualifier) {</span>
+<span class="fc" id="L67">    this.componentUuid = requireNonNull(uuid);</span>
+<span class="fc" id="L68">    this.componentName = name;</span>
+<span class="fc" id="L69">    this.componentKey = key;</span>
+<span class="fc" id="L70">    this.isPrivate = isPrivate;</span>
+<span class="fc" id="L71">    this.description = description;</span>
+<span class="fc" id="L72">    this.qualifier = qualifier;</span>
+<span class="fc" id="L73">  }</span>
+
+  /**
+   * @deprecated The uuids in the audit logs are not product requirement anymore and will be removed in 11.x
+   */
+  @Deprecated(since = &quot;10.2&quot;)
+  public String getComponentUuid() {
+<span class="fc" id="L80">    return componentUuid;</span>
+  }
+
+  public String getComponentName() {
+<span class="fc" id="L84">    return componentName;</span>
+  }
+
+  @CheckForNull
+  public String getDescription() {
+<span class="nc" id="L89">    return description;</span>
+  }
+
+  public String getComponentKey() {
+<span class="fc" id="L93">    return componentKey;</span>
+  }
+
+  @CheckForNull
+  public Boolean isPrivate() {
+<span class="nc" id="L98">    return isPrivate;</span>
+  }
+
+  public String getQualifier() {
+<span class="fc" id="L102">    return qualifier;</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="fc" id="L107">    StringBuilder sb = new StringBuilder(&quot;{&quot;);</span>
+<span class="fc" id="L108">    addField(sb, &quot;\&quot;componentUuid\&quot;: &quot;, this.componentUuid, true);</span>
+<span class="fc" id="L109">    addField(sb, &quot;\&quot;componentKey\&quot;: &quot;, this.componentKey, true);</span>
+<span class="fc" id="L110">    addField(sb, &quot;\&quot;componentName\&quot;: &quot;, this.componentName, true);</span>
+<span class="fc" id="L111">    addField(sb, &quot;\&quot;qualifier\&quot;: &quot;, getQualifier(qualifier), true);</span>
+<span class="fc" id="L112">    addField(sb, &quot;\&quot;description\&quot;: &quot;, this.description, true);</span>
+<span class="fc" id="L113">    addField(sb, &quot;\&quot;path\&quot;: &quot;, this.path, true);</span>
+<span class="fc" id="L114">    addField(sb, &quot;\&quot;isPrivate\&quot;: &quot;, Objects.toString(this.isPrivate, &quot;&quot;), false);</span>
+<span class="fc" id="L115">    addField(sb, &quot;\&quot;isEnabled\&quot;: &quot;, Objects.toString(this.isEnabled, &quot;&quot;), false);</span>
+<span class="fc" id="L116">    endString(sb);</span>
+<span class="fc" id="L117">    return sb.toString();</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

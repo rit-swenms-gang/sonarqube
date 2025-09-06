@@ -1,0 +1,366 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IssuesService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonarqube.ws.client.issues</a> &gt; <span class="el_source">IssuesService.java</span></div><h1>IssuesService.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonarqube.ws.client.issues;
+
+import java.io.InputStream;
+import java.util.stream.Collectors;
+import jakarta.annotation.Generated;
+import org.sonarqube.ws.Issues.AddCommentResponse;
+import org.sonarqube.ws.Issues.AssignResponse;
+import org.sonarqube.ws.Issues.AuthorsResponse;
+import org.sonarqube.ws.Issues.BulkChangeWsResponse;
+import org.sonarqube.ws.Issues.ChangelogWsResponse;
+import org.sonarqube.ws.Issues.DeleteCommentResponse;
+import org.sonarqube.ws.Issues.DoTransitionResponse;
+import org.sonarqube.ws.Issues.SearchWsResponse;
+import org.sonarqube.ws.Issues.SetSeverityResponse;
+import org.sonarqube.ws.Issues.SetTagsResponse;
+import org.sonarqube.ws.Issues.SetTypeResponse;
+import org.sonarqube.ws.Issues.TagsResponse;
+import org.sonarqube.ws.MediaTypes;
+import org.sonarqube.ws.client.BaseService;
+import org.sonarqube.ws.client.GetRequest;
+import org.sonarqube.ws.client.PostRequest;
+import org.sonarqube.ws.client.WsConnector;
+
+/**
+ * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/issues&quot;&gt;Further information about this web service online&lt;/a&gt;
+ */
+@Generated(&quot;sonar-ws-generator&quot;)
+public class IssuesService extends BaseService {
+
+  public IssuesService(WsConnector wsConnector) {
+<span class="fc" id="L50">    super(wsConnector, &quot;api/issues&quot;);</span>
+<span class="fc" id="L51">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/issues/add_comment&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 3.6
+   */
+  public AddCommentResponse addComment(AddCommentRequest request) {
+<span class="nc" id="L61">    return call(</span>
+<span class="nc" id="L62">      new PostRequest(path(&quot;add_comment&quot;))</span>
+<span class="nc" id="L63">        .setParam(&quot;issue&quot;, request.getIssue())</span>
+<span class="nc" id="L64">        .setParam(&quot;text&quot;, request.getText()),</span>
+<span class="nc" id="L65">      AddCommentResponse.parser());</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/issues/assign&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 3.6
+   */
+  public AssignResponse assign(AssignRequest request) {
+<span class="nc" id="L76">    return call(</span>
+<span class="nc" id="L77">      new PostRequest(path(&quot;assign&quot;))</span>
+<span class="nc" id="L78">        .setParam(&quot;assignee&quot;, request.getAssignee())</span>
+<span class="nc" id="L79">        .setParam(&quot;issue&quot;, request.getIssue()),</span>
+<span class="nc" id="L80">      AssignResponse.parser());</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/issues/authors&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 5.1
+   */
+  public AuthorsResponse authors(AuthorsRequest request) {
+<span class="nc" id="L91">    return call(</span>
+<span class="nc" id="L92">      new GetRequest(path(&quot;authors&quot;))</span>
+<span class="nc" id="L93">        .setParam(&quot;project&quot;, request.getProject())</span>
+<span class="nc" id="L94">        .setParam(&quot;ps&quot;, request.getPs())</span>
+<span class="nc" id="L95">        .setParam(&quot;q&quot;, request.getQ()),</span>
+<span class="nc" id="L96">      AuthorsResponse.parser());</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/issues/bulk_change&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 3.7
+   */
+  public BulkChangeWsResponse bulkChange(BulkChangeRequest request) {
+<span class="nc" id="L107">    return call(</span>
+<span class="nc" id="L108">      new PostRequest(path(&quot;bulk_change&quot;))</span>
+<span class="nc" id="L109">        .setParam(&quot;add_tags&quot;, request.getAddTags())</span>
+<span class="nc bnc" id="L110" title="All 2 branches missed.">        .setParam(&quot;assign&quot;, request.getAssign() == null ? null : request.getAssign().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc bnc" id="L111" title="All 2 branches missed.">        .setParam(&quot;comment&quot;, request.getComment() == null ? null : request.getComment().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc" id="L112">        .setParam(&quot;do_transition&quot;, request.getDoTransition())</span>
+<span class="nc bnc" id="L113" title="All 2 branches missed.">        .setParam(&quot;issues&quot;, request.getIssues() == null ? null : request.getIssues().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc" id="L114">        .setParam(&quot;remove_tags&quot;, request.getRemoveTags())</span>
+<span class="nc" id="L115">        .setParam(&quot;sendNotifications&quot;, request.getSendNotifications())</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">        .setParam(&quot;set_severity&quot;, request.getSetSeverity() == null ? null : request.getSetSeverity().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc bnc" id="L117" title="All 2 branches missed.">        .setParam(&quot;set_type&quot;, request.getSetType() == null ? null : request.getSetType().stream().collect(Collectors.joining(&quot;,&quot;))),</span>
+<span class="nc" id="L118">      BulkChangeWsResponse.parser());</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/issues/changelog&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 4.1
+   */
+  public ChangelogWsResponse changelog(ChangelogRequest request) {
+<span class="nc" id="L129">    return call(</span>
+<span class="nc" id="L130">      new GetRequest(path(&quot;changelog&quot;))</span>
+<span class="nc" id="L131">        .setParam(&quot;issue&quot;, request.getIssue()),</span>
+<span class="nc" id="L132">      ChangelogWsResponse.parser());</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/issues/component_tags&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 5.1
+   */
+  public String componentTags(ComponentTagsRequest request) {
+<span class="nc" id="L143">    return call(</span>
+<span class="nc" id="L144">      new GetRequest(path(&quot;component_tags&quot;))</span>
+<span class="nc" id="L145">        .setParam(&quot;componentUuid&quot;, request.getComponentUuid())</span>
+<span class="nc" id="L146">        .setParam(&quot;createdAfter&quot;, request.getCreatedAfter())</span>
+<span class="nc" id="L147">        .setParam(&quot;ps&quot;, request.getPs())</span>
+<span class="nc" id="L148">        .setMediaType(MediaTypes.JSON)).content();</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/issues/delete_comment&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 3.6
+   */
+  public DeleteCommentResponse deleteComment(DeleteCommentRequest request) {
+<span class="nc" id="L159">    return call(</span>
+<span class="nc" id="L160">      new PostRequest(path(&quot;delete_comment&quot;))</span>
+<span class="nc" id="L161">        .setParam(&quot;comment&quot;, request.getComment()),</span>
+<span class="nc" id="L162">      DeleteCommentResponse.parser());</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/issues/do_transition&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 3.6
+   */
+  public DoTransitionResponse doTransition(DoTransitionRequest request) {
+<span class="nc" id="L173">    return call(</span>
+<span class="nc" id="L174">      new PostRequest(path(&quot;do_transition&quot;))</span>
+<span class="nc" id="L175">        .setParam(&quot;issue&quot;, request.getIssue())</span>
+<span class="nc" id="L176">        .setParam(&quot;transition&quot;, request.getTransition()),</span>
+<span class="nc" id="L177">      DoTransitionResponse.parser());</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/issues/edit_comment&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 3.6
+   */
+  public String editComment(EditCommentRequest request) {
+<span class="nc" id="L188">    return call(</span>
+<span class="nc" id="L189">      new PostRequest(path(&quot;edit_comment&quot;))</span>
+<span class="nc" id="L190">        .setParam(&quot;comment&quot;, request.getComment())</span>
+<span class="nc" id="L191">        .setParam(&quot;text&quot;, request.getText())</span>
+<span class="nc" id="L192">        .setMediaType(MediaTypes.JSON)).content();</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/issues/reindex&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 9.8
+   */
+  public void reindex() {
+<span class="nc" id="L203">    call(</span>
+<span class="nc" id="L204">      new PostRequest(path(&quot;reindex&quot;))</span>
+<span class="nc" id="L205">        .setMediaType(MediaTypes.JSON)).content();</span>
+<span class="nc" id="L206">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/issues/search&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 3.6
+   */
+  public SearchWsResponse search(SearchRequest request) {
+<span class="nc" id="L216">    return call(</span>
+<span class="nc" id="L217">      new GetRequest(path(&quot;search&quot;))</span>
+<span class="nc bnc" id="L218" title="All 2 branches missed.">        .setParam(&quot;additionalFields&quot;, request.getAdditionalFields() == null ? null : request.getAdditionalFields().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc" id="L219">        .setParam(&quot;asc&quot;, request.getAsc())</span>
+<span class="nc" id="L220">        .setParam(&quot;assigned&quot;, request.getAssigned())</span>
+<span class="nc bnc" id="L221" title="All 2 branches missed.">        .setParam(&quot;assignees&quot;, request.getAssignees() == null ? null : request.getAssignees().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc" id="L222">        .setParam(&quot;author&quot;, request.getAuthor())</span>
+<span class="nc" id="L223">        .setParam(&quot;branch&quot;, request.getBranch())</span>
+<span class="nc bnc" id="L224" title="All 2 branches missed.">        .setParam(&quot;components&quot;, request.getComponentKeys() == null ? null : request.getComponentKeys().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc" id="L225">        .setParam(&quot;createdAfter&quot;, request.getCreatedAfter())</span>
+<span class="nc" id="L226">        .setParam(&quot;createdAt&quot;, request.getCreatedAt())</span>
+<span class="nc" id="L227">        .setParam(&quot;createdBefore&quot;, request.getCreatedBefore())</span>
+<span class="nc" id="L228">        .setParam(&quot;createdInLast&quot;, request.getCreatedInLast())</span>
+<span class="nc bnc" id="L229" title="All 2 branches missed.">        .setParam(&quot;cwe&quot;, request.getCwe() == null ? null : request.getCwe().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc bnc" id="L230" title="All 2 branches missed.">        .setParam(&quot;directories&quot;, request.getDirectories() == null ? null : request.getDirectories().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc bnc" id="L231" title="All 2 branches missed.">        .setParam(&quot;facets&quot;, request.getFacets() == null ? null : request.getFacets().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc bnc" id="L232" title="All 2 branches missed.">        .setParam(&quot;fileUuids&quot;, request.getFileUuids() == null ? null : request.getFileUuids().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc bnc" id="L233" title="All 2 branches missed.">        .setParam(&quot;issues&quot;, request.getIssues() == null ? null : request.getIssues().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc bnc" id="L234" title="All 2 branches missed.">        .setParam(&quot;languages&quot;, request.getLanguages() == null ? null : request.getLanguages().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc" id="L235">        .setParam(&quot;onComponentOnly&quot;, request.getOnComponentOnly())</span>
+<span class="nc bnc" id="L236" title="All 2 branches missed.">        .setParam(&quot;owaspTop10&quot;, request.getOwaspTop10() == null ? null : request.getOwaspTop10().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc" id="L237">        .setParam(&quot;p&quot;, request.getP())</span>
+<span class="nc bnc" id="L238" title="All 2 branches missed.">        .setParam(&quot;projects&quot;, request.getProjects() == null ? null : request.getProjects().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc" id="L239">        .setParam(&quot;ps&quot;, request.getPs())</span>
+<span class="nc" id="L240">        .setParam(&quot;pullRequest&quot;, request.getPullRequest())</span>
+<span class="nc bnc" id="L241" title="All 2 branches missed.">        .setParam(&quot;resolutions&quot;, request.getResolutions() == null ? null : request.getResolutions().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc" id="L242">        .setParam(&quot;resolved&quot;, request.getResolved())</span>
+<span class="nc bnc" id="L243" title="All 2 branches missed.">        .setParam(&quot;rules&quot;, request.getRules() == null ? null : request.getRules().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc" id="L244">        .setParam(&quot;s&quot;, request.getS())</span>
+<span class="nc bnc" id="L245" title="All 2 branches missed.">        .setParam(&quot;sansTop25&quot;, request.getSansTop25() == null ? null : request.getSansTop25().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc bnc" id="L246" title="All 2 branches missed.">        .setParam(&quot;sonarsourceSecurity&quot;, request.getSonarsourceSecurity() == null ? null : request.getSonarsourceSecurity().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc bnc" id="L247" title="All 2 branches missed.">        .setParam(&quot;severities&quot;, request.getSeverities() == null ? null : request.getSeverities().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc" id="L248">        .setParam(&quot;inNewCodePeriod&quot;, request.isInNewCodePeriod())</span>
+<span class="nc bnc" id="L249" title="All 2 branches missed.">        .setParam(&quot;statuses&quot;, request.getStatuses() == null ? null : request.getStatuses().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc bnc" id="L250" title="All 2 branches missed.">        .setParam(&quot;tags&quot;, request.getTags() == null ? null : request.getTags().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc bnc" id="L251" title="All 2 branches missed.">        .setParam(&quot;types&quot;, request.getTypes() == null ? null : request.getTypes().stream().collect(Collectors.joining(&quot;,&quot;))),</span>
+<span class="nc" id="L252">      SearchWsResponse.parser());</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/issues/set_severity&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 3.6
+   */
+  public SetSeverityResponse setSeverity(SetSeverityRequest request) {
+<span class="nc" id="L263">    return call(</span>
+<span class="nc" id="L264">      new PostRequest(path(&quot;set_severity&quot;))</span>
+<span class="nc" id="L265">        .setParam(&quot;issue&quot;, request.getIssue())</span>
+<span class="nc" id="L266">        .setParam(&quot;severity&quot;, request.getSeverity()),</span>
+<span class="nc" id="L267">      SetSeverityResponse.parser());</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/issues/set_tags&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 5.1
+   */
+  public SetTagsResponse setTags(SetTagsRequest request) {
+<span class="nc" id="L278">    return call(</span>
+<span class="nc" id="L279">      new PostRequest(path(&quot;set_tags&quot;))</span>
+<span class="nc" id="L280">        .setParam(&quot;issue&quot;, request.getIssue())</span>
+<span class="nc bnc" id="L281" title="All 2 branches missed.">        .setParam(&quot;tags&quot;, request.getTags() == null ? null : request.getTags().stream().collect(Collectors.joining(&quot;,&quot;))),</span>
+<span class="nc" id="L282">      SetTagsResponse.parser());</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/issues/set_type&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 5.5
+   */
+  public SetTypeResponse setType(SetTypeRequest request) {
+<span class="nc" id="L293">    return call(</span>
+<span class="nc" id="L294">      new PostRequest(path(&quot;set_type&quot;))</span>
+<span class="nc" id="L295">        .setParam(&quot;issue&quot;, request.getIssue())</span>
+<span class="nc" id="L296">        .setParam(&quot;type&quot;, request.getType()),</span>
+<span class="nc" id="L297">      SetTypeResponse.parser());</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/issues/tags&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 5.1
+   */
+  public TagsResponse tags(TagsRequest request) {
+<span class="nc" id="L308">    return call(</span>
+<span class="nc" id="L309">      new GetRequest(path(&quot;tags&quot;))</span>
+<span class="nc" id="L310">        .setParam(&quot;project&quot;, request.getProject())</span>
+<span class="nc" id="L311">        .setParam(&quot;ps&quot;, request.getPs())</span>
+<span class="nc" id="L312">        .setParam(&quot;q&quot;, request.getQ()),</span>
+<span class="nc" id="L313">      TagsResponse.parser());</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/api/issues/pull&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 9.5
+   */
+  public InputStream pull(PullRequest request) {
+<span class="nc" id="L324">    return call(</span>
+<span class="nc" id="L325">      new GetRequest(path(&quot;pull&quot;))</span>
+<span class="nc" id="L326">        .setParam(&quot;projectKey&quot;, request.getProjectKey())</span>
+<span class="nc" id="L327">        .setParam(&quot;branchName&quot;, request.getBranchName())</span>
+<span class="nc" id="L328">        .setParam(&quot;languages&quot;, request.getLanguages())</span>
+<span class="nc" id="L329">        .setParam(&quot;ruleRepositories&quot;, request.getRuleRepositories())</span>
+<span class="nc" id="L330">        .setParam(&quot;resolvedOnly&quot;, request.getResolvedOnly())</span>
+<span class="nc" id="L331">        .setParam(&quot;changedSince&quot;, request.getChangedSince())</span>
+<span class="nc" id="L332">    ).contentStream();</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/api/issues/pull_taint&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 9.5
+   */
+  public InputStream pullTaint(PullRequest request) {
+<span class="nc" id="L343">    return call(</span>
+<span class="nc" id="L344">      new GetRequest(path(&quot;pull_taint&quot;))</span>
+<span class="nc" id="L345">        .setParam(&quot;projectKey&quot;, request.getProjectKey())</span>
+<span class="nc" id="L346">        .setParam(&quot;branchName&quot;, request.getBranchName())</span>
+<span class="nc" id="L347">        .setParam(&quot;languages&quot;, request.getLanguages())</span>
+<span class="nc" id="L348">        .setParam(&quot;changedSince&quot;, request.getChangedSince())</span>
+<span class="nc" id="L349">    ).contentStream();</span>
+  }
+
+  /**
+   * This is part of the internal API.
+   * This is a POST request.
+   *
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/api/issues/anticipated_transitions&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 10.2
+   */
+  public int anticipatedTransitions(String projectKey, String body) {
+<span class="nc" id="L360">    return call(</span>
+<span class="nc" id="L361">      new PostRequest(path(&quot;anticipated_transitions?projectKey=&quot; + projectKey))</span>
+<span class="nc" id="L362">        .setBody(body)).code();</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

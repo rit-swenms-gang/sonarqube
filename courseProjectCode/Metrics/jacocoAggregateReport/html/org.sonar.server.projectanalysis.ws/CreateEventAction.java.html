@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CreateEventAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.projectanalysis.ws</a> &gt; <span class="el_source">CreateEventAction.java</span></div><h1>CreateEventAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.projectanalysis.ws;
+
+import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
+import org.sonar.db.component.ComponentQualifiers;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.api.utils.System2;
+import org.sonar.db.permission.ProjectPermission;
+import org.sonar.core.util.UuidFactory;
+import org.sonar.core.util.Uuids;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.SnapshotDto;
+import org.sonar.db.event.EventDto;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.server.exceptions.NotFoundException;
+import org.sonar.server.user.UserSession;
+import org.sonarqube.ws.ProjectAnalyses.CreateEventResponse;
+import org.sonarqube.ws.ProjectAnalyses.Event;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.lang.String.format;
+import static java.util.Optional.ofNullable;
+import static org.sonar.db.event.EventValidator.MAX_NAME_LENGTH;
+import static org.sonar.server.projectanalysis.ws.EventCategory.OTHER;
+import static org.sonar.server.projectanalysis.ws.EventCategory.VERSION;
+import static org.sonar.server.projectanalysis.ws.EventCategory.fromLabel;
+import static org.sonar.server.projectanalysis.ws.EventValidator.checkVersionName;
+import static org.sonar.server.projectanalysis.ws.ProjectAnalysesWsParameters.PARAM_ANALYSIS;
+import static org.sonar.server.projectanalysis.ws.ProjectAnalysesWsParameters.PARAM_CATEGORY;
+import static org.sonar.server.projectanalysis.ws.ProjectAnalysesWsParameters.PARAM_NAME;
+import static org.sonar.server.ws.WsUtils.writeProtobuf;
+
+public class CreateEventAction implements ProjectAnalysesWsAction {
+  private final DbClient dbClient;
+  private final UuidFactory uuidFactory;
+  private final System2 system;
+  private final UserSession userSession;
+
+<span class="fc" id="L62">  public CreateEventAction(DbClient dbClient, UuidFactory uuidFactory, System2 system, UserSession userSession) {</span>
+<span class="fc" id="L63">    this.dbClient = dbClient;</span>
+<span class="fc" id="L64">    this.uuidFactory = uuidFactory;</span>
+<span class="fc" id="L65">    this.system = system;</span>
+<span class="fc" id="L66">    this.userSession = userSession;</span>
+<span class="fc" id="L67">  }</span>
+
+  @Override
+  public void define(WebService.NewController context) {
+<span class="fc" id="L71">    WebService.NewAction action = context.createAction(&quot;create_event&quot;)</span>
+<span class="fc" id="L72">      .setDescription(&quot;Create a project analysis event.&lt;br&gt;&quot; +</span>
+          &quot;Only event of category '%s' and '%s' can be created.&lt;br&gt;&quot; +
+          &quot;Requires one of the following permissions:&quot; +
+          &quot;&lt;ul&gt;&quot; +
+          &quot;  &lt;li&gt;'Administer System'&lt;/li&gt;&quot; +
+          &quot;  &lt;li&gt;'Administer' rights on the specified project&lt;/li&gt;&quot; +
+          &quot;&lt;/ul&gt;&quot;,
+<span class="fc" id="L79">        VERSION.name(), OTHER.name())</span>
+<span class="fc" id="L80">      .setSince(&quot;6.3&quot;)</span>
+<span class="fc" id="L81">      .setPost(true)</span>
+<span class="fc" id="L82">      .setResponseExample(getClass().getResource(&quot;create_event-example.json&quot;))</span>
+<span class="fc" id="L83">      .setHandler(this);</span>
+
+<span class="fc" id="L85">    action.createParam(PARAM_ANALYSIS)</span>
+<span class="fc" id="L86">      .setDescription(&quot;Analysis key&quot;)</span>
+<span class="fc" id="L87">      .setExampleValue(Uuids.UUID_EXAMPLE_01)</span>
+<span class="fc" id="L88">      .setRequired(true);</span>
+
+<span class="fc" id="L90">    action.createParam(PARAM_CATEGORY)</span>
+<span class="fc" id="L91">      .setDescription(&quot;Category&quot;)</span>
+<span class="fc" id="L92">      .setDefaultValue(OTHER)</span>
+<span class="fc" id="L93">      .setPossibleValues(VERSION, OTHER);</span>
+
+<span class="fc" id="L95">    action.createParam(PARAM_NAME)</span>
+<span class="fc" id="L96">      .setRequired(true)</span>
+<span class="fc" id="L97">      .setMaximumLength(MAX_NAME_LENGTH)</span>
+<span class="fc" id="L98">      .setDescription(&quot;Name&quot;)</span>
+<span class="fc" id="L99">      .setExampleValue(&quot;5.6&quot;);</span>
+<span class="fc" id="L100">  }</span>
+
+  @Override
+  public void handle(Request httpRequest, Response httpResponse) throws Exception {
+<span class="fc" id="L104">    CreateEventRequest request = toAddEventRequest(httpRequest);</span>
+<span class="fc" id="L105">    CreateEventResponse response = doHandle(request);</span>
+
+<span class="fc" id="L107">    writeProtobuf(response, httpRequest, httpResponse);</span>
+<span class="fc" id="L108">  }</span>
+
+  private CreateEventResponse doHandle(CreateEventRequest request) {
+<span class="fc" id="L111">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L112">      SnapshotDto analysis = getAnalysis(dbSession, request);</span>
+<span class="fc" id="L113">      ProjectDto project = getProjectOrApplication(dbSession, analysis);</span>
+<span class="fc" id="L114">      checkRequest(request, project);</span>
+<span class="fc" id="L115">      checkExistingDbEvents(dbSession, request, analysis);</span>
+<span class="fc" id="L116">      EventDto dbEvent = insertDbEvent(dbSession, request, analysis);</span>
+<span class="fc" id="L117">      return toCreateEventResponse(dbEvent);</span>
+    }
+  }
+
+  private EventDto insertDbEvent(DbSession dbSession, CreateEventRequest request, SnapshotDto analysis) {
+<span class="fc" id="L122">    EventDto dbEvent = dbClient.eventDao().insert(dbSession, toDbEvent(request, analysis));</span>
+<span class="fc bfc" id="L123" title="All 2 branches covered.">    if (VERSION.equals(request.getCategory())) {</span>
+<span class="fc" id="L124">      analysis.setProjectVersion(request.getName());</span>
+<span class="fc" id="L125">      dbClient.snapshotDao().update(dbSession, analysis);</span>
+    }
+<span class="fc" id="L127">    dbSession.commit();</span>
+<span class="fc" id="L128">    return dbEvent;</span>
+  }
+
+  private SnapshotDto getAnalysis(DbSession dbSession, CreateEventRequest request) {
+<span class="fc" id="L132">    return dbClient.snapshotDao().selectByUuid(dbSession, request.getAnalysis())</span>
+<span class="fc" id="L133">      .orElseThrow(() -&gt; new NotFoundException(format(&quot;Analysis '%s' not found&quot;, request.getAnalysis())));</span>
+  }
+
+  private ProjectDto getProjectOrApplication(DbSession dbSession, SnapshotDto analysis) {
+<span class="fc" id="L137">    return dbClient.branchDao().selectByUuid(dbSession, analysis.getRootComponentUuid())</span>
+<span class="fc" id="L138">      .flatMap(branch -&gt; dbClient.projectDao().selectByUuid(dbSession, branch.getProjectUuid()))</span>
+<span class="fc" id="L139">      .orElseThrow(() -&gt; new IllegalStateException(String.format(&quot;Project of analysis '%s' not found&quot;, analysis.getUuid())));</span>
+  }
+
+  private void checkRequest(CreateEventRequest request, ProjectDto project) {
+<span class="fc" id="L143">    userSession.checkEntityPermission(ProjectPermission.ADMIN, project);</span>
+<span class="fc bfc" id="L144" title="All 4 branches covered.">    checkArgument(EventCategory.VERSION != request.getCategory() || ComponentQualifiers.PROJECT.equals(project.getQualifier()), &quot;A version event must be created on a project&quot;);</span>
+<span class="fc" id="L145">    checkVersionName(request.getCategory(), request.getName());</span>
+<span class="fc" id="L146">  }</span>
+
+  private static CreateEventRequest toAddEventRequest(Request request) {
+<span class="fc" id="L149">    return CreateEventRequest.builder()</span>
+<span class="fc" id="L150">      .setAnalysis(request.mandatoryParam(PARAM_ANALYSIS))</span>
+<span class="fc" id="L151">      .setName(request.mandatoryParam(PARAM_NAME))</span>
+<span class="fc" id="L152">      .setCategory(request.mandatoryParamAsEnum(PARAM_CATEGORY, EventCategory.class))</span>
+<span class="fc" id="L153">      .build();</span>
+  }
+
+  private EventDto toDbEvent(CreateEventRequest request, SnapshotDto analysis) {
+<span class="fc" id="L157">    return new EventDto()</span>
+<span class="fc" id="L158">      .setUuid(uuidFactory.create())</span>
+<span class="fc" id="L159">      .setAnalysisUuid(analysis.getUuid())</span>
+<span class="fc" id="L160">      .setComponentUuid(analysis.getRootComponentUuid())</span>
+<span class="fc" id="L161">      .setCategory(request.getCategory().getLabel())</span>
+<span class="fc" id="L162">      .setName(request.getName())</span>
+<span class="fc" id="L163">      .setCreatedAt(system.now())</span>
+<span class="fc" id="L164">      .setDate(analysis.getCreatedAt());</span>
+  }
+
+  private static CreateEventResponse toCreateEventResponse(EventDto dbEvent) {
+<span class="fc" id="L168">    Event.Builder wsEvent = Event.newBuilder()</span>
+<span class="fc" id="L169">      .setKey(dbEvent.getUuid())</span>
+<span class="fc" id="L170">      .setCategory(fromLabel(dbEvent.getCategory()).name())</span>
+<span class="fc" id="L171">      .setAnalysis(dbEvent.getAnalysisUuid())</span>
+<span class="fc" id="L172">      .setName(dbEvent.getName());</span>
+<span class="fc" id="L173">    ofNullable(dbEvent.getDescription()).ifPresent(wsEvent::setDescription);</span>
+
+<span class="fc" id="L175">    return CreateEventResponse.newBuilder().setEvent(wsEvent).build();</span>
+  }
+
+  private void checkExistingDbEvents(DbSession dbSession, CreateEventRequest request, SnapshotDto analysis) {
+<span class="fc" id="L179">    List&lt;EventDto&gt; dbEvents = dbClient.eventDao().selectByAnalysisUuid(dbSession, analysis.getUuid());</span>
+<span class="fc" id="L180">    Predicate&lt;EventDto&gt; similarEventExisting = filterSimilarEvents(request);</span>
+<span class="fc" id="L181">    dbEvents.stream()</span>
+<span class="fc" id="L182">      .filter(similarEventExisting)</span>
+<span class="fc" id="L183">      .findAny()</span>
+<span class="fc" id="L184">      .ifPresent(throwException(request));</span>
+<span class="fc" id="L185">  }</span>
+
+  private static Predicate&lt;EventDto&gt; filterSimilarEvents(CreateEventRequest request) {
+<span class="pc bpc" id="L188" title="1 of 3 branches missed.">    switch (request.getCategory()) {</span>
+      case VERSION:
+<span class="fc" id="L190">        return dbEvent -&gt; VERSION.getLabel().equals(dbEvent.getCategory());</span>
+      case OTHER:
+<span class="pc bpc" id="L192" title="2 of 4 branches missed.">        return dbEvent -&gt; OTHER.getLabel().equals(dbEvent.getCategory()) &amp;&amp; request.getName().equals(dbEvent.getName());</span>
+      default:
+<span class="nc" id="L194">        throw new IllegalStateException(&quot;Event category not handled: &quot; + request.getCategory());</span>
+    }
+  }
+
+  private static Consumer&lt;EventDto&gt; throwException(CreateEventRequest request) {
+<span class="pc bpc" id="L199" title="1 of 3 branches missed.">    switch (request.getCategory()) {</span>
+      case VERSION:
+<span class="fc" id="L201">        return dbEvent -&gt; {</span>
+<span class="fc" id="L202">          throw new IllegalArgumentException(format(&quot;A version event already exists on analysis '%s'&quot;, request.getAnalysis()));</span>
+        };
+      case OTHER:
+<span class="fc" id="L205">        return dbEvent -&gt; {</span>
+<span class="fc" id="L206">          throw new IllegalArgumentException(format(&quot;An '%s' event with the same name already exists on analysis '%s'&quot;, OTHER.getLabel(), request.getAnalysis()));</span>
+        };
+      default:
+<span class="nc" id="L209">        throw new IllegalStateException(&quot;Event category not handled: &quot; + request.getCategory());</span>
+    }
+  }
+
+  private static class CreateEventRequest {
+    private final String analysis;
+    private final EventCategory category;
+    private final String name;
+
+<span class="fc" id="L218">    private CreateEventRequest(Builder builder) {</span>
+<span class="fc" id="L219">      analysis = builder.analysis;</span>
+<span class="fc" id="L220">      category = builder.category;</span>
+<span class="fc" id="L221">      name = builder.name;</span>
+<span class="fc" id="L222">    }</span>
+
+    public String getAnalysis() {
+<span class="fc" id="L225">      return analysis;</span>
+    }
+
+    public EventCategory getCategory() {
+<span class="fc" id="L229">      return category;</span>
+    }
+
+    public String getName() {
+<span class="fc" id="L233">      return name;</span>
+    }
+
+    public static Builder builder() {
+<span class="fc" id="L237">      return new Builder();</span>
+    }
+  }
+
+  private static class Builder {
+    private String analysis;
+<span class="fc" id="L243">    private EventCategory category = EventCategory.OTHER;</span>
+    private String name;
+
+<span class="fc" id="L246">    private Builder() {</span>
+      // enforce static factory method
+<span class="fc" id="L248">    }</span>
+
+    public Builder setAnalysis(String analysis) {
+<span class="fc" id="L251">      this.analysis = analysis;</span>
+<span class="fc" id="L252">      return this;</span>
+    }
+
+    public Builder setCategory(EventCategory category) {
+<span class="fc" id="L256">      this.category = category;</span>
+<span class="fc" id="L257">      return this;</span>
+    }
+
+    public Builder setName(String name) {
+<span class="fc" id="L261">      this.name = name;</span>
+<span class="fc" id="L262">      return this;</span>
+    }
+
+    public CreateEventRequest build() {
+<span class="pc bpc" id="L266" title="1 of 2 branches missed.">      checkArgument(analysis != null, &quot;Analysis key is required&quot;);</span>
+<span class="pc bpc" id="L267" title="1 of 2 branches missed.">      checkArgument(category != null, &quot;Category is required&quot;);</span>
+<span class="pc bpc" id="L268" title="1 of 2 branches missed.">      checkArgument(name != null, &quot;Name is required&quot;);</span>
+
+<span class="fc" id="L270">      return new CreateEventRequest(this);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

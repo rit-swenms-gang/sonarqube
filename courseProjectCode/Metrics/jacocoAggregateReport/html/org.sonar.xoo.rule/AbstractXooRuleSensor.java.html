@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractXooRuleSensor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.xoo.rule</a> &gt; <span class="el_source">AbstractXooRuleSensor.java</span></div><h1>AbstractXooRuleSensor.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.xoo.rule;
+
+import org.sonar.api.batch.fs.FileSystem;
+import org.sonar.api.batch.fs.InputFile;
+import org.sonar.api.batch.rule.ActiveRules;
+import org.sonar.api.batch.sensor.Sensor;
+import org.sonar.api.batch.sensor.SensorContext;
+import org.sonar.api.batch.sensor.SensorDescriptor;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.xoo.Xoo;
+
+public abstract class AbstractXooRuleSensor implements Sensor {
+
+  private final FileSystem fs;
+  private final ActiveRules activeRules;
+
+<span class="fc" id="L36">  public AbstractXooRuleSensor(FileSystem fs, ActiveRules activeRules) {</span>
+<span class="fc" id="L37">    this.fs = fs;</span>
+<span class="fc" id="L38">    this.activeRules = activeRules;</span>
+<span class="fc" id="L39">  }</span>
+
+  protected abstract String getRuleKey();
+
+  @Override
+  public void describe(SensorDescriptor descriptor) {
+<span class="fc" id="L45">    descriptor</span>
+<span class="fc" id="L46">      .onlyOnLanguage(Xoo.KEY)</span>
+<span class="fc" id="L47">      .createIssuesForRuleRepository(XooRulesDefinition.XOO_REPOSITORY);</span>
+<span class="fc" id="L48">  }</span>
+
+  @Override
+  public void execute(SensorContext context) {
+<span class="fc" id="L52">    doAnalyse(context, Xoo.KEY);</span>
+<span class="fc" id="L53">  }</span>
+
+  private void doAnalyse(SensorContext context, String languageKey) {
+<span class="fc" id="L56">    RuleKey ruleKey = RuleKey.of(XooRulesDefinition.XOO_REPOSITORY, getRuleKey());</span>
+<span class="fc bfc" id="L57" title="All 2 branches covered.">    if (activeRules.find(ruleKey) == null) {</span>
+<span class="fc" id="L58">      return;</span>
+    }
+<span class="fc bfc" id="L60" title="All 2 branches covered.">    for (InputFile inputFile : fs.inputFiles(fs.predicates().hasLanguage(languageKey))) {</span>
+<span class="fc" id="L61">      processFile(inputFile, context, ruleKey, languageKey);</span>
+<span class="fc" id="L62">    }</span>
+<span class="fc" id="L63">  }</span>
+
+  protected abstract void processFile(InputFile inputFile, SensorContext context, RuleKey ruleKey, String languageKey);
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

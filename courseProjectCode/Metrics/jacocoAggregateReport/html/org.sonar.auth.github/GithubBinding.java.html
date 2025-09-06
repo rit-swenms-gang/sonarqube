@@ -1,0 +1,514 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GithubBinding.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.auth.github</a> &gt; <span class="el_source">GithubBinding.java</span></div><h1>GithubBinding.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.auth.github;
+
+import com.google.gson.annotations.SerializedName;
+import java.util.List;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+
+import static org.sonar.auth.github.GithubApplicationClient.Repository;
+
+public class GithubBinding {
+
+  private GithubBinding() {
+    // nothing to do
+  }
+
+<span class="nc" id="L35">  public record GsonOrganizationFull(@SerializedName(&quot;login&quot;) String login, @SerializedName(&quot;default_repository_permission&quot;) String defaultRepositoryPermissions) {</span>
+  }
+
+  public static class GsonApp {
+
+    @SerializedName(&quot;installations_count&quot;)
+    private long installationsCount;
+
+    @SerializedName(&quot;permissions&quot;)
+    Permissions permissions;
+
+<span class="nc" id="L46">    public GsonApp(long installationsCount, Permissions permissions) {</span>
+<span class="nc" id="L47">      this.installationsCount = installationsCount;</span>
+<span class="nc" id="L48">      this.permissions = permissions;</span>
+<span class="nc" id="L49">    }</span>
+
+<span class="fc" id="L51">    public GsonApp() {</span>
+      // http://stackoverflow.com/a/18645370/229031
+<span class="fc" id="L53">    }</span>
+
+    public Permissions getPermissions() {
+<span class="nc" id="L56">      return permissions;</span>
+    }
+
+    public long getInstallationsCount() {
+<span class="fc" id="L60">      return installationsCount;</span>
+    }
+  }
+
+  public static class GsonInstallations {
+    @SerializedName(&quot;total_count&quot;)
+    int totalCount;
+    @SerializedName(&quot;installations&quot;)
+    List&lt;GsonInstallation&gt; installations;
+
+<span class="fc" id="L70">    public GsonInstallations() {</span>
+      // even if empty constructor is not required for Gson, it is strongly
+      // recommended:
+      // http://stackoverflow.com/a/18645370/229031
+<span class="fc" id="L74">    }</span>
+
+    public int getTotalCount() {
+<span class="fc" id="L77">      return totalCount;</span>
+    }
+
+    public List&lt;GsonInstallation&gt; getInstallations() {
+<span class="fc" id="L81">      return installations;</span>
+    }
+  }
+
+  public static class GsonInstallation {
+    @SerializedName(&quot;id&quot;)
+    long id;
+    @SerializedName(&quot;target_type&quot;)
+    String targetType;
+    @SerializedName(&quot;permissions&quot;)
+    Permissions permissions;
+    @SerializedName(&quot;account&quot;)
+    GsonAccount account;
+    @SerializedName(&quot;suspended_at&quot;)
+    String suspendedAt;
+
+<span class="nc" id="L97">    public GsonInstallation(long id, String targetType, Permissions permissions, GsonAccount account, String suspendedAt) {</span>
+<span class="nc" id="L98">      this.id = id;</span>
+<span class="nc" id="L99">      this.targetType = targetType;</span>
+<span class="nc" id="L100">      this.permissions = permissions;</span>
+<span class="nc" id="L101">      this.account = account;</span>
+<span class="nc" id="L102">      this.suspendedAt = suspendedAt;</span>
+<span class="nc" id="L103">    }</span>
+
+<span class="fc" id="L105">    public GsonInstallation() {</span>
+      // even if empty constructor is not required for Gson, it is strongly
+      // recommended:
+      // http://stackoverflow.com/a/18645370/229031
+<span class="fc" id="L109">    }</span>
+
+    public long getId() {
+<span class="fc" id="L112">      return id;</span>
+    }
+
+    public String getTargetType() {
+<span class="fc" id="L116">      return targetType;</span>
+    }
+
+    public Permissions getPermissions() {
+<span class="fc" id="L120">      return permissions;</span>
+    }
+
+    public GsonAccount getAccount() {
+<span class="fc" id="L124">      return account;</span>
+    }
+
+    public String getSuspendedAt() {
+<span class="fc" id="L128">      return suspendedAt;</span>
+    }
+
+    public static class GsonAccount {
+      @SerializedName(&quot;id&quot;)
+      long id;
+      @SerializedName(&quot;login&quot;)
+      String login;
+      @SerializedName(&quot;type&quot;)
+      String type;
+
+<span class="fc" id="L139">      public GsonAccount() {</span>
+        // even if empty constructor is not required for Gson, it is strongly
+        // recommended:
+        // http://stackoverflow.com/a/18645370/229031
+<span class="fc" id="L143">      }</span>
+
+      public long getId() {
+<span class="fc" id="L146">        return id;</span>
+      }
+
+      public String getLogin() {
+<span class="fc" id="L150">        return login;</span>
+      }
+
+      public String getType() {
+<span class="fc" id="L154">        return type;</span>
+      }
+    }
+  }
+
+  public static class Permissions {
+    @SerializedName(&quot;checks&quot;)
+    String checks;
+    @SerializedName(&quot;members&quot;)
+    String members;
+    @SerializedName(&quot;emails&quot;)
+    String emails;
+    @SerializedName(&quot;contents&quot;)
+    String contents;
+    @SerializedName(&quot;metadata&quot;)
+    String metadata;
+    @SerializedName(&quot;administration&quot;)
+    String repoAdministration;
+    @SerializedName(&quot;organization_administration&quot;)
+    String orgAdministration;
+    @SerializedName(&quot;organization_copilot_seat_management&quot;)
+    String orgCopilotSeatManagement;
+
+    public Permissions(@Nullable String checks, @Nullable String members, @Nullable String emails, @Nullable String contents, @Nullable String metadata,
+<span class="fc" id="L178">      @Nullable String repoAdministration, @Nullable String orgAdministration, @Nullable String orgCopilotSeatManagement) {</span>
+<span class="fc" id="L179">      this.checks = checks;</span>
+<span class="fc" id="L180">      this.members = members;</span>
+<span class="fc" id="L181">      this.emails = emails;</span>
+<span class="fc" id="L182">      this.contents = contents;</span>
+<span class="fc" id="L183">      this.metadata = metadata;</span>
+<span class="fc" id="L184">      this.repoAdministration = repoAdministration;</span>
+<span class="fc" id="L185">      this.orgAdministration = orgAdministration;</span>
+<span class="fc" id="L186">      this.orgCopilotSeatManagement = orgCopilotSeatManagement;</span>
+<span class="fc" id="L187">    }</span>
+
+<span class="fc" id="L189">    public Permissions() {</span>
+      // even if empty constructor is not required for Gson, it is strongly
+      // recommended:
+      // http://stackoverflow.com/a/18645370/229031
+<span class="fc" id="L193">    }</span>
+
+    public static Builder builder() {
+<span class="fc" id="L196">      return new Builder();</span>
+    }
+
+    @CheckForNull
+    public String getMembers() {
+<span class="fc" id="L201">      return members;</span>
+    }
+
+    @CheckForNull
+    public String getChecks() {
+<span class="nc" id="L206">      return checks;</span>
+    }
+
+    @CheckForNull
+    public String getEmails() {
+<span class="fc" id="L211">      return emails;</span>
+    }
+
+    @CheckForNull
+    public String getContents() {
+<span class="nc" id="L216">      return contents;</span>
+    }
+
+    @CheckForNull
+    public String getMetadata() {
+<span class="fc" id="L221">      return metadata;</span>
+    }
+
+    @CheckForNull
+    public String getRepoAdministration() {
+<span class="fc" id="L226">      return repoAdministration;</span>
+    }
+
+    @CheckForNull
+    public String getOrgAdministration() {
+<span class="fc" id="L231">      return orgAdministration;</span>
+    }
+
+    @CheckForNull
+    public String getOrgCopilotSeatManagement() {
+<span class="nc" id="L236">      return orgCopilotSeatManagement;</span>
+    }
+
+    public static class Builder {
+      private String checks;
+      private String members;
+      private String emails;
+      private String contents;
+      private String metadata;
+      private String repoAdministration;
+      private String orgAdministration;
+      private String orgCopilotSeatManagement;
+
+      private Builder() {
+        // Use static factory method
+      }
+
+      public Builder setChecks(String checks) {
+<span class="nc" id="L254">        this.checks = checks;</span>
+<span class="nc" id="L255">        return this;</span>
+      }
+
+      public Builder setMembers(String members) {
+<span class="fc" id="L259">        this.members = members;</span>
+<span class="fc" id="L260">        return this;</span>
+      }
+
+      public Builder setEmails(String emails) {
+<span class="fc" id="L264">        this.emails = emails;</span>
+<span class="fc" id="L265">        return this;</span>
+      }
+
+      public Builder setContents(String contents) {
+<span class="nc" id="L269">        this.contents = contents;</span>
+<span class="nc" id="L270">        return this;</span>
+      }
+
+      public Builder setMetadata(String metadata) {
+<span class="fc" id="L274">        this.metadata = metadata;</span>
+<span class="fc" id="L275">        return this;</span>
+      }
+
+      public Builder setRepoAdministration(String repoAdministration) {
+<span class="fc" id="L279">        this.repoAdministration = repoAdministration;</span>
+<span class="fc" id="L280">        return this;</span>
+      }
+
+      public Builder setOrgAdministration(String orgAdministration) {
+<span class="fc" id="L284">        this.orgAdministration = orgAdministration;</span>
+<span class="fc" id="L285">        return this;</span>
+      }
+
+      public Builder setOrgCopilotSeatManagement(String orgCopilotSeatManagement) {
+<span class="nc" id="L289">        this.orgCopilotSeatManagement = orgCopilotSeatManagement;</span>
+<span class="nc" id="L290">        return this;</span>
+      }
+
+      public GithubBinding.Permissions build() {
+<span class="fc" id="L294">        return new GithubBinding.Permissions(checks, members, emails, contents, metadata, repoAdministration, orgAdministration, orgCopilotSeatManagement);</span>
+      }
+    }
+  }
+
+  public static class GsonRepositorySearch {
+    @SerializedName(&quot;total_count&quot;)
+    int totalCount;
+    @SerializedName(&quot;items&quot;)
+    List&lt;GsonGithubRepository&gt; items;
+
+<span class="fc" id="L305">    public GsonRepositorySearch() {</span>
+      // even if empty constructor is not required for Gson, it is strongly
+      // recommended:
+      // http://stackoverflow.com/a/18645370/229031
+<span class="fc" id="L309">    }</span>
+
+    public int getTotalCount() {
+<span class="fc" id="L312">      return totalCount;</span>
+    }
+
+    public List&lt;GsonGithubRepository&gt; getItems() {
+<span class="fc" id="L316">      return items;</span>
+    }
+
+  }
+
+  public static class GsonGithubRepository {
+    @SerializedName(&quot;id&quot;)
+    long id;
+    @SerializedName(&quot;name&quot;)
+    String name;
+    @SerializedName(&quot;full_name&quot;)
+    String fullName;
+    @SerializedName(&quot;private&quot;)
+    boolean isPrivate;
+    @SerializedName(&quot;html_url&quot;)
+    String htmlUrl;
+    @SerializedName(&quot;default_branch&quot;)
+    String defaultBranch;
+
+<span class="fc" id="L335">    public GsonGithubRepository() {</span>
+      // even if empty constructor is not required for Gson, it is strongly
+      // recommended:
+      // http://stackoverflow.com/a/18645370/229031
+<span class="fc" id="L339">    }</span>
+
+    public Repository toRepository() {
+<span class="fc" id="L342">      return new Repository(this.id, this.name, this.isPrivate, this.fullName,</span>
+        this.htmlUrl, this.defaultBranch);
+    }
+  }
+
+  public static class GsonGithubCodeScanningAlert {
+    @SerializedName(&quot;number&quot;)
+    long id;
+    @SerializedName(&quot;state&quot;)
+    GithubCodeScanningAlertState state;
+    @SerializedName(&quot;dismissed_reason&quot;)
+    String dismissedReason;
+    @SerializedName(&quot;dismissed_comment&quot;)
+    String dismissedComment;
+    @SerializedName(&quot;tool&quot;)
+    GsonGithubCodeScanningAlertTool tool;
+    @SerializedName(&quot;most_recent_instance&quot;)
+    GsonGithubCodeScanningAlertInstance mostRecentInstance;
+
+<span class="nc" id="L361">    public GsonGithubCodeScanningAlert() {</span>
+      // even if empty constructor is not required for Gson, it is strongly
+      // recommended:
+      // http://stackoverflow.com/a/18645370/229031
+<span class="nc" id="L365">    }</span>
+
+    public long getId() {
+<span class="nc" id="L368">      return id;</span>
+    }
+
+    public GithubCodeScanningAlertState getState() {
+<span class="nc" id="L372">      return state;</span>
+    }
+
+    public String getDismissedReason() {
+<span class="nc" id="L376">      return dismissedReason;</span>
+    }
+
+    public String getDismissedComment() {
+<span class="nc" id="L380">      return dismissedComment;</span>
+    }
+
+    public GsonGithubCodeScanningAlertTool getTool() {
+<span class="nc" id="L384">      return tool;</span>
+    }
+
+    public GsonGithubCodeScanningAlertInstance getMostRecentInstance() {
+<span class="nc" id="L388">      return mostRecentInstance;</span>
+    }
+
+    public String getMessageText() {
+<span class="nc" id="L392">      return getMostRecentInstance().getMessageText();</span>
+    }
+  }
+
+  public static class GsonGithubCodeScanningAlertWebhookPayload {
+    @SerializedName(&quot;action&quot;)
+    String action;
+    @SerializedName(&quot;alert&quot;)
+    GsonGithubCodeScanningAlert alert;
+    @SerializedName(&quot;sender&quot;)
+    GsonGithubCodeScanningAlertWebhookPayloadSender sender;
+
+<span class="nc" id="L404">    public GsonGithubCodeScanningAlertWebhookPayload() {</span>
+      // even if empty constructor is not required for Gson, it is strongly
+      // recommended:
+      // http://stackoverflow.com/a/18645370/229031
+<span class="nc" id="L408">    }</span>
+
+    public String getAction() {
+<span class="nc" id="L411">      return action;</span>
+    }
+
+    public GsonGithubCodeScanningAlert getAlert() {
+<span class="nc" id="L415">      return alert;</span>
+    }
+
+    public GsonGithubCodeScanningAlertWebhookPayloadSender getSender() {
+<span class="nc" id="L419">      return sender;</span>
+    }
+  }
+
+  public static class GsonGithubCodeScanningAlertInstance {
+    @SerializedName(&quot;state&quot;)
+    GithubCodeScanningAlertState state;
+    @SerializedName(&quot;message&quot;)
+    GsonGithubCodeScanningAlertMessage message;
+
+<span class="nc" id="L429">    public GsonGithubCodeScanningAlertInstance() {</span>
+      // even if empty constructor is not required for Gson, it is strongly
+      // recommended:
+      // http://stackoverflow.com/a/18645370/229031
+<span class="nc" id="L433">    }</span>
+
+    public GsonGithubCodeScanningAlertMessage getMessage() {
+<span class="nc" id="L436">      return message;</span>
+    }
+
+    public String getMessageText() {
+<span class="nc" id="L440">      return getMessage().getText();</span>
+    }
+  }
+
+<span class="nc" id="L444">  public enum GithubCodeScanningAlertState {</span>
+<span class="nc" id="L445">    @SerializedName(&quot;open&quot;)</span>
+    OPEN,
+<span class="nc" id="L447">    @SerializedName(&quot;fixed&quot;)</span>
+    FIXED,
+<span class="nc" id="L449">    @SerializedName(&quot;dismissed&quot;)</span>
+    DISMISSED
+  }
+
+  public static class GsonGithubCodeScanningAlertMessage {
+    @SerializedName(&quot;text&quot;)
+    String text;
+
+<span class="nc" id="L457">    public GsonGithubCodeScanningAlertMessage() {</span>
+      // even if empty constructor is not required for Gson, it is strongly
+      // recommended:
+      // http://stackoverflow.com/a/18645370/229031
+<span class="nc" id="L461">    }</span>
+
+    public String getText() {
+<span class="nc" id="L464">      return text;</span>
+    }
+  }
+
+  public static class GsonGithubCodeScanningAlertWebhookPayloadSender {
+    @SerializedName(&quot;login&quot;)
+    String login;
+
+<span class="nc" id="L472">    public GsonGithubCodeScanningAlertWebhookPayloadSender() {</span>
+      // even if empty constructor is not required for Gson, it is strongly
+      // recommended:
+      // http://stackoverflow.com/a/18645370/229031
+<span class="nc" id="L476">    }</span>
+
+    public String getLogin() {
+<span class="nc" id="L479">      return login;</span>
+    }
+  }
+
+  public static class GsonGithubCodeScanningAlertTool {
+    @SerializedName(&quot;name&quot;)
+    String name;
+
+<span class="nc" id="L487">    public GsonGithubCodeScanningAlertTool() {</span>
+      // even if empty constructor is not required for Gson, it is strongly
+      // recommended:
+      // http://stackoverflow.com/a/18645370/229031
+<span class="nc" id="L491">    }</span>
+
+    public String getName() {
+<span class="nc" id="L494">      return name;</span>
+    }
+  }
+
+<span class="fc" id="L498">  public static class GsonInstallationToken {</span>
+    @SerializedName(&quot;token&quot;)
+    String token;
+
+    @SerializedName(&quot;expires_at&quot;)
+    String expiresAt;
+
+    public String getToken() {
+<span class="fc" id="L506">      return token;</span>
+    }
+
+    public String getExpiresAt() {
+<span class="fc" id="L510">      return expiresAt;</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

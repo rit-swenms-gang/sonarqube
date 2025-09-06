@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NodeDetails.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.process.cluster.health</a> &gt; <span class="el_source">NodeDetails.java</span></div><h1>NodeDetails.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.process.cluster.health;
+
+import com.google.common.base.Preconditions;
+import java.io.Externalizable;
+import java.io.IOException;
+import java.io.ObjectInput;
+import java.io.ObjectOutput;
+import java.util.Objects;
+
+import static java.util.Objects.requireNonNull;
+
+/**
+ * &lt;p&gt;{@link Externalizable} because this class is written to and from Hazelcast.&lt;/p&gt;
+ */
+public class NodeDetails implements Externalizable {
+  private Type type;
+  private String name;
+  private String host;
+  private int port;
+  private long startedAt;
+
+  /**
+   * Required for Serialization
+   */
+<span class="fc" id="L44">  public NodeDetails() {</span>
+<span class="fc" id="L45">  }</span>
+
+<span class="fc" id="L47">  private NodeDetails(Builder builder) {</span>
+<span class="fc" id="L48">    this.type = builder.type;</span>
+<span class="fc" id="L49">    this.name = builder.name;</span>
+<span class="fc" id="L50">    this.host = builder.host;</span>
+<span class="fc" id="L51">    this.port = builder.port;</span>
+<span class="fc" id="L52">    this.startedAt = builder.startedAt;</span>
+<span class="fc" id="L53">  }</span>
+
+  public static Builder newNodeDetailsBuilder() {
+<span class="fc" id="L56">    return new Builder();</span>
+  }
+
+  public Type getType() {
+<span class="fc" id="L60">    return type;</span>
+  }
+
+  public String getName() {
+<span class="fc" id="L64">    return name;</span>
+  }
+
+  public String getHost() {
+<span class="fc" id="L68">    return host;</span>
+  }
+
+  public int getPort() {
+<span class="fc" id="L72">    return port;</span>
+  }
+
+  public long getStartedAt() {
+<span class="fc" id="L76">    return startedAt;</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="fc" id="L81">    return &quot;NodeDetails{&quot; +</span>
+      &quot;type=&quot; + type +
+      &quot;, name='&quot; + name + '\'' +
+      &quot;, host='&quot; + host + '\'' +
+      &quot;, port=&quot; + port +
+      &quot;, startedAt=&quot; + startedAt +
+      '}';
+  }
+
+  @Override
+  public void writeExternal(ObjectOutput out) throws IOException {
+<span class="fc" id="L92">    out.writeInt(type.ordinal());</span>
+<span class="fc" id="L93">    out.writeUTF(name);</span>
+<span class="fc" id="L94">    out.writeUTF(host);</span>
+<span class="fc" id="L95">    out.writeInt(port);</span>
+<span class="fc" id="L96">    out.writeLong(startedAt);</span>
+<span class="fc" id="L97">  }</span>
+
+  @Override
+  public void readExternal(ObjectInput in) throws IOException {
+<span class="fc" id="L101">    this.type = Type.values()[in.readInt()];</span>
+<span class="fc" id="L102">    this.name = in.readUTF();</span>
+<span class="fc" id="L103">    this.host = in.readUTF();</span>
+<span class="fc" id="L104">    this.port = in.readInt();</span>
+<span class="fc" id="L105">    this.startedAt = in.readLong();</span>
+<span class="fc" id="L106">  }</span>
+
+  @Override
+  public boolean equals(Object o) {
+<span class="fc bfc" id="L110" title="All 2 branches covered.">    if (this == o) {</span>
+<span class="fc" id="L111">      return true;</span>
+    }
+<span class="pc bpc" id="L113" title="1 of 4 branches missed.">    if (o == null || getClass() != o.getClass()) {</span>
+<span class="fc" id="L114">      return false;</span>
+    }
+<span class="fc" id="L116">    NodeDetails that = (NodeDetails) o;</span>
+<span class="pc bpc" id="L117" title="2 of 6 branches missed.">    return port == that.port &amp;&amp;</span>
+      startedAt == that.startedAt &amp;&amp;
+      type == that.type &amp;&amp;
+<span class="pc bpc" id="L120" title="1 of 2 branches missed.">      name.equals(that.name) &amp;&amp;</span>
+<span class="pc bpc" id="L121" title="1 of 2 branches missed.">      host.equals(that.host);</span>
+  }
+
+  @Override
+  public int hashCode() {
+<span class="fc" id="L126">    return Objects.hash(type, name, host, port, startedAt);</span>
+  }
+
+  public static class Builder {
+    private Type type;
+    private String name;
+    private String host;
+    private int port;
+    private long startedAt;
+
+    private Builder() {
+      // use static factory method
+    }
+
+    public Builder setType(Type type) {
+<span class="fc" id="L141">      this.type = checkType(type);</span>
+<span class="fc" id="L142">      return this;</span>
+    }
+
+    public Builder setName(String name) {
+<span class="fc" id="L146">      this.name = checkString(name, &quot;name&quot;);</span>
+<span class="fc" id="L147">      return this;</span>
+    }
+
+    public Builder setHost(String host) {
+<span class="fc" id="L151">      this.host = checkString(host, &quot;host&quot;);</span>
+<span class="fc" id="L152">      return this;</span>
+    }
+
+    public Builder setPort(int port) {
+<span class="fc" id="L156">      checkPort(port);</span>
+<span class="fc" id="L157">      this.port = port;</span>
+<span class="fc" id="L158">      return this;</span>
+    }
+
+    public Builder setStartedAt(long startedAt) {
+<span class="fc" id="L162">      checkStartedAt(startedAt);</span>
+<span class="fc" id="L163">      this.startedAt = startedAt;</span>
+<span class="fc" id="L164">      return this;</span>
+    }
+
+    public NodeDetails build() {
+<span class="fc" id="L168">      checkType(type);</span>
+<span class="fc" id="L169">      checkString(name, &quot;name&quot;);</span>
+<span class="fc" id="L170">      checkString(host, &quot;host&quot;);</span>
+<span class="fc" id="L171">      checkPort(port);</span>
+<span class="fc" id="L172">      checkStartedAt(startedAt);</span>
+<span class="fc" id="L173">      return new NodeDetails(this);</span>
+    }
+
+    private static Type checkType(Type type) {
+<span class="fc" id="L177">      return requireNonNull(type, &quot;type can't be null&quot;);</span>
+    }
+
+    private static String checkString(String name, String label) {
+<span class="fc" id="L181">      Preconditions.checkNotNull(name, &quot;%s can't be null&quot;, label);</span>
+<span class="fc" id="L182">      String value = name.trim();</span>
+<span class="fc bfc" id="L183" title="All 2 branches covered.">      Preconditions.checkArgument(!value.isEmpty(), &quot;%s can't be empty&quot;, label);</span>
+<span class="fc" id="L184">      return value;</span>
+    }
+
+    private static void checkPort(int port) {
+<span class="fc bfc" id="L188" title="All 2 branches covered.">      Preconditions.checkArgument(port &gt; 0, &quot;port must be &gt; 0&quot;);</span>
+<span class="fc" id="L189">    }</span>
+
+    private static void checkStartedAt(long startedAt) {
+<span class="fc bfc" id="L192" title="All 2 branches covered.">      Preconditions.checkArgument(startedAt &gt; 0, &quot;startedAt must be &gt; 0&quot;);</span>
+<span class="fc" id="L193">    }</span>
+  }
+
+<span class="fc" id="L196">  public enum Type {</span>
+<span class="fc" id="L197">    APPLICATION, SEARCH</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

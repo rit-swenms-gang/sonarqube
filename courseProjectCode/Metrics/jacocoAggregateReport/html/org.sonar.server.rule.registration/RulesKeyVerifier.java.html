@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RulesKeyVerifier.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.rule.registration</a> &gt; <span class="el_source">RulesKeyVerifier.java</span></div><h1>RulesKeyVerifier.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.rule.registration;
+
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.api.server.rule.RulesDefinition;
+
+import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.collect.Sets.intersection;
+import static java.lang.String.format;
+
+<span class="fc" id="L37">public class RulesKeyVerifier {</span>
+
+  void verifyRuleKeyConsistency(List&lt;RulesDefinition.Repository&gt; repositories, RulesRegistrationContext rulesRegistrationContext) {
+<span class="fc" id="L40">    List&lt;RulesDefinition.Rule&gt; definedRules = repositories.stream()</span>
+<span class="fc" id="L41">      .flatMap(r -&gt; r.rules().stream())</span>
+<span class="fc" id="L42">      .toList();</span>
+
+<span class="fc" id="L44">    Set&lt;RuleKey&gt; definedRuleKeys = definedRules.stream()</span>
+<span class="fc" id="L45">      .map(r -&gt; RuleKey.of(r.repository().key(), r.key()))</span>
+<span class="fc" id="L46">      .collect(Collectors.toSet());</span>
+
+<span class="fc" id="L48">    List&lt;RuleKey&gt; definedDeprecatedRuleKeys = definedRules.stream()</span>
+<span class="fc" id="L49">      .flatMap(r -&gt; r.deprecatedRuleKeys().stream())</span>
+<span class="fc" id="L50">      .toList();</span>
+
+    // Find duplicates in declared deprecated rule keys
+<span class="fc" id="L53">    Set&lt;RuleKey&gt; duplicates = findDuplicates(definedDeprecatedRuleKeys);</span>
+<span class="fc" id="L54">    checkState(duplicates.isEmpty(), &quot;The following deprecated rule keys are declared at least twice [%s]&quot;,</span>
+<span class="fc bfc" id="L55" title="All 2 branches covered.">      duplicates.isEmpty() ? &quot;&quot; : duplicates.stream().map(RuleKey::toString).collect(Collectors.joining(&quot;,&quot;)));</span>
+
+    // Find rule keys that are both deprecated and used
+<span class="fc" id="L58">    Set&lt;RuleKey&gt; intersection = intersection(new HashSet&lt;&gt;(definedRuleKeys), new HashSet&lt;&gt;(definedDeprecatedRuleKeys)).immutableCopy();</span>
+<span class="fc" id="L59">    checkState(intersection.isEmpty(), &quot;The following rule keys are declared both as deprecated and used key [%s]&quot;,</span>
+<span class="fc bfc" id="L60" title="All 2 branches covered.">      intersection.isEmpty() ? &quot;&quot; : intersection.stream().map(RuleKey::toString).collect(Collectors.joining(&quot;,&quot;)));</span>
+
+    // Find incorrect usage of deprecated keys
+<span class="fc" id="L63">    Map&lt;RuleKey, SingleDeprecatedRuleKey&gt; dbDeprecatedRuleKeysByOldRuleKey = rulesRegistrationContext.getDbDeprecatedKeysByOldRuleKey();</span>
+
+<span class="fc" id="L65">    Set&lt;String&gt; incorrectRuleKeyMessage = definedRules.stream()</span>
+<span class="fc" id="L66">      .flatMap(r -&gt; filterInvalidDeprecatedRuleKeys(dbDeprecatedRuleKeysByOldRuleKey, r))</span>
+<span class="fc" id="L67">      .filter(Objects::nonNull)</span>
+<span class="fc" id="L68">      .collect(Collectors.toSet());</span>
+
+<span class="fc" id="L70">    checkState(incorrectRuleKeyMessage.isEmpty(), &quot;An incorrect state of deprecated rule keys has been detected.\n %s&quot;,</span>
+<span class="fc bfc" id="L71" title="All 2 branches covered.">      incorrectRuleKeyMessage.isEmpty() ? &quot;&quot; : String.join(&quot;\n&quot;, incorrectRuleKeyMessage));</span>
+<span class="fc" id="L72">  }</span>
+
+  private static Stream&lt;String&gt; filterInvalidDeprecatedRuleKeys(Map&lt;RuleKey, SingleDeprecatedRuleKey&gt; dbDeprecatedRuleKeysByOldRuleKey, RulesDefinition.Rule rule) {
+<span class="fc" id="L75">    return rule.deprecatedRuleKeys().stream()</span>
+<span class="fc" id="L76">      .map(rk -&gt; {</span>
+<span class="fc" id="L77">        SingleDeprecatedRuleKey singleDeprecatedRuleKey = dbDeprecatedRuleKeysByOldRuleKey.get(rk);</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">        if (singleDeprecatedRuleKey == null) {</span>
+          // new deprecated rule key : OK
+<span class="fc" id="L80">          return null;</span>
+        }
+<span class="fc" id="L82">        RuleKey parentRuleKey = RuleKey.of(rule.repository().key(), rule.key());</span>
+<span class="pc bpc" id="L83" title="1 of 2 branches missed.">        if (parentRuleKey.equals(singleDeprecatedRuleKey.getNewRuleKeyAsRuleKey())) {</span>
+          // same parent : OK
+<span class="nc" id="L85">          return null;</span>
+        }
+<span class="fc bfc" id="L87" title="All 2 branches covered.">        if (rule.deprecatedRuleKeys().contains(singleDeprecatedRuleKey.getNewRuleKeyAsRuleKey())) {</span>
+          // the new rule is deprecating the old parentRuleKey : OK
+<span class="fc" id="L89">          return null;</span>
+        }
+<span class="fc" id="L91">        return format(&quot;The deprecated rule key [%s] was previously deprecated by [%s]. [%s] should be a deprecated key of [%s],&quot;,</span>
+<span class="fc" id="L92">          rk.toString(),</span>
+<span class="fc" id="L93">          singleDeprecatedRuleKey.getNewRuleKeyAsRuleKey().toString(),</span>
+<span class="fc" id="L94">          singleDeprecatedRuleKey.getNewRuleKeyAsRuleKey().toString(),</span>
+<span class="fc" id="L95">          RuleKey.of(rule.repository().key(), rule.key()).toString());</span>
+      });
+  }
+
+  private static &lt;T&gt; Set&lt;T&gt; findDuplicates(Collection&lt;T&gt; list) {
+<span class="fc" id="L100">    Set&lt;T&gt; duplicates = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L101">    Set&lt;T&gt; uniques = new HashSet&lt;&gt;();</span>
+
+<span class="fc" id="L103">    list.forEach(t -&gt; {</span>
+<span class="fc bfc" id="L104" title="All 2 branches covered.">      if (!uniques.add(t)) {</span>
+<span class="fc" id="L105">        duplicates.add(t);</span>
+      }
+<span class="fc" id="L107">    });</span>
+
+<span class="fc" id="L109">    return duplicates;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

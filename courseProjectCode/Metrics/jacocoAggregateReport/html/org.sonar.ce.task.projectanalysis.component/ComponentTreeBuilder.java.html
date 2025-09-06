@@ -1,0 +1,356 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ComponentTreeBuilder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.component</a> &gt; <span class="el_source">ComponentTreeBuilder.java</span></div><h1>ComponentTreeBuilder.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.component;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.function.UnaryOperator;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.sonar.ce.task.projectanalysis.analysis.Branch;
+import org.sonar.scanner.protocol.output.ScannerReport;
+import org.sonar.scanner.protocol.output.ScannerReport.Component.FileStatus;
+import org.sonar.server.project.Project;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.lang.String.format;
+import static java.util.Objects.requireNonNull;
+import static org.apache.commons.lang3.StringUtils.removeStart;
+import static org.apache.commons.lang3.StringUtils.trimToNull;
+import static org.sonar.scanner.protocol.output.ScannerReport.Component.ComponentType.FILE;
+
+public class ComponentTreeBuilder {
+  private final ComponentKeyGenerator keyGenerator;
+  /**
+   * Will supply the UUID for any component in the tree, given it's key.
+   * &lt;p&gt;
+   * The String argument of the {@link Function#apply(Object)} method is the component's key.
+   * &lt;/p&gt;
+   */
+  private final Function&lt;String, String&gt; uuidSupplier;
+  /**
+   * Will supply the {@link ScannerReport.Component} of all the components in the component tree as we crawl it from the
+   * root.
+   * &lt;p&gt;
+   * The Integer argument of the {@link Function#apply(Object)} method is the component's ref.
+   * &lt;/p&gt;
+   */
+  private final Function&lt;Integer, ScannerReport.Component&gt; scannerComponentSupplier;
+  private final Project project;
+  private final Branch branch;
+  private final ProjectAttributes projectAttributes;
+
+  private ScannerReport.Component rootComponent;
+  private String scmBasePath;
+
+  public ComponentTreeBuilder(
+    ComponentKeyGenerator keyGenerator,
+    UnaryOperator&lt;String&gt; uuidSupplier,
+    Function&lt;Integer, ScannerReport.Component&gt; scannerComponentSupplier,
+    Project project,
+    Branch branch,
+<span class="fc" id="L76">    ProjectAttributes projectAttributes) {</span>
+
+<span class="fc" id="L78">    this.keyGenerator = keyGenerator;</span>
+<span class="fc" id="L79">    this.uuidSupplier = uuidSupplier;</span>
+<span class="fc" id="L80">    this.scannerComponentSupplier = scannerComponentSupplier;</span>
+<span class="fc" id="L81">    this.project = project;</span>
+<span class="fc" id="L82">    this.branch = branch;</span>
+<span class="fc" id="L83">    this.projectAttributes = requireNonNull(projectAttributes, &quot;projectAttributes can't be null&quot;);</span>
+<span class="fc" id="L84">  }</span>
+
+  public Component buildProject(ScannerReport.Component project, String scmBasePath) {
+<span class="fc" id="L87">    this.rootComponent = project;</span>
+<span class="fc" id="L88">    this.scmBasePath = trimToNull(scmBasePath);</span>
+
+<span class="fc" id="L90">    Node root = createProjectHierarchy(project);</span>
+<span class="fc" id="L91">    return buildComponent(root, &quot;&quot;, &quot;&quot;);</span>
+  }
+
+  private Node createProjectHierarchy(ScannerReport.Component rootComponent) {
+<span class="fc bfc" id="L95" title="All 2 branches covered.">    checkArgument(rootComponent.getType() == ScannerReport.Component.ComponentType.PROJECT, &quot;Expected root component of type 'PROJECT'&quot;);</span>
+
+<span class="fc" id="L97">    LinkedList&lt;ScannerReport.Component&gt; queue = new LinkedList&lt;&gt;();</span>
+<span class="fc" id="L98">    rootComponent.getChildRefList().stream()</span>
+<span class="fc" id="L99">      .map(scannerComponentSupplier)</span>
+<span class="fc" id="L100">      .forEach(queue::addLast);</span>
+
+<span class="fc" id="L102">    Node root = new Node();</span>
+<span class="fc" id="L103">    root.reportComponent = rootComponent;</span>
+
+<span class="fc bfc" id="L105" title="All 2 branches covered.">    while (!queue.isEmpty()) {</span>
+<span class="fc" id="L106">      ScannerReport.Component component = queue.removeFirst();</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">      checkArgument(component.getType() == FILE, &quot;Unsupported component type '%s'&quot;, component.getType());</span>
+<span class="fc" id="L108">      addFile(root, component);</span>
+<span class="fc" id="L109">    }</span>
+<span class="fc" id="L110">    return root;</span>
+  }
+
+  private static void addFile(Node root, ScannerReport.Component file) {
+<span class="pc bpc" id="L114" title="1 of 2 branches missed.">    checkArgument(!StringUtils.isEmpty(file.getProjectRelativePath()), &quot;Files should have a project relative path: &quot; + file);</span>
+<span class="fc" id="L115">    String[] split = StringUtils.split(file.getProjectRelativePath(), '/');</span>
+<span class="fc" id="L116">    Node currentNode = root;</span>
+
+<span class="fc bfc" id="L118" title="All 2 branches covered.">    for (int i = 0; i &lt; split.length; i++) {</span>
+<span class="fc" id="L119">      currentNode = currentNode.children().computeIfAbsent(split[i], k -&gt; new Node());</span>
+    }
+<span class="fc" id="L121">    currentNode.reportComponent = file;</span>
+<span class="fc" id="L122">  }</span>
+
+  private Component buildComponent(Node node, String currentPath, String parentPath) {
+<span class="fc" id="L125">    List&lt;Component&gt; childComponents = buildChildren(node, currentPath);</span>
+<span class="fc" id="L126">    ScannerReport.Component component = node.reportComponent();</span>
+
+<span class="fc bfc" id="L128" title="All 2 branches covered.">    if (component != null) {</span>
+<span class="fc bfc" id="L129" title="All 2 branches covered.">      if (component.getType() == FILE) {</span>
+<span class="fc" id="L130">        return buildFile(component);</span>
+<span class="pc bpc" id="L131" title="1 of 2 branches missed.">      } else if (component.getType() == ScannerReport.Component.ComponentType.PROJECT) {</span>
+<span class="fc" id="L132">        return buildProject(childComponents);</span>
+      }
+    }
+
+<span class="fc" id="L136">    return buildDirectory(parentPath, currentPath, childComponents);</span>
+  }
+
+  private List&lt;Component&gt; buildChildren(Node node, String currentPath) {
+<span class="fc" id="L140">    List&lt;Component&gt; children = new ArrayList&lt;&gt;();</span>
+
+<span class="fc bfc" id="L142" title="All 2 branches covered.">    for (Map.Entry&lt;String, Node&gt; e : node.children().entrySet()) {</span>
+<span class="fc" id="L143">      String path = buildPath(currentPath, e.getKey());</span>
+<span class="fc" id="L144">      Node childNode = e.getValue();</span>
+
+      // collapse folders that only contain one folder
+<span class="fc bfc" id="L147" title="All 4 branches covered.">      while (childNode.children().size() == 1 &amp;&amp; childNode.children().values().iterator().next().children().size() &gt; 0) {</span>
+<span class="fc" id="L148">        Map.Entry&lt;String, Node&gt; childEntry = childNode.children().entrySet().iterator().next();</span>
+<span class="fc" id="L149">        path = buildPath(path, childEntry.getKey());</span>
+<span class="fc" id="L150">        childNode = childEntry.getValue();</span>
+<span class="fc" id="L151">      }</span>
+<span class="fc" id="L152">      children.add(buildComponent(childNode, path, currentPath));</span>
+<span class="fc" id="L153">    }</span>
+<span class="fc" id="L154">    return children;</span>
+  }
+
+  private static String buildPath(String currentPath, String file) {
+<span class="fc bfc" id="L158" title="All 2 branches covered.">    if (currentPath.isEmpty()) {</span>
+<span class="fc" id="L159">      return file;</span>
+    }
+<span class="fc" id="L161">    return currentPath + &quot;/&quot; + file;</span>
+  }
+
+  private Component buildProject(List&lt;Component&gt; children) {
+<span class="fc" id="L165">    String projectKey = keyGenerator.generateKey(rootComponent.getKey(), null);</span>
+<span class="fc" id="L166">    String uuid = uuidSupplier.apply(projectKey);</span>
+<span class="fc" id="L167">    ComponentImpl.Builder builder = ComponentImpl.builder(Component.Type.PROJECT)</span>
+<span class="fc" id="L168">      .setUuid(uuid)</span>
+<span class="fc" id="L169">      .setKey(projectKey)</span>
+<span class="fc" id="L170">      .setStatus(convertStatus(rootComponent.getStatus()))</span>
+<span class="fc" id="L171">      .setProjectAttributes(projectAttributes)</span>
+<span class="fc" id="L172">      .setReportAttributes(createAttributesBuilder(rootComponent.getRef(), rootComponent.getProjectRelativePath(), scmBasePath).build())</span>
+<span class="fc" id="L173">      .addChildren(children);</span>
+<span class="fc" id="L174">    setNameAndDescription(rootComponent, builder);</span>
+<span class="fc" id="L175">    return builder.build();</span>
+  }
+
+  private ComponentImpl buildFile(ScannerReport.Component component) {
+<span class="fc" id="L179">    String key = keyGenerator.generateKey(rootComponent.getKey(), component.getProjectRelativePath());</span>
+<span class="fc" id="L180">    return ComponentImpl.builder(Component.Type.FILE)</span>
+<span class="fc" id="L181">      .setUuid(uuidSupplier.apply(key))</span>
+<span class="fc" id="L182">      .setKey(key)</span>
+<span class="fc" id="L183">      .setName(component.getProjectRelativePath())</span>
+<span class="fc" id="L184">      .setShortName(FilenameUtils.getName(component.getProjectRelativePath()))</span>
+<span class="fc" id="L185">      .setStatus(convertStatus(component.getStatus()))</span>
+<span class="fc" id="L186">      .setDescription(trimToNull(component.getDescription()))</span>
+<span class="fc" id="L187">      .setReportAttributes(createAttributesBuilder(component.getRef(), component.getProjectRelativePath(), scmBasePath).build())</span>
+<span class="fc" id="L188">      .setFileAttributes(createFileAttributes(component))</span>
+<span class="fc" id="L189">      .build();</span>
+  }
+
+  private ComponentImpl buildDirectory(String parentPath, String path, List&lt;Component&gt; children) {
+<span class="fc" id="L193">    String key = keyGenerator.generateKey(rootComponent.getKey(), path);</span>
+<span class="fc" id="L194">    return ComponentImpl.builder(Component.Type.DIRECTORY)</span>
+<span class="fc" id="L195">      .setUuid(uuidSupplier.apply(key))</span>
+<span class="fc" id="L196">      .setKey(key)</span>
+<span class="fc" id="L197">      .setName(path)</span>
+<span class="fc" id="L198">      .setShortName(removeStart(removeStart(path, parentPath), &quot;/&quot;))</span>
+<span class="fc" id="L199">      .setStatus(convertStatus(FileStatus.UNAVAILABLE))</span>
+<span class="fc" id="L200">      .setReportAttributes(createAttributesBuilder(null, path, scmBasePath).build())</span>
+<span class="fc" id="L201">      .addChildren(children)</span>
+<span class="fc" id="L202">      .build();</span>
+  }
+
+  public Component buildChangedComponentTreeRoot(Component project) {
+<span class="fc" id="L206">    return buildChangedComponentTree(project);</span>
+  }
+
+  @Nullable
+  private static Component buildChangedComponentTree(Component component) {
+<span class="pc bpc" id="L211" title="1 of 4 branches missed.">    switch (component.getType()) {</span>
+      case PROJECT:
+<span class="fc" id="L213">        return buildChangedProject(component);</span>
+      case DIRECTORY:
+<span class="fc" id="L215">        return buildChangedDirectory(component);</span>
+      case FILE:
+<span class="fc" id="L217">        return buildChangedFile(component);</span>
+      default:
+<span class="nc" id="L219">        throw new IllegalArgumentException(format(&quot;Unsupported component type '%s'&quot;, component.getType()));</span>
+    }
+  }
+
+  private static Component buildChangedProject(Component component) {
+<span class="fc" id="L224">    return changedComponentBuilder(component, &quot;&quot;)</span>
+<span class="fc" id="L225">      .setProjectAttributes(new ProjectAttributes(component.getProjectAttributes()))</span>
+<span class="fc" id="L226">      .addChildren(buildChangedComponentChildren(component))</span>
+<span class="fc" id="L227">      .build();</span>
+  }
+
+  @Nullable
+  private static Component buildChangedDirectory(Component component) {
+<span class="fc" id="L232">    List&lt;Component&gt; children = buildChangedComponentChildren(component);</span>
+<span class="pc bpc" id="L233" title="1 of 2 branches missed.">    if (children.isEmpty()) {</span>
+<span class="nc" id="L234">      return null;</span>
+    }
+
+<span class="fc bfc" id="L237" title="All 4 branches covered.">    if (children.size() == 1 &amp;&amp; children.get(0).getType() == Component.Type.DIRECTORY) {</span>
+<span class="fc" id="L238">      Component child = children.get(0);</span>
+<span class="fc" id="L239">      String shortName = component.getShortName() + &quot;/&quot; + child.getShortName();</span>
+<span class="fc" id="L240">      return changedComponentBuilder(child, shortName)</span>
+<span class="fc" id="L241">        .addChildren(child.getChildren())</span>
+<span class="fc" id="L242">        .build();</span>
+    } else {
+<span class="fc" id="L244">      return changedComponentBuilder(component, component.getShortName())</span>
+<span class="fc" id="L245">        .addChildren(children)</span>
+<span class="fc" id="L246">        .build();</span>
+    }
+  }
+
+  private static List&lt;Component&gt; buildChangedComponentChildren(Component component) {
+<span class="fc" id="L251">    return component.getChildren().stream()</span>
+<span class="fc" id="L252">      .map(ComponentTreeBuilder::buildChangedComponentTree)</span>
+<span class="fc" id="L253">      .filter(Objects::nonNull)</span>
+<span class="fc" id="L254">      .toList();</span>
+  }
+
+  private static ComponentImpl.Builder changedComponentBuilder(Component component, String newShortName) {
+<span class="fc" id="L258">    return ComponentImpl.builder(component.getType())</span>
+<span class="fc" id="L259">      .setUuid(component.getUuid())</span>
+<span class="fc" id="L260">      .setKey(component.getKey())</span>
+<span class="fc" id="L261">      .setStatus(component.getStatus())</span>
+<span class="fc" id="L262">      .setReportAttributes(component.getReportAttributes())</span>
+<span class="fc" id="L263">      .setName(component.getName())</span>
+<span class="fc" id="L264">      .setShortName(newShortName)</span>
+<span class="fc" id="L265">      .setDescription(component.getDescription());</span>
+  }
+
+  @Nullable
+  private static Component buildChangedFile(Component component) {
+<span class="fc bfc" id="L270" title="All 2 branches covered.">    if (component.getStatus() == Component.Status.SAME) {</span>
+<span class="fc" id="L271">      return null;</span>
+    }
+<span class="fc" id="L273">    return component;</span>
+  }
+
+  private void setNameAndDescription(ScannerReport.Component component, ComponentImpl.Builder builder) {
+<span class="fc bfc" id="L277" title="All 2 branches covered.">    if (branch.isMain()) {</span>
+<span class="fc" id="L278">      builder</span>
+<span class="fc" id="L279">        .setName(nameOfProject(component))</span>
+<span class="fc" id="L280">        .setDescription(component.getDescription());</span>
+    } else {
+<span class="fc" id="L282">      builder</span>
+<span class="fc" id="L283">        .setName(project.getName())</span>
+<span class="fc" id="L284">        .setDescription(project.getDescription());</span>
+    }
+<span class="fc" id="L286">  }</span>
+
+  private static Component.Status convertStatus(FileStatus status) {
+<span class="pc bpc" id="L289" title="2 of 5 branches missed.">    switch (status) {</span>
+      case ADDED:
+<span class="nc" id="L291">        return Component.Status.ADDED;</span>
+      case SAME:
+<span class="fc" id="L293">        return Component.Status.SAME;</span>
+      case CHANGED:
+<span class="fc" id="L295">        return Component.Status.CHANGED;</span>
+      case UNAVAILABLE:
+<span class="fc" id="L297">        return Component.Status.UNAVAILABLE;</span>
+      case UNRECOGNIZED:
+      default:
+<span class="nc" id="L300">        throw new IllegalArgumentException(&quot;Unsupported ComponentType value &quot; + status);</span>
+    }
+  }
+
+  private String nameOfProject(ScannerReport.Component component) {
+<span class="fc" id="L305">    String name = trimToNull(component.getName());</span>
+<span class="fc bfc" id="L306" title="All 2 branches covered.">    if (name != null) {</span>
+<span class="fc" id="L307">      return name;</span>
+    }
+<span class="fc" id="L309">    return project.getName();</span>
+  }
+
+  private static ReportAttributes.Builder createAttributesBuilder(@Nullable Integer ref, String path, @Nullable String scmBasePath) {
+<span class="fc" id="L313">    return ReportAttributes.newBuilder(ref)</span>
+<span class="fc" id="L314">      .setScmPath(computeScmPath(scmBasePath, path));</span>
+  }
+
+  @CheckForNull
+  private static String computeScmPath(@Nullable String scmBasePath, String scmRelativePath) {
+<span class="fc bfc" id="L319" title="All 2 branches covered.">    if (scmRelativePath.isEmpty()) {</span>
+<span class="fc" id="L320">      return scmBasePath;</span>
+    }
+<span class="fc bfc" id="L322" title="All 2 branches covered.">    if (scmBasePath == null) {</span>
+<span class="fc" id="L323">      return scmRelativePath;</span>
+    }
+
+<span class="fc" id="L326">    return scmBasePath + '/' + scmRelativePath;</span>
+  }
+
+  private static FileAttributes createFileAttributes(ScannerReport.Component component) {
+<span class="pc bpc" id="L330" title="1 of 2 branches missed.">    checkArgument(component.getType() == FILE);</span>
+<span class="fc bfc" id="L331" title="All 2 branches covered.">    checkArgument(component.getLines() &gt; 0, &quot;File '%s' has no line&quot;, component.getProjectRelativePath());</span>
+<span class="fc" id="L332">    String lang = trimToNull(component.getLanguage());</span>
+<span class="fc" id="L333">    return new FileAttributes(</span>
+<span class="fc" id="L334">      component.getIsTest(),</span>
+<span class="fc bfc" id="L335" title="All 2 branches covered.">      lang != null ? lang.intern() : null,</span>
+<span class="fc" id="L336">      component.getLines(),</span>
+<span class="fc" id="L337">      component.getMarkedAsUnchanged(),</span>
+<span class="fc" id="L338">      component.getOldRelativeFilePath()</span>
+    );
+  }
+
+<span class="fc" id="L342">  private static class Node {</span>
+<span class="fc" id="L343">    private final Map&lt;String, Node&gt; children = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L344">    private ScannerReport.Component reportComponent = null;</span>
+
+    private Map&lt;String, Node&gt; children() {
+<span class="fc" id="L347">      return children;</span>
+    }
+
+    @CheckForNull
+    private ScannerReport.Component reportComponent() {
+<span class="fc" id="L352">      return reportComponent;</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

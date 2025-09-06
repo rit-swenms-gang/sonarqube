@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GroupPermissionChanger.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.common.permission</a> &gt; <span class="el_source">GroupPermissionChanger.java</span></div><h1>GroupPermissionChanger.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.common.permission;
+
+import java.util.HashSet;
+import java.util.Set;
+import javax.annotation.Nullable;
+import org.sonar.core.util.UuidFactory;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.entity.EntityDto;
+import org.sonar.db.permission.GlobalPermission;
+import org.sonar.db.permission.GroupPermissionDto;
+import org.sonar.db.permission.ProjectPermission;
+import org.sonar.server.exceptions.BadRequestException;
+import org.sonar.server.permission.GroupUuidOrAnyone;
+
+import static com.google.common.base.Preconditions.checkNotNull;
+import static java.lang.String.format;
+import static org.sonar.server.common.permission.Operation.ADD;
+import static org.sonar.server.common.permission.Operation.REMOVE;
+import static org.sonar.server.exceptions.BadRequestException.checkRequest;
+
+public class GroupPermissionChanger implements GranteeTypeSpecificPermissionUpdater&lt;GroupPermissionChange&gt; {
+
+  private final DbClient dbClient;
+  private final UuidFactory uuidFactory;
+
+<span class="fc" id="L46">  public GroupPermissionChanger(DbClient dbClient, UuidFactory uuidFactory) {</span>
+<span class="fc" id="L47">    this.dbClient = dbClient;</span>
+<span class="fc" id="L48">    this.uuidFactory = uuidFactory;</span>
+<span class="fc" id="L49">  }</span>
+
+  @Override
+  public Class&lt;GroupPermissionChange&gt; getHandledClass() {
+<span class="fc" id="L53">    return GroupPermissionChange.class;</span>
+  }
+
+  @Override
+  public Set&lt;String&gt; loadExistingEntityPermissions(DbSession dbSession, String uuidOfGrantee, @Nullable String entityUuid) {
+<span class="fc bfc" id="L58" title="All 2 branches covered.">    if (entityUuid != null) {</span>
+<span class="fc" id="L59">      return new HashSet&lt;&gt;(dbClient.groupPermissionDao().selectEntityPermissionsOfGroup(dbSession, uuidOfGrantee, entityUuid));</span>
+    }
+<span class="fc" id="L61">    return new HashSet&lt;&gt;(dbClient.groupPermissionDao().selectGlobalPermissionsOfGroup(dbSession, uuidOfGrantee));</span>
+  }
+
+  @Override
+  public boolean apply(DbSession dbSession, Set&lt;String&gt; existingPermissions, GroupPermissionChange change) {
+<span class="fc" id="L66">    ensureConsistencyWithVisibility(change);</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">    if (isImplicitlyAlreadyDone(change)) {</span>
+<span class="fc" id="L68">      return false;</span>
+    }
+<span class="pc bpc" id="L70" title="1 of 3 branches missed.">    switch (change.getOperation()) {</span>
+      case ADD:
+<span class="fc bfc" id="L72" title="All 2 branches covered.">        if (existingPermissions.contains(change.getPermission())) {</span>
+<span class="fc" id="L73">          return false;</span>
+        }
+<span class="fc" id="L75">        return addPermission(dbSession, change);</span>
+      case REMOVE:
+<span class="fc bfc" id="L77" title="All 2 branches covered.">        if (!existingPermissions.contains(change.getPermission())) {</span>
+<span class="fc" id="L78">          return false;</span>
+        }
+<span class="fc" id="L80">        return removePermission(dbSession, change);</span>
+      default:
+<span class="nc" id="L82">        throw new UnsupportedOperationException(&quot;Unsupported permission change: &quot; + change.getOperation());</span>
+    }
+  }
+
+  private static boolean isImplicitlyAlreadyDone(GroupPermissionChange change) {
+<span class="fc" id="L87">    EntityDto project = change.getEntity();</span>
+<span class="fc bfc" id="L88" title="All 2 branches covered.">    if (project != null) {</span>
+<span class="fc" id="L89">      return isImplicitlyAlreadyDone(project, change);</span>
+    }
+<span class="fc" id="L91">    return false;</span>
+  }
+
+  private static boolean isImplicitlyAlreadyDone(EntityDto project, GroupPermissionChange change) {
+<span class="fc bfc" id="L95" title="All 2 branches covered.">    return isAttemptToAddPublicPermissionToPublicComponent(change, project)</span>
+<span class="fc bfc" id="L96" title="All 2 branches covered.">      || isAttemptToRemovePermissionFromAnyoneOnPrivateComponent(change, project);</span>
+  }
+
+  private static boolean isAttemptToAddPublicPermissionToPublicComponent(GroupPermissionChange change, EntityDto project) {
+<span class="fc bfc" id="L100" title="All 2 branches covered.">    return !project.isPrivate()</span>
+<span class="fc bfc" id="L101" title="All 2 branches covered.">      &amp;&amp; change.getOperation() == ADD</span>
+<span class="fc bfc" id="L102" title="All 2 branches covered.">      &amp;&amp; ProjectPermission.isPublic(change.getPermission());</span>
+  }
+
+  private static boolean isAttemptToRemovePermissionFromAnyoneOnPrivateComponent(GroupPermissionChange change, EntityDto project) {
+<span class="fc bfc" id="L106" title="All 2 branches covered.">    return project.isPrivate()</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">      &amp;&amp; change.getOperation() == REMOVE</span>
+<span class="fc bfc" id="L108" title="All 2 branches covered.">      &amp;&amp; change.getGroupUuidOrAnyone().isAnyone();</span>
+  }
+
+  private static void ensureConsistencyWithVisibility(GroupPermissionChange change) {
+<span class="fc" id="L112">    EntityDto project = change.getEntity();</span>
+<span class="fc bfc" id="L113" title="All 2 branches covered.">    if (project != null) {</span>
+<span class="fc" id="L114">      checkRequest(</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">        !isAttemptToAddPermissionToAnyoneOnPrivateComponent(change, project),</span>
+        &quot;No permission can be granted to Anyone on a private component&quot;);
+<span class="fc" id="L117">      BadRequestException.checkRequest(</span>
+<span class="fc bfc" id="L118" title="All 2 branches covered.">        !isAttemptToRemovePublicPermissionFromPublicComponent(change, project),</span>
+<span class="fc" id="L119">        &quot;Permission %s can't be removed from a public component&quot;, change.getPermission());</span>
+    }
+<span class="fc" id="L121">  }</span>
+
+  private static boolean isAttemptToAddPermissionToAnyoneOnPrivateComponent(GroupPermissionChange change, EntityDto project) {
+<span class="fc bfc" id="L124" title="All 2 branches covered.">    return project.isPrivate()</span>
+<span class="fc bfc" id="L125" title="All 2 branches covered.">      &amp;&amp; change.getOperation() == ADD</span>
+<span class="fc bfc" id="L126" title="All 2 branches covered.">      &amp;&amp; change.getGroupUuidOrAnyone().isAnyone();</span>
+  }
+
+  private static boolean isAttemptToRemovePublicPermissionFromPublicComponent(GroupPermissionChange change, EntityDto project) {
+<span class="fc bfc" id="L130" title="All 2 branches covered.">    return !project.isPrivate()</span>
+<span class="fc bfc" id="L131" title="All 2 branches covered.">      &amp;&amp; change.getOperation() == REMOVE</span>
+<span class="fc bfc" id="L132" title="All 2 branches covered.">      &amp;&amp; ProjectPermission.isPublic(change.getPermission());</span>
+  }
+
+  private boolean addPermission(DbSession dbSession, GroupPermissionChange change) {
+<span class="fc" id="L136">    validateNotAnyoneAndAdminPermission(change.getPermission(), change.getGroupUuidOrAnyone());</span>
+
+<span class="fc" id="L138">    String groupUuid = change.getGroupUuidOrAnyone().getUuid();</span>
+<span class="fc" id="L139">    String groupName = change.getGroupName().orElse(null);</span>
+
+<span class="fc" id="L141">    GroupPermissionDto addedDto = new GroupPermissionDto()</span>
+<span class="fc" id="L142">      .setUuid(uuidFactory.create())</span>
+<span class="fc" id="L143">      .setRole(change.getPermission())</span>
+<span class="fc" id="L144">      .setGroupUuid(groupUuid)</span>
+<span class="fc" id="L145">      .setEntityName(change.getProjectName())</span>
+<span class="fc" id="L146">      .setEntityUuid(change.getProjectUuid())</span>
+<span class="fc" id="L147">      .setGroupName(groupName);</span>
+
+<span class="fc" id="L149">    dbClient.groupPermissionDao().insert(dbSession, addedDto, change.getEntity(), null);</span>
+<span class="fc" id="L150">    return true;</span>
+  }
+
+  private static void validateNotAnyoneAndAdminPermission(String permission, GroupUuidOrAnyone group) {
+<span class="fc bfc" id="L154" title="All 4 branches covered.">    checkRequest(!GlobalPermission.ADMINISTER.getKey().equals(permission) || !group.isAnyone(),</span>
+<span class="fc" id="L155">      format(&quot;It is not possible to add the '%s' permission to group 'Anyone'.&quot;, permission));</span>
+<span class="fc" id="L156">  }</span>
+
+  private boolean removePermission(DbSession dbSession, GroupPermissionChange change) {
+<span class="fc" id="L159">    checkIfRemainingGlobalAdministrators(dbSession, change);</span>
+<span class="fc" id="L160">    String groupUuid = change.getGroupUuidOrAnyone().getUuid();</span>
+<span class="fc" id="L161">    String groupName = change.getGroupName().orElse(null);</span>
+<span class="fc" id="L162">    dbClient.groupPermissionDao().delete(dbSession,</span>
+<span class="fc" id="L163">      change.getPermission(),</span>
+      groupUuid,
+      groupName,
+<span class="fc" id="L166">      change.getEntity());</span>
+<span class="fc" id="L167">    return true;</span>
+  }
+
+  private void checkIfRemainingGlobalAdministrators(DbSession dbSession, GroupPermissionChange change) {
+<span class="fc" id="L171">    GroupUuidOrAnyone groupUuidOrAnyone = change.getGroupUuidOrAnyone();</span>
+<span class="fc bfc" id="L172" title="All 2 branches covered.">    if (GlobalPermission.ADMINISTER.getKey().equals(change.getPermission()) &amp;&amp;</span>
+<span class="fc bfc" id="L173" title="All 2 branches covered.">      !groupUuidOrAnyone.isAnyone() &amp;&amp;</span>
+<span class="fc bfc" id="L174" title="All 2 branches covered.">      change.getProjectUuid() == null) {</span>
+<span class="fc" id="L175">      String groupUuid = checkNotNull(groupUuidOrAnyone.getUuid());</span>
+      // removing global admin permission from group
+<span class="fc" id="L177">      int remaining = dbClient.authorizationDao().countUsersWithGlobalPermissionExcludingGroup(dbSession, GlobalPermission.ADMINISTER.getKey(), groupUuid);</span>
+<span class="fc bfc" id="L178" title="All 2 branches covered.">      checkRequest(remaining &gt; 0, &quot;Last group with permission '%s'. Permission cannot be removed.&quot;, GlobalPermission.ADMINISTER.getKey());</span>
+    }
+<span class="fc" id="L180">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

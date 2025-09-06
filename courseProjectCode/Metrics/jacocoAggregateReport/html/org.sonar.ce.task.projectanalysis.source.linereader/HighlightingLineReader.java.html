@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HighlightingLineReader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.source.linereader</a> &gt; <span class="el_source">HighlightingLineReader.java</span></div><h1>HighlightingLineReader.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.source.linereader;
+
+import com.google.common.collect.ImmutableMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import javax.annotation.CheckForNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.ce.task.projectanalysis.component.Component;
+import org.sonar.ce.task.projectanalysis.source.linereader.RangeOffsetConverter.RangeOffsetConverterException;
+import org.sonar.db.protobuf.DbFileSources;
+import org.sonar.scanner.protocol.output.ScannerReport;
+import org.sonar.scanner.protocol.output.ScannerReport.SyntaxHighlightingRule.HighlightingType;
+
+import static com.google.common.collect.Lists.newArrayList;
+import static java.lang.String.format;
+import static org.sonar.ce.task.projectanalysis.source.linereader.LineReader.Data.HIGHLIGHTING;
+import static org.sonar.ce.task.projectanalysis.source.linereader.RangeOffsetConverter.OFFSET_SEPARATOR;
+import static org.sonar.ce.task.projectanalysis.source.linereader.RangeOffsetConverter.SYMBOLS_SEPARATOR;
+
+public class HighlightingLineReader implements LineReader {
+
+<span class="fc" id="L44">  private static final Logger LOG = LoggerFactory.getLogger(HighlightingLineReader.class);</span>
+
+<span class="fc" id="L46">  private static final Map&lt;HighlightingType, String&gt; cssClassByType = ImmutableMap.&lt;HighlightingType, String&gt;builder()</span>
+<span class="fc" id="L47">    .put(HighlightingType.ANNOTATION, &quot;a&quot;)</span>
+<span class="fc" id="L48">    .put(HighlightingType.CONSTANT, &quot;c&quot;)</span>
+<span class="fc" id="L49">    .put(HighlightingType.COMMENT, &quot;cd&quot;)</span>
+<span class="fc" id="L50">    .put(HighlightingType.STRUCTURED_COMMENT, &quot;j&quot;)</span>
+<span class="fc" id="L51">    .put(HighlightingType.KEYWORD, &quot;k&quot;)</span>
+<span class="fc" id="L52">    .put(HighlightingType.KEYWORD_LIGHT, &quot;h&quot;)</span>
+<span class="fc" id="L53">    .put(HighlightingType.HIGHLIGHTING_STRING, &quot;s&quot;)</span>
+<span class="fc" id="L54">    .put(HighlightingType.PREPROCESS_DIRECTIVE, &quot;p&quot;)</span>
+<span class="fc" id="L55">    .build();</span>
+
+  private final Component file;
+  private final Iterator&lt;ScannerReport.SyntaxHighlightingRule&gt; lineHighlightingIterator;
+  private final RangeOffsetConverter rangeOffsetConverter;
+  private final List&lt;ScannerReport.SyntaxHighlightingRule&gt; highlightingList;
+<span class="fc" id="L61">  private ReadError readError = null;</span>
+  private ScannerReport.SyntaxHighlightingRule currentItem;
+
+<span class="fc" id="L64">  public HighlightingLineReader(Component file, Iterator&lt;ScannerReport.SyntaxHighlightingRule&gt; lineHighlightingIterator, RangeOffsetConverter rangeOffsetConverter) {</span>
+<span class="fc" id="L65">    this.file = file;</span>
+<span class="fc" id="L66">    this.lineHighlightingIterator = lineHighlightingIterator;</span>
+<span class="fc" id="L67">    this.rangeOffsetConverter = rangeOffsetConverter;</span>
+<span class="fc" id="L68">    this.highlightingList = newArrayList();</span>
+<span class="fc" id="L69">  }</span>
+
+  /**
+   * Stops reading at first encountered error, which implies the same
+   * {@link org.sonar.ce.task.projectanalysis.source.linereader.LineReader.ReadError} will be returned once an error
+   * has been encountered and for any then provided {@link DbFileSources.Line.Builder lineBuilder}.
+   */
+  @Override
+  public Optional&lt;ReadError&gt; read(DbFileSources.Line.Builder lineBuilder) {
+<span class="fc bfc" id="L78" title="All 2 branches covered.">    if (readError == null) {</span>
+      try {
+<span class="fc" id="L80">        processHighlightings(lineBuilder);</span>
+<span class="fc" id="L81">      } catch (RangeOffsetConverterException e) {</span>
+<span class="fc" id="L82">        readError = new ReadError(HIGHLIGHTING, lineBuilder.getLine());</span>
+<span class="fc" id="L83">        LOG.debug(format(&quot;Inconsistency detected in Highlighting data. Highlighting will be ignored for file '%s'&quot;, file.getKey()), e);</span>
+<span class="fc" id="L84">      }</span>
+    }
+<span class="fc" id="L86">    return Optional.ofNullable(readError);</span>
+  }
+
+  private void processHighlightings(DbFileSources.Line.Builder lineBuilder) {
+<span class="fc" id="L90">    int line = lineBuilder.getLine();</span>
+<span class="fc" id="L91">    StringBuilder highlighting = new StringBuilder();</span>
+
+<span class="fc" id="L93">    incrementHighlightingListMatchingLine(line);</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">    for (Iterator&lt;ScannerReport.SyntaxHighlightingRule&gt; syntaxHighlightingIterator = highlightingList.iterator(); syntaxHighlightingIterator.hasNext();) {</span>
+<span class="fc" id="L95">      processHighlighting(syntaxHighlightingIterator, highlighting, lineBuilder);</span>
+    }
+<span class="fc bfc" id="L97" title="All 2 branches covered.">    if (highlighting.length() &gt; 0) {</span>
+<span class="fc" id="L98">      lineBuilder.setHighlighting(highlighting.toString());</span>
+    }
+<span class="fc" id="L100">  }</span>
+
+  private void processHighlighting(Iterator&lt;ScannerReport.SyntaxHighlightingRule&gt; syntaxHighlightingIterator, StringBuilder highlighting,
+    DbFileSources.Line.Builder lineBuilder) {
+<span class="fc" id="L104">    ScannerReport.SyntaxHighlightingRule syntaxHighlighting = syntaxHighlightingIterator.next();</span>
+<span class="fc" id="L105">    int line = lineBuilder.getLine();</span>
+<span class="fc" id="L106">    ScannerReport.TextRange range = syntaxHighlighting.getRange();</span>
+<span class="pc bpc" id="L107" title="1 of 2 branches missed.">    if (range.getStartLine() &lt;= line) {</span>
+<span class="fc" id="L108">      String offsets = rangeOffsetConverter.offsetToString(syntaxHighlighting.getRange(), line, lineBuilder.getSource().length());</span>
+<span class="fc bfc" id="L109" title="All 2 branches covered.">      if (offsets.isEmpty()) {</span>
+<span class="fc bfc" id="L110" title="All 2 branches covered.">        if (range.getEndLine() == line) {</span>
+<span class="fc" id="L111">          syntaxHighlightingIterator.remove();</span>
+        }
+      } else {
+<span class="fc bfc" id="L114" title="All 2 branches covered.">        if (highlighting.length() &gt; 0) {</span>
+<span class="fc" id="L115">          highlighting.append(SYMBOLS_SEPARATOR);</span>
+        }
+<span class="fc" id="L117">        highlighting.append(offsets)</span>
+<span class="fc" id="L118">          .append(OFFSET_SEPARATOR)</span>
+<span class="fc" id="L119">          .append(getCssClass(syntaxHighlighting.getType()));</span>
+<span class="fc bfc" id="L120" title="All 2 branches covered.">        if (range.getEndLine() == line) {</span>
+<span class="fc" id="L121">          syntaxHighlightingIterator.remove();</span>
+        }
+      }
+    }
+<span class="fc" id="L125">  }</span>
+
+  private static String getCssClass(HighlightingType type) {
+<span class="fc" id="L128">    String cssClass = cssClassByType.get(type);</span>
+<span class="pc bpc" id="L129" title="1 of 2 branches missed.">    if (cssClass != null) {</span>
+<span class="fc" id="L130">      return cssClass;</span>
+    } else {
+<span class="nc" id="L132">      throw new IllegalArgumentException(format(&quot;Unknown type %s &quot;, type.toString()));</span>
+    }
+  }
+
+  private void incrementHighlightingListMatchingLine(int line) {
+<span class="fc" id="L137">    ScannerReport.SyntaxHighlightingRule syntaxHighlighting = getNextHighlightingMatchingLine(line);</span>
+<span class="fc bfc" id="L138" title="All 2 branches covered.">    while (syntaxHighlighting != null) {</span>
+<span class="fc" id="L139">      highlightingList.add(syntaxHighlighting);</span>
+<span class="fc" id="L140">      this.currentItem = null;</span>
+<span class="fc" id="L141">      syntaxHighlighting = getNextHighlightingMatchingLine(line);</span>
+    }
+<span class="fc" id="L143">  }</span>
+
+  @CheckForNull
+  private ScannerReport.SyntaxHighlightingRule getNextHighlightingMatchingLine(int line) {
+    // Get next element (if exists)
+<span class="fc bfc" id="L148" title="All 4 branches covered.">    if (currentItem == null &amp;&amp; lineHighlightingIterator.hasNext()) {</span>
+<span class="fc" id="L149">      currentItem = lineHighlightingIterator.next();</span>
+    }
+    // Return current element if lines match
+<span class="fc bfc" id="L152" title="All 4 branches covered.">    if (currentItem != null &amp;&amp; currentItem.getRange().getStartLine() == line) {</span>
+<span class="fc" id="L153">      return currentItem;</span>
+    }
+<span class="fc" id="L155">    return null;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

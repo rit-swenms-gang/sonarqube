@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Action.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.issue</a> &gt; <span class="el_source">Action.java</span></div><h1>Action.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.issue;
+
+import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Predicate;
+import org.sonar.api.server.ServerSide;
+import org.sonar.core.issue.DefaultIssue;
+import org.sonar.core.issue.IssueChangeContext;
+import org.sonar.db.component.ComponentDto;
+import org.sonar.db.issue.IssueDto;
+import org.sonar.server.user.UserSession;
+
+import static com.google.common.collect.Lists.newArrayList;
+
+/**
+ * @since 3.7
+ */
+@ServerSide
+public abstract class Action {
+
+  private final String key;
+  private final List&lt;Predicate&lt;DefaultIssue&gt;&gt; conditions;
+
+<span class="fc" id="L46">  protected Action(String key) {</span>
+<span class="fc bfc" id="L47" title="All 2 branches covered.">    Preconditions.checkArgument(!Strings.isNullOrEmpty(key), &quot;Action key must be set&quot;);</span>
+<span class="fc" id="L48">    this.key = key;</span>
+<span class="fc" id="L49">    this.conditions = newArrayList();</span>
+<span class="fc" id="L50">  }</span>
+
+  public String key() {
+<span class="fc" id="L53">    return key;</span>
+  }
+
+  @SafeVarargs
+  public final Action setConditions(Predicate&lt;DefaultIssue&gt;... conditions) {
+<span class="fc" id="L58">    this.conditions.addAll(List.of(conditions));</span>
+<span class="fc" id="L59">    return this;</span>
+  }
+
+  public boolean supports(DefaultIssue issue) {
+<span class="fc bfc" id="L63" title="All 2 branches covered.">    for (Predicate&lt;DefaultIssue&gt; condition : conditions) {</span>
+<span class="fc bfc" id="L64" title="All 2 branches covered.">      if (!condition.test(issue)) {</span>
+<span class="fc" id="L65">        return false;</span>
+      }
+<span class="fc" id="L67">    }</span>
+<span class="fc" id="L68">    return true;</span>
+  }
+
+  public abstract boolean verify(Map&lt;String, Object&gt; properties, Collection&lt;DefaultIssue&gt; issues, UserSession userSession);
+
+  public abstract boolean execute(Map&lt;String, Object&gt; properties, Context context);
+
+  public abstract boolean shouldRefreshMeasures();
+
+  public interface Context {
+    DefaultIssue issue();
+
+    IssueDto issueDto();
+
+    IssueChangeContext issueChangeContext();
+
+    ComponentDto project();
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

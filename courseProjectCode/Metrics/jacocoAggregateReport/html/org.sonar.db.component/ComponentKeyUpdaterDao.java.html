@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ComponentKeyUpdaterDao.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.component</a> &gt; <span class="el_source">ComponentKeyUpdaterDao.java</span></div><h1>ComponentKeyUpdaterDao.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.component;
+
+import com.google.common.annotations.VisibleForTesting;
+import java.util.Collection;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.function.BiConsumer;
+import javax.annotation.Nullable;
+import org.apache.commons.lang3.StringUtils;
+import org.sonar.db.Dao;
+import org.sonar.db.DbSession;
+import org.sonar.db.audit.AuditPersister;
+import org.sonar.db.audit.model.ComponentKeyNewValue;
+
+/**
+ * Class used to rename the key of a project and its resources.
+ *
+ * @since 3.2
+ */
+public class ComponentKeyUpdaterDao implements Dao {
+  private final AuditPersister auditPersister;
+
+<span class="fc" id="L42">  public ComponentKeyUpdaterDao(AuditPersister auditPersister) {</span>
+<span class="fc" id="L43">    this.auditPersister = auditPersister;</span>
+<span class="fc" id="L44">  }</span>
+
+  public void updateKey(DbSession dbSession, String projectUuid, String projectOldKey, String newKey) {
+<span class="fc" id="L47">    ComponentKeyUpdaterMapper mapper = dbSession.getMapper(ComponentKeyUpdaterMapper.class);</span>
+<span class="fc" id="L48">    checkExistentKey(mapper, newKey);</span>
+
+    // must SELECT first everything
+<span class="fc" id="L51">    List&lt;ResourceDto&gt; resources = new LinkedList&lt;&gt;();</span>
+
+    // add all branch components
+<span class="fc" id="L54">    dbSession.getMapper(BranchMapper.class).selectByProjectUuid(projectUuid)</span>
+<span class="fc" id="L55">      .forEach(branch -&gt; {</span>
+<span class="fc" id="L56">        resources.addAll(mapper.selectBranchResources(branch.getUuid()));</span>
+<span class="fc" id="L57">        resources.add(mapper.selectComponentByUuid(branch.getUuid()));</span>
+<span class="fc" id="L58">      });</span>
+
+    // and then proceed with the batch UPDATE at once
+<span class="fc" id="L61">    runBatchUpdateForAllResources(resources, projectOldKey, newKey, mapper, (resource, oldKey) -&gt; {</span>
+<span class="fc" id="L62">    }, dbSession);</span>
+<span class="fc" id="L63">  }</span>
+
+  @VisibleForTesting
+  static String computeNewKey(String key, String stringToReplace, String replacementString) {
+<span class="fc" id="L67">    return key.replace(stringToReplace, replacementString);</span>
+  }
+
+  private void runBatchUpdateForAllResources(Collection&lt;ResourceDto&gt; resources, String oldKey, String newKey, ComponentKeyUpdaterMapper mapper,
+    @Nullable BiConsumer&lt;ResourceDto, String&gt; consumer, DbSession dbSession) {
+<span class="fc bfc" id="L72" title="All 2 branches covered.">    for (ResourceDto resource : resources) {</span>
+<span class="fc" id="L73">      String oldResourceKey = resource.getKey();</span>
+<span class="fc" id="L74">      String newResourceKey = newKey + oldResourceKey.substring(oldKey.length());</span>
+<span class="fc" id="L75">      resource.setKey(newResourceKey);</span>
+<span class="fc" id="L76">      String oldResourceDeprecatedKey = resource.getDeprecatedKey();</span>
+<span class="pc bpc" id="L77" title="1 of 2 branches missed.">      if (StringUtils.isNotBlank(oldResourceDeprecatedKey)) {</span>
+<span class="nc" id="L78">        String newResourceDeprecatedKey = newKey + oldResourceDeprecatedKey.substring(oldKey.length());</span>
+<span class="nc" id="L79">        resource.setDeprecatedKey(newResourceDeprecatedKey);</span>
+      }
+<span class="fc" id="L81">      mapper.updateComponent(resource);</span>
+<span class="fc bfc" id="L82" title="All 2 branches covered.">      if (resource.getScope().equals(ComponentScopes.PROJECT)</span>
+<span class="pc bpc" id="L83" title="3 of 4 branches missed.">        &amp;&amp; (resource.getQualifier().equals(ComponentQualifiers.PROJECT) || resource.getQualifier().equals(ComponentQualifiers.APP))) {</span>
+<span class="fc" id="L84">        auditPersister.componentKeyUpdate(dbSession, new ComponentKeyNewValue(resource.getUuid(), oldResourceKey, newResourceKey), resource.getQualifier());</span>
+<span class="fc" id="L85">        mapper.updateProject(oldResourceKey, newResourceKey);</span>
+      }
+
+<span class="pc bpc" id="L88" title="1 of 2 branches missed.">      if (consumer != null) {</span>
+<span class="fc" id="L89">        consumer.accept(resource, oldResourceKey);</span>
+      }
+<span class="fc" id="L91">    }</span>
+<span class="fc" id="L92">  }</span>
+
+  public static void checkExistentKey(ComponentKeyUpdaterMapper mapper, String resourceKey) {
+<span class="fc bfc" id="L95" title="All 2 branches covered.">    if (mapper.countComponentsByKey(resourceKey) &gt; 0) {</span>
+<span class="fc" id="L96">      throw new IllegalArgumentException(&quot;Impossible to update key: a component with key \&quot;&quot; + resourceKey + &quot;\&quot; already exists.&quot;);</span>
+    }
+<span class="fc" id="L98">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

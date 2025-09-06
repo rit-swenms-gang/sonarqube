@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BitbucketIdentityProvider.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.auth.bitbucket</a> &gt; <span class="el_source">BitbucketIdentityProvider.java</span></div><h1>BitbucketIdentityProvider.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.auth.bitbucket;
+
+import com.github.scribejava.core.builder.ServiceBuilder;
+import com.github.scribejava.core.builder.ServiceBuilderOAuth20;
+import com.github.scribejava.core.model.OAuth2AccessToken;
+import com.github.scribejava.core.model.OAuthConstants;
+import com.github.scribejava.core.model.OAuthRequest;
+import com.github.scribejava.core.model.Response;
+import com.github.scribejava.core.model.Verb;
+import com.github.scribejava.core.oauth.OAuth20Service;
+import java.io.IOException;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import javax.annotation.CheckForNull;
+import org.sonar.api.server.ServerSide;
+import org.sonar.api.server.authentication.Display;
+import org.sonar.api.server.authentication.OAuth2IdentityProvider;
+import org.sonar.api.server.authentication.UnauthorizedException;
+import org.sonar.api.server.authentication.UserIdentity;
+import org.sonar.api.server.http.HttpRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import static com.google.common.base.Preconditions.checkState;
+import static java.lang.String.format;
+import static java.util.Arrays.asList;
+import static java.util.stream.Collectors.toSet;
+
+@ServerSide
+public class BitbucketIdentityProvider implements OAuth2IdentityProvider {
+
+<span class="fc" id="L53">  private static final Logger LOGGER = LoggerFactory.getLogger(BitbucketIdentityProvider.class);</span>
+
+  public static final String REQUIRED_SCOPE = &quot;account&quot;;
+  public static final String KEY = &quot;bitbucket&quot;;
+
+  private final BitbucketSettings settings;
+  private final UserIdentityFactory userIdentityFactory;
+  private final BitbucketScribeApi scribeApi;
+
+<span class="fc" id="L62">  public BitbucketIdentityProvider(BitbucketSettings settings, UserIdentityFactory userIdentityFactory, BitbucketScribeApi scribeApi) {</span>
+<span class="fc" id="L63">    this.settings = settings;</span>
+<span class="fc" id="L64">    this.userIdentityFactory = userIdentityFactory;</span>
+<span class="fc" id="L65">    this.scribeApi = scribeApi;</span>
+<span class="fc" id="L66">  }</span>
+
+  @Override
+  public String getKey() {
+<span class="fc" id="L70">    return KEY;</span>
+  }
+
+  @Override
+  public String getName() {
+<span class="fc" id="L75">    return &quot;Bitbucket&quot;;</span>
+  }
+
+  @Override
+  public Display getDisplay() {
+<span class="fc" id="L80">    return Display.builder()</span>
+<span class="fc" id="L81">      .setIconPath(&quot;/images/alm/bitbucket.svg&quot;)</span>
+<span class="fc" id="L82">      .setBackgroundColor(&quot;#0052cc&quot;)</span>
+<span class="fc" id="L83">      .build();</span>
+  }
+
+  @Override
+  public boolean isEnabled() {
+<span class="fc" id="L88">    return settings.isEnabled();</span>
+  }
+
+  @Override
+  public boolean allowsUsersToSignUp() {
+<span class="nc" id="L93">    return settings.allowUsersToSignUp();</span>
+  }
+
+  @Override
+  public void init(InitContext context) {
+<span class="fc" id="L98">    String state = context.generateCsrfState();</span>
+<span class="fc" id="L99">    OAuth20Service scribe = newScribeBuilder(context).build(scribeApi);</span>
+<span class="fc" id="L100">    String url = scribe.getAuthorizationUrl(state);</span>
+<span class="fc" id="L101">    context.redirectTo(url);</span>
+<span class="fc" id="L102">  }</span>
+
+  private ServiceBuilderOAuth20 newScribeBuilder(OAuth2Context context) {
+<span class="fc" id="L105">    checkState(isEnabled(), &quot;Bitbucket authentication is disabled&quot;);</span>
+<span class="fc" id="L106">    return new ServiceBuilder(settings.clientId())</span>
+<span class="fc" id="L107">      .apiSecret(settings.clientSecret())</span>
+<span class="fc" id="L108">      .callback(context.getCallbackUrl())</span>
+<span class="fc" id="L109">      .defaultScope(REQUIRED_SCOPE);</span>
+  }
+
+  @Override
+  public void callback(CallbackContext context) {
+    try {
+<span class="fc" id="L115">      onCallback(context);</span>
+<span class="nc" id="L116">    } catch (IOException | ExecutionException e) {</span>
+<span class="nc" id="L117">      throw new IllegalStateException(e);</span>
+<span class="nc" id="L118">    } catch (InterruptedException e) {</span>
+<span class="nc" id="L119">      Thread.currentThread().interrupt();</span>
+<span class="nc" id="L120">      throw new IllegalStateException(e);</span>
+<span class="fc" id="L121">    }</span>
+<span class="fc" id="L122">  }</span>
+
+  private void onCallback(CallbackContext context) throws InterruptedException, ExecutionException, IOException {
+<span class="fc" id="L125">    HttpRequest request = context.getHttpRequest();</span>
+<span class="fc" id="L126">    OAuth20Service scribe = newScribeBuilder(context).build(scribeApi);</span>
+<span class="fc" id="L127">    String code = request.getParameter(OAuthConstants.CODE);</span>
+<span class="fc" id="L128">    OAuth2AccessToken accessToken = scribe.getAccessToken(code);</span>
+
+<span class="fc" id="L130">    GsonUser gsonUser = requestUser(scribe, accessToken);</span>
+<span class="fc" id="L131">    GsonEmails gsonEmails = requestEmails(scribe, accessToken);</span>
+
+<span class="fc" id="L133">    checkTeamRestriction(scribe, accessToken, gsonUser);</span>
+
+<span class="fc" id="L135">    UserIdentity userIdentity = userIdentityFactory.create(gsonUser, gsonEmails);</span>
+<span class="fc" id="L136">    context.authenticate(userIdentity);</span>
+<span class="fc" id="L137">    context.redirectToRequestedPage();</span>
+<span class="fc" id="L138">  }</span>
+
+  private GsonUser requestUser(OAuth20Service service, OAuth2AccessToken accessToken) throws InterruptedException, ExecutionException, IOException {
+<span class="fc" id="L141">    OAuthRequest userRequest = new OAuthRequest(Verb.GET, settings.apiURL() + &quot;2.0/user&quot;);</span>
+<span class="fc" id="L142">    service.signRequest(accessToken, userRequest);</span>
+<span class="fc" id="L143">    Response userResponse = service.execute(userRequest);</span>
+
+<span class="fc bfc" id="L145" title="All 2 branches covered.">    if (!userResponse.isSuccessful()) {</span>
+<span class="fc" id="L146">      throw new IllegalStateException(format(&quot;Can not get Bitbucket user profile. HTTP code: %s, response: %s&quot;,</span>
+<span class="fc" id="L147">        userResponse.getCode(), userResponse.getBody()));</span>
+    }
+<span class="fc" id="L149">    String userResponseBody = userResponse.getBody();</span>
+<span class="fc" id="L150">    return GsonUser.parse(userResponseBody);</span>
+  }
+
+  @CheckForNull
+  private GsonEmails requestEmails(OAuth20Service service, OAuth2AccessToken accessToken) throws InterruptedException, ExecutionException, IOException {
+<span class="fc" id="L155">    OAuthRequest userRequest = new OAuthRequest(Verb.GET, settings.apiURL() + &quot;2.0/user/emails&quot;);</span>
+<span class="fc" id="L156">    service.signRequest(accessToken, userRequest);</span>
+<span class="fc" id="L157">    Response emailsResponse = service.execute(userRequest);</span>
+<span class="pc bpc" id="L158" title="1 of 2 branches missed.">    if (emailsResponse.isSuccessful()) {</span>
+<span class="fc" id="L159">      return GsonEmails.parse(emailsResponse.getBody());</span>
+    }
+<span class="nc" id="L161">    return null;</span>
+  }
+
+  private void checkTeamRestriction(OAuth20Service service, OAuth2AccessToken accessToken, GsonUser user) throws InterruptedException, ExecutionException, IOException {
+<span class="fc" id="L165">    String[] workspaceAllowed = settings.workspaceAllowedList();</span>
+<span class="pc bpc" id="L166" title="1 of 4 branches missed.">    if (workspaceAllowed != null &amp;&amp; workspaceAllowed.length &gt; 0) {</span>
+<span class="fc" id="L167">      GsonWorkspaceMemberships userWorkspaces = requestWorkspaces(service, accessToken);</span>
+<span class="fc" id="L168">      String errorMessage = format(&quot;User %s is not part of allowed workspaces list&quot;, user.getUsername());</span>
+<span class="pc bpc" id="L169" title="2 of 4 branches missed.">      if (userWorkspaces == null || userWorkspaces.getWorkspaces() == null) {</span>
+<span class="nc" id="L170">        throw new UnauthorizedException(errorMessage);</span>
+      } else {
+<span class="fc" id="L172">        Set&lt;String&gt; uniqueUserWorkspaces = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L173">        uniqueUserWorkspaces.addAll(userWorkspaces.getWorkspaces().stream().map(w -&gt; w.getWorkspace().getName()).collect(toSet()));</span>
+<span class="fc" id="L174">        uniqueUserWorkspaces.addAll(userWorkspaces.getWorkspaces().stream().map(w -&gt; w.getWorkspace().getSlug()).collect(toSet()));</span>
+<span class="fc" id="L175">        List&lt;String&gt; workspaceAllowedList = asList(workspaceAllowed);</span>
+<span class="fc bfc" id="L176" title="All 2 branches covered.">        if (uniqueUserWorkspaces.stream().noneMatch(workspaceAllowedList::contains)) {</span>
+<span class="fc" id="L177">          throw new UnauthorizedException(errorMessage);</span>
+        }
+      }
+    }
+<span class="fc" id="L181">  }</span>
+
+  @CheckForNull
+  private GsonWorkspaceMemberships requestWorkspaces(OAuth20Service service, OAuth2AccessToken accessToken) throws InterruptedException, ExecutionException, IOException {
+<span class="fc" id="L185">    OAuthRequest userRequest = new OAuthRequest(Verb.GET, settings.apiURL() + &quot;2.0/user/permissions/workspaces?q=permission=\&quot;member\&quot;&quot;);</span>
+<span class="fc" id="L186">    service.signRequest(accessToken, userRequest);</span>
+<span class="fc" id="L187">    Response teamsResponse = service.execute(userRequest);</span>
+<span class="pc bpc" id="L188" title="1 of 2 branches missed.">    if (teamsResponse.isSuccessful()) {</span>
+<span class="fc" id="L189">      return GsonWorkspaceMemberships.parse(teamsResponse.getBody());</span>
+    }
+<span class="nc" id="L191">    LOGGER.warn(&quot;Fail to retrieve the teams of Bitbucket user: {}&quot;, teamsResponse.getBody());</span>
+<span class="nc" id="L192">    return null;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

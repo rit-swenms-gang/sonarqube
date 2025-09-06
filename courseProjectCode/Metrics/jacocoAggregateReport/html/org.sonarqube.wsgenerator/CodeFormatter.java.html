@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CodeFormatter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonarqube.wsgenerator</a> &gt; <span class="el_source">CodeFormatter.java</span></div><h1>CodeFormatter.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonarqube.wsgenerator;
+
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.StringWriter;
+import java.io.Writer;
+import java.util.Properties;
+import org.apache.commons.io.FileUtils;
+import org.apache.velocity.VelocityContext;
+import org.apache.velocity.app.VelocityEngine;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.sonarqube.wsgenerator.Helper.PATH_EXCLUSIONS;
+
+<span class="nc" id="L41">public class CodeFormatter {</span>
+
+  public static void format(String json) {
+<span class="nc" id="L44">    JsonObject jsonElement = new Gson().fromJson(json, JsonObject.class);</span>
+<span class="nc" id="L45">    JsonArray webServices = (JsonArray) jsonElement.get(&quot;webServices&quot;);</span>
+
+<span class="nc" id="L47">    Helper helper = new Helper();</span>
+
+<span class="nc" id="L49">    VelocityContext globalContext = new VelocityContext();</span>
+<span class="nc" id="L50">    globalContext.put(&quot;webServices&quot;, webServices);</span>
+<span class="nc" id="L51">    globalContext.put(&quot;helper&quot;, helper);</span>
+<span class="nc" id="L52">    String defaultWsClientCode = applyTemplate(&quot;defaultWsClient.vm&quot;, globalContext);</span>
+<span class="nc" id="L53">    writeSourceFile(helper.defaultWsClientFile(), defaultWsClientCode);</span>
+<span class="nc" id="L54">    String wsClientCode = applyTemplate(&quot;wsClient.vm&quot;, globalContext);</span>
+<span class="nc" id="L55">    writeSourceFile(helper.wsClientFile(), wsClientCode);</span>
+<span class="nc" id="L56">    writeSourceFile(helper.packageInfoFile(), applyTemplate(&quot;package-info.vm&quot;, globalContext));</span>
+
+<span class="nc bnc" id="L58" title="All 2 branches missed.">    for (JsonElement webServiceElement : webServices) {</span>
+<span class="nc" id="L59">      JsonObject webService = (JsonObject) webServiceElement;</span>
+<span class="nc" id="L60">      String webServicePath = webService.get(&quot;path&quot;).getAsString();</span>
+
+<span class="nc bnc" id="L62" title="All 2 branches missed.">      if (PATH_EXCLUSIONS.contains(webServicePath)) {</span>
+<span class="nc" id="L63">        System.out.println(&quot;Excluding WS &quot; + webServicePath + &quot; from code generation&quot;);</span>
+<span class="nc" id="L64">        continue;</span>
+      }
+
+<span class="nc" id="L67">      VelocityContext webServiceContext = new VelocityContext();</span>
+<span class="nc" id="L68">      webServiceContext.put(&quot;webService&quot;, webServiceElement);</span>
+<span class="nc" id="L69">      webServiceContext.put(&quot;helper&quot;, helper);</span>
+
+<span class="nc" id="L71">      String webServiceCode = applyTemplate(&quot;webService.vm&quot;, webServiceContext);</span>
+<span class="nc" id="L72">      writeSourceFile(helper.file(webServicePath), webServiceCode);</span>
+<span class="nc" id="L73">      writeSourceFile(helper.packageInfoFile(webServicePath), applyTemplate(&quot;package-info.vm&quot;, webServiceContext));</span>
+
+<span class="nc bnc" id="L75" title="All 2 branches missed.">      for (JsonElement actionElement : (JsonArray) webService.get(&quot;actions&quot;)) {</span>
+<span class="nc" id="L76">        JsonObject action = (JsonObject) actionElement;</span>
+
+<span class="nc" id="L78">        JsonArray params = (JsonArray) action.get(&quot;params&quot;);</span>
+<span class="nc bnc" id="L79" title="All 4 branches missed.">        if (params == null || params.size() &lt; 1) {</span>
+<span class="nc" id="L80">          continue;</span>
+        }
+
+<span class="nc" id="L83">        VelocityContext actionContext = new VelocityContext();</span>
+<span class="nc" id="L84">        actionContext.put(&quot;webService&quot;, webServiceElement);</span>
+<span class="nc" id="L85">        actionContext.put(&quot;action&quot;, actionElement);</span>
+<span class="nc" id="L86">        actionContext.put(&quot;helper&quot;, helper);</span>
+
+<span class="nc" id="L88">        String requestCode = applyTemplate(&quot;request.vm&quot;, actionContext);</span>
+<span class="nc" id="L89">        writeSourceFile(helper.requestFile(webServicePath, action.get(&quot;key&quot;).getAsString()), requestCode);</span>
+<span class="nc" id="L90">      }</span>
+<span class="nc" id="L91">    }</span>
+<span class="nc" id="L92">  }</span>
+
+  private static void writeSourceFile(String file, String code) {
+    try {
+<span class="nc" id="L96">      FileUtils.writeStringToFile(new File(file), code, UTF_8);</span>
+<span class="nc" id="L97">    } catch (IOException e) {</span>
+<span class="nc" id="L98">      throw new IllegalStateException(e);</span>
+<span class="nc" id="L99">    }</span>
+<span class="nc" id="L100">  }</span>
+
+  private static String applyTemplate(String templateName, VelocityContext context) {
+<span class="nc" id="L103">    VelocityEngine velocity = new VelocityEngine();</span>
+<span class="nc" id="L104">    Properties properties = new Properties();</span>
+<span class="nc" id="L105">    properties.setProperty(&quot;resource.loader&quot;, &quot;class&quot;);</span>
+<span class="nc" id="L106">    properties.setProperty(&quot;class.resource.loader.class&quot;, &quot;org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader&quot;);</span>
+<span class="nc" id="L107">    velocity.init(properties);</span>
+
+<span class="nc" id="L109">    Writer writer = new StringWriter();</span>
+<span class="nc" id="L110">    velocity.mergeTemplate(templateName, &quot;UTF-8&quot;, context, writer);</span>
+    try {
+<span class="nc" id="L112">      writer.flush();</span>
+<span class="nc" id="L113">    } catch (IOException e) {</span>
+<span class="nc" id="L114">      throw new IllegalStateException(e);</span>
+<span class="nc" id="L115">    }</span>
+
+<span class="nc" id="L117">    return writer.toString();</span>
+  }
+
+  public static void main(String[] args) {
+<span class="nc" id="L121">    String json = readFromInputStream(Generator.class.getResourceAsStream(&quot;/snapshot-of-api.json&quot;));</span>
+<span class="nc" id="L122">    format(json);</span>
+<span class="nc" id="L123">  }</span>
+
+  private static String readFromInputStream(InputStream inputStream) {
+<span class="nc" id="L126">    StringBuilder resultStringBuilder = new StringBuilder();</span>
+    try {
+<span class="nc" id="L128">      try (BufferedReader br = new BufferedReader(new InputStreamReader(inputStream))) {</span>
+        String line;
+<span class="nc bnc" id="L130" title="All 2 branches missed.">        while ((line = br.readLine()) != null) {</span>
+<span class="nc" id="L131">          resultStringBuilder.append(line).append(&quot;\n&quot;);</span>
+        }
+      }
+<span class="nc" id="L134">    } catch (IOException e) {</span>
+<span class="nc" id="L135">      throw new IllegalStateException(e);</span>
+<span class="nc" id="L136">    }</span>
+<span class="nc" id="L137">    return resultStringBuilder.toString();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

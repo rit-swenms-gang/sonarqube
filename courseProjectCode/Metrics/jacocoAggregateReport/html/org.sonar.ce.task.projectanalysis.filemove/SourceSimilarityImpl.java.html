@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SourceSimilarityImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.filemove</a> &gt; <span class="el_source">SourceSimilarityImpl.java</span></div><h1>SourceSimilarityImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.filemove;
+
+import java.util.List;
+
+import static java.lang.Math.max;
+import static java.lang.Math.min;
+
+<span class="fc" id="L27">public class SourceSimilarityImpl implements SourceSimilarity {</span>
+
+  @Override
+  public &lt;T&gt; int score(List&lt;T&gt; left, List&lt;T&gt; right) {
+<span class="pc bpc" id="L31" title="1 of 4 branches missed.">    if (left.isEmpty() &amp;&amp; right.isEmpty()) {</span>
+<span class="fc" id="L32">      return 0;</span>
+    }
+<span class="fc" id="L34">    int distance = levenshteinDistance(left, right);</span>
+<span class="fc" id="L35">    return (int) (100 * (1.0 - ((double) distance) / (max(left.size(), right.size()))));</span>
+  }
+
+  private static &lt;T&gt; int levenshteinDistance(List&lt;T&gt; left, List&lt;T&gt; right) {
+<span class="fc" id="L39">    int len0 = left.size() + 1;</span>
+<span class="fc" id="L40">    int len1 = right.size() + 1;</span>
+
+    // the array of distances
+<span class="fc" id="L43">    int[] cost = new int[len0];</span>
+<span class="fc" id="L44">    int[] newcost = new int[len0];</span>
+
+    // initial cost of skipping prefix in String s0
+<span class="fc bfc" id="L47" title="All 2 branches covered.">    for (int i = 0; i &lt; len0; i++) {</span>
+<span class="fc" id="L48">      cost[i] = i;</span>
+    }
+
+    // dynamically computing the array of distances
+
+    // transformation cost for each letter in s1
+<span class="fc bfc" id="L54" title="All 2 branches covered.">    for (int j = 1; j &lt; len1; j++) {</span>
+      // initial cost of skipping prefix in String s1
+<span class="fc" id="L56">      newcost[0] = j;</span>
+
+      // transformation cost for each letter in s0
+<span class="fc bfc" id="L59" title="All 2 branches covered.">      for (int i = 1; i &lt; len0; i++) {</span>
+        // matching current letters in both strings
+<span class="fc bfc" id="L61" title="All 2 branches covered.">        int match = left.get(i - 1).equals(right.get(j - 1)) ? 0 : 1;</span>
+
+        // computing cost for each transformation
+<span class="fc" id="L64">        int costReplace = cost[i - 1] + match;</span>
+<span class="fc" id="L65">        int costInsert = cost[i] + 1;</span>
+<span class="fc" id="L66">        int costDelete = newcost[i - 1] + 1;</span>
+
+        // keep minimum cost
+<span class="fc" id="L69">        newcost[i] = min(min(costInsert, costDelete), costReplace);</span>
+      }
+
+      // swap cost/newcost arrays
+<span class="fc" id="L73">      int[] swap = cost;</span>
+<span class="fc" id="L74">      cost = newcost;</span>
+<span class="fc" id="L75">      newcost = swap;</span>
+    }
+
+    // the distance is the cost for transforming all letters in both strings
+<span class="fc" id="L79">    return cost[len0 - 1];</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

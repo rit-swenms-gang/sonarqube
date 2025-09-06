@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LogMessageIfInvalidSamlSetup.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform.db.migration.version.v202501</a> &gt; <span class="el_source">LogMessageIfInvalidSamlSetup.java</span></div><h1>LogMessageIfInvalidSamlSetup.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform.db.migration.version.v202501;
+
+import com.google.common.annotations.VisibleForTesting;
+import java.sql.SQLException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.db.Database;
+import org.sonar.server.platform.db.migration.step.DataChange;
+
+public class LogMessageIfInvalidSamlSetup extends DataChange {
+<span class="fc" id="L30">  private static final Logger LOG = LoggerFactory.getLogger(LogMessageIfInvalidSamlSetup.class);</span>
+
+  @VisibleForTesting
+  static final String SAML_ENABLED = &quot;sonar.auth.saml.enabled&quot;;
+  @VisibleForTesting
+  static final String SIGN_REQUESTS_ENABLED = &quot;sonar.auth.saml.signature.enabled&quot;;
+  @VisibleForTesting
+  static final String SERVICE_PROVIDER_CERTIFICATE = &quot;sonar.auth.saml.sp.certificate.secured&quot;;
+  @VisibleForTesting
+  static final String SERVICE_PROVIDER_PRIVATE_KEY = &quot;sonar.auth.saml.sp.privateKey.secured&quot;;
+
+  public LogMessageIfInvalidSamlSetup(Database db) {
+<span class="fc" id="L42">    super(db);</span>
+<span class="fc" id="L43">  }</span>
+
+  @Override
+  protected void execute(Context context) throws SQLException {
+
+<span class="fc bfc" id="L48" title="All 2 branches covered.">    if (!isPropertyDefined(context, SAML_ENABLED)) {</span>
+<span class="fc" id="L49">      return;</span>
+    }
+
+<span class="fc" id="L52">    boolean isSignRequestEnabled = isPropertyEnabled(context, SIGN_REQUESTS_ENABLED);</span>
+
+<span class="fc" id="L54">    boolean serviceProviderCertificate = isPropertyDefined(context, SERVICE_PROVIDER_CERTIFICATE);</span>
+<span class="fc" id="L55">    boolean serviceProviderPrivateKey = isPropertyDefined(context, SERVICE_PROVIDER_PRIVATE_KEY);</span>
+
+<span class="fc bfc" id="L57" title="All 2 branches covered.">    if (isSignRequestEnabled) {</span>
+<span class="fc" id="L58">      return;</span>
+    }
+
+    // With oneLogin library, setting the private key was enough to decrypt the response
+    // With Spring security, both the private key and the certificate are needed to decrypt the response
+<span class="fc bfc" id="L63" title="All 4 branches covered.">    if (serviceProviderPrivateKey &amp;&amp; !serviceProviderCertificate) {</span>
+<span class="fc" id="L64">      LOG.warn(&quot;We detected an invalid SAML configuration that will prevent users to login with SAML: Service provider certificate is needed to decrypt SAML response.&quot;);</span>
+    }
+<span class="fc" id="L66">  }</span>
+
+  private static boolean isPropertyEnabled(Context context, String property) throws SQLException {
+<span class="fc" id="L69">    return Boolean.TRUE.equals(context.prepareSelect(&quot;select count(*) from properties where prop_key = ? and text_value = ?&quot;)</span>
+<span class="fc" id="L70">      .setString(1, property)</span>
+<span class="fc" id="L71">      .setString(2, &quot;true&quot;)</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">      .get(row -&gt; 1 == row.getInt(1)));</span>
+  }
+
+  private static boolean isPropertyDefined(Context context, String property) throws SQLException {
+<span class="fc" id="L76">    return Boolean.TRUE.equals(context.prepareSelect(&quot;select count(*) from properties where prop_key = ? and text_value is not null&quot;)</span>
+<span class="fc" id="L77">      .setString(1, property)</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">      .get(t -&gt; 1 == t.getInt(1)));</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

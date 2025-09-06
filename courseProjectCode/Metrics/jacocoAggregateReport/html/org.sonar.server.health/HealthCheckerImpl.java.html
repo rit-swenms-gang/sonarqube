@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HealthCheckerImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.health</a> &gt; <span class="el_source">HealthCheckerImpl.java</span></div><h1>HealthCheckerImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.health;
+
+import java.util.List;
+import java.util.Set;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.process.cluster.health.NodeHealth;
+import org.sonar.process.cluster.health.SharedHealthState;
+import org.sonar.server.common.health.ClusterHealthCheck;
+import org.sonar.server.common.health.HealthReducer;
+import org.sonar.server.common.health.NodeHealthCheck;
+import org.sonar.server.platform.NodeInformation;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.collect.ImmutableList.copyOf;
+
+/**
+ * Implementation of {@link HealthChecker} based on {@link NodeHealthCheck} and {@link ClusterHealthCheck} instances
+ * available in the container.
+ */
+public class HealthCheckerImpl implements HealthChecker {
+  private final NodeInformation nodeInformation;
+  private final List&lt;NodeHealthCheck&gt; nodeHealthChecks;
+  private final List&lt;ClusterHealthCheck&gt; clusterHealthChecks;
+  @CheckForNull
+  private final SharedHealthState sharedHealthState;
+
+  /**
+   * Constructor used by the ioc container in standalone mode and in safe mode.
+   */
+  @Autowired(required = false)
+  public HealthCheckerImpl(NodeInformation nodeInformation, NodeHealthCheck[] nodeHealthChecks) {
+<span class="fc" id="L53">    this(nodeInformation, nodeHealthChecks, new ClusterHealthCheck[0], null);</span>
+<span class="fc" id="L54">  }</span>
+
+  /**
+   * Constructor used by the ioc container in cluster mode.
+   */
+  @Autowired(required = false)
+  public HealthCheckerImpl(NodeInformation nodeInformation, NodeHealthCheck[] nodeHealthChecks, ClusterHealthCheck[] clusterHealthChecks,
+<span class="fc" id="L61">    @Nullable SharedHealthState sharedHealthState) {</span>
+<span class="fc" id="L62">    this.nodeInformation = nodeInformation;</span>
+<span class="fc" id="L63">    this.nodeHealthChecks = copyOf(nodeHealthChecks);</span>
+<span class="fc" id="L64">    this.clusterHealthChecks = copyOf(clusterHealthChecks);</span>
+<span class="fc" id="L65">    this.sharedHealthState = sharedHealthState;</span>
+<span class="fc" id="L66">  }</span>
+
+  @Override
+  public Health checkNode() {
+<span class="fc" id="L70">    return nodeHealthChecks.stream()</span>
+<span class="fc" id="L71">      .map(NodeHealthCheck::check)</span>
+<span class="fc" id="L72">      .reduce(Health.GREEN, HealthReducer::merge);</span>
+  }
+
+  @Override
+  public ClusterHealth checkCluster() {
+<span class="fc bfc" id="L77" title="All 2 branches covered.">    checkState(!nodeInformation.isStandalone(), &quot;Clustering is not enabled&quot;);</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">    checkState(sharedHealthState != null, &quot;HealthState instance can't be null when clustering is enabled&quot;);</span>
+
+<span class="fc" id="L80">    Set&lt;NodeHealth&gt; nodeHealths = sharedHealthState.readAll();</span>
+<span class="fc" id="L81">    Health health = clusterHealthChecks.stream()</span>
+<span class="fc" id="L82">      .map(clusterHealthCheck -&gt; clusterHealthCheck.check(nodeHealths))</span>
+<span class="fc" id="L83">      .reduce(Health.GREEN, HealthReducer::merge);</span>
+<span class="fc" id="L84">    return new ClusterHealth(health, nodeHealths);</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

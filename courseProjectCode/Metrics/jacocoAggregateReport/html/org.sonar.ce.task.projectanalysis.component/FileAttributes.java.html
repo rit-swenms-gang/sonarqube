@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FileAttributes.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.component</a> &gt; <span class="el_source">FileAttributes.java</span></div><h1>FileAttributes.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.component;
+
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static org.apache.commons.lang3.StringUtils.abbreviate;
+import static org.apache.commons.lang3.StringUtils.trimToNull;
+import static org.sonar.db.component.ComponentValidator.MAX_COMPONENT_NAME_LENGTH;
+
+/**
+ * The attributes specific to a Component of type {@link Component.Type#FILE}.
+ */
+@Immutable
+public class FileAttributes {
+  private final boolean unitTest;
+  @CheckForNull
+  private final String languageKey;
+  private final boolean markedAsUnchanged;
+  private final int lines;
+  private String oldRelativePath;
+
+  public FileAttributes(boolean unitTest, @Nullable String languageKey, int lines) {
+<span class="fc" id="L44">    this(unitTest, languageKey, lines, false, null);</span>
+<span class="fc" id="L45">  }</span>
+
+<span class="fc" id="L47">  public FileAttributes(boolean unitTest, @Nullable String languageKey, int lines, boolean markedAsUnchanged, @Nullable String oldRelativePath) {</span>
+<span class="fc" id="L48">    this.unitTest = unitTest;</span>
+<span class="fc" id="L49">    this.languageKey = languageKey;</span>
+<span class="fc" id="L50">    this.markedAsUnchanged = markedAsUnchanged;</span>
+<span class="fc bfc" id="L51" title="All 2 branches covered.">    checkArgument(lines &gt; 0, &quot;Number of lines must be greater than zero&quot;);</span>
+<span class="fc" id="L52">    this.lines = lines;</span>
+<span class="fc" id="L53">    this.oldRelativePath = formatOldRelativePath(oldRelativePath);</span>
+<span class="fc" id="L54">  }</span>
+
+  public boolean isMarkedAsUnchanged() {
+<span class="fc" id="L57">    return markedAsUnchanged;</span>
+  }
+
+  public boolean isUnitTest() {
+<span class="fc" id="L61">    return unitTest;</span>
+  }
+
+  @CheckForNull
+  public String getLanguageKey() {
+<span class="fc" id="L66">    return languageKey;</span>
+  }
+
+  /**
+   * The old relative path of a file when a move is detected by the SCM in the scope of a Pull Request.
+   */
+  @CheckForNull
+  public String getOldRelativePath() {
+<span class="fc" id="L74">    return oldRelativePath;</span>
+  }
+
+  /**
+   * Number of lines of the file, can never be less than 1
+   */
+  public int getLines() {
+<span class="fc" id="L81">    return lines;</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="fc" id="L86">    return &quot;FileAttributes{&quot; +</span>
+      &quot;languageKey='&quot; + languageKey + '\'' +
+      &quot;, unitTest=&quot; + unitTest +
+      &quot;, lines=&quot; + lines +
+      &quot;, markedAsUnchanged=&quot; + markedAsUnchanged +
+      &quot;, oldRelativePath='&quot; + oldRelativePath + '\'' +
+      '}';
+  }
+
+  private static String formatOldRelativePath(@Nullable String path) {
+<span class="fc" id="L96">    return abbreviate(trimToNull(path), MAX_COMPONENT_NAME_LENGTH);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

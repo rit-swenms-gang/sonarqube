@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WebhookDeliveryDao.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.webhook</a> &gt; <span class="el_source">WebhookDeliveryDao.java</span></div><h1>WebhookDeliveryDao.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.webhook;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import org.sonar.db.Dao;
+import org.sonar.db.DbSession;
+import org.sonar.db.Pagination;
+
+import static java.util.function.Function.identity;
+import static java.util.stream.Collectors.toMap;
+
+<span class="fc" id="L32">public class WebhookDeliveryDao implements Dao {</span>
+
+  public Optional&lt;WebhookDeliveryDto&gt; selectByUuid(DbSession dbSession, String uuid) {
+<span class="fc" id="L35">    return Optional.ofNullable(mapper(dbSession).selectByUuid(uuid));</span>
+  }
+
+  public int countDeliveriesByWebhookUuid(DbSession dbSession, String webhookUuid) {
+<span class="fc" id="L39">    return mapper(dbSession).countByWebhookUuid(webhookUuid);</span>
+  }
+
+  /**
+   * All the deliveries for the specified webhook. Results are ordered by descending date.
+   */
+  public List&lt;WebhookDeliveryLiteDto&gt; selectByWebhookUuid(DbSession dbSession, String webhookUuid, Pagination pagination) {
+<span class="fc" id="L46">    return mapper(dbSession).selectByWebhookUuid(webhookUuid, pagination);</span>
+  }
+
+  public int countDeliveriesByProjectUuid(DbSession dbSession, String projectUuid) {
+<span class="fc" id="L50">    return mapper(dbSession).countByProjectUuid(projectUuid);</span>
+  }
+
+  /**
+   * All the deliveries for the specified project. Results are ordered by descending date.
+   */
+  public List&lt;WebhookDeliveryLiteDto&gt; selectOrderedByProjectUuid(DbSession dbSession, String projectUuid, Pagination pagination) {
+<span class="fc" id="L57">    return mapper(dbSession).selectOrderedByProjectUuid(projectUuid, pagination);</span>
+  }
+
+  public int countDeliveriesByCeTaskUuid(DbSession dbSession, String ceTaskId) {
+<span class="fc" id="L61">    return mapper(dbSession).countByCeTaskUuid(ceTaskId);</span>
+  }
+
+  /**
+   * All the deliveries for the specified CE task. Results are ordered by descending date.
+   */
+  public List&lt;WebhookDeliveryLiteDto&gt; selectOrderedByCeTaskUuid(DbSession dbSession, String ceTaskUuid, Pagination pagination) {
+<span class="fc" id="L68">    return mapper(dbSession).selectOrderedByCeTaskUuid(ceTaskUuid, pagination);</span>
+  }
+
+  public void insert(DbSession dbSession, WebhookDeliveryDto dto) {
+<span class="fc" id="L72">    mapper(dbSession).insert(dto);</span>
+<span class="fc" id="L73">  }</span>
+
+  public void deleteAllBeforeDate(DbSession dbSession, long beforeDate) {
+<span class="fc" id="L76">    mapper(dbSession).deleteAllBeforeDate(beforeDate);</span>
+<span class="fc" id="L77">  }</span>
+
+  public Map&lt;String, WebhookDeliveryLiteDto&gt; selectLatestDeliveries(DbSession dbSession, List&lt;WebhookDto&gt; webhooks) {
+<span class="fc" id="L80">    return webhooks.stream()</span>
+<span class="fc" id="L81">      .flatMap(webhook -&gt; selectByWebhookUuid(dbSession, webhook.getUuid(), Pagination.forPage(1).andSize(1)).stream())</span>
+<span class="fc" id="L82">      .collect(toMap(WebhookDeliveryLiteDto::getWebhookUuid, identity()));</span>
+  }
+
+  private static WebhookDeliveryMapper mapper(DbSession dbSession) {
+<span class="fc" id="L86">    return dbSession.getMapper(WebhookDeliveryMapper.class);</span>
+  }
+
+  public void deleteByWebhook(DbSession dbSession, WebhookDto webhook) {
+<span class="fc" id="L90">    mapper(dbSession).deleteByWebhookUuid(webhook.getUuid());</span>
+<span class="fc" id="L91">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

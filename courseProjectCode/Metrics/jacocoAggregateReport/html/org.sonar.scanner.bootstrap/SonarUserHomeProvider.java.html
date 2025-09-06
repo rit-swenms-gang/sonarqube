@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SonarUserHomeProvider.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.bootstrap</a> &gt; <span class="el_source">SonarUserHomeProvider.java</span></div><h1>SonarUserHomeProvider.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.bootstrap;
+
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Objects;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.utils.System2;
+import org.springframework.context.annotation.Bean;
+
+public class SonarUserHomeProvider {
+<span class="fc" id="L31">  private static final Logger LOG = LoggerFactory.getLogger(SonarUserHomeProvider.class);</span>
+
+  private System2 system;
+
+  public SonarUserHomeProvider() {
+<span class="fc" id="L36">    this(new System2());</span>
+<span class="fc" id="L37">  }</span>
+
+<span class="fc" id="L39">  SonarUserHomeProvider(System2 system) {</span>
+<span class="fc" id="L40">    this.system = system;</span>
+<span class="fc" id="L41">  }</span>
+
+  @Bean
+  public SonarUserHome provide(ScannerProperties scannerProps) {
+<span class="fc" id="L45">    Path home = findSonarHome(scannerProps);</span>
+<span class="fc" id="L46">    LOG.debug(&quot;Sonar User Home: {}&quot;, home);</span>
+<span class="fc" id="L47">    return new SonarUserHome(home);</span>
+  }
+
+  private Path findSonarHome(ScannerProperties props) {
+<span class="fc" id="L51">    var home = props.property(&quot;sonar.userHome&quot;);</span>
+<span class="fc bfc" id="L52" title="All 2 branches covered.">    if (home != null) {</span>
+<span class="fc" id="L53">      return Paths.get(home).toAbsolutePath();</span>
+    }
+
+<span class="fc" id="L56">    home = system.envVariable(&quot;SONAR_USER_HOME&quot;);</span>
+
+<span class="fc bfc" id="L58" title="All 2 branches covered.">    if (home != null) {</span>
+<span class="fc" id="L59">      return Paths.get(home).toAbsolutePath();</span>
+    }
+
+<span class="fc" id="L62">    var userHome = Objects.requireNonNull(system.property(&quot;user.home&quot;), &quot;The system property 'user.home' is expected to be non null&quot;);</span>
+<span class="fc" id="L63">    return Paths.get(userHome, &quot;.sonar&quot;).toAbsolutePath();</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ColumnDef.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform.db.migration.charset</a> &gt; <span class="el_source">ColumnDef.java</span></div><h1>ColumnDef.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform.db.migration.charset;
+
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.Locale;
+import javax.annotation.concurrent.Immutable;
+import org.sonar.db.version.SqTables;
+
+/**
+ * Result of standard SQL command &quot;select * from INFORMATION_SCHEMA&quot; (columns listed in {@link #SELECT_COLUMNS}).
+ */
+@Immutable
+public class ColumnDef {
+
+  public static final String SELECT_COLUMNS = &quot;select table_name, column_name, character_set_name, collation_name, data_type, character_maximum_length, is_nullable &quot;;
+
+  private final String table;
+  private final String column;
+  private final String charset;
+  private final String collation;
+  private final String dataType;
+  private final long size;
+  private final boolean nullable;
+
+<span class="fc" id="L44">  public ColumnDef(String table, String column, String charset, String collation, String dataType, long size, boolean nullable) {</span>
+<span class="fc" id="L45">    this.table = table;</span>
+<span class="fc" id="L46">    this.column = column;</span>
+<span class="fc" id="L47">    this.charset = charset;</span>
+<span class="fc" id="L48">    this.collation = collation;</span>
+<span class="fc" id="L49">    this.dataType = dataType;</span>
+<span class="fc" id="L50">    this.size = size;</span>
+<span class="fc" id="L51">    this.nullable = nullable;</span>
+<span class="fc" id="L52">  }</span>
+
+  public String getTable() {
+<span class="fc" id="L55">    return table;</span>
+  }
+
+  public String getColumn() {
+<span class="fc" id="L59">    return column;</span>
+  }
+
+  public String getCharset() {
+<span class="nc" id="L63">    return charset;</span>
+  }
+
+  public String getCollation() {
+<span class="fc" id="L67">    return collation;</span>
+  }
+
+  public String getDataType() {
+<span class="fc" id="L71">    return dataType;</span>
+  }
+
+  public long getSize() {
+<span class="fc" id="L75">    return size;</span>
+  }
+
+  public boolean isNullable() {
+<span class="fc" id="L79">    return nullable;</span>
+  }
+
+  public boolean isInSonarQubeTable() {
+<span class="fc" id="L83">    String tableName = table.toLowerCase(Locale.ENGLISH);</span>
+<span class="fc" id="L84">    return SqTables.TABLES.contains(tableName);</span>
+  }
+
+<span class="nc" id="L87">  public enum ColumnDefRowConverter implements SqlExecutor.RowConverter&lt;ColumnDef&gt; {</span>
+<span class="nc" id="L88">    INSTANCE;</span>
+
+    @Override
+    public ColumnDef convert(ResultSet rs) throws SQLException {
+<span class="nc" id="L92">      String nullableText = rs.getString(7);</span>
+<span class="nc" id="L93">      boolean nullable = &quot;FIRST&quot;.equalsIgnoreCase(nullableText);</span>
+
+<span class="nc" id="L95">      return new ColumnDef(</span>
+<span class="nc" id="L96">        rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5), rs.getLong(6), nullable);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

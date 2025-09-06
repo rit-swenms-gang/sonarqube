@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CeWorkerControllerImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.taskprocessor</a> &gt; <span class="el_source">CeWorkerControllerImpl.java</span></div><h1>CeWorkerControllerImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.taskprocessor;
+
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import org.slf4j.LoggerFactory;
+import org.sonar.ce.configuration.CeConfiguration;
+
+public class CeWorkerControllerImpl implements CeWorkerController {
+<span class="fc" id="L28">  private final ConcurrentHashMap&lt;CeWorker, Status&gt; workerStatuses = new ConcurrentHashMap&lt;&gt;();</span>
+  private final CeConfiguration ceConfiguration;
+
+<span class="fc" id="L31">  enum Status {</span>
+<span class="fc" id="L32">    PROCESSING, PAUSED</span>
+  }
+
+<span class="fc" id="L35">  public CeWorkerControllerImpl(CeConfiguration ceConfiguration) {</span>
+<span class="fc" id="L36">    this.ceConfiguration = ceConfiguration;</span>
+<span class="fc" id="L37">    logEnabledWorkerCount();</span>
+<span class="fc" id="L38">  }</span>
+
+  private void logEnabledWorkerCount() {
+<span class="fc" id="L41">    int workerCount = ceConfiguration.getWorkerCount();</span>
+<span class="fc bfc" id="L42" title="All 2 branches covered.">    if (workerCount &gt; 1) {</span>
+<span class="fc" id="L43">      LoggerFactory.getLogger(CeWorkerController.class).info(&quot;Compute Engine will use {} concurrent workers to process tasks&quot;, workerCount);</span>
+    }
+<span class="fc" id="L45">  }</span>
+
+  @Override
+  public Optional&lt;CeWorker&gt; getCeWorkerIn(Thread thread) {
+<span class="fc" id="L49">    return workerStatuses.keySet().stream()</span>
+<span class="fc" id="L50">      .filter(t -&gt; t.isExecutedBy(thread))</span>
+<span class="fc" id="L51">      .findFirst();</span>
+  }
+
+  @Override
+  public ProcessingRecorderHook registerProcessingFor(CeWorker ceWorker) {
+<span class="fc" id="L56">    return new ProcessingRecorderHookImpl(ceWorker);</span>
+  }
+
+  @Override
+  public boolean hasAtLeastOneProcessingWorker() {
+<span class="pc bnc" id="L61" title="All 2 branches missed.">    return workerStatuses.entrySet().stream().anyMatch(e -&gt; e.getValue() == Status.PROCESSING);</span>
+  }
+
+  /**
+   * Returns {@code true} if {@link CeWorker#getOrdinal() worker ordinal} is strictly less than
+   * {@link CeConfiguration#getWorkerCount()}.
+   *
+   * This method does not fail if ordinal is invalid (ie. &lt; 0).
+   */
+  @Override
+  public boolean isEnabled(CeWorker ceWorker) {
+<span class="fc bfc" id="L72" title="All 2 branches covered.">    return ceWorker.getOrdinal() &lt; ceConfiguration.getWorkerCount();</span>
+  }
+
+  private class ProcessingRecorderHookImpl implements ProcessingRecorderHook {
+    private final CeWorker ceWorker;
+
+<span class="fc" id="L78">    private ProcessingRecorderHookImpl(CeWorker ceWorker) {</span>
+<span class="fc" id="L79">      this.ceWorker = ceWorker;</span>
+<span class="fc" id="L80">      workerStatuses.put(this.ceWorker, Status.PROCESSING);</span>
+<span class="fc" id="L81">    }</span>
+
+    @Override
+    public void close() {
+<span class="nc" id="L85">      workerStatuses.put(ceWorker, Status.PAUSED);</span>
+<span class="nc" id="L86">    }</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

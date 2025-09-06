@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BitbucketServerProjectCreator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.common.almsettings.bitbucketserver</a> &gt; <span class="el_source">BitbucketServerProjectCreator.java</span></div><h1>BitbucketServerProjectCreator.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.common.almsettings.bitbucketserver;
+
+import java.util.Optional;
+import org.jetbrains.annotations.Nullable;
+import org.sonar.alm.client.bitbucketserver.BitbucketServerRestClient;
+import org.sonar.alm.client.bitbucketserver.Branch;
+import org.sonar.alm.client.bitbucketserver.BranchesList;
+import org.sonar.alm.client.bitbucketserver.Repository;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.alm.pat.AlmPatDto;
+import org.sonar.db.alm.setting.AlmSettingDto;
+import org.sonar.db.alm.setting.ProjectAlmSettingDto;
+import org.sonar.db.project.CreationMethod;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.server.common.almintegration.ProjectKeyGenerator;
+import org.sonar.server.common.almsettings.DevOpsProjectCreator;
+import org.sonar.server.common.almsettings.DevOpsProjectDescriptor;
+import org.sonar.server.common.project.ProjectCreator;
+import org.sonar.server.component.ComponentCreationData;
+import org.sonar.server.user.UserSession;
+
+import static java.lang.String.format;
+import static java.util.Objects.requireNonNull;
+
+public class BitbucketServerProjectCreator implements DevOpsProjectCreator {
+
+  private final AlmSettingDto almSettingDto;
+  private final BitbucketServerRestClient bitbucketServerRestClient;
+  private final DbClient dbClient;
+  private final DevOpsProjectDescriptor devOpsProjectDescriptor;
+  private final UserSession userSession;
+  private final ProjectCreator projectCreator;
+  private final ProjectKeyGenerator projectKeyGenerator;
+
+  public BitbucketServerProjectCreator(AlmSettingDto almSettingDto, BitbucketServerRestClient bitbucketServerRestClient,
+    DbClient dbClient, DevOpsProjectDescriptor devOpsProjectDescriptor, UserSession userSession, ProjectCreator projectCreator,
+<span class="fc" id="L57">    ProjectKeyGenerator projectKeyGenerator) {</span>
+<span class="fc" id="L58">    this.almSettingDto = almSettingDto;</span>
+<span class="fc" id="L59">    this.bitbucketServerRestClient = bitbucketServerRestClient;</span>
+<span class="fc" id="L60">    this.dbClient = dbClient;</span>
+<span class="fc" id="L61">    this.devOpsProjectDescriptor = devOpsProjectDescriptor;</span>
+<span class="fc" id="L62">    this.userSession = userSession;</span>
+<span class="fc" id="L63">    this.projectCreator = projectCreator;</span>
+<span class="fc" id="L64">    this.projectKeyGenerator = projectKeyGenerator;</span>
+<span class="fc" id="L65">  }</span>
+
+  @Override
+  public boolean isScanAllowedUsingPermissionsFromDevopsPlatform() {
+<span class="fc" id="L69">    throw new UnsupportedOperationException(&quot;Not Implemented&quot;);</span>
+  }
+
+  @Override
+  public ComponentCreationData createProjectAndBindToDevOpsPlatform(DbSession dbSession, CreationMethod creationMethod, Boolean monorepo, @Nullable String projectKey,
+    @Nullable String projectName) {
+
+<span class="fc" id="L76">    String pat = findPersonalAccessTokenOrThrow(dbSession);</span>
+<span class="fc" id="L77">    String url = requireNonNull(almSettingDto.getUrl(), &quot;DevOps Platform url cannot be null&quot;);</span>
+<span class="fc" id="L78">    String bitbucketRepo = devOpsProjectDescriptor.repositoryIdentifier();</span>
+<span class="fc" id="L79">    String bitbucketProject = getBitbucketProjectOrThrow();</span>
+
+<span class="fc" id="L81">    Repository repository = bitbucketServerRestClient.getRepo(url, pat, bitbucketProject, bitbucketRepo);</span>
+<span class="fc" id="L82">    String defaultBranchName = getDefaultBranchName(url, pat, bitbucketProject, bitbucketRepo);</span>
+
+<span class="fc" id="L84">    ComponentCreationData componentCreationData = projectCreator.createProject(</span>
+      dbSession,
+<span class="fc" id="L86">      getProjectKey(projectKey, repository),</span>
+<span class="fc" id="L87">      getProjectName(projectName, repository),</span>
+      defaultBranchName,
+      creationMethod);
+<span class="fc" id="L90">    ProjectDto projectDto = Optional.ofNullable(componentCreationData.projectDto()).orElseThrow();</span>
+<span class="fc" id="L91">    createProjectAlmSettingDto(dbSession, repository, projectDto, almSettingDto, monorepo);</span>
+
+<span class="fc" id="L93">    return componentCreationData;</span>
+  }
+
+  private String findPersonalAccessTokenOrThrow(DbSession dbSession) {
+<span class="fc" id="L97">    String userUuid = requireNonNull(userSession.getUuid(), &quot;User UUID cannot be null.&quot;);</span>
+<span class="fc" id="L98">    Optional&lt;AlmPatDto&gt; almPatDto = dbClient.almPatDao().selectByUserAndAlmSetting(dbSession, userUuid, almSettingDto);</span>
+
+<span class="fc" id="L100">    return almPatDto.map(AlmPatDto::getPersonalAccessToken)</span>
+<span class="fc" id="L101">      .orElseThrow(() -&gt; new IllegalArgumentException(format(&quot;personal access token for '%s' is missing&quot;, almSettingDto.getKey())));</span>
+  }
+
+  private String getBitbucketProjectOrThrow() {
+<span class="fc bfc" id="L105" title="All 2 branches covered.">    if (devOpsProjectDescriptor.projectIdentifier() == null) {</span>
+<span class="fc" id="L106">      throw new IllegalArgumentException(String.format(&quot;The BitBucket project, in which the repository %s is located, is mandatory&quot;,</span>
+<span class="fc" id="L107">        devOpsProjectDescriptor.repositoryIdentifier()));</span>
+    }
+<span class="fc" id="L109">    return devOpsProjectDescriptor.projectIdentifier();</span>
+  }
+
+  private String getDefaultBranchName(String url, String pat, String project, String repo) {
+<span class="fc" id="L113">    BranchesList branches = bitbucketServerRestClient.getBranches(url, pat, project, repo);</span>
+<span class="fc" id="L114">    Optional&lt;Branch&gt; defaultBranch = branches.findDefaultBranch();</span>
+<span class="fc" id="L115">    return defaultBranch.map(Branch::getName).orElse(null);</span>
+  }
+
+  private String getProjectKey(@Nullable String projectKey, Repository repo) {
+<span class="fc" id="L119">    return Optional.ofNullable(projectKey).orElseGet(() -&gt; projectKeyGenerator.generateUniqueProjectKey(repo.getProject().getKey(), repo.getSlug()));</span>
+  }
+
+  private static String getProjectName(@Nullable String projectName, Repository repository) {
+<span class="fc" id="L123">    return Optional.ofNullable(projectName).orElse(repository.getName());</span>
+  }
+
+  private void createProjectAlmSettingDto(DbSession dbSession, Repository repository, ProjectDto projectDto, AlmSettingDto almSettingDto,
+    Boolean isMonorepo) {
+<span class="fc" id="L128">    ProjectAlmSettingDto projectAlmSettingDto = new ProjectAlmSettingDto()</span>
+<span class="fc" id="L129">      .setAlmSettingUuid(almSettingDto.getUuid())</span>
+<span class="fc" id="L130">      .setAlmRepo(repository.getProject().getKey())</span>
+<span class="fc" id="L131">      .setAlmSlug(repository.getSlug())</span>
+<span class="fc" id="L132">      .setProjectUuid(projectDto.getUuid())</span>
+<span class="fc" id="L133">      .setMonorepo(isMonorepo);</span>
+
+<span class="fc" id="L135">    dbClient.projectAlmSettingDao().insertOrUpdate(dbSession, projectAlmSettingDto, almSettingDto.getKey(), projectDto.getName(), projectDto.getKey());</span>
+<span class="fc" id="L136">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

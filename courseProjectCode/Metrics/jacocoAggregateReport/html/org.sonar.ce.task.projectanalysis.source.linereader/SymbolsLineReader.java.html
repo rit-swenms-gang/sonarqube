@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SymbolsLineReader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.source.linereader</a> &gt; <span class="el_source">SymbolsLineReader.java</span></div><h1>SymbolsLineReader.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.source.linereader;
+
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.SetMultimap;
+import java.util.Comparator;
+import java.util.IdentityHashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.ce.task.projectanalysis.component.Component;
+import org.sonar.db.protobuf.DbFileSources;
+import org.sonar.scanner.protocol.output.ScannerReport;
+
+import static java.lang.String.format;
+import static org.sonar.ce.task.projectanalysis.source.linereader.RangeOffsetConverter.OFFSET_SEPARATOR;
+import static org.sonar.ce.task.projectanalysis.source.linereader.RangeOffsetConverter.SYMBOLS_SEPARATOR;
+
+public class SymbolsLineReader implements LineReader {
+
+<span class="fc" id="L43">  private static final Logger LOG = LoggerFactory.getLogger(SymbolsLineReader.class);</span>
+
+  private final Component file;
+  private final RangeOffsetConverter rangeOffsetConverter;
+  private final Map&lt;ScannerReport.Symbol, Integer&gt; idsBySymbol;
+  private final SetMultimap&lt;Integer, ScannerReport.Symbol&gt; symbolsPerLine;
+
+<span class="fc" id="L50">  private ReadError readError = null;</span>
+
+<span class="fc" id="L52">  public SymbolsLineReader(Component file, Iterator&lt;ScannerReport.Symbol&gt; symbolIterator, RangeOffsetConverter rangeOffsetConverter) {</span>
+<span class="fc" id="L53">    this.file = file;</span>
+<span class="fc" id="L54">    this.rangeOffsetConverter = rangeOffsetConverter;</span>
+<span class="fc" id="L55">    List&lt;ScannerReport.Symbol&gt; symbols = Lists.newArrayList(symbolIterator);</span>
+    // Sort symbols to have deterministic id generation
+<span class="fc" id="L57">    symbols.sort(SymbolsComparator.INSTANCE);</span>
+
+<span class="fc" id="L59">    this.idsBySymbol = createIdsBySymbolMap(symbols);</span>
+<span class="fc" id="L60">    this.symbolsPerLine = buildSymbolsPerLine(symbols);</span>
+<span class="fc" id="L61">  }</span>
+
+  /**
+   * Stops reading at first encountered error, which implies the same
+   * {@link org.sonar.ce.task.projectanalysis.source.linereader.LineReader.ReadError} will be returned once an error
+   * has been encountered and for any then provided {@link DbFileSources.Line.Builder lineBuilder}.
+   */
+  @Override
+  public Optional&lt;ReadError&gt; read(DbFileSources.Line.Builder lineBuilder) {
+<span class="fc bfc" id="L70" title="All 2 branches covered.">    if (readError == null) {</span>
+      try {
+<span class="fc" id="L72">        processSymbols(lineBuilder);</span>
+<span class="fc" id="L73">      } catch (RangeOffsetConverter.RangeOffsetConverterException e) {</span>
+<span class="fc" id="L74">        readError = new ReadError(Data.SYMBOLS, lineBuilder.getLine());</span>
+<span class="fc" id="L75">        LOG.warn(format(&quot;Inconsistency detected in Symbols data. Symbols will be ignored for file '%s'&quot;, file.getKey()), e);</span>
+<span class="fc" id="L76">      }</span>
+    }
+<span class="fc" id="L78">    return Optional.ofNullable(readError);</span>
+  }
+
+  private void processSymbols(DbFileSources.Line.Builder lineBuilder) {
+<span class="fc" id="L82">    int line = lineBuilder.getLine();</span>
+
+    // Sort symbols to have deterministic results and avoid false variation that would lead to an unnecessary update of the source files
+    // data
+<span class="fc" id="L86">    StringBuilder symbolString = new StringBuilder();</span>
+<span class="fc" id="L87">    symbolsPerLine.get(line).stream().sorted(SymbolsComparator.INSTANCE).forEach(lineSymbol -&gt; {</span>
+<span class="fc" id="L88">      int symbolId = idsBySymbol.get(lineSymbol);</span>
+
+<span class="fc" id="L90">      appendSymbol(symbolString, lineSymbol.getDeclaration(), line, symbolId, lineBuilder.getSource());</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">      for (ScannerReport.TextRange range : lineSymbol.getReferenceList()) {</span>
+<span class="fc" id="L92">        appendSymbol(symbolString, range, line, symbolId, lineBuilder.getSource());</span>
+<span class="fc" id="L93">      }</span>
+<span class="fc" id="L94">    });</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">    if (symbolString.length() &gt; 0) {</span>
+<span class="fc" id="L96">      lineBuilder.setSymbols(symbolString.toString());</span>
+    }
+<span class="fc" id="L98">  }</span>
+
+  private void appendSymbol(StringBuilder lineSymbol, ScannerReport.TextRange range, int line, int symbolId, String sourceLine) {
+<span class="fc bfc" id="L101" title="All 2 branches covered.">    if (matchLine(range, line)) {</span>
+<span class="fc" id="L102">      String offsets = rangeOffsetConverter.offsetToString(range, line, sourceLine.length());</span>
+<span class="fc bfc" id="L103" title="All 2 branches covered.">      if (!offsets.isEmpty()) {</span>
+<span class="fc bfc" id="L104" title="All 2 branches covered.">        if (lineSymbol.length() &gt; 0) {</span>
+<span class="fc" id="L105">          lineSymbol.append(SYMBOLS_SEPARATOR);</span>
+        }
+<span class="fc" id="L107">        lineSymbol.append(offsets)</span>
+<span class="fc" id="L108">          .append(OFFSET_SEPARATOR)</span>
+<span class="fc" id="L109">          .append(symbolId);</span>
+      }
+    }
+<span class="fc" id="L112">  }</span>
+
+  private static boolean matchLine(ScannerReport.TextRange range, int line) {
+<span class="fc bfc" id="L115" title="All 4 branches covered.">    return range.getStartLine() &lt;= line &amp;&amp; range.getEndLine() &gt;= line;</span>
+  }
+
+  private static Map&lt;ScannerReport.Symbol, Integer&gt; createIdsBySymbolMap(List&lt;ScannerReport.Symbol&gt; symbols) {
+<span class="fc" id="L119">    Map&lt;ScannerReport.Symbol, Integer&gt; map = new IdentityHashMap&lt;&gt;(symbols.size());</span>
+<span class="fc" id="L120">    int symbolId = 1;</span>
+<span class="fc bfc" id="L121" title="All 2 branches covered.">    for (ScannerReport.Symbol symbol : symbols) {</span>
+<span class="fc" id="L122">      map.put(symbol, symbolId);</span>
+<span class="fc" id="L123">      symbolId++;</span>
+<span class="fc" id="L124">    }</span>
+<span class="fc" id="L125">    return map;</span>
+  }
+
+  private static SetMultimap&lt;Integer, ScannerReport.Symbol&gt; buildSymbolsPerLine(List&lt;ScannerReport.Symbol&gt; symbols) {
+<span class="fc" id="L129">    SetMultimap&lt;Integer, ScannerReport.Symbol&gt; res = HashMultimap.create();</span>
+<span class="fc bfc" id="L130" title="All 2 branches covered.">    for (ScannerReport.Symbol symbol : symbols) {</span>
+<span class="fc" id="L131">      putForTextRange(res, symbol, symbol.getDeclaration());</span>
+<span class="fc bfc" id="L132" title="All 2 branches covered.">      for (ScannerReport.TextRange textRange : symbol.getReferenceList()) {</span>
+<span class="fc" id="L133">        putForTextRange(res, symbol, textRange);</span>
+<span class="fc" id="L134">      }</span>
+<span class="fc" id="L135">    }</span>
+<span class="fc" id="L136">    return res;</span>
+  }
+
+  private static void putForTextRange(SetMultimap&lt;Integer, ScannerReport.Symbol&gt; res, ScannerReport.Symbol symbol, ScannerReport.TextRange declaration) {
+<span class="fc bfc" id="L140" title="All 2 branches covered.">    for (int i = declaration.getStartLine(); i &lt;= declaration.getEndLine(); i++) {</span>
+<span class="fc" id="L141">      res.put(i, symbol);</span>
+    }
+<span class="fc" id="L143">  }</span>
+
+<span class="fc" id="L145">  private enum SymbolsComparator implements Comparator&lt;ScannerReport.Symbol&gt; {</span>
+<span class="fc" id="L146">    INSTANCE;</span>
+
+    @Override
+    public int compare(ScannerReport.Symbol o1, ScannerReport.Symbol o2) {
+<span class="fc bfc" id="L150" title="All 2 branches covered.">      if (o1.getDeclaration().getStartLine() == o2.getDeclaration().getStartLine()) {</span>
+<span class="fc" id="L151">        return Integer.compare(o1.getDeclaration().getStartOffset(), o2.getDeclaration().getStartOffset());</span>
+      } else {
+<span class="fc" id="L153">        return Integer.compare(o1.getDeclaration().getStartLine(), o2.getDeclaration().getStartLine());</span>
+      }
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

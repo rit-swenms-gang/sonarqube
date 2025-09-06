@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JavaCpdBlockIndexerSensor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.cpd</a> &gt; <span class="el_source">JavaCpdBlockIndexerSensor.java</span></div><h1>JavaCpdBlockIndexerSensor.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.cpd;
+
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.util.List;
+import java.util.stream.StreamSupport;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.batch.Phase;
+import org.sonar.api.batch.fs.FilePredicates;
+import org.sonar.api.batch.fs.InputFile;
+import org.sonar.api.batch.fs.internal.DefaultInputFile;
+import org.sonar.api.batch.sensor.SensorContext;
+import org.sonar.api.batch.sensor.SensorDescriptor;
+import org.sonar.api.scanner.sensor.ProjectSensor;
+import org.sonar.duplications.block.Block;
+import org.sonar.duplications.block.BlockChunker;
+import org.sonar.duplications.java.JavaStatementBuilder;
+import org.sonar.duplications.java.JavaTokenProducer;
+import org.sonar.duplications.statement.Statement;
+import org.sonar.duplications.statement.StatementChunker;
+import org.sonar.duplications.token.TokenChunker;
+import org.sonar.scanner.cpd.index.SonarCpdBlockIndex;
+
+/**
+ * Special case for Java that use a dedicated block indexer.
+ */
+@Phase(name = Phase.Name.POST)
+public class JavaCpdBlockIndexerSensor implements ProjectSensor {
+
+  private static final int BLOCK_SIZE = 10;
+<span class="fc" id="L54">  private static final Logger LOG = LoggerFactory.getLogger(JavaCpdBlockIndexerSensor.class);</span>
+  private final SonarCpdBlockIndex index;
+
+<span class="fc" id="L57">  public JavaCpdBlockIndexerSensor(SonarCpdBlockIndex index) {</span>
+<span class="fc" id="L58">    this.index = index;</span>
+<span class="fc" id="L59">  }</span>
+
+  @Override
+  public void describe(SensorDescriptor descriptor) {
+<span class="fc" id="L63">    descriptor.name(&quot;Java CPD Block Indexer&quot;)</span>
+<span class="fc" id="L64">      .onlyOnLanguage(&quot;java&quot;);</span>
+<span class="fc" id="L65">  }</span>
+
+  @Override
+  public void execute(SensorContext context) {
+<span class="fc" id="L69">    FilePredicates p = context.fileSystem().predicates();</span>
+<span class="fc" id="L70">    List&lt;InputFile&gt; sourceFiles = StreamSupport.stream(</span>
+<span class="fc" id="L71">      context.fileSystem().inputFiles(</span>
+<span class="fc" id="L72">        p.and(</span>
+<span class="fc" id="L73">          p.hasType(InputFile.Type.MAIN),</span>
+<span class="fc" id="L74">          p.hasLanguage(&quot;java&quot;)</span>
+        )
+<span class="fc" id="L76">      ).spliterator(), false)</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">      .filter(f -&gt; !((DefaultInputFile) f).isExcludedForDuplication())</span>
+<span class="fc" id="L78">      .toList();</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">    if (sourceFiles.isEmpty()) {</span>
+<span class="fc" id="L80">      return;</span>
+    }
+<span class="fc" id="L82">    createIndex(sourceFiles);</span>
+<span class="fc" id="L83">  }</span>
+
+  private void createIndex(Iterable&lt;InputFile&gt; sourceFiles) {
+<span class="fc" id="L86">    TokenChunker tokenChunker = JavaTokenProducer.build();</span>
+<span class="fc" id="L87">    StatementChunker statementChunker = JavaStatementBuilder.build();</span>
+<span class="fc" id="L88">    BlockChunker blockChunker = new BlockChunker(BLOCK_SIZE);</span>
+
+<span class="fc bfc" id="L90" title="All 2 branches covered.">    for (InputFile inputFile : sourceFiles) {</span>
+<span class="fc" id="L91">      LOG.debug(&quot;Populating index from {}&quot;, inputFile);</span>
+<span class="fc" id="L92">      String resourceEffectiveKey = inputFile.key();</span>
+
+      List&lt;Statement&gt; statements;
+
+<span class="fc" id="L96">      try (InputStream is = inputFile.inputStream();</span>
+<span class="fc" id="L97">        Reader reader = new InputStreamReader(is, inputFile.charset())) {</span>
+<span class="fc" id="L98">        statements = statementChunker.chunk(tokenChunker.chunk(reader));</span>
+<span class="nc" id="L99">      } catch (FileNotFoundException e) {</span>
+<span class="nc" id="L100">        throw new IllegalStateException(&quot;Cannot find file &quot; + inputFile.file(), e);</span>
+<span class="nc" id="L101">      } catch (IOException e) {</span>
+<span class="nc" id="L102">        throw new IllegalStateException(&quot;Exception handling file: &quot; + inputFile.file(), e);</span>
+<span class="fc" id="L103">      }</span>
+
+      List&lt;Block&gt; blocks;
+      try {
+<span class="fc" id="L107">        blocks = blockChunker.chunk(resourceEffectiveKey, statements);</span>
+<span class="nc" id="L108">      } catch (Exception e) {</span>
+<span class="nc" id="L109">        throw new IllegalStateException(&quot;Cannot process file &quot; + inputFile.file(), e);</span>
+<span class="fc" id="L110">      }</span>
+<span class="fc" id="L111">      index.insert(inputFile, blocks);</span>
+<span class="fc" id="L112">    }</span>
+<span class="fc" id="L113">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

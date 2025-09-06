@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RuleMapper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.externalissue.sarif</a> &gt; <span class="el_source">RuleMapper.java</span></div><h1>RuleMapper.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.externalissue.sarif;
+
+import javax.annotation.Nullable;
+import org.apache.commons.lang3.StringUtils;
+import org.sonar.api.batch.sensor.SensorContext;
+import org.sonar.api.batch.sensor.rule.NewAdHocRule;
+import org.sonar.api.scanner.ScannerSide;
+import org.sonar.sarif.pojo.ReportingDescriptor;
+import org.sonar.sarif.pojo.Result;
+
+import static java.lang.String.join;
+
+@ScannerSide
+public class RuleMapper {
+
+  private final SensorContext sensorContext;
+
+<span class="fc" id="L37">  public RuleMapper(SensorContext sensorContext) {</span>
+<span class="fc" id="L38">    this.sensorContext = sensorContext;</span>
+<span class="fc" id="L39">  }</span>
+
+  NewAdHocRule mapRule(ReportingDescriptor rule, String driverName, @Nullable Result.Level ruleSeverity, @Nullable Result.Level ruleSeverityForNewTaxonomy) {
+
+<span class="fc" id="L43">    NewAdHocRule newAdHocRule = sensorContext.newAdHocRule()</span>
+<span class="fc" id="L44">      .severity(ResultMapper.toSonarQubeSeverity(ruleSeverity))</span>
+<span class="fc" id="L45">      .type(ResultMapper.DEFAULT_TYPE)</span>
+<span class="fc" id="L46">      .ruleId(rule.getId())</span>
+<span class="fc" id="L47">      .engineId(driverName)</span>
+<span class="fc" id="L48">      .cleanCodeAttribute(ResultMapper.DEFAULT_CLEAN_CODE_ATTRIBUTE)</span>
+<span class="fc" id="L49">      .addDefaultImpact(ResultMapper.DEFAULT_SOFTWARE_QUALITY, ResultMapper.toSonarQubeImpactSeverity(ruleSeverityForNewTaxonomy));</span>
+
+<span class="pc bpc" id="L51" title="1 of 4 branches missed.">    if (rule.getShortDescription() != null &amp;&amp; !StringUtils.isBlank(rule.getShortDescription().getText())) {</span>
+<span class="fc" id="L52">      newAdHocRule.name(rule.getShortDescription().getText());</span>
+    } else {
+<span class="fc" id="L54">      newAdHocRule.name(join(&quot;:&quot;, driverName, rule.getId()));</span>
+    }
+
+<span class="pc bpc" id="L57" title="1 of 4 branches missed.">    if (rule.getFullDescription() != null &amp;&amp; !StringUtils.isBlank(rule.getFullDescription().getText())) {</span>
+<span class="fc" id="L58">      newAdHocRule.description(rule.getFullDescription().getText());</span>
+    }
+
+<span class="fc" id="L61">    return newAdHocRule;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

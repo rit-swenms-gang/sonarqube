@@ -1,0 +1,366 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PurgeDao.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.purge</a> &gt; <span class="el_source">PurgeDao.java</span></div><h1>PurgeDao.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.purge;
+
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.utils.DateUtils;
+import org.sonar.api.utils.System2;
+import org.sonar.api.utils.TimeUtils;
+import org.sonar.db.Dao;
+import org.sonar.db.DbSession;
+import org.sonar.db.audit.AuditPersister;
+import org.sonar.db.audit.model.ComponentNewValue;
+import org.sonar.db.component.BranchDto;
+import org.sonar.db.component.BranchMapper;
+import org.sonar.db.component.ComponentDto;
+
+import static java.util.Collections.emptyList;
+import static java.util.Optional.ofNullable;
+import static org.sonar.api.utils.DateUtils.dateToLong;
+import static org.sonar.db.DatabaseUtils.executeLargeInputs;
+
+public class PurgeDao implements Dao {
+<span class="fc" id="L50">  private static final Logger LOG = LoggerFactory.getLogger(PurgeDao.class);</span>
+<span class="fc" id="L51">  private static final Set&lt;String&gt; QUALIFIERS_PROJECT_VIEW = Set.of(&quot;TRK&quot;, &quot;VW&quot;);</span>
+<span class="fc" id="L52">  private static final Set&lt;String&gt; QUALIFIER_SUBVIEW = Set.of(&quot;SVW&quot;);</span>
+  private static final String SCOPE_PROJECT = &quot;PRJ&quot;;
+
+  private final System2 system2;
+  private final AuditPersister auditPersister;
+
+<span class="fc" id="L58">  public PurgeDao(System2 system2, AuditPersister auditPersister) {</span>
+<span class="fc" id="L59">    this.system2 = system2;</span>
+<span class="fc" id="L60">    this.auditPersister = auditPersister;</span>
+<span class="fc" id="L61">  }</span>
+
+  public void purge(DbSession session, PurgeConfiguration conf, PurgeListener listener, PurgeProfiler profiler) {
+<span class="fc" id="L64">    PurgeMapper mapper = session.getMapper(PurgeMapper.class);</span>
+<span class="fc" id="L65">    PurgeCommands commands = new PurgeCommands(session, mapper, profiler, system2);</span>
+<span class="fc" id="L66">    String rootUuid = conf.rootUuid();</span>
+<span class="fc" id="L67">    deleteAbortedAnalyses(rootUuid, commands);</span>
+<span class="fc" id="L68">    purgeAnalyses(commands, rootUuid);</span>
+<span class="fc" id="L69">    purgeDisabledComponents(commands, conf, listener);</span>
+<span class="fc" id="L70">    deleteOldClosedIssues(conf, mapper, listener);</span>
+<span class="fc" id="L71">    deleteOrphanIssues(mapper, rootUuid);</span>
+<span class="fc" id="L72">    purgeOldCeActivities(session, rootUuid, commands);</span>
+<span class="fc" id="L73">    purgeOldCeScannerContexts(session, rootUuid, commands);</span>
+<span class="fc" id="L74">    deleteOldAnticipatedTransitions(commands, conf, conf.projectUuid());</span>
+
+<span class="fc" id="L76">    deleteOldDisabledComponents(commands, mapper, rootUuid);</span>
+<span class="fc" id="L77">    purgeStaleBranches(commands, conf, mapper, rootUuid);</span>
+
+<span class="fc" id="L79">  }</span>
+
+  private static void purgeStaleBranches(PurgeCommands commands, PurgeConfiguration conf, PurgeMapper mapper, String rootUuid) {
+<span class="fc" id="L82">    Optional&lt;Date&gt; maxDate = conf.maxLiveDateOfInactiveBranches();</span>
+<span class="pc bpc" id="L83" title="1 of 2 branches missed.">    if (maxDate.isEmpty()) {</span>
+      // not available if branch plugin is not installed
+<span class="nc" id="L85">      return;</span>
+    }
+<span class="fc" id="L87">    LOG.debug(&quot;&lt;- Purge stale branches&quot;);</span>
+
+<span class="fc" id="L89">    Long maxDateValue = ofNullable(dateToLong(maxDate.get())).orElseThrow(IllegalStateException::new);</span>
+<span class="fc" id="L90">    List&lt;String&gt; branchUuids = mapper.selectStaleBranchesAndPullRequests(conf.projectUuid(), maxDateValue);</span>
+
+<span class="fc bfc" id="L92" title="All 2 branches covered.">    for (String branchUuid : branchUuids) {</span>
+<span class="fc bfc" id="L93" title="All 2 branches covered.">      if (!rootUuid.equals(branchUuid)) {</span>
+<span class="fc" id="L94">        deleteBranch(branchUuid, commands);</span>
+      }
+<span class="fc" id="L96">    }</span>
+<span class="fc" id="L97">  }</span>
+
+  private static void purgeAnalyses(PurgeCommands commands, String rootUuid) {
+<span class="fc" id="L100">    List&lt;String&gt; analysisUuids = commands.selectSnapshotUuids(</span>
+      new PurgeSnapshotQuery(rootUuid)
+<span class="fc" id="L102">        .setIslast(false)</span>
+<span class="fc" id="L103">        .setNotPurged(true));</span>
+<span class="fc" id="L104">    commands.purgeAnalyses(analysisUuids);</span>
+<span class="fc" id="L105">  }</span>
+
+  private static void purgeDisabledComponents(PurgeCommands commands, PurgeConfiguration conf, PurgeListener listener) {
+<span class="fc" id="L108">    String rootUuid = conf.rootUuid();</span>
+<span class="fc" id="L109">    commands.purgeDisabledComponents(rootUuid, conf.getDisabledComponentUuids(), listener);</span>
+<span class="fc" id="L110">  }</span>
+
+  private static void deleteOrphanIssues(PurgeMapper mapper, String rootUuid) {
+<span class="fc" id="L113">    LOG.debug(&quot;&lt;- Delete orphan issues&quot;);</span>
+<span class="fc" id="L114">    List&lt;String&gt; issueKeys = mapper.selectBranchOrphanIssues(rootUuid);</span>
+<span class="fc" id="L115">    deleteIssues(mapper, issueKeys);</span>
+<span class="fc" id="L116">  }</span>
+
+  private static void deleteOldAnticipatedTransitions(PurgeCommands commands, PurgeConfiguration purgeConfiguration, String projectUuid) {
+<span class="fc" id="L119">    LOG.debug(&quot;&lt;- Delete Old Anticipated Transitions&quot;);</span>
+<span class="fc" id="L120">    commands.deleteAnticipatedTransitions(projectUuid, purgeConfiguration.maxLiveDateOfAnticipatedTransitions().toEpochMilli());</span>
+<span class="fc" id="L121">  }</span>
+
+  private static void deleteOldClosedIssues(PurgeConfiguration conf, PurgeMapper mapper, PurgeListener listener) {
+<span class="fc" id="L124">    Date toDate = conf.maxLiveDateOfClosedIssues();</span>
+<span class="fc" id="L125">    String rootUuid = conf.rootUuid();</span>
+<span class="fc" id="L126">    List&lt;String&gt; issueKeys = mapper.selectOldClosedIssueKeys(rootUuid, dateToLong(toDate));</span>
+<span class="fc" id="L127">    deleteIssues(mapper, issueKeys);</span>
+<span class="fc" id="L128">    listener.onIssuesRemoval(conf.projectUuid(), issueKeys);</span>
+<span class="fc" id="L129">  }</span>
+
+  private static void deleteIssues(PurgeMapper mapper, Collection&lt;String&gt; issueKeys) {
+<span class="fc" id="L132">    executeLargeInputs(issueKeys, input -&gt; {</span>
+<span class="fc" id="L133">      mapper.deleteIssueChangesFromIssueKeys(input);</span>
+<span class="fc" id="L134">      return emptyList();</span>
+    });
+
+<span class="fc" id="L137">    executeLargeInputs(issueKeys, input -&gt; {</span>
+<span class="fc" id="L138">      mapper.deleteNewCodeReferenceIssuesFromKeys(input);</span>
+<span class="fc" id="L139">      return emptyList();</span>
+    });
+
+<span class="fc" id="L142">    executeLargeInputs(issueKeys, input -&gt; {</span>
+<span class="fc" id="L143">      mapper.deleteIssuesImpactsFromKeys(input);</span>
+<span class="fc" id="L144">      return emptyList();</span>
+    });
+
+<span class="fc" id="L147">    executeLargeInputs(issueKeys, input -&gt; {</span>
+<span class="fc" id="L148">      mapper.deleteIssuesFromKeys(input);</span>
+<span class="fc" id="L149">      return emptyList();</span>
+    });
+<span class="fc" id="L151">  }</span>
+
+  private static void deleteAbortedAnalyses(String rootUuid, PurgeCommands commands) {
+<span class="fc" id="L154">    LOG.debug(&quot;&lt;- Delete aborted builds&quot;);</span>
+<span class="fc" id="L155">    commands.deleteAbortedAnalyses(rootUuid);</span>
+<span class="fc" id="L156">  }</span>
+
+  private static void deleteOldDisabledComponents(PurgeCommands commands, PurgeMapper mapper, String rootUuid) {
+<span class="fc" id="L159">    List&lt;String&gt; disabledComponentsWithoutIssue = mapper.selectDisabledComponentsWithoutIssues(rootUuid);</span>
+<span class="fc" id="L160">    commands.deleteDisabledComponentsWithoutIssues(disabledComponentsWithoutIssue);</span>
+<span class="fc" id="L161">  }</span>
+
+  public List&lt;PurgeableAnalysisDto&gt; selectProcessedAnalysisByComponentUuid(String componentUuid, DbSession session) {
+<span class="fc" id="L164">    PurgeMapper mapper = mapper(session);</span>
+<span class="fc" id="L165">    return mapper.selectProcessedAnalysisByComponentUuid(componentUuid).stream()</span>
+<span class="fc" id="L166">      .filter(new NewCodePeriodAnalysisFilter(mapper, componentUuid))</span>
+<span class="fc" id="L167">      .sorted()</span>
+<span class="fc" id="L168">      .toList();</span>
+  }
+
+  public void purgeCeActivities(DbSession session, PurgeProfiler profiler) {
+<span class="fc" id="L172">    PurgeMapper mapper = session.getMapper(PurgeMapper.class);</span>
+<span class="fc" id="L173">    PurgeCommands commands = new PurgeCommands(session, mapper, profiler, system2);</span>
+<span class="fc" id="L174">    purgeOldCeActivities(session, null, commands);</span>
+<span class="fc" id="L175">  }</span>
+
+  private void purgeOldCeActivities(DbSession session, @Nullable String rootUuid, PurgeCommands commands) {
+<span class="fc" id="L178">    String entityUuidToPurge = getEntityUuidToPurge(session, rootUuid);</span>
+<span class="fc" id="L179">    Date sixMonthsAgo = DateUtils.addDays(new Date(system2.now()), -180);</span>
+<span class="fc" id="L180">    commands.deleteCeActivityBefore(rootUuid, entityUuidToPurge, sixMonthsAgo.getTime());</span>
+<span class="fc" id="L181">  }</span>
+
+  /**
+   * When the rootUuid is the main branch of a project, we also want to clean the old activities and context of other branches.
+   * This is probably to ensure that the cleanup happens regularly on branch that are not as active as the main branch.
+   */
+  @Nullable
+  private static String getEntityUuidToPurge(DbSession session, @Nullable String rootUuid) {
+<span class="fc bfc" id="L189" title="All 2 branches covered.">    if (rootUuid == null) {</span>
+<span class="fc" id="L190">      return null;</span>
+    }
+<span class="fc" id="L192">    BranchDto branch = session.getMapper(BranchMapper.class).selectByUuid(rootUuid);</span>
+<span class="fc" id="L193">    String entityUuidToPurge = null;</span>
+<span class="pc bpc" id="L194" title="1 of 4 branches missed.">    if (branch != null &amp;&amp; branch.isMain()) {</span>
+<span class="fc" id="L195">      entityUuidToPurge = branch.getProjectUuid();</span>
+    }
+<span class="fc" id="L197">    return entityUuidToPurge;</span>
+  }
+
+  public void purgeCeScannerContexts(DbSession session, PurgeProfiler profiler) {
+<span class="fc" id="L201">    PurgeMapper mapper = session.getMapper(PurgeMapper.class);</span>
+<span class="fc" id="L202">    PurgeCommands commands = new PurgeCommands(session, mapper, profiler, system2);</span>
+<span class="fc" id="L203">    purgeOldCeScannerContexts(session, null, commands);</span>
+<span class="fc" id="L204">  }</span>
+
+  private void purgeOldCeScannerContexts(DbSession session, @Nullable String rootUuid, PurgeCommands commands) {
+<span class="fc" id="L207">    Date fourWeeksAgo = DateUtils.addDays(new Date(system2.now()), -28);</span>
+<span class="fc" id="L208">    String entityUuidToPurge = getEntityUuidToPurge(session, rootUuid);</span>
+<span class="fc" id="L209">    commands.deleteCeScannerContextBefore(rootUuid, entityUuidToPurge, fourWeeksAgo.getTime());</span>
+<span class="fc" id="L210">  }</span>
+
+  private static final class NewCodePeriodAnalysisFilter implements Predicate&lt;PurgeableAnalysisDto&gt; {
+    @Nullable
+    private final String analysisUuid;
+
+<span class="fc" id="L216">    private NewCodePeriodAnalysisFilter(PurgeMapper mapper, String componentUuid) {</span>
+<span class="fc" id="L217">      this.analysisUuid = mapper.selectSpecificAnalysisNewCodePeriod(componentUuid);</span>
+<span class="fc" id="L218">    }</span>
+
+    @Override
+    public boolean test(PurgeableAnalysisDto purgeableAnalysisDto) {
+<span class="pc bpc" id="L222" title="1 of 4 branches missed.">      return analysisUuid == null || !analysisUuid.equals(purgeableAnalysisDto.getAnalysisUuid());</span>
+    }
+  }
+
+  public void deleteBranch(DbSession session, String uuid) {
+<span class="fc" id="L227">    PurgeProfiler profiler = new PurgeProfiler();</span>
+<span class="fc" id="L228">    PurgeCommands purgeCommands = new PurgeCommands(session, profiler, system2);</span>
+<span class="fc" id="L229">    deleteBranch(uuid, purgeCommands);</span>
+<span class="fc" id="L230">  }</span>
+
+  public void deleteProject(DbSession session, String uuid, String qualifier, String name, String key) {
+<span class="fc" id="L233">    PurgeProfiler profiler = new PurgeProfiler();</span>
+<span class="fc" id="L234">    PurgeMapper purgeMapper = mapper(session);</span>
+<span class="fc" id="L235">    PurgeCommands purgeCommands = new PurgeCommands(session, profiler, system2);</span>
+<span class="fc" id="L236">    long start = System2.INSTANCE.now();</span>
+
+<span class="fc" id="L238">    List&lt;String&gt; branchUuids = session.getMapper(BranchMapper.class).selectByProjectUuid(uuid).stream()</span>
+      // Main branch is deleted last
+<span class="fc" id="L240">      .sorted(Comparator.comparing(BranchDto::isMain))</span>
+<span class="fc" id="L241">      .map(BranchDto::getUuid)</span>
+<span class="fc" id="L242">      .toList();</span>
+
+<span class="fc" id="L244">    branchUuids.forEach(id -&gt; deleteBranch(id, purgeCommands));</span>
+
+<span class="fc" id="L246">    deleteProject(uuid, purgeMapper, purgeCommands);</span>
+<span class="fc" id="L247">    auditPersister.deleteComponent(session, new ComponentNewValue(uuid, name, key, qualifier));</span>
+<span class="fc" id="L248">    logProfiling(profiler, start);</span>
+<span class="fc" id="L249">  }</span>
+
+  private static void logProfiling(PurgeProfiler profiler, long start) {
+<span class="fc bfc" id="L252" title="All 2 branches covered.">    if (LOG.isDebugEnabled()) {</span>
+<span class="fc" id="L253">      long duration = System.currentTimeMillis() - start;</span>
+<span class="fc" id="L254">      LOG.debug(&quot;&quot;);</span>
+<span class="fc" id="L255">      LOG.atDebug()</span>
+<span class="fc" id="L256">        .addArgument(() -&gt; TimeUtils.formatDuration(duration))</span>
+<span class="fc" id="L257">        .log(&quot; -------- Profiling for project deletion: {} --------&quot;);</span>
+<span class="fc" id="L258">      LOG.debug(&quot;&quot;);</span>
+<span class="fc bfc" id="L259" title="All 2 branches covered.">      for (String line : profiler.getProfilingResult(duration)) {</span>
+<span class="fc" id="L260">        LOG.debug(line);</span>
+<span class="fc" id="L261">      }</span>
+<span class="fc" id="L262">      LOG.debug(&quot;&quot;);</span>
+<span class="fc" id="L263">      LOG.debug(&quot; -------- End of profiling for project deletion--------&quot;);</span>
+<span class="fc" id="L264">      LOG.debug(&quot;&quot;);</span>
+    }
+<span class="fc" id="L266">  }</span>
+
+  private static void deleteBranch(String branchUuid, PurgeCommands commands) {
+<span class="fc" id="L269">    commands.deleteScannerCache(branchUuid);</span>
+<span class="fc" id="L270">    commands.deleteAnalyses(branchUuid);</span>
+<span class="fc" id="L271">    commands.deleteIssues(branchUuid);</span>
+<span class="fc" id="L272">    commands.deleteFileSources(branchUuid);</span>
+<span class="fc" id="L273">    commands.deleteCeActivity(branchUuid);</span>
+<span class="fc" id="L274">    commands.deleteCeQueue(branchUuid);</span>
+<span class="fc" id="L275">    commands.deleteMeasures(branchUuid);</span>
+<span class="fc" id="L276">    commands.deleteNewCodePeriodsForBranch(branchUuid);</span>
+<span class="fc" id="L277">    commands.deleteBranch(branchUuid);</span>
+<span class="fc" id="L278">    commands.deleteApplicationBranchProjects(branchUuid);</span>
+<span class="fc" id="L279">    commands.deleteComponents(branchUuid);</span>
+<span class="fc" id="L280">    commands.deleteReportSchedules(branchUuid);</span>
+<span class="fc" id="L281">    commands.deleteReportSubscriptions(branchUuid);</span>
+<span class="fc" id="L282">    commands.deleteIssuesFixed(branchUuid);</span>
+<span class="fc" id="L283">    commands.deleteScaActivity(branchUuid);</span>
+<span class="fc" id="L284">    commands.deleteArchitectureGraphs(branchUuid);</span>
+<span class="fc" id="L285">  }</span>
+
+  private static void deleteProject(String projectUuid, PurgeMapper mapper, PurgeCommands commands) {
+<span class="fc" id="L288">    List&lt;String&gt; rootAndSubviews = mapper.selectRootAndSubviewsByProjectUuid(projectUuid);</span>
+<span class="fc" id="L289">    commands.deleteLinks(projectUuid);</span>
+<span class="fc" id="L290">    commands.deleteScannerCache(projectUuid);</span>
+<span class="fc" id="L291">    commands.deleteEventComponentChanges(projectUuid);</span>
+<span class="fc" id="L292">    commands.deleteAnalyses(projectUuid);</span>
+<span class="fc" id="L293">    commands.deleteByRootAndSubviews(rootAndSubviews);</span>
+<span class="fc" id="L294">    commands.deleteIssues(projectUuid);</span>
+<span class="fc" id="L295">    commands.deleteFileSources(projectUuid);</span>
+<span class="fc" id="L296">    commands.deleteCeActivity(projectUuid);</span>
+<span class="fc" id="L297">    commands.deleteCeQueue(projectUuid);</span>
+<span class="fc" id="L298">    commands.deleteWebhooks(projectUuid);</span>
+<span class="fc" id="L299">    commands.deleteWebhookDeliveries(projectUuid);</span>
+<span class="fc" id="L300">    commands.deleteMeasures(projectUuid);</span>
+<span class="fc" id="L301">    commands.deleteProjectAlmSettings(projectUuid);</span>
+<span class="fc" id="L302">    commands.deletePermissions(projectUuid);</span>
+<span class="fc" id="L303">    commands.deleteNewCodePeriodsForProject(projectUuid);</span>
+<span class="fc" id="L304">    commands.deleteBranch(projectUuid);</span>
+<span class="fc" id="L305">    commands.deleteApplicationBranchProjects(projectUuid);</span>
+<span class="fc" id="L306">    commands.deleteApplicationProjects(projectUuid);</span>
+<span class="fc" id="L307">    commands.deleteApplicationProjectsByProject(projectUuid);</span>
+<span class="fc" id="L308">    commands.deleteProjectInPortfolios(projectUuid);</span>
+<span class="fc" id="L309">    commands.deleteComponents(projectUuid);</span>
+<span class="fc" id="L310">    commands.deleteNonMainBranchComponentsByProjectUuid(projectUuid);</span>
+<span class="fc" id="L311">    commands.deleteProjectBadgeToken(projectUuid);</span>
+<span class="fc" id="L312">    commands.deleteProject(projectUuid);</span>
+<span class="fc" id="L313">    commands.deleteUserDismissedMessages(projectUuid);</span>
+<span class="fc" id="L314">    commands.deleteOutdatedProperties(projectUuid);</span>
+<span class="fc" id="L315">    commands.deleteReportSchedules(projectUuid);</span>
+<span class="fc" id="L316">    commands.deleteReportSubscriptions(projectUuid);</span>
+<span class="fc" id="L317">    commands.deleteScaLicenseProfiles(projectUuid);</span>
+<span class="fc" id="L318">  }</span>
+
+  /**
+   * Delete the non root components (ie. sub-view, application or project copy) from the specified collection of {@link ComponentDto}
+   * and data from their child tables.
+   * &lt;p&gt;
+   * This method has no effect when passed an empty collection or only root components.
+   * &lt;/p&gt;
+   */
+  public void deleteNonRootComponentsInView(DbSession dbSession, Collection&lt;ComponentDto&gt; components) {
+<span class="fc" id="L328">    Set&lt;ComponentDto&gt; nonRootComponents = components.stream().filter(PurgeDao::isNotRoot).collect(Collectors.toSet());</span>
+<span class="fc bfc" id="L329" title="All 2 branches covered.">    if (nonRootComponents.isEmpty()) {</span>
+<span class="fc" id="L330">      return;</span>
+    }
+
+<span class="fc" id="L333">    PurgeProfiler profiler = new PurgeProfiler();</span>
+<span class="fc" id="L334">    PurgeCommands purgeCommands = new PurgeCommands(dbSession, profiler, system2);</span>
+<span class="fc" id="L335">    deleteNonRootComponentsInView(nonRootComponents, purgeCommands);</span>
+<span class="fc" id="L336">  }</span>
+
+  private static void deleteNonRootComponentsInView(Set&lt;ComponentDto&gt; nonRootComponents, PurgeCommands purgeCommands) {
+<span class="fc" id="L339">    List&lt;String&gt; subviewsOrProjectCopies = nonRootComponents.stream()</span>
+<span class="fc" id="L340">      .filter(PurgeDao::isSubview)</span>
+<span class="fc" id="L341">      .map(ComponentDto::uuid)</span>
+<span class="fc" id="L342">      .toList();</span>
+<span class="fc" id="L343">    purgeCommands.deleteByRootAndSubviews(subviewsOrProjectCopies);</span>
+<span class="fc" id="L344">    List&lt;String&gt; nonRootComponentUuids = nonRootComponents.stream().map(ComponentDto::uuid).toList();</span>
+<span class="fc" id="L345">    purgeCommands.deleteComponentMeasures(nonRootComponentUuids);</span>
+<span class="fc" id="L346">    purgeCommands.deleteComponents(nonRootComponentUuids);</span>
+<span class="fc" id="L347">  }</span>
+
+  private static boolean isNotRoot(ComponentDto dto) {
+<span class="fc bfc" id="L350" title="All 4 branches covered.">    return !(SCOPE_PROJECT.equals(dto.scope()) &amp;&amp; QUALIFIERS_PROJECT_VIEW.contains(dto.qualifier()));</span>
+  }
+
+  private static boolean isSubview(ComponentDto dto) {
+<span class="pc bpc" id="L354" title="1 of 4 branches missed.">    return SCOPE_PROJECT.equals(dto.scope()) &amp;&amp; QUALIFIER_SUBVIEW.contains(dto.qualifier());</span>
+  }
+
+  public void deleteAnalyses(DbSession session, PurgeProfiler profiler, List&lt;String&gt; analysisUuids) {
+<span class="fc" id="L358">    new PurgeCommands(session, profiler, system2).deleteAnalyses(analysisUuids);</span>
+<span class="fc" id="L359">  }</span>
+
+  private static PurgeMapper mapper(DbSession session) {
+<span class="fc" id="L362">    return session.getMapper(PurgeMapper.class);</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

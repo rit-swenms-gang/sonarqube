@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>QualityGateMetricsUpdateTemplate.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.issue.notification</a> &gt; <span class="el_source">QualityGateMetricsUpdateTemplate.java</span></div><h1>QualityGateMetricsUpdateTemplate.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.issue.notification;
+
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+import org.sonar.api.notifications.Notification;
+
+<span class="fc" id="L26">public class QualityGateMetricsUpdateTemplate implements EmailTemplate {</span>
+
+  private static final String STANDARD_EXPERIENCE = &quot;Standard Experience&quot;;
+  private static final String MQR_MODE = &quot;Multi-Quality Rule (MQR) Mode&quot;;
+
+  @Nullable
+  @Override
+  public EmailMessage format(Notification notification) {
+<span class="fc bfc" id="L34" title="All 2 branches covered.">    if (!QualityGateMetricsUpdateNotification.TYPE.equals(notification.getType())) {</span>
+<span class="fc" id="L35">      return null;</span>
+    }
+
+<span class="fc" id="L38">    String message = retrieveMessage((QualityGateMetricsUpdateNotification) notification);</span>
+
+    // And finally return the email that will be sent
+<span class="fc" id="L41">    return new EmailMessage()</span>
+<span class="fc" id="L42">      .setMessageId(MQRAndStandardModesExistNotification.TYPE)</span>
+<span class="fc" id="L43">      .setSubject(&quot;Information about your SonarQube Quality Gate metrics&quot;)</span>
+<span class="fc" id="L44">      .setPlainTextMessage(message);</span>
+  }
+
+  @NotNull
+  private static String retrieveMessage(QualityGateMetricsUpdateNotification notification) {
+<span class="fc" id="L49">    StringBuilder message = new StringBuilder();</span>
+<span class="fc" id="L50">    message.append(&quot;We are sending this message because this version of SonarQube is in &quot;);</span>
+<span class="fc bfc" id="L51" title="All 2 branches covered.">    message.append(notification.isMQRModeEnabled() ? MQR_MODE : STANDARD_EXPERIENCE);</span>
+<span class="fc" id="L52">    message.append(&quot; and some of your quality gates conditions are using metrics from &quot;);</span>
+<span class="fc bfc" id="L53" title="All 2 branches covered.">    message.append(notification.isMQRModeEnabled() ? STANDARD_EXPERIENCE : MQR_MODE);</span>
+<span class="fc" id="L54">    message.append(&quot;.\n\nWe recommend you update them to ensure the most accurate categorization and ranking of your issues.\n\n&quot;);</span>
+<span class="fc" id="L55">    message.append(&quot;If you would like to update your quality gates, go to the Quality Gates page in the SonarQube UI and we will guide you through the process.&quot;);</span>
+<span class="fc" id="L56">    return message.toString();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

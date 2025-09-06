@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ActionDeprecationLoggerInterceptor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform.web</a> &gt; <span class="el_source">ActionDeprecationLoggerInterceptor.java</span></div><h1>ActionDeprecationLoggerInterceptor.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform.web;
+
+import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.event.Level;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.server.user.ThreadLocalUserSession;
+import org.sonar.server.user.UserSession;
+import org.sonar.server.ws.ActionInterceptor;
+
+import static org.sonar.process.logging.LogbackHelper.DEPRECATION_LOGGER_NAME;
+
+/**
+ * Logs deprecation messages for deprecated web service endpoints and parameters for API V1
+ * Messages are logged:
+ * at DEBUG level for anonymous users and browsers session,
+ * at WARN level for authenticated users using tokens
+ */
+public class ActionDeprecationLoggerInterceptor implements ActionInterceptor {
+<span class="fc" id="L41">  private static final Logger LOGGER = LoggerFactory.getLogger(DEPRECATION_LOGGER_NAME);</span>
+  private final UserSession userSession;
+
+<span class="fc" id="L44">  public ActionDeprecationLoggerInterceptor(UserSession userSession) {</span>
+<span class="fc" id="L45">    this.userSession = userSession;</span>
+<span class="fc" id="L46">  }</span>
+
+  @Override
+  public void preAction(WebService.Action action, Request request) {
+<span class="fc" id="L50">    Level logLevel = getLogLevel();</span>
+
+<span class="fc" id="L52">    String deprecatedSinceEndpoint = action.deprecatedSince();</span>
+<span class="fc bfc" id="L53" title="All 2 branches covered.">    if (deprecatedSinceEndpoint != null) {</span>
+<span class="fc" id="L54">      logWebServiceMessage(logLevel, deprecatedSinceEndpoint);</span>
+    }
+
+<span class="fc" id="L57">    action.params().forEach(param -&gt; logParamMessage(request, logLevel, param));</span>
+<span class="fc" id="L58">  }</span>
+
+  private Level getLogLevel() {
+<span class="fc bfc" id="L61" title="All 2 branches covered.">    return isBrowserSessionOrAnonymous() ? Level.DEBUG : Level.WARN;</span>
+  }
+
+  private boolean isBrowserSessionOrAnonymous() {
+<span class="pc bpc" id="L65" title="1 of 2 branches missed.">    return userSession instanceof ThreadLocalUserSession threadLocalUserSession</span>
+<span class="fc bfc" id="L66" title="All 2 branches covered.">      &amp;&amp; (threadLocalUserSession.hasSession()</span>
+<span class="fc bfc" id="L67" title="All 4 branches covered.">        &amp;&amp; (!userSession.isLoggedIn() || userSession.isAuthenticatedBrowserSession()));</span>
+  }
+
+  private static void logWebServiceMessage(Level logLevel, String deprecatedSinceEndpoint) {
+<span class="fc" id="L71">    LOGGER.atLevel(logLevel).log(&quot;Web service is deprecated since {} and will be removed in a future version.&quot;, deprecatedSinceEndpoint);</span>
+<span class="fc" id="L72">  }</span>
+
+  private static void logParamMessage(Request request, Level logLevel, WebService.Param param) {
+<span class="fc" id="L75">    String paramKey = param.key();</span>
+<span class="fc" id="L76">    String deprecatedSince = param.deprecatedSince();</span>
+<span class="fc bfc" id="L77" title="All 4 branches covered.">    if (request.hasParam(paramKey) &amp;&amp; deprecatedSince != null) {</span>
+<span class="fc" id="L78">      logParamMessage(logLevel, param.key(), deprecatedSince);</span>
+    }
+
+<span class="fc" id="L81">    String paramDeprecatedKey = param.deprecatedKey();</span>
+<span class="fc" id="L82">    String deprecatedKeySince = param.deprecatedKeySince();</span>
+<span class="pc bpc" id="L83" title="1 of 6 branches missed.">    if (paramDeprecatedKey != null &amp;&amp; request.hasParam(paramDeprecatedKey) &amp;&amp; deprecatedKeySince != null) {</span>
+<span class="fc" id="L84">      logParamMessage(logLevel, paramDeprecatedKey, deprecatedKeySince);</span>
+    }
+<span class="fc" id="L86">  }</span>
+
+  private static void logParamMessage(Level logLevel, String paramKey, @Nullable String deprecatedSince) {
+<span class="fc" id="L89">    LOGGER.atLevel(logLevel).log(&quot;Parameter '{}' is deprecated since {} and will be removed in a future version.&quot;, paramKey, deprecatedSince);</span>
+<span class="fc" id="L90">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IssueListQuery.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.issue</a> &gt; <span class="el_source">IssueListQuery.java</span></div><h1>IssueListQuery.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.issue;
+
+import java.util.Collection;
+import java.util.Collections;
+import javax.annotation.Nullable;
+
+import static java.util.Collections.emptyList;
+import static java.util.Optional.ofNullable;
+
+public class IssueListQuery {
+
+  private final String project;
+  private final String branch;
+  private final String pullRequest;
+  private final String component;
+  private final Boolean resolved;
+  private final Long createdAfter;
+  private final boolean newCodeOnReference;
+  private final Collection&lt;Integer&gt; types;
+  private final Collection&lt;String&gt; statuses;
+  private final Collection&lt;String&gt; resolutions;
+  private final Collection&lt;String&gt; softwareQualities;
+
+<span class="fc" id="L43">  private IssueListQuery(IssueListQueryBuilder issueListQueryBuilder) {</span>
+<span class="fc" id="L44">    this.project = issueListQueryBuilder.project;</span>
+<span class="fc" id="L45">    this.branch = issueListQueryBuilder.branch;</span>
+<span class="fc" id="L46">    this.pullRequest = issueListQueryBuilder.pullRequest;</span>
+<span class="fc" id="L47">    this.component = issueListQueryBuilder.component;</span>
+<span class="fc" id="L48">    this.resolved = issueListQueryBuilder.resolved;</span>
+<span class="fc" id="L49">    this.createdAfter = issueListQueryBuilder.createdAfter;</span>
+<span class="fc" id="L50">    this.newCodeOnReference = issueListQueryBuilder.newCodeOnReference;</span>
+<span class="fc" id="L51">    this.types = ofNullable(issueListQueryBuilder.types)</span>
+<span class="fc" id="L52">      .map(Collections::unmodifiableCollection)</span>
+<span class="fc" id="L53">      .orElse(emptyList());</span>
+<span class="fc" id="L54">    this.statuses = ofNullable(issueListQueryBuilder.statuses)</span>
+<span class="fc" id="L55">      .map(Collections::unmodifiableCollection)</span>
+<span class="fc" id="L56">      .orElse(emptyList());</span>
+<span class="fc" id="L57">    this.resolutions = ofNullable(issueListQueryBuilder.resolutions)</span>
+<span class="fc" id="L58">      .map(Collections::unmodifiableCollection)</span>
+<span class="fc" id="L59">      .orElse(emptyList());</span>
+<span class="fc" id="L60">    this.softwareQualities = ofNullable(issueListQueryBuilder.softwareQualities)</span>
+<span class="fc" id="L61">      .map(Collections::unmodifiableCollection)</span>
+<span class="fc" id="L62">      .orElse(emptyList());</span>
+<span class="fc" id="L63">  }</span>
+
+  public String getProject() {
+<span class="fc" id="L66">    return project;</span>
+  }
+
+  public String getBranch() {
+<span class="fc" id="L70">    return branch;</span>
+  }
+
+  public String getPullRequest() {
+<span class="fc" id="L74">    return pullRequest;</span>
+  }
+
+  public String getComponent() {
+<span class="fc" id="L78">    return component;</span>
+  }
+
+  public Boolean getResolved() {
+<span class="fc" id="L82">    return resolved;</span>
+  }
+
+  public Long getCreatedAfter() {
+<span class="fc" id="L86">    return createdAfter;</span>
+  }
+
+  public boolean getNewCodeOnReference() {
+<span class="fc" id="L90">    return newCodeOnReference;</span>
+  }
+
+  public Collection&lt;Integer&gt; getTypes() {
+<span class="fc" id="L94">    return types;</span>
+  }
+
+  public Collection&lt;String&gt; getStatuses() {
+<span class="fc" id="L98">    return statuses;</span>
+  }
+
+  public Collection&lt;String&gt; getResolutions() {
+<span class="fc" id="L102">    return resolutions;</span>
+  }
+
+  public Collection&lt;String&gt; getSoftwareQualities() {
+<span class="fc" id="L106">    return softwareQualities;</span>
+  }
+
+  public static final class IssueListQueryBuilder {
+    private String project;
+    private String branch;
+    private String pullRequest;
+    private String component;
+    private Boolean resolved;
+    private Long createdAfter;
+    private boolean newCodeOnReference;
+    private Collection&lt;Integer&gt; types;
+    private Collection&lt;String&gt; statuses;
+    private Collection&lt;String&gt; resolutions;
+    private Collection&lt;String&gt; softwareQualities;
+
+    private IssueListQueryBuilder() {
+    }
+
+    public static IssueListQueryBuilder newIssueListQueryBuilder() {
+<span class="fc" id="L126">      return new IssueListQueryBuilder();</span>
+    }
+
+    public IssueListQueryBuilder project(String project) {
+<span class="fc" id="L130">      this.project = project;</span>
+<span class="fc" id="L131">      return this;</span>
+    }
+
+    public IssueListQueryBuilder branch(@Nullable String branch) {
+<span class="fc" id="L135">      this.branch = branch;</span>
+<span class="fc" id="L136">      return this;</span>
+    }
+
+    public IssueListQueryBuilder pullRequest(@Nullable String pullRequest) {
+<span class="fc" id="L140">      this.pullRequest = pullRequest;</span>
+<span class="fc" id="L141">      return this;</span>
+    }
+
+    public IssueListQueryBuilder component(String component) {
+<span class="fc" id="L145">      this.component = component;</span>
+<span class="fc" id="L146">      return this;</span>
+    }
+
+    public IssueListQueryBuilder resolved(Boolean resolved) {
+<span class="fc" id="L150">      this.resolved = resolved;</span>
+<span class="fc" id="L151">      return this;</span>
+    }
+
+    public IssueListQueryBuilder createdAfter(Long createdAfter) {
+<span class="fc" id="L155">      this.createdAfter = createdAfter;</span>
+<span class="fc" id="L156">      return this;</span>
+    }
+
+    public IssueListQueryBuilder newCodeOnReference(boolean newCodeOnReference) {
+<span class="fc" id="L160">      this.newCodeOnReference = newCodeOnReference;</span>
+<span class="fc" id="L161">      return this;</span>
+    }
+
+    public IssueListQueryBuilder types(Collection&lt;Integer&gt; types) {
+<span class="fc" id="L165">      this.types = types;</span>
+<span class="fc" id="L166">      return this;</span>
+    }
+
+    public IssueListQueryBuilder statuses(Collection&lt;String&gt; statuses) {
+<span class="fc" id="L170">      this.statuses = statuses;</span>
+<span class="fc" id="L171">      return this;</span>
+    }
+
+    public IssueListQueryBuilder resolutions(Collection&lt;String&gt; resolutions) {
+<span class="fc" id="L175">      this.resolutions = resolutions;</span>
+<span class="fc" id="L176">      return this;</span>
+    }
+
+    public IssueListQueryBuilder softwareQualities(Collection&lt;String&gt; softwareQualities) {
+<span class="fc" id="L180">      this.softwareQualities = softwareQualities;</span>
+<span class="fc" id="L181">      return this;</span>
+    }
+
+    public IssueListQuery build() {
+<span class="fc" id="L185">      return new IssueListQuery(this);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

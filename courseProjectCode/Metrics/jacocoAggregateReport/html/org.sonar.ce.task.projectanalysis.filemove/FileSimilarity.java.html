@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FileSimilarity.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.filemove</a> &gt; <span class="el_source">FileSimilarity.java</span></div><h1>FileSimilarity.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.filemove;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.function.Supplier;
+
+import static java.util.Collections.emptyList;
+import static java.util.Objects.requireNonNull;
+
+public interface FileSimilarity {
+
+  interface File {
+    List&lt;String&gt; getLineHashes();
+
+    int getLineCount();
+  }
+
+  final class FileImpl implements File {
+    private final List&lt;String&gt; lineHashes;
+    private final int lineCount;
+
+<span class="fc" id="L41">    FileImpl(List&lt;String&gt; lineHashes) {</span>
+<span class="fc" id="L42">      this.lineHashes = requireNonNull(lineHashes, &quot;lineHashes can not be null&quot;);</span>
+<span class="fc" id="L43">      this.lineCount = lineHashes.size();</span>
+<span class="fc" id="L44">    }</span>
+
+    /**
+     * List of hash of each line. An empty list is returned
+     * if file content is empty.
+     */
+    public List&lt;String&gt; getLineHashes() {
+<span class="fc" id="L51">      return lineHashes;</span>
+    }
+
+    public int getLineCount() {
+<span class="nc" id="L55">      return lineCount;</span>
+    }
+  }
+
+  final class LazyFileImpl implements File {
+    private final Supplier&lt;List&lt;String&gt;&gt; supplier;
+    private final int lineCount;
+    private List&lt;String&gt; lineHashes;
+
+<span class="fc" id="L64">    LazyFileImpl(Supplier&lt;List&lt;String&gt;&gt; supplier, int lineCount) {</span>
+<span class="fc" id="L65">      this.supplier = requireNonNull(supplier, &quot;supplier can not be null&quot;);</span>
+<span class="fc" id="L66">      this.lineCount = lineCount;</span>
+<span class="fc" id="L67">    }</span>
+
+    /**
+     * List of hash of each line. An empty list is returned
+     * if file content is empty.
+     */
+    public List&lt;String&gt; getLineHashes() {
+<span class="fc" id="L74">      ensureSupplierCalled();</span>
+<span class="fc" id="L75">      return lineHashes;</span>
+    }
+
+    private void ensureSupplierCalled() {
+<span class="fc bfc" id="L79" title="All 2 branches covered.">      if (lineHashes == null) {</span>
+<span class="fc" id="L80">        lineHashes = Optional.ofNullable(supplier.get()).orElse(emptyList());</span>
+      }
+<span class="fc" id="L82">    }</span>
+
+    public int getLineCount() {
+<span class="fc" id="L85">      return lineCount;</span>
+    }
+  }
+
+  int score(File file1, File file2);
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

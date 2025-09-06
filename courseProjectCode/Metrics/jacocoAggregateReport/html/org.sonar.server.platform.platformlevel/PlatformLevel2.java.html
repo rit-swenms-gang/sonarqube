@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PlatformLevel2.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform.platformlevel</a> &gt; <span class="el_source">PlatformLevel2.java</span></div><h1>PlatformLevel2.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform.platformlevel;
+
+import org.sonar.api.utils.Durations;
+import org.sonar.core.extension.CoreExtensionsInstaller;
+import org.sonar.core.platform.PluginClassLoader;
+import org.sonar.core.platform.PluginClassloaderFactory;
+import org.sonar.server.es.MigrationEsClientImpl;
+import org.sonar.server.l18n.ServerI18n;
+import org.sonar.server.platform.DatabaseServerCompatibility;
+import org.sonar.server.platform.DefaultServerUpgradeStatus;
+import org.sonar.server.platform.OfficialDistribution;
+import org.sonar.server.platform.StartupMetadataProvider;
+import org.sonar.server.platform.WebCoreExtensionsInstaller;
+import org.sonar.server.platform.db.CheckDatabaseCharsetAtStartup;
+import org.sonar.server.platform.db.migration.DatabaseMigrationExecutorServiceImpl;
+import org.sonar.server.platform.db.migration.DatabaseMigrationLoggerContext;
+import org.sonar.server.platform.db.migration.DatabaseMigrationStateImpl;
+import org.sonar.server.platform.db.migration.MigrationConfigurationModule;
+import org.sonar.server.platform.db.migration.charset.DatabaseCharsetChecker;
+import org.sonar.server.platform.db.migration.version.DatabaseVersion;
+import org.sonar.server.platform.web.WebPagesCache;
+import org.sonar.server.plugins.InstalledPluginReferentialFactory;
+import org.sonar.server.plugins.PluginJarLoader;
+import org.sonar.server.plugins.ServerPluginJarExploder;
+import org.sonar.server.plugins.ServerPluginManager;
+import org.sonar.server.plugins.ServerPluginRepository;
+import org.sonar.server.plugins.WebServerExtensionInstaller;
+
+import static org.sonar.core.extension.CoreExtensionsInstaller.noAdditionalSideFilter;
+import static org.sonar.core.extension.PlatformLevelPredicates.hasPlatformLevel;
+
+public class PlatformLevel2 extends PlatformLevel {
+  public PlatformLevel2(PlatformLevel parent) {
+<span class="fc" id="L53">    super(&quot;level2&quot;, parent);</span>
+<span class="fc" id="L54">  }</span>
+
+  @Override
+  protected void configureLevel() {
+<span class="fc" id="L58">    add(</span>
+      new MigrationConfigurationModule(),
+      MigrationEsClientImpl.class,
+      DatabaseVersion.class,
+      DatabaseServerCompatibility.class,
+
+      new StartupMetadataProvider(),
+      DefaultServerUpgradeStatus.class,
+      Durations.class,
+
+      // index.html cache
+      WebPagesCache.class,
+
+      // plugins
+      PluginJarLoader.class,
+      ServerPluginRepository.class,
+      ServerPluginManager.class,
+      ServerPluginJarExploder.class,
+      PluginClassLoader.class,
+      PluginClassloaderFactory.class,
+      InstalledPluginReferentialFactory.class,
+      WebServerExtensionInstaller.class,
+
+      // depends on plugins
+      ServerI18n.class,
+
+      OfficialDistribution.class);
+
+    // Migration state must be kept at level2 to survive moving in and then out of safe mode
+    // ExecutorService must be kept at level2 because stopping it when stopping safe mode level causes error making SQ fail
+<span class="fc" id="L88">    add(</span>
+      DatabaseMigrationLoggerContext.class,
+
+      DatabaseMigrationStateImpl.class,
+      DatabaseMigrationExecutorServiceImpl.class);
+
+<span class="fc" id="L94">    addIfStartupLeader(</span>
+      DatabaseCharsetChecker.class,
+      CheckDatabaseCharsetAtStartup.class);
+
+<span class="fc" id="L98">    CoreExtensionsInstaller coreExtensionsInstaller = parent.get(WebCoreExtensionsInstaller.class);</span>
+<span class="fc" id="L99">    coreExtensionsInstaller.install(getContainer(), hasPlatformLevel(2), noAdditionalSideFilter());</span>
+<span class="fc" id="L100">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

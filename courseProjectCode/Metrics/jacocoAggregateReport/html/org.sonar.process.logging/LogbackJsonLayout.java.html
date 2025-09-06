@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LogbackJsonLayout.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.process.logging</a> &gt; <span class="el_source">LogbackJsonLayout.java</span></div><h1>LogbackJsonLayout.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.process.logging;
+
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.classic.spi.IThrowableProxy;
+import ch.qos.logback.classic.spi.StackTraceElementProxy;
+import ch.qos.logback.core.CoreConstants;
+import ch.qos.logback.core.LayoutBase;
+import com.google.gson.stream.JsonWriter;
+import java.io.IOException;
+import java.io.StringWriter;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.regex.Pattern;
+import org.apache.commons.lang3.StringUtils;
+
+import static java.lang.String.format;
+import static java.util.Objects.requireNonNull;
+
+/**
+ * Formats logs in JSON.
+ * &lt;p&gt;
+ * Strongly inspired by https://github.com/qos-ch/logback/blob/master/logback-classic/src/main/java/ch/qos/logback/classic/html/DefaultThrowableRenderer.java
+ */
+public class LogbackJsonLayout extends LayoutBase&lt;ILoggingEvent&gt; {
+
+<span class="fc" id="L49">  static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern(&quot;yyyy-MM-dd'T'HH:mm:ss.SSSXXX&quot;)</span>
+<span class="fc" id="L50">    .withLocale(Locale.US)</span>
+<span class="fc" id="L51">    .withZone(ZoneId.systemDefault());</span>
+<span class="fc" id="L52">  private static final Pattern NEWLINE_REGEXP = Pattern.compile(&quot;\n&quot;);</span>
+
+  private final String processKey;
+  private final String nodeName;
+  private final List&lt;String&gt; exclusions;
+
+  public LogbackJsonLayout(String processKey, String nodeName) {
+<span class="fc" id="L59">    this(processKey, nodeName, List.of());</span>
+<span class="fc" id="L60">  }</span>
+
+<span class="fc" id="L62">  public LogbackJsonLayout(String processKey, String nodeName, List&lt;String&gt; exclusions) {</span>
+<span class="fc" id="L63">    this.processKey = requireNonNull(processKey);</span>
+<span class="fc" id="L64">    this.nodeName = nodeName;</span>
+<span class="fc" id="L65">    this.exclusions = exclusions;</span>
+<span class="fc" id="L66">  }</span>
+
+  String getProcessKey() {
+<span class="fc" id="L69">    return processKey;</span>
+  }
+
+  @Override
+  public String doLayout(ILoggingEvent event) {
+<span class="fc" id="L74">    StringWriter output = new StringWriter();</span>
+<span class="fc" id="L75">    try (JsonWriter json = new JsonWriter(output)) {</span>
+<span class="fc" id="L76">      json.beginObject();</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">      if (!&quot;&quot;.equals(nodeName)) {</span>
+<span class="fc" id="L78">        json.name(&quot;nodename&quot;).value(nodeName);</span>
+      }
+<span class="fc" id="L80">      json.name(&quot;process&quot;).value(processKey);</span>
+<span class="fc bfc" id="L81" title="All 2 branches covered.">      for (Map.Entry&lt;String, String&gt; entry : event.getMDCPropertyMap().entrySet()) {</span>
+<span class="pc bpc" id="L82" title="1 of 4 branches missed.">        if (entry.getValue() != null &amp;&amp; !exclusions.contains(entry.getKey())) {</span>
+<span class="fc" id="L83">          json.name(entry.getKey()).value(entry.getValue());</span>
+        }
+<span class="fc" id="L85">      }</span>
+<span class="fc" id="L86">      json</span>
+<span class="fc" id="L87">        .name(&quot;timestamp&quot;).value(DATE_FORMATTER.format(Instant.ofEpochMilli(event.getTimeStamp())))</span>
+<span class="fc" id="L88">        .name(&quot;severity&quot;).value(event.getLevel().toString())</span>
+<span class="fc" id="L89">        .name(&quot;logger&quot;).value(event.getLoggerName())</span>
+<span class="fc" id="L90">        .name(&quot;message&quot;).value(NEWLINE_REGEXP.matcher(event.getFormattedMessage()).replaceAll(&quot;\r&quot;));</span>
+<span class="fc" id="L91">      IThrowableProxy tp = event.getThrowableProxy();</span>
+<span class="fc bfc" id="L92" title="All 2 branches covered.">      if (tp != null) {</span>
+<span class="fc" id="L93">        json.name(&quot;stacktrace&quot;).beginArray();</span>
+<span class="fc" id="L94">        int nbOfTabs = 0;</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">        while (tp != null) {</span>
+<span class="fc" id="L96">          printFirstLine(json, tp, nbOfTabs);</span>
+<span class="fc" id="L97">          render(json, tp, nbOfTabs);</span>
+<span class="fc" id="L98">          tp = tp.getCause();</span>
+<span class="fc" id="L99">          nbOfTabs++;</span>
+        }
+<span class="fc" id="L101">        json.endArray();</span>
+
+      }
+<span class="fc" id="L104">      json.endObject();</span>
+<span class="nc" id="L105">    } catch (Exception e) {</span>
+<span class="nc" id="L106">      e.printStackTrace();</span>
+<span class="nc" id="L107">      throw new IllegalStateException(&quot;BUG - fail to create JSON&quot;, e);</span>
+<span class="fc" id="L108">    }</span>
+<span class="fc" id="L109">    output.write(System.lineSeparator());</span>
+<span class="fc" id="L110">    return output.toString();</span>
+  }
+
+  private static void render(JsonWriter output, IThrowableProxy tp, int nbOfTabs) throws IOException {
+<span class="fc" id="L114">    String tabs = StringUtils.repeat(&quot;\t&quot;, nbOfTabs);</span>
+<span class="fc" id="L115">    int commonFrames = tp.getCommonFrames();</span>
+<span class="fc" id="L116">    StackTraceElementProxy[] stepArray = tp.getStackTraceElementProxyArray();</span>
+
+<span class="fc bfc" id="L118" title="All 2 branches covered.">    for (int i = 0; i &lt; stepArray.length - commonFrames; i++) {</span>
+<span class="fc" id="L119">      StackTraceElementProxy step = stepArray[i];</span>
+<span class="fc" id="L120">      output.value(tabs + step.toString());</span>
+    }
+
+<span class="fc bfc" id="L123" title="All 2 branches covered.">    if (commonFrames &gt; 0) {</span>
+<span class="fc" id="L124">      output.value(tabs + &quot;... &quot; + commonFrames + &quot; common frames omitted&quot;);</span>
+    }
+
+<span class="fc bfc" id="L127" title="All 2 branches covered.">    for (IThrowableProxy suppressed : tp.getSuppressed()) {</span>
+<span class="fc" id="L128">      output.value(format(&quot;%sSuppressed: %s: %s&quot;, tabs, suppressed.getClassName(), suppressed.getMessage()));</span>
+<span class="fc" id="L129">      render(output, suppressed, nbOfTabs + 1);</span>
+    }
+<span class="fc" id="L131">  }</span>
+
+  private static void printFirstLine(JsonWriter output, IThrowableProxy tp, int nbOfTabs) throws IOException {
+<span class="fc" id="L134">    String tabs = StringUtils.repeat(&quot;\t&quot;, nbOfTabs);</span>
+<span class="fc" id="L135">    int commonFrames = tp.getCommonFrames();</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">    if (commonFrames &gt; 0) {</span>
+<span class="fc" id="L137">      output.value(tabs + CoreConstants.CAUSED_BY);</span>
+    }
+<span class="fc" id="L139">    output.value(tabs + tp.getClassName() + &quot;: &quot; + tp.getMessage());</span>
+<span class="fc" id="L140">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

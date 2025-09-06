@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GenericTestExecutionReportParser.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.genericcoverage</a> &gt; <span class="el_source">GenericTestExecutionReportParser.java</span></div><h1>GenericTestExecutionReportParser.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.genericcoverage;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import javax.xml.stream.XMLStreamException;
+import org.codehaus.staxmate.in.SMHierarchicCursor;
+import org.codehaus.staxmate.in.SMInputCursor;
+import org.sonar.api.batch.fs.InputFile;
+import org.sonar.api.batch.sensor.SensorContext;
+import org.sonar.api.utils.MessageException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.scanner.deprecated.test.DefaultTestCase;
+import org.sonar.scanner.deprecated.test.DefaultTestCase.Status;
+import org.sonar.scanner.deprecated.test.DefaultTestPlan;
+import org.sonar.scanner.deprecated.test.TestPlanBuilder;
+
+import static org.sonar.api.utils.Preconditions.checkState;
+import static org.sonar.scanner.genericcoverage.GenericCoverageReportParser.checkElementName;
+import static org.sonar.scanner.genericcoverage.GenericCoverageReportParser.longValue;
+import static org.sonar.scanner.genericcoverage.GenericCoverageReportParser.mandatoryAttribute;
+
+public class GenericTestExecutionReportParser {
+
+  private static final String ROOT_ELEMENT = &quot;testExecutions&quot;;
+
+  private static final String OLD_ROOT_ELEMENT = &quot;unitTest&quot;;
+
+<span class="fc" id="L53">  private static final Logger LOG = LoggerFactory.getLogger(GenericTestExecutionReportParser.class);</span>
+
+  private static final String NAME_ATTR = &quot;name&quot;;
+  private static final String DURATION_ATTR = &quot;duration&quot;;
+
+  public static final String ERROR = &quot;error&quot;;
+  public static final String FAILURE = &quot;failure&quot;;
+  public static final String SKIPPED = &quot;skipped&quot;;
+
+  private static final int MAX_STORED_UNKNOWN_FILE_PATHS = 5;
+
+  private final TestPlanBuilder testPlanBuilder;
+
+  private int numberOfUnknownFiles;
+<span class="fc" id="L67">  private final List&lt;String&gt; firstUnknownFiles = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L68">  private final Set&lt;String&gt; matchedFileKeys = new HashSet&lt;&gt;();</span>
+
+<span class="fc" id="L70">  public GenericTestExecutionReportParser(TestPlanBuilder testPlanBuilder) {</span>
+<span class="fc" id="L71">    this.testPlanBuilder = testPlanBuilder;</span>
+<span class="fc" id="L72">  }</span>
+
+  public void parse(File reportFile, SensorContext context) {
+<span class="fc" id="L75">    try (InputStream inputStream = new FileInputStream(reportFile)) {</span>
+<span class="fc" id="L76">      parse(inputStream, context);</span>
+<span class="fc" id="L77">    } catch (Exception e) {</span>
+<span class="fc" id="L78">      throw MessageException.of(</span>
+        &quot;Error during parsing of generic test execution report '&quot; + reportFile + &quot;'. Look at the SonarQube documentation to know the expected XML format.&quot;, e);
+<span class="fc" id="L80">    }</span>
+<span class="fc" id="L81">  }</span>
+
+  private void parse(InputStream inputStream, SensorContext context) throws XMLStreamException {
+<span class="fc" id="L84">    new StaxParser(rootCursor -&gt; {</span>
+<span class="fc" id="L85">      rootCursor.advance();</span>
+<span class="fc" id="L86">      parseRootNode(rootCursor, context);</span>
+<span class="fc" id="L87">    }).parse(inputStream);</span>
+<span class="fc" id="L88">  }</span>
+
+  private void parseRootNode(SMHierarchicCursor rootCursor, SensorContext context) throws XMLStreamException {
+<span class="fc" id="L91">    String elementName = rootCursor.getLocalName();</span>
+<span class="fc bfc" id="L92" title="All 4 branches covered.">    if (!OLD_ROOT_ELEMENT.equals(elementName) &amp;&amp; !ROOT_ELEMENT.equals(elementName)) {</span>
+<span class="fc" id="L93">      throw new IllegalStateException(</span>
+<span class="fc" id="L94">        &quot;Unknown XML node, expected \&quot;&quot; + ROOT_ELEMENT + &quot;\&quot; but got \&quot;&quot; + elementName + &quot;\&quot; at line &quot; + rootCursor.getCursorLocation().getLineNumber());</span>
+    }
+<span class="fc bfc" id="L96" title="All 2 branches covered.">    if (OLD_ROOT_ELEMENT.equals(elementName)) {</span>
+<span class="fc" id="L97">      LOG.warn(&quot;Using '&quot; + OLD_ROOT_ELEMENT + &quot;' as root element of the report is deprecated. Please change to '&quot; + ROOT_ELEMENT + &quot;'.&quot;);</span>
+    }
+<span class="fc" id="L99">    String version = rootCursor.getAttrValue(&quot;version&quot;);</span>
+<span class="fc bfc" id="L100" title="All 2 branches covered.">    if (!&quot;1&quot;.equals(version)) {</span>
+<span class="fc" id="L101">      throw new IllegalStateException(&quot;Unknown report version: &quot; + version + &quot;. This parser only handles version 1.&quot;);</span>
+    }
+<span class="fc" id="L103">    parseFiles(rootCursor.childElementCursor(), context);</span>
+<span class="fc" id="L104">  }</span>
+
+  private void parseFiles(SMInputCursor fileCursor, SensorContext context) throws XMLStreamException {
+<span class="fc bfc" id="L107" title="All 2 branches covered.">    while (fileCursor.getNext() != null) {</span>
+<span class="fc" id="L108">      checkElementName(fileCursor, &quot;file&quot;);</span>
+<span class="fc" id="L109">      String filePath = mandatoryAttribute(fileCursor, &quot;path&quot;);</span>
+<span class="fc" id="L110">      InputFile inputFile = context.fileSystem().inputFile(context.fileSystem().predicates().hasPath(filePath));</span>
+<span class="fc bfc" id="L111" title="All 4 branches covered.">      if (inputFile == null || inputFile.language() == null) {</span>
+<span class="fc" id="L112">        numberOfUnknownFiles++;</span>
+<span class="pc bpc" id="L113" title="1 of 2 branches missed.">        if (numberOfUnknownFiles &lt;= MAX_STORED_UNKNOWN_FILE_PATHS) {</span>
+<span class="fc" id="L114">          firstUnknownFiles.add(filePath);</span>
+        }
+<span class="fc bfc" id="L116" title="All 2 branches covered.">        if (inputFile != null) {</span>
+<span class="fc" id="L117">          LOG.debug(&quot;Skipping file '{}' in the generic test execution report because it doesn't have a known language&quot;, filePath);</span>
+        }
+        continue;
+      }
+<span class="fc" id="L121">      checkState(</span>
+<span class="pc bpc" id="L122" title="1 of 2 branches missed.">        inputFile.type() != InputFile.Type.MAIN,</span>
+        &quot;Line %s of report refers to a file which is not configured as a test file: %s&quot;,
+<span class="fc" id="L124">        fileCursor.getCursorLocation().getLineNumber(),</span>
+        filePath);
+<span class="fc" id="L126">      matchedFileKeys.add(inputFile.absolutePath());</span>
+
+<span class="fc" id="L128">      DefaultTestPlan testPlan = testPlanBuilder.getTestPlan(inputFile);</span>
+<span class="fc" id="L129">      SMInputCursor testCaseCursor = fileCursor.childElementCursor();</span>
+<span class="fc bfc" id="L130" title="All 2 branches covered.">      while (testCaseCursor.getNext() != null) {</span>
+<span class="fc" id="L131">        parseTestCase(testCaseCursor, testPlan);</span>
+      }
+<span class="fc" id="L133">    }</span>
+<span class="fc" id="L134">  }</span>
+
+  private static void parseTestCase(SMInputCursor cursor, DefaultTestPlan testPlan) throws XMLStreamException {
+<span class="fc" id="L137">    checkElementName(cursor, &quot;testCase&quot;);</span>
+<span class="fc" id="L138">    DefaultTestCase testCase = testPlan.addTestCase(mandatoryAttribute(cursor, NAME_ATTR));</span>
+<span class="fc" id="L139">    Status status = Status.OK;</span>
+<span class="fc" id="L140">    testCase.setDurationInMs(longValue(mandatoryAttribute(cursor, DURATION_ATTR), cursor, DURATION_ATTR, 0));</span>
+
+<span class="fc" id="L142">    SMInputCursor child = cursor.descendantElementCursor();</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">    if (child.getNext() != null) {</span>
+<span class="fc" id="L144">      String elementName = child.getLocalName();</span>
+<span class="fc bfc" id="L145" title="All 2 branches covered.">      if (SKIPPED.equals(elementName)) {</span>
+<span class="fc" id="L146">        status = Status.SKIPPED;</span>
+<span class="fc bfc" id="L147" title="All 2 branches covered.">      } else if (FAILURE.equals(elementName)) {</span>
+<span class="fc" id="L148">        status = Status.FAILURE;</span>
+<span class="fc bfc" id="L149" title="All 2 branches covered.">      } else if (ERROR.equals(elementName)) {</span>
+<span class="fc" id="L150">        status = Status.ERROR;</span>
+      }
+    }
+<span class="fc" id="L153">    testCase.setStatus(status);</span>
+
+<span class="fc" id="L155">  }</span>
+
+  public int numberOfMatchedFiles() {
+<span class="fc" id="L158">    return matchedFileKeys.size();</span>
+  }
+
+  public int numberOfUnknownFiles() {
+<span class="fc" id="L162">    return numberOfUnknownFiles;</span>
+  }
+
+  public List&lt;String&gt; firstUnknownFiles() {
+<span class="fc" id="L166">    return firstUnknownFiles;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

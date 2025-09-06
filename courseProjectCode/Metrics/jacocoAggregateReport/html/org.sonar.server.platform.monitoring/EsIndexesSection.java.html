@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EsIndexesSection.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform.monitoring</a> &gt; <span class="el_source">EsIndexesSection.java</span></div><h1>EsIndexesSection.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform.monitoring;
+
+import org.elasticsearch.ElasticsearchException;
+import org.sonar.api.server.ServerSide;
+import org.slf4j.LoggerFactory;
+import org.sonar.process.systeminfo.Global;
+import org.sonar.process.systeminfo.SystemInfoSection;
+import org.sonar.process.systeminfo.protobuf.ProtobufSystemInfo;
+import org.sonar.server.es.EsClient;
+import org.sonar.server.es.response.IndexStats;
+import org.sonar.server.es.response.IndicesStatsResponse;
+
+import static org.sonar.core.util.FileUtils.humanReadableByteCountSI;
+import static org.sonar.process.systeminfo.SystemInfoUtils.setAttribute;
+
+@ServerSide
+public class EsIndexesSection implements SystemInfoSection, Global {
+
+  private final EsClient esClient;
+
+<span class="fc" id="L40">  public EsIndexesSection(EsClient esClient) {</span>
+<span class="fc" id="L41">    this.esClient = esClient;</span>
+<span class="fc" id="L42">  }</span>
+
+  @Override
+  public ProtobufSystemInfo.Section toProtobuf() {
+<span class="fc" id="L46">    ProtobufSystemInfo.Section.Builder protobuf = ProtobufSystemInfo.Section.newBuilder();</span>
+<span class="fc" id="L47">    protobuf.setName(&quot;Search Indexes&quot;);</span>
+    try {
+<span class="fc" id="L49">      completeIndexAttributes(protobuf);</span>
+<span class="fc" id="L50">    } catch (Exception es) {</span>
+<span class="fc" id="L51">      LoggerFactory.getLogger(EsIndexesSection.class).warn(&quot;Failed to retrieve ES attributes. There will be only a single \&quot;Error\&quot; attribute.&quot;, es);</span>
+<span class="fc bfc" id="L52" title="All 2 branches covered.">      setAttribute(protobuf, &quot;Error&quot;, es.getCause() instanceof ElasticsearchException ? es.getCause().getMessage() : es.getMessage());</span>
+<span class="fc" id="L53">    }</span>
+<span class="fc" id="L54">    return protobuf.build();</span>
+  }
+
+  private void completeIndexAttributes(ProtobufSystemInfo.Section.Builder protobuf) {
+<span class="fc" id="L58">    IndicesStatsResponse indicesStats = esClient.indicesStats();</span>
+<span class="fc bfc" id="L59" title="All 2 branches covered.">    for (IndexStats indexStats : indicesStats.getAllIndexStats()) {</span>
+<span class="fc" id="L60">      String prefix = &quot;Index &quot; + indexStats.getName() + &quot; - &quot;;</span>
+<span class="fc" id="L61">      setAttribute(protobuf, prefix + &quot;Docs&quot;, indexStats.getDocCount());</span>
+<span class="fc" id="L62">      setAttribute(protobuf, prefix + &quot;Shards&quot;, indexStats.getShardsCount());</span>
+<span class="fc" id="L63">      setAttribute(protobuf, prefix + &quot;Store Size&quot;, humanReadableByteCountSI(indexStats.getStoreSizeBytes()));</span>
+<span class="fc" id="L64">    }</span>
+<span class="fc" id="L65">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

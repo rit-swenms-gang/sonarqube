@@ -1,0 +1,625 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SearchRequest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonarqube.ws.client.issues</a> &gt; <span class="el_source">SearchRequest.java</span></div><h1>SearchRequest.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonarqube.ws.client.issues;
+
+import java.util.List;
+import jakarta.annotation.Generated;
+
+/**
+ * This is part of the internal API.
+ * This is a POST request.
+ * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/issues/search&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+ * @since 3.6
+ */
+@Generated(&quot;sonar-ws-generator&quot;)
+<span class="nc" id="L32">public class SearchRequest {</span>
+
+  private List&lt;String&gt; additionalFields;
+  private String asc;
+  private String assigned;
+  private List&lt;String&gt; assignees;
+  private List&lt;String&gt; author;
+  private String branch;
+  private List&lt;String&gt; componentKeys;
+  private String createdAfter;
+  private String createdAt;
+  private String createdBefore;
+  private String createdInLast;
+  private List&lt;String&gt; cwe;
+  private List&lt;String&gt; directories;
+  private String facetMode;
+  private List&lt;String&gt; facets;
+  private List&lt;String&gt; fileUuids;
+  private List&lt;String&gt; issues;
+  private List&lt;String&gt; languages;
+  private String onComponentOnly;
+  private List&lt;String&gt; owaspTop10;
+  private String p;
+  private List&lt;String&gt; projects;
+  private String ps;
+  private String pullRequest;
+  private List&lt;String&gt; resolutions;
+  private String resolved;
+  private List&lt;String&gt; rules;
+  private String s;
+  private List&lt;String&gt; sansTop25;
+  private List&lt;String&gt; severities;
+  private String inNewCodePeriod;
+  private List&lt;String&gt; sonarsourceSecurity;
+  private List&lt;String&gt; statuses;
+  private List&lt;String&gt; tags;
+  private List&lt;String&gt; types;
+
+  /**
+   * Possible values:
+   * &lt;ul&gt;
+   *   &lt;li&gt;&quot;_all&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;comments&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;languages&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;actionPlans&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;rules&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;transitions&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;actions&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;users&quot;&lt;/li&gt;
+   * &lt;/ul&gt;
+   */
+  public SearchRequest setAdditionalFields(List&lt;String&gt; additionalFields) {
+<span class="nc" id="L84">    this.additionalFields = additionalFields;</span>
+<span class="nc" id="L85">    return this;</span>
+  }
+
+  public List&lt;String&gt; getAdditionalFields() {
+<span class="nc" id="L89">    return additionalFields;</span>
+  }
+
+  /**
+   * Possible values:
+   * &lt;ul&gt;
+   *   &lt;li&gt;&quot;true&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;false&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;yes&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;no&quot;&lt;/li&gt;
+   * &lt;/ul&gt;
+   */
+  public SearchRequest setAsc(String asc) {
+<span class="nc" id="L102">    this.asc = asc;</span>
+<span class="nc" id="L103">    return this;</span>
+  }
+
+  public String getAsc() {
+<span class="nc" id="L107">    return asc;</span>
+  }
+
+  /**
+   * Possible values:
+   * &lt;ul&gt;
+   *   &lt;li&gt;&quot;true&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;false&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;yes&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;no&quot;&lt;/li&gt;
+   * &lt;/ul&gt;
+   */
+  public SearchRequest setAssigned(String assigned) {
+<span class="nc" id="L120">    this.assigned = assigned;</span>
+<span class="nc" id="L121">    return this;</span>
+  }
+
+  public String getAssigned() {
+<span class="nc" id="L125">    return assigned;</span>
+  }
+
+  /**
+   * Example value: &quot;admin,usera,__me__&quot;
+   */
+  public SearchRequest setAssignees(List&lt;String&gt; assignees) {
+<span class="nc" id="L132">    this.assignees = assignees;</span>
+<span class="nc" id="L133">    return this;</span>
+  }
+
+  public List&lt;String&gt; getAssignees() {
+<span class="nc" id="L137">    return assignees;</span>
+  }
+
+  /**
+   * Example value: &quot;author=torvalds@linux-foundation.org&amp;author=linux@fondation.org&quot;
+   */
+  public SearchRequest setAuthor(List&lt;String&gt; author) {
+<span class="nc" id="L144">    this.author = author;</span>
+<span class="nc" id="L145">    return this;</span>
+  }
+
+  public List&lt;String&gt; getAuthor() {
+<span class="nc" id="L149">    return author;</span>
+  }
+
+  /**
+   * This is part of the internal API.
+   * Example value: &quot;feature/my_branch&quot;
+   */
+  public SearchRequest setBranch(String branch) {
+<span class="nc" id="L157">    this.branch = branch;</span>
+<span class="nc" id="L158">    return this;</span>
+  }
+
+  public String getBranch() {
+<span class="nc" id="L162">    return branch;</span>
+  }
+
+  /**
+   * Example value: &quot;my_project&quot;
+   */
+  public SearchRequest setComponentKeys(List&lt;String&gt; componentKeys) {
+<span class="nc" id="L169">    this.componentKeys = componentKeys;</span>
+<span class="nc" id="L170">    return this;</span>
+  }
+
+  public List&lt;String&gt; getComponentKeys() {
+<span class="nc" id="L174">    return componentKeys;</span>
+  }
+
+  /**
+   * Example value: &quot;2017-10-19 or 2017-10-19T13:00:00+0200&quot;
+   */
+  public SearchRequest setCreatedAfter(String createdAfter) {
+<span class="nc" id="L181">    this.createdAfter = createdAfter;</span>
+<span class="nc" id="L182">    return this;</span>
+  }
+
+  public String getCreatedAfter() {
+<span class="nc" id="L186">    return createdAfter;</span>
+  }
+
+  /**
+   * Example value: &quot;2017-10-19T13:00:00+0200&quot;
+   */
+  public SearchRequest setCreatedAt(String createdAt) {
+<span class="nc" id="L193">    this.createdAt = createdAt;</span>
+<span class="nc" id="L194">    return this;</span>
+  }
+
+  public String getCreatedAt() {
+<span class="nc" id="L198">    return createdAt;</span>
+  }
+
+  /**
+   * Example value: &quot;2017-10-19 or 2017-10-19T13:00:00+0200&quot;
+   */
+  public SearchRequest setCreatedBefore(String createdBefore) {
+<span class="nc" id="L205">    this.createdBefore = createdBefore;</span>
+<span class="nc" id="L206">    return this;</span>
+  }
+
+  public String getCreatedBefore() {
+<span class="nc" id="L210">    return createdBefore;</span>
+  }
+
+  /**
+   * Example value: &quot;1m2w (1 month 2 weeks)&quot;
+   */
+  public SearchRequest setCreatedInLast(String createdInLast) {
+<span class="nc" id="L217">    this.createdInLast = createdInLast;</span>
+<span class="nc" id="L218">    return this;</span>
+  }
+
+  public String getCreatedInLast() {
+<span class="nc" id="L222">    return createdInLast;</span>
+  }
+
+  /**
+   * Example value: &quot;12,125,unknown&quot;
+   */
+  public SearchRequest setCwe(List&lt;String&gt; cwe) {
+<span class="nc" id="L229">    this.cwe = cwe;</span>
+<span class="nc" id="L230">    return this;</span>
+  }
+
+  public List&lt;String&gt; getCwe() {
+<span class="nc" id="L234">    return cwe;</span>
+  }
+
+  /**
+   * This is part of the internal API.
+   * Example value: &quot;src/main/java/org/sonar/server/&quot;
+   */
+  public SearchRequest setDirectories(List&lt;String&gt; directories) {
+<span class="nc" id="L242">    this.directories = directories;</span>
+<span class="nc" id="L243">    return this;</span>
+  }
+
+  public List&lt;String&gt; getDirectories() {
+<span class="nc" id="L247">    return directories;</span>
+  }
+
+  /**
+   * Possible values:
+   * &lt;ul&gt;
+   *   &lt;li&gt;&quot;projects&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;fileUuids&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;assigned_to_me&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;severities&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;statuses&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;resolutions&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;actionPlans&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;rules&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;assignees&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;reporters&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;authors&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;author&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;directories&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;languages&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;tags&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;types&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;owaspTop10&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;sansTop25&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;cwe&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;createdAt&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;sonarsourceSecurity&quot;&lt;/li&gt;
+   * &lt;/ul&gt;
+   */
+  public SearchRequest setFacets(List&lt;String&gt; facets) {
+<span class="nc" id="L277">    this.facets = facets;</span>
+<span class="nc" id="L278">    return this;</span>
+  }
+
+  public List&lt;String&gt; getFacets() {
+<span class="nc" id="L282">    return facets;</span>
+  }
+
+  /**
+   * This is part of the internal API.
+   * Example value: &quot;bdd82933-3070-4903-9188-7d8749e8bb92&quot;
+   */
+  public SearchRequest setFileUuids(List&lt;String&gt; fileUuids) {
+<span class="nc" id="L290">    this.fileUuids = fileUuids;</span>
+<span class="nc" id="L291">    return this;</span>
+  }
+
+  public List&lt;String&gt; getFileUuids() {
+<span class="nc" id="L295">    return fileUuids;</span>
+  }
+
+  /**
+   * Example value: &quot;5bccd6e8-f525-43a2-8d76-fcb13dde79ef&quot;
+   */
+  public SearchRequest setIssues(List&lt;String&gt; issues) {
+<span class="nc" id="L302">    this.issues = issues;</span>
+<span class="nc" id="L303">    return this;</span>
+  }
+
+  public List&lt;String&gt; getIssues() {
+<span class="nc" id="L307">    return issues;</span>
+  }
+
+  /**
+   * Example value: &quot;java,js&quot;
+   */
+  public SearchRequest setLanguages(List&lt;String&gt; languages) {
+<span class="nc" id="L314">    this.languages = languages;</span>
+<span class="nc" id="L315">    return this;</span>
+  }
+
+  public List&lt;String&gt; getLanguages() {
+<span class="nc" id="L319">    return languages;</span>
+  }
+
+  /**
+   * Possible values:
+   * &lt;ul&gt;
+   *   &lt;li&gt;&quot;true&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;false&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;yes&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;no&quot;&lt;/li&gt;
+   * &lt;/ul&gt;
+   */
+  public SearchRequest setOnComponentOnly(String onComponentOnly) {
+<span class="nc" id="L332">    this.onComponentOnly = onComponentOnly;</span>
+<span class="nc" id="L333">    return this;</span>
+  }
+
+  public String getOnComponentOnly() {
+<span class="nc" id="L337">    return onComponentOnly;</span>
+  }
+
+  /**
+   * Possible values:
+   * &lt;ul&gt;
+   *   &lt;li&gt;&quot;a1&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;a2&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;a3&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;a4&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;a5&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;a6&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;a7&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;a8&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;a9&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;a10&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;unknown&quot;&lt;/li&gt;
+   * &lt;/ul&gt;
+   */
+  public SearchRequest setOwaspTop10(List&lt;String&gt; owaspTop10) {
+<span class="nc" id="L357">    this.owaspTop10 = owaspTop10;</span>
+<span class="nc" id="L358">    return this;</span>
+  }
+
+  public List&lt;String&gt; getOwaspTop10() {
+<span class="nc" id="L362">    return owaspTop10;</span>
+  }
+
+  /**
+   * Example value: &quot;42&quot;
+   */
+  public SearchRequest setP(String p) {
+<span class="nc" id="L369">    this.p = p;</span>
+<span class="nc" id="L370">    return this;</span>
+  }
+
+  public String getP() {
+<span class="nc" id="L374">    return p;</span>
+  }
+
+  /**
+   * This is part of the internal API.
+   * Example value: &quot;my_project&quot;
+   */
+  public SearchRequest setProjects(List&lt;String&gt; projects) {
+<span class="nc" id="L382">    this.projects = projects;</span>
+<span class="nc" id="L383">    return this;</span>
+  }
+
+  public List&lt;String&gt; getProjects() {
+<span class="nc" id="L387">    return projects;</span>
+  }
+
+  /**
+   * Example value: &quot;20&quot;
+   */
+  public SearchRequest setPs(String ps) {
+<span class="nc" id="L394">    this.ps = ps;</span>
+<span class="nc" id="L395">    return this;</span>
+  }
+
+  public String getPs() {
+<span class="nc" id="L399">    return ps;</span>
+  }
+
+  /**
+   * This is part of the internal API.
+   * Example value: &quot;5461&quot;
+   */
+  public SearchRequest setPullRequest(String pullRequest) {
+<span class="nc" id="L407">    this.pullRequest = pullRequest;</span>
+<span class="nc" id="L408">    return this;</span>
+  }
+
+  public String getPullRequest() {
+<span class="nc" id="L412">    return pullRequest;</span>
+  }
+
+  /**
+   * Example value: &quot;FIXED,REMOVED&quot;
+   * Possible values:
+   * &lt;ul&gt;
+   *   &lt;li&gt;&quot;FALSE-POSITIVE&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;WONTFIX&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;FIXED&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;REMOVED&quot;&lt;/li&gt;
+   * &lt;/ul&gt;
+   */
+  public SearchRequest setResolutions(List&lt;String&gt; resolutions) {
+<span class="nc" id="L426">    this.resolutions = resolutions;</span>
+<span class="nc" id="L427">    return this;</span>
+  }
+
+  public List&lt;String&gt; getResolutions() {
+<span class="nc" id="L431">    return resolutions;</span>
+  }
+
+  /**
+   * Possible values:
+   * &lt;ul&gt;
+   *   &lt;li&gt;&quot;true&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;false&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;yes&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;no&quot;&lt;/li&gt;
+   * &lt;/ul&gt;
+   */
+  public SearchRequest setResolved(String resolved) {
+<span class="nc" id="L444">    this.resolved = resolved;</span>
+<span class="nc" id="L445">    return this;</span>
+  }
+
+  public String getResolved() {
+<span class="nc" id="L449">    return resolved;</span>
+  }
+
+  /**
+   * Example value: &quot;java:AvoidCycles&quot;
+   */
+  public SearchRequest setRules(List&lt;String&gt; rules) {
+<span class="nc" id="L456">    this.rules = rules;</span>
+<span class="nc" id="L457">    return this;</span>
+  }
+
+  public List&lt;String&gt; getRules() {
+<span class="nc" id="L461">    return rules;</span>
+  }
+
+  /**
+   * Possible values:
+   * &lt;ul&gt;
+   *   &lt;li&gt;&quot;CREATION_DATE&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;UPDATE_DATE&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;CLOSE_DATE&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;ASSIGNEE&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;SEVERITY&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;STATUS&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;FILE_LINE&quot;&lt;/li&gt;
+   * &lt;/ul&gt;
+   */
+  public SearchRequest setS(String s) {
+<span class="nc" id="L477">    this.s = s;</span>
+<span class="nc" id="L478">    return this;</span>
+  }
+
+  public String getS() {
+<span class="nc" id="L482">    return s;</span>
+  }
+
+  /**
+   * Possible values:
+   * &lt;ul&gt;
+   *   &lt;li&gt;&quot;insecure-interaction&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;risky-resource&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;porous-defenses&quot;&lt;/li&gt;
+   * &lt;/ul&gt;
+   */
+  public SearchRequest setSansTop25(List&lt;String&gt; sansTop25) {
+<span class="nc" id="L494">    this.sansTop25 = sansTop25;</span>
+<span class="nc" id="L495">    return this;</span>
+  }
+
+  public List&lt;String&gt; getSansTop25() {
+<span class="nc" id="L499">    return sansTop25;</span>
+  }
+
+  /**
+   * Example value: &quot;BLOCKER,CRITICAL&quot;
+   * Possible values:
+   * &lt;ul&gt;
+   *   &lt;li&gt;&quot;INFO&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;MINOR&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;MAJOR&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;CRITICAL&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;BLOCKER&quot;&lt;/li&gt;
+   * &lt;/ul&gt;
+   */
+  public SearchRequest setSeverities(List&lt;String&gt; severities) {
+<span class="nc" id="L514">    this.severities = severities;</span>
+<span class="nc" id="L515">    return this;</span>
+  }
+
+  public List&lt;String&gt; getSeverities() {
+<span class="nc" id="L519">    return severities;</span>
+  }
+
+  /**
+   * Possible values:
+   * &lt;ul&gt;
+   *   &lt;li&gt;&quot;true&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;false&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;yes&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;no&quot;&lt;/li&gt;
+   * &lt;/ul&gt;
+   */
+  public SearchRequest setInNewCodePeriod(String inNewCodePeriod) {
+<span class="nc" id="L532">    this.inNewCodePeriod = inNewCodePeriod;</span>
+<span class="nc" id="L533">    return this;</span>
+  }
+
+  public String isInNewCodePeriod() {
+<span class="nc" id="L537">    return inNewCodePeriod;</span>
+  }
+
+  /**
+   * Possible values:
+   * &lt;ul&gt;
+   *   &lt;li&gt;&quot;sql-injection&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;command-injection&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;path-traversal-injection&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;ldap-injection&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;xpath-injection&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;expression-lang-injection&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;rce&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;dos&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;ssrf&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;csrf&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;xss&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;log-injection&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;http-response-splitting&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;open-redirect&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;xxe&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;object-injection&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;weak-cryptography&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;auth&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;insecure-conf&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;file-manipulation&quot;&lt;/li&gt;
+   * &lt;/ul&gt;
+   */
+  public SearchRequest setSonarsourceSecurity(List&lt;String&gt; sonarsourceSecurity) {
+<span class="nc" id="L566">    this.sonarsourceSecurity = sonarsourceSecurity;</span>
+<span class="nc" id="L567">    return this;</span>
+  }
+
+  public List&lt;String&gt; getSonarsourceSecurity() {
+<span class="nc" id="L571">    return sonarsourceSecurity;</span>
+  }
+
+  /**
+   * Example value: &quot;OPEN,REOPENED&quot;
+   * Possible values:
+   * &lt;ul&gt;
+   *   &lt;li&gt;&quot;OPEN&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;CONFIRMED&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;REOPENED&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;RESOLVED&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;CLOSED&quot;&lt;/li&gt;
+   * &lt;/ul&gt;
+   */
+  public SearchRequest setStatuses(List&lt;String&gt; statuses) {
+<span class="nc" id="L586">    this.statuses = statuses;</span>
+<span class="nc" id="L587">    return this;</span>
+  }
+
+  public List&lt;String&gt; getStatuses() {
+<span class="nc" id="L591">    return statuses;</span>
+  }
+
+  /**
+   * Example value: &quot;security,convention&quot;
+   */
+  public SearchRequest setTags(List&lt;String&gt; tags) {
+<span class="nc" id="L598">    this.tags = tags;</span>
+<span class="nc" id="L599">    return this;</span>
+  }
+
+  public List&lt;String&gt; getTags() {
+<span class="nc" id="L603">    return tags;</span>
+  }
+
+  /**
+   * Example value: &quot;CODE_SMELL,BUG&quot;
+   * Possible values:
+   * &lt;ul&gt;
+   *   &lt;li&gt;&quot;CODE_SMELL&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;BUG&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;VULNERABILITY&quot;&lt;/li&gt;
+   *   &lt;li&gt;&quot;SECURITY_HOTSPOT&quot;&lt;/li&gt;
+   * &lt;/ul&gt;
+   */
+  public SearchRequest setTypes(List&lt;String&gt; types) {
+<span class="nc" id="L617">    this.types = types;</span>
+<span class="nc" id="L618">    return this;</span>
+  }
+
+  public List&lt;String&gt; getTypes() {
+<span class="nc" id="L622">    return types;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

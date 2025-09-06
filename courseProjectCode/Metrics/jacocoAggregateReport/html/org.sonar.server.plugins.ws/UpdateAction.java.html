@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UpdateAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.plugins.ws</a> &gt; <span class="el_source">UpdateAction.java</span></div><h1>UpdateAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.plugins.ws;
+
+import java.util.Optional;
+import javax.annotation.Nonnull;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.server.plugins.PluginDownloader;
+import org.sonar.server.plugins.UpdateCenterMatrixFactory;
+import org.sonar.server.user.UserSession;
+import org.sonar.updatecenter.common.PluginUpdate;
+import org.sonar.updatecenter.common.UpdateCenter;
+
+import static java.lang.String.format;
+
+/**
+ * Implementation of the {@code update} action for the Plugins WebService.
+ */
+public class UpdateAction implements PluginsWsAction {
+
+  public static final String PARAM_KEY = &quot;key&quot;;
+<span class="fc" id="L41">  public static final PluginUpdate MISSING_PLUGIN = null;</span>
+
+  private final UpdateCenterMatrixFactory updateCenterFactory;
+  private final PluginDownloader pluginDownloader;
+  private final UserSession userSession;
+
+<span class="fc" id="L47">  public UpdateAction(UpdateCenterMatrixFactory updateCenterFactory, PluginDownloader pluginDownloader, UserSession userSession) {</span>
+<span class="fc" id="L48">    this.updateCenterFactory = updateCenterFactory;</span>
+<span class="fc" id="L49">    this.pluginDownloader = pluginDownloader;</span>
+<span class="fc" id="L50">    this.userSession = userSession;</span>
+<span class="fc" id="L51">  }</span>
+
+  @Override
+  public void define(WebService.NewController controller) {
+<span class="fc" id="L55">    WebService.NewAction action = controller.createAction(&quot;update&quot;)</span>
+<span class="fc" id="L56">      .setPost(true)</span>
+<span class="fc" id="L57">      .setSince(&quot;5.2&quot;)</span>
+<span class="fc" id="L58">      .setDescription(&quot;Updates a plugin specified by its key to the latest version compatible with the SonarQube instance.&quot; +</span>
+        &quot;&lt;br/&gt;&quot; +
+        &quot;Plugin information is retrieved from Update Center.&quot; +
+        &quot;&lt;br/&gt;&quot; +
+        &quot;Requires user to be authenticated with Administer System permissions&quot;)
+<span class="fc" id="L63">      .setHandler(this);</span>
+
+<span class="fc" id="L65">    action.createParam(PARAM_KEY)</span>
+<span class="fc" id="L66">      .setRequired(true)</span>
+<span class="fc" id="L67">      .setDescription(&quot;The key identifying the plugin to update&quot;);</span>
+<span class="fc" id="L68">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L72">    userSession.checkIsSystemAdministrator();</span>
+
+<span class="fc" id="L74">    String key = request.mandatoryParam(PARAM_KEY);</span>
+<span class="fc" id="L75">    PluginUpdate pluginUpdate = findPluginUpdateByKey(key);</span>
+<span class="fc" id="L76">    pluginDownloader.download(key, pluginUpdate.getRelease().getVersion());</span>
+<span class="fc" id="L77">    response.noContent();</span>
+<span class="fc" id="L78">  }</span>
+
+  @Nonnull
+  private PluginUpdate findPluginUpdateByKey(String key) {
+<span class="fc" id="L82">    Optional&lt;UpdateCenter&gt; updateCenter = updateCenterFactory.getUpdateCenter(false);</span>
+<span class="fc" id="L83">    PluginUpdate pluginUpdate = MISSING_PLUGIN;</span>
+
+<span class="fc bfc" id="L85" title="All 2 branches covered.">    if (updateCenter.isPresent()) {</span>
+<span class="fc" id="L86">      pluginUpdate = updateCenter.get().findPluginUpdates().stream()</span>
+<span class="pc bpc" id="L87" title="2 of 4 branches missed.">        .filter(update -&gt; update != null &amp;&amp; key.equals(update.getPlugin().getKey()))</span>
+<span class="fc" id="L88">        .findFirst().orElse(MISSING_PLUGIN);</span>
+    }
+
+<span class="fc bfc" id="L91" title="All 2 branches covered.">    if (pluginUpdate == MISSING_PLUGIN) {</span>
+<span class="fc" id="L92">      throw new IllegalArgumentException(</span>
+<span class="fc" id="L93">        format(&quot;No plugin with key '%s' or plugin '%s' is already in latest compatible version&quot;, key, key));</span>
+    }
+<span class="fc" id="L95">    return pluginUpdate;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

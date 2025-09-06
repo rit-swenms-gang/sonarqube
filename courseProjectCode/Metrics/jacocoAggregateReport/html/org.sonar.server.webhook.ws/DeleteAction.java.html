@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DeleteAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.webhook.ws</a> &gt; <span class="el_source">DeleteAction.java</span></div><h1>DeleteAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.webhook.ws;
+
+import java.util.Optional;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.db.webhook.WebhookDto;
+import org.sonar.server.user.UserSession;
+
+import static java.lang.String.format;
+import static org.sonar.server.exceptions.NotFoundException.checkFoundWithOptional;
+import static org.sonar.server.webhook.ws.WebhooksWsParameters.DELETE_ACTION;
+import static org.sonar.server.webhook.ws.WebhooksWsParameters.KEY_PARAM;
+import static org.sonar.server.webhook.ws.WebhooksWsParameters.KEY_PARAM_MAXIMUM_LENGTH;
+import static org.sonar.server.ws.KeyExamples.KEY_PROJECT_EXAMPLE_001;
+
+public class DeleteAction implements WebhooksWsAction {
+
+  private final DbClient dbClient;
+  private final UserSession userSession;
+  private final WebhookSupport webhookSupport;
+
+<span class="fc" id="L45">  public DeleteAction(DbClient dbClient, UserSession userSession, WebhookSupport webhookSupport) {</span>
+<span class="fc" id="L46">    this.dbClient = dbClient;</span>
+<span class="fc" id="L47">    this.userSession = userSession;</span>
+<span class="fc" id="L48">    this.webhookSupport = webhookSupport;</span>
+<span class="fc" id="L49">  }</span>
+
+  @Override
+  public void define(WebService.NewController controller) {
+<span class="fc" id="L53">    WebService.NewAction action = controller.createAction(DELETE_ACTION)</span>
+<span class="fc" id="L54">      .setPost(true)</span>
+<span class="fc" id="L55">      .setDescription(&quot;Delete a Webhook.&lt;br&gt;&quot; +</span>
+        &quot;Requires 'Administer' permission on the specified project, or global 'Administer' permission.&quot;)
+<span class="fc" id="L57">      .setSince(&quot;7.1&quot;)</span>
+<span class="fc" id="L58">      .setHandler(this);</span>
+
+<span class="fc" id="L60">    action.createParam(KEY_PARAM)</span>
+<span class="fc" id="L61">      .setRequired(true)</span>
+<span class="fc" id="L62">      .setMaximumLength(KEY_PARAM_MAXIMUM_LENGTH)</span>
+<span class="fc" id="L63">      .setDescription(&quot;The key of the webhook to be deleted, &quot; +</span>
+        &quot;auto-generated value can be obtained through api/webhooks/create or api/webhooks/list&quot;)
+<span class="fc" id="L65">      .setExampleValue(KEY_PROJECT_EXAMPLE_001);</span>
+<span class="fc" id="L66">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L70">    userSession.checkLoggedIn();</span>
+
+<span class="fc" id="L72">    String webhookKey = request.param(KEY_PARAM);</span>
+
+<span class="fc" id="L74">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L75">      Optional&lt;WebhookDto&gt; dtoOptional = dbClient.webhookDao().selectByUuid(dbSession, webhookKey);</span>
+<span class="fc" id="L76">      WebhookDto webhookDto = checkFoundWithOptional(dtoOptional, &quot;No webhook with key '%s'&quot;, webhookKey);</span>
+
+<span class="fc" id="L78">      String projectUuid = webhookDto.getProjectUuid();</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">      if (projectUuid != null) {</span>
+<span class="fc" id="L80">        Optional&lt;ProjectDto&gt; optionalDto = dbClient.projectDao().selectByUuid(dbSession, projectUuid);</span>
+<span class="pc" id="L81">        ProjectDto projectDto = optionalDto.orElseThrow(() -&gt; new IllegalStateException(format(&quot;the requested project '%s' was not found&quot;, projectUuid)));</span>
+<span class="fc" id="L82">        webhookSupport.checkPermission(projectDto);</span>
+<span class="fc" id="L83">        deleteWebhook(dbSession, webhookDto);</span>
+<span class="fc" id="L84">      } else {</span>
+<span class="fc" id="L85">        webhookSupport.checkPermission();</span>
+<span class="fc" id="L86">        deleteWebhook(dbSession, webhookDto);</span>
+      }
+
+<span class="fc" id="L89">      dbSession.commit();</span>
+    }
+
+<span class="fc" id="L92">    response.noContent();</span>
+<span class="fc" id="L93">  }</span>
+
+  private void deleteWebhook(DbSession dbSession, WebhookDto webhookDto) {
+<span class="fc" id="L96">    dbClient.webhookDeliveryDao().deleteByWebhook(dbSession, webhookDto);</span>
+<span class="fc" id="L97">    dbClient.webhookDao().delete(dbSession, webhookDto.getUuid(), webhookDto.getName());</span>
+<span class="fc" id="L98">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

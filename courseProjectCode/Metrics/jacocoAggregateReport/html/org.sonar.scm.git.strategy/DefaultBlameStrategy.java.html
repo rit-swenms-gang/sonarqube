@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultBlameStrategy.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scm.git.strategy</a> &gt; <span class="el_source">DefaultBlameStrategy.java</span></div><h1>DefaultBlameStrategy.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scm.git.strategy;
+
+import org.sonar.api.config.Configuration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import static org.sonar.scm.git.strategy.DefaultBlameStrategy.BlameAlgorithmEnum.*;
+
+/**
+ * The blame strategy defines when the files-blame algorithm is used over jgit or native git algorithm.
+ * It has been found that the JGit/Git native algorithm performs better in certain circumstances, such as:
+ * - When we have many cores available for multi-threading
+ * - The number of files to be blame by the algorithm
+ * This two metrics are correlated:
+ * - The more threads available, the more it is favorable to use the JGit/Git native algorithm
+ * - The more files available, the more it is favorable to use the git-files-blame algorithm
+ */
+public class DefaultBlameStrategy implements BlameStrategy {
+
+<span class="fc" id="L39">  private static final Logger LOG = LoggerFactory.getLogger(DefaultBlameStrategy.class);</span>
+  private static final int FILES_GIT_BLAME_TRIGGER = 10;
+  public static final String PROP_SONAR_SCM_USE_BLAME_ALGORITHM = &quot;sonar.scm.use.blame.algorithm&quot;;
+  private final Configuration configuration;
+
+<span class="fc" id="L44">  public DefaultBlameStrategy(Configuration configuration) {</span>
+<span class="fc" id="L45">    this.configuration = configuration;</span>
+<span class="fc" id="L46">  }</span>
+
+  @Override
+  public BlameAlgorithmEnum getBlameAlgorithm(int availableProcessors, int numberOfFiles) {
+<span class="fc" id="L50">    BlameAlgorithmEnum forcedStrategy = configuration.get(PROP_SONAR_SCM_USE_BLAME_ALGORITHM)</span>
+<span class="fc" id="L51">      .map(BlameAlgorithmEnum::valueOf)</span>
+<span class="fc" id="L52">      .orElse(null);</span>
+
+<span class="fc bfc" id="L54" title="All 2 branches covered.">    if (forcedStrategy != null) {</span>
+<span class="fc" id="L55">      return forcedStrategy;</span>
+    }
+
+<span class="fc bfc" id="L58" title="All 2 branches covered.">    if (availableProcessors == 0) {</span>
+<span class="fc" id="L59">      LOG.warn(&quot;Available processors are 0. Falling back to native git blame&quot;);</span>
+<span class="fc" id="L60">      return GIT_NATIVE_BLAME;</span>
+    }
+<span class="fc bfc" id="L62" title="All 2 branches covered.">    if (numberOfFiles / availableProcessors &gt; FILES_GIT_BLAME_TRIGGER) {</span>
+<span class="fc" id="L63">      return GIT_FILES_BLAME;</span>
+    }
+
+<span class="fc" id="L66">    return GIT_NATIVE_BLAME;</span>
+  }
+
+<span class="fc" id="L69">  public enum BlameAlgorithmEnum {</span>
+    /**
+     * Strategy using native git for the blame, or JGit on single file as a fallback
+     */
+<span class="fc" id="L73">    GIT_NATIVE_BLAME,</span>
+    /**
+     * Strategy using git-files-blame algorithm
+     */
+<span class="fc" id="L77">    GIT_FILES_BLAME;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

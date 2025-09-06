@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AesECBCipher.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.api.config.internal</a> &gt; <span class="el_source">AesECBCipher.java</span></div><h1>AesECBCipher.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.api.config.internal;
+
+import java.nio.charset.StandardCharsets;
+import javax.annotation.Nullable;
+import org.apache.commons.codec.binary.Base64;
+import org.apache.commons.lang3.StringUtils;
+
+/**
+ * @deprecated since 8.7.0
+ */
+@Deprecated
+final class AesECBCipher extends AesCipher {
+
+  private static final String CRYPTO_ALGO = &quot;AES&quot;;
+
+  AesECBCipher(@Nullable String pathToSecretKey) {
+<span class="fc" id="L36">    super(pathToSecretKey);</span>
+<span class="fc" id="L37">  }</span>
+
+  @Override
+  public String encrypt(String clearText) {
+    try {
+<span class="fc" id="L42">      javax.crypto.Cipher cipher = javax.crypto.Cipher.getInstance(CRYPTO_ALGO);</span>
+<span class="fc" id="L43">      cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, loadSecretFile());</span>
+<span class="fc" id="L44">      byte[] cipherData = cipher.doFinal(clearText.getBytes(StandardCharsets.UTF_8.name()));</span>
+<span class="fc" id="L45">      return Base64.encodeBase64String(cipherData);</span>
+<span class="nc" id="L46">    } catch (RuntimeException e) {</span>
+<span class="nc" id="L47">      throw e;</span>
+<span class="fc" id="L48">    } catch (Exception e) {</span>
+<span class="fc" id="L49">      throw new IllegalStateException(e);</span>
+    }
+  }
+
+  @Override
+  public String decrypt(String encryptedText) {
+    try {
+<span class="fc" id="L56">      javax.crypto.Cipher cipher = javax.crypto.Cipher.getInstance(CRYPTO_ALGO);</span>
+<span class="fc" id="L57">      cipher.init(javax.crypto.Cipher.DECRYPT_MODE, loadSecretFile());</span>
+<span class="fc" id="L58">      byte[] cipherData = cipher.doFinal(Base64.decodeBase64(StringUtils.trim(encryptedText)));</span>
+<span class="fc" id="L59">      return new String(cipherData, StandardCharsets.UTF_8);</span>
+<span class="fc" id="L60">    } catch (RuntimeException e) {</span>
+<span class="fc" id="L61">      throw e;</span>
+<span class="fc" id="L62">    } catch (Exception e) {</span>
+<span class="fc" id="L63">      throw new IllegalStateException(e);</span>
+    }
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

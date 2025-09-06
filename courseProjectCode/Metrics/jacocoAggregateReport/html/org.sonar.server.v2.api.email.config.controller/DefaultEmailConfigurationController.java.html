@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultEmailConfigurationController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.v2.api.email.config.controller</a> &gt; <span class="el_source">DefaultEmailConfigurationController.java</span></div><h1>DefaultEmailConfigurationController.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.v2.api.email.config.controller;
+
+import java.util.List;
+import org.apache.commons.lang.StringUtils;
+import org.sonar.server.common.email.config.EmailConfiguration;
+import org.sonar.server.common.email.config.EmailConfigurationAuthMethod;
+import org.sonar.server.common.email.config.EmailConfigurationSecurityProtocol;
+import org.sonar.server.common.email.config.EmailConfigurationService;
+import org.sonar.server.common.email.config.UpdateEmailConfigurationRequest;
+import org.sonar.server.user.UserSession;
+import org.sonar.server.v2.api.email.config.request.EmailConfigurationCreateRestRequest;
+import org.sonar.server.v2.api.email.config.request.EmailConfigurationUpdateRestRequest;
+import org.sonar.server.v2.api.email.config.resource.EmailConfigurationResource;
+import org.sonar.server.v2.api.email.config.response.EmailConfigurationSearchRestResponse;
+import org.sonar.server.v2.api.response.PageRestResponse;
+
+import static org.sonar.server.common.email.config.EmailConfigurationService.UNIQUE_EMAIL_CONFIGURATION_ID;
+
+public class DefaultEmailConfigurationController implements EmailConfigurationController {
+
+  private final UserSession userSession;
+  private final EmailConfigurationService emailConfigurationService;
+
+<span class="fc" id="L43">  public DefaultEmailConfigurationController(UserSession userSession, EmailConfigurationService emailConfigurationService) {</span>
+<span class="fc" id="L44">    this.userSession = userSession;</span>
+<span class="fc" id="L45">    this.emailConfigurationService = emailConfigurationService;</span>
+<span class="fc" id="L46">  }</span>
+
+  @Override
+  public EmailConfigurationResource createEmailConfiguration(EmailConfigurationCreateRestRequest createRequest) {
+<span class="fc" id="L50">    userSession.checkIsSystemAdministrator();</span>
+<span class="fc" id="L51">    EmailConfiguration createdConfiguration = emailConfigurationService.createConfiguration(toEmailConfiguration(createRequest));</span>
+<span class="fc" id="L52">    return toEmailConfigurationResource(createdConfiguration);</span>
+  }
+
+  private static EmailConfiguration toEmailConfiguration(EmailConfigurationCreateRestRequest createRestRequest) {
+<span class="fc" id="L56">    return new EmailConfiguration(</span>
+      UNIQUE_EMAIL_CONFIGURATION_ID,
+<span class="fc" id="L58">      createRestRequest.host(),</span>
+<span class="fc" id="L59">      createRestRequest.port(),</span>
+<span class="fc" id="L60">      toSecurityProtocol(createRestRequest.securityProtocol()),</span>
+<span class="fc" id="L61">      createRestRequest.fromAddress(),</span>
+<span class="fc" id="L62">      createRestRequest.fromName(),</span>
+<span class="fc" id="L63">      createRestRequest.subjectPrefix(),</span>
+<span class="fc" id="L64">      toAuthMethod(createRestRequest.authMethod()),</span>
+<span class="fc" id="L65">      createRestRequest.username(),</span>
+<span class="fc" id="L66">      createRestRequest.basicPassword(),</span>
+<span class="fc" id="L67">      createRestRequest.oauthAuthenticationHost(),</span>
+<span class="fc" id="L68">      createRestRequest.oauthClientId(),</span>
+<span class="fc" id="L69">      createRestRequest.oauthClientSecret(),</span>
+<span class="fc" id="L70">      createRestRequest.oauthTenant()</span>
+    );
+  }
+
+  @Override
+  public EmailConfigurationResource getEmailConfiguration(String id) {
+<span class="fc" id="L76">    userSession.checkIsSystemAdministrator();</span>
+<span class="fc" id="L77">    return getEmailConfigurationResource(id);</span>
+  }
+
+  private EmailConfigurationResource getEmailConfigurationResource(String id) {
+<span class="fc" id="L81">    return toEmailConfigurationResource(emailConfigurationService.getConfiguration(id));</span>
+  }
+
+  @Override
+  public EmailConfigurationSearchRestResponse searchEmailConfigurations() {
+<span class="fc" id="L86">    userSession.checkIsSystemAdministrator();</span>
+
+<span class="fc" id="L88">    List&lt;EmailConfigurationResource&gt; emailConfigurationResources = emailConfigurationService.findConfigurations()</span>
+<span class="fc" id="L89">      .stream()</span>
+<span class="fc" id="L90">      .map(DefaultEmailConfigurationController::toEmailConfigurationResource)</span>
+<span class="fc" id="L91">      .toList();</span>
+
+<span class="fc" id="L93">    PageRestResponse pageRestResponse = new PageRestResponse(1, 1000, emailConfigurationResources.size());</span>
+<span class="fc" id="L94">    return new EmailConfigurationSearchRestResponse(emailConfigurationResources, pageRestResponse);</span>
+  }
+
+  @Override
+  public EmailConfigurationResource updateEmailConfiguration(String id, EmailConfigurationUpdateRestRequest updateRequest) {
+<span class="fc" id="L99">    userSession.checkIsSystemAdministrator();</span>
+
+<span class="fc" id="L101">    UpdateEmailConfigurationRequest updateEmailConfigurationRequest = toUpdateEmailConfigurationRequest(id, updateRequest);</span>
+<span class="fc" id="L102">    return toEmailConfigurationResource(emailConfigurationService.updateConfiguration(updateEmailConfigurationRequest));</span>
+  }
+
+  private static UpdateEmailConfigurationRequest toUpdateEmailConfigurationRequest(String id, EmailConfigurationUpdateRestRequest updateRequest) {
+<span class="fc" id="L106">    return UpdateEmailConfigurationRequest.builder()</span>
+<span class="fc" id="L107">      .emailConfigurationId(id)</span>
+<span class="fc" id="L108">      .host(updateRequest.getHost().toNonNullUpdatedValue())</span>
+<span class="fc" id="L109">      .port(updateRequest.getPort().toNonNullUpdatedValue())</span>
+<span class="fc" id="L110">      .securityProtocol(updateRequest.getSecurityProtocol().map(DefaultEmailConfigurationController::toSecurityProtocol).toNonNullUpdatedValue())</span>
+<span class="fc" id="L111">      .fromAddress(updateRequest.getFromAddress().toNonNullUpdatedValue())</span>
+<span class="fc" id="L112">      .fromName(updateRequest.getFromName().toNonNullUpdatedValue())</span>
+<span class="fc" id="L113">      .subjectPrefix(updateRequest.getSubjectPrefix().toNonNullUpdatedValue())</span>
+<span class="fc" id="L114">      .authMethod(updateRequest.getAuthMethod().map(DefaultEmailConfigurationController::toAuthMethod).toNonNullUpdatedValue())</span>
+<span class="fc" id="L115">      .username(updateRequest.getUsername().toNonNullUpdatedValue())</span>
+<span class="fc" id="L116">      .basicPassword(updateRequest.getBasicPassword().toNonNullUpdatedValue())</span>
+<span class="fc" id="L117">      .oauthAuthenticationHost(updateRequest.getOauthAuthenticationHost().toNonNullUpdatedValue())</span>
+<span class="fc" id="L118">      .oauthClientId(updateRequest.getOauthClientId().toNonNullUpdatedValue())</span>
+<span class="fc" id="L119">      .oauthClientSecret(updateRequest.getOauthClientSecret().toNonNullUpdatedValue())</span>
+<span class="fc" id="L120">      .oauthTenant(updateRequest.getOauthTenant().toNonNullUpdatedValue())</span>
+<span class="fc" id="L121">      .build();</span>
+  }
+
+  private static EmailConfigurationResource toEmailConfigurationResource(EmailConfiguration configuration) {
+<span class="fc" id="L125">    return new EmailConfigurationResource(</span>
+<span class="fc" id="L126">      configuration.id(),</span>
+<span class="fc" id="L127">      configuration.host(),</span>
+<span class="fc" id="L128">      configuration.port(),</span>
+<span class="fc" id="L129">      toRestSecurityProtocol(configuration.securityProtocol()),</span>
+<span class="fc" id="L130">      configuration.fromAddress(),</span>
+<span class="fc" id="L131">      configuration.fromName(),</span>
+<span class="fc" id="L132">      configuration.subjectPrefix(),</span>
+<span class="fc" id="L133">      toRestAuthMethod(configuration.authMethod()),</span>
+<span class="fc" id="L134">      configuration.username(),</span>
+<span class="fc" id="L135">      StringUtils.isNotEmpty(configuration.basicPassword()),</span>
+<span class="fc" id="L136">      configuration.oauthAuthenticationHost(),</span>
+<span class="fc" id="L137">      StringUtils.isNotEmpty(configuration.oauthClientId()),</span>
+<span class="fc" id="L138">      StringUtils.isNotEmpty(configuration.oauthClientSecret()),</span>
+<span class="fc" id="L139">      configuration.oauthTenant()</span>
+    );
+  }
+
+  @Override
+  public void deleteEmailConfiguration(String id) {
+<span class="fc" id="L145">    userSession.checkIsSystemAdministrator();</span>
+<span class="fc" id="L146">    emailConfigurationService.deleteConfiguration(id);</span>
+<span class="fc" id="L147">  }</span>
+
+  private static EmailConfigurationSecurityProtocol toSecurityProtocol(org.sonar.server.v2.api.email.config.resource.EmailConfigurationSecurityProtocol restSecurityProtocol) {
+<span class="fc" id="L150">    return EmailConfigurationSecurityProtocol.valueOf(restSecurityProtocol.name());</span>
+  }
+
+  private static EmailConfigurationAuthMethod toAuthMethod(org.sonar.server.v2.api.email.config.resource.EmailConfigurationAuthMethod restAuthMethod) {
+<span class="fc" id="L154">    return EmailConfigurationAuthMethod.valueOf(restAuthMethod.name());</span>
+  }
+
+  private static org.sonar.server.v2.api.email.config.resource.EmailConfigurationSecurityProtocol toRestSecurityProtocol(EmailConfigurationSecurityProtocol securityProtocol) {
+<span class="fc" id="L158">    return org.sonar.server.v2.api.email.config.resource.EmailConfigurationSecurityProtocol.valueOf(securityProtocol.name());</span>
+  }
+
+  private static org.sonar.server.v2.api.email.config.resource.EmailConfigurationAuthMethod toRestAuthMethod(EmailConfigurationAuthMethod authMethod) {
+<span class="fc" id="L162">    return org.sonar.server.v2.api.email.config.resource.EmailConfigurationAuthMethod.valueOf(authMethod.name());</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

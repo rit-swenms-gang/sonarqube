@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ReindexAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.issue.ws</a> &gt; <span class="el_source">ReindexAction.java</span></div><h1>ReindexAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.issue.ws;
+
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.server.exceptions.NotFoundException;
+import org.sonar.server.issue.index.IssueIndexer;
+import org.sonar.server.user.UserSession;
+
+import static org.sonar.server.ws.KeyExamples.KEY_PROJECT_EXAMPLE_001;
+import static org.sonarqube.ws.client.project.ProjectsWsParameters.PARAM_PROJECT;
+
+/**
+ * Implementation of the {@code reindex} action for the Issues WebService.
+ */
+public class ReindexAction implements IssuesWsAction {
+
+  private static final String ACTION = &quot;reindex&quot;;
+  private final DbClient dbClient;
+  private final IssueIndexer issueIndexer;
+  private final UserSession userSession;
+
+<span class="fc" id="L45">  public ReindexAction(DbClient dbClient, IssueIndexer indexer, UserSession userSession) {</span>
+<span class="fc" id="L46">    this.dbClient = dbClient;</span>
+<span class="fc" id="L47">    this.issueIndexer = indexer;</span>
+<span class="fc" id="L48">    this.userSession = userSession;</span>
+<span class="fc" id="L49">  }</span>
+
+  @Override
+  public void define(WebService.NewController context) {
+<span class="fc" id="L53">    WebService.NewAction action = context</span>
+<span class="fc" id="L54">      .createAction(ACTION)</span>
+<span class="fc" id="L55">      .setPost(true)</span>
+<span class="fc" id="L56">      .setDescription(&quot;Reindex issues for a project.&lt;br&gt; &quot; +</span>
+        &quot;Require 'Administer System' permission.&quot;)
+<span class="fc" id="L58">      .setSince(&quot;9.8&quot;)</span>
+<span class="fc" id="L59">      .setHandler(this);</span>
+
+<span class="fc" id="L61">    action</span>
+<span class="fc" id="L62">      .createParam(PARAM_PROJECT)</span>
+<span class="fc" id="L63">      .setDescription(&quot;Project key&quot;)</span>
+<span class="fc" id="L64">      .setRequired(true)</span>
+<span class="fc" id="L65">      .setExampleValue(KEY_PROJECT_EXAMPLE_001);</span>
+<span class="fc" id="L66">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L70">    userSession.checkIsSystemAdministrator();</span>
+
+<span class="fc" id="L72">    String projectKey = request.mandatoryParam(PARAM_PROJECT);</span>
+    ProjectDto projectDto;
+<span class="fc" id="L74">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L75">      projectDto = dbClient.projectDao().selectProjectByKey(dbSession, projectKey).orElseThrow(() -&gt; new NotFoundException(&quot;project not found&quot;));</span>
+    }
+
+<span class="fc" id="L78">    issueIndexer.indexProject(projectDto.getUuid());</span>
+<span class="fc" id="L79">    response.noContent();</span>
+<span class="fc" id="L80">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MeasureSensor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.xoo.lang</a> &gt; <span class="el_source">MeasureSensor.java</span></div><h1>MeasureSensor.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.xoo.lang;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.Serializable;
+import java.util.List;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.batch.fs.InputComponent;
+import org.sonar.api.batch.fs.InputDir;
+import org.sonar.api.batch.fs.InputFile;
+import org.sonar.api.batch.measure.MetricFinder;
+import org.sonar.api.batch.sensor.Sensor;
+import org.sonar.api.batch.sensor.SensorContext;
+import org.sonar.api.batch.sensor.SensorDescriptor;
+import org.sonar.api.batch.sensor.measure.NewMeasure;
+import org.sonar.xoo.Xoo;
+import org.sonar.xoo.Xoo2;
+
+/**
+ * Parse files *.xoo.measures
+ */
+public class MeasureSensor implements Sensor {
+
+<span class="fc" id="L46">  private static final Logger LOG = LoggerFactory.getLogger(MeasureSensor.class);</span>
+
+  private static final String MEASURES_EXTENSION = &quot;.measures&quot;;
+
+  private MetricFinder metricFinder;
+
+<span class="fc" id="L52">  public MeasureSensor(MetricFinder metricFinder) {</span>
+<span class="fc" id="L53">    this.metricFinder = metricFinder;</span>
+<span class="fc" id="L54">  }</span>
+
+  private void processFileMeasures(InputComponent component, File measureFile, SensorContext context) {
+<span class="fc bfc" id="L57" title="All 2 branches covered.">    if (measureFile.exists()) {</span>
+<span class="fc" id="L58">      LOG.debug(&quot;Processing &quot; + measureFile.getAbsolutePath());</span>
+      try {
+<span class="fc" id="L60">        List&lt;String&gt; lines = FileUtils.readLines(measureFile, context.fileSystem().encoding().name());</span>
+<span class="fc" id="L61">        int lineNumber = 0;</span>
+<span class="fc bfc" id="L62" title="All 2 branches covered.">        for (String line : lines) {</span>
+<span class="fc" id="L63">          lineNumber++;</span>
+<span class="fc bfc" id="L64" title="All 4 branches covered.">          if (StringUtils.isBlank(line) || line.startsWith(&quot;#&quot;)) {</span>
+<span class="fc" id="L65">            continue;</span>
+          }
+<span class="fc" id="L67">          processMeasure(component, context, measureFile, lineNumber, line);</span>
+<span class="fc" id="L68">        }</span>
+<span class="nc" id="L69">      } catch (IOException e) {</span>
+<span class="nc" id="L70">        throw new IllegalStateException(e);</span>
+<span class="fc" id="L71">      }</span>
+    }
+<span class="fc" id="L73">  }</span>
+
+  private void processMeasure(InputComponent component, SensorContext context, File measureFile, int lineNumber, String line) {
+    try {
+<span class="fc" id="L77">      String metricKey = StringUtils.substringBefore(line, &quot;:&quot;);</span>
+<span class="fc" id="L78">      String value = line.substring(metricKey.length() + 1);</span>
+<span class="fc" id="L79">      saveMeasure(context, component, metricKey, value);</span>
+<span class="fc" id="L80">    } catch (Exception e) {</span>
+<span class="fc" id="L81">      LOG.error(&quot;Error processing line &quot; + lineNumber + &quot; of file &quot; + measureFile.getAbsolutePath(), e);</span>
+<span class="fc" id="L82">      throw new IllegalStateException(&quot;Error processing line &quot; + lineNumber + &quot; of file &quot; + measureFile.getAbsolutePath(), e);</span>
+<span class="fc" id="L83">    }</span>
+<span class="fc" id="L84">  }</span>
+
+  private void saveMeasure(SensorContext context, InputComponent component, String metricKey, String value) {
+<span class="fc" id="L87">    org.sonar.api.batch.measure.Metric&lt;Serializable&gt; metric = metricFinder.findByKey(metricKey);</span>
+<span class="fc bfc" id="L88" title="All 2 branches covered.">    if (metric == null) {</span>
+<span class="fc" id="L89">      throw new IllegalStateException(&quot;Unknown metric with key: &quot; + metricKey);</span>
+    }
+<span class="fc" id="L91">    NewMeasure&lt;Serializable&gt; newMeasure = context.newMeasure()</span>
+<span class="fc" id="L92">      .forMetric(metric)</span>
+<span class="fc" id="L93">      .on(component);</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">    if (Boolean.class.equals(metric.valueType())) {</span>
+<span class="fc" id="L95">      newMeasure.withValue(Boolean.parseBoolean(value));</span>
+<span class="fc bfc" id="L96" title="All 2 branches covered.">    } else if (Integer.class.equals(metric.valueType())) {</span>
+<span class="fc" id="L97">      newMeasure.withValue(Integer.valueOf(value));</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">    } else if (Double.class.equals(metric.valueType())) {</span>
+<span class="fc" id="L99">      newMeasure.withValue(Double.valueOf(value));</span>
+<span class="fc bfc" id="L100" title="All 2 branches covered.">    } else if (String.class.equals(metric.valueType())) {</span>
+<span class="fc" id="L101">      newMeasure.withValue(value);</span>
+<span class="pc bpc" id="L102" title="1 of 2 branches missed.">    } else if (Long.class.equals(metric.valueType())) {</span>
+<span class="fc" id="L103">      newMeasure.withValue(Long.valueOf(value));</span>
+    } else {
+<span class="nc" id="L105">      throw new UnsupportedOperationException(&quot;Unsupported type :&quot; + metric.valueType());</span>
+    }
+<span class="fc" id="L107">    newMeasure.save();</span>
+<span class="fc" id="L108">  }</span>
+
+  @Override
+  public void describe(SensorDescriptor descriptor) {
+<span class="fc" id="L112">    descriptor</span>
+<span class="fc" id="L113">      .name(&quot;Xoo Measure Sensor&quot;)</span>
+<span class="fc" id="L114">      .onlyOnLanguages(Xoo.KEY, Xoo2.KEY);</span>
+<span class="fc" id="L115">  }</span>
+
+  @Override
+  public void execute(SensorContext context) {
+<span class="fc bfc" id="L119" title="All 2 branches covered.">    for (InputFile file : context.fileSystem().inputFiles(context.fileSystem().predicates().hasLanguages(Xoo.KEY, Xoo2.KEY))) {</span>
+<span class="fc" id="L120">      File ioFile = file.file();</span>
+<span class="fc" id="L121">      File measureFile = new File(ioFile.getParentFile(), ioFile.getName() + MEASURES_EXTENSION);</span>
+<span class="fc" id="L122">      processFileMeasures(file, measureFile, context);</span>
+
+<span class="fc" id="L124">      InputDir inputDir = context.fileSystem().inputDir(ioFile.getParentFile());</span>
+<span class="fc bfc" id="L125" title="All 2 branches covered.">      if (inputDir != null) {</span>
+<span class="fc" id="L126">        processFileMeasures(inputDir, new File(ioFile.getParentFile(), &quot;folder&quot; + MEASURES_EXTENSION), context);</span>
+      }
+<span class="fc" id="L128">    }</span>
+<span class="fc" id="L129">    processFileMeasures(context.module(), new File(context.fileSystem().baseDir(), &quot;module&quot; + MEASURES_EXTENSION), context);</span>
+<span class="fc" id="L130">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

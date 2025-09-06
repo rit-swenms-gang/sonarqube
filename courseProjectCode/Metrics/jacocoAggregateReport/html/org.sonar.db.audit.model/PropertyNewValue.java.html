@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PropertyNewValue.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.audit.model</a> &gt; <span class="el_source">PropertyNewValue.java</span></div><h1>PropertyNewValue.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.audit.model;
+
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.db.property.PropertyDto;
+
+public class PropertyNewValue extends NewValue {
+  private String propertyKey;
+
+  @Nullable
+  private String propertyValue;
+
+  /**
+   * @deprecated The uuids in the audit logs are not product requirement anymore and will be removed in 11.x
+   */
+  @Deprecated(since = &quot;10.2&quot;)
+  @Nullable
+  private String userUuid;
+
+  @Nullable
+  private String userLogin;
+
+  /**
+   * @deprecated The uuids in the audit logs are not product requirement anymore and will be removed in 11.x
+   */
+  @Deprecated(since = &quot;10.2&quot;)
+  @Nullable
+  private String componentUuid;
+
+  @Nullable
+  private String componentKey;
+
+  @Nullable
+  private String componentName;
+
+  @Nullable
+  private String qualifier;
+
+<span class="fc" id="L58">  public PropertyNewValue(PropertyDto propertyDto, @Nullable String userLogin, @Nullable String componentKey, @Nullable String componentName, @Nullable String qualifier) {</span>
+<span class="fc" id="L59">    this.propertyKey = propertyDto.getKey();</span>
+<span class="fc" id="L60">    this.userUuid = propertyDto.getUserUuid();</span>
+<span class="fc" id="L61">    this.userLogin = userLogin;</span>
+<span class="fc" id="L62">    this.componentUuid = propertyDto.getEntityUuid();</span>
+<span class="fc" id="L63">    this.componentKey = componentKey;</span>
+<span class="fc" id="L64">    this.componentName = componentName;</span>
+<span class="fc" id="L65">    this.qualifier = qualifier;</span>
+
+<span class="fc" id="L67">    setValue(propertyKey, propertyDto.getValue());</span>
+<span class="fc" id="L68">  }</span>
+
+<span class="fc" id="L70">  public PropertyNewValue(String propertyKey) {</span>
+<span class="fc" id="L71">    this.propertyKey = propertyKey;</span>
+<span class="fc" id="L72">  }</span>
+
+<span class="fc" id="L74">  public PropertyNewValue(String propertyKey, String propertyValue) {</span>
+<span class="fc" id="L75">    this.propertyKey = propertyKey;</span>
+
+<span class="fc" id="L77">    setValue(propertyKey, propertyValue);</span>
+<span class="fc" id="L78">  }</span>
+
+  public PropertyNewValue(String propertyKey, @Nullable String projectUuid, @Nullable String componentKey,
+<span class="fc" id="L81">    @Nullable String componentName, @Nullable String qualifier, @Nullable String userUuid) {</span>
+<span class="fc" id="L82">    this.propertyKey = propertyKey;</span>
+<span class="fc" id="L83">    this.componentUuid = projectUuid;</span>
+<span class="fc" id="L84">    this.componentKey = componentKey;</span>
+<span class="fc" id="L85">    this.componentName = componentName;</span>
+<span class="fc" id="L86">    this.userUuid = userUuid;</span>
+<span class="fc" id="L87">    this.qualifier = qualifier;</span>
+<span class="fc" id="L88">  }</span>
+
+  public String getPropertyKey() {
+<span class="fc" id="L91">    return this.propertyKey;</span>
+  }
+
+  @CheckForNull
+  public String getPropertyValue() {
+<span class="fc" id="L96">    return this.propertyValue;</span>
+  }
+
+  /**
+   * @deprecated The uuids in the audit logs are not product requirement anymore and will be removed in 11.x
+   */
+  @Deprecated(since = &quot;10.2&quot;)
+  @CheckForNull
+  public String getUserUuid() {
+<span class="fc" id="L105">    return this.userUuid;</span>
+  }
+
+  @CheckForNull
+  public String getUserLogin() {
+<span class="fc" id="L110">    return this.userLogin;</span>
+  }
+
+  /**
+   * @deprecated The uuids in the audit logs are not product requirement anymore and will be removed in 11.x
+   */
+  @Deprecated(since = &quot;10.2&quot;)
+  @CheckForNull
+  public String getComponentUuid() {
+<span class="fc" id="L119">    return this.componentUuid;</span>
+  }
+
+  @CheckForNull
+  public String getComponentKey() {
+<span class="fc" id="L124">    return this.componentKey;</span>
+  }
+
+  @CheckForNull
+  public String getComponentName() {
+<span class="fc" id="L129">    return this.componentName;</span>
+  }
+
+  @CheckForNull
+  public String getQualifier() {
+<span class="fc" id="L134">    return this.qualifier;</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="fc" id="L139">    StringBuilder sb = new StringBuilder(&quot;{&quot;);</span>
+<span class="fc" id="L140">    addField(sb, &quot;\&quot;propertyKey\&quot;: &quot;, this.propertyKey, true);</span>
+<span class="fc" id="L141">    addField(sb, &quot;\&quot;propertyValue\&quot;: &quot;, this.propertyValue, true);</span>
+<span class="fc" id="L142">    addField(sb, &quot;\&quot;userUuid\&quot;: &quot;, this.userUuid, true);</span>
+<span class="fc" id="L143">    addField(sb, &quot;\&quot;userLogin\&quot;: &quot;, this.userLogin, true);</span>
+<span class="fc" id="L144">    addField(sb, &quot;\&quot;componentUuid\&quot;: &quot;, this.componentUuid, true);</span>
+<span class="fc" id="L145">    addField(sb, &quot;\&quot;componentKey\&quot;: &quot;, this.componentKey, true);</span>
+<span class="fc" id="L146">    addField(sb, &quot;\&quot;componentName\&quot;: &quot;, this.componentName, true);</span>
+<span class="fc" id="L147">    addField(sb, &quot;\&quot;qualifier\&quot;: &quot;, getQualifier(this.qualifier), true);</span>
+<span class="fc" id="L148">    endString(sb);</span>
+<span class="fc" id="L149">    return sb.toString();</span>
+  }
+
+  private void setValue(String propertyKey, String value) {
+<span class="fc bfc" id="L153" title="All 2 branches covered.">    if (!propertyKey.contains(&quot;.secured&quot;)) {</span>
+<span class="fc" id="L154">      this.propertyValue = value;</span>
+    }
+<span class="fc" id="L156">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

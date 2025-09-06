@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ScmAccountToUserLoader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.issue</a> &gt; <span class="el_source">ScmAccountToUserLoader.java</span></div><h1>ScmAccountToUserLoader.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.issue;
+
+import com.google.common.base.Joiner;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.ce.task.projectanalysis.util.cache.CacheLoader;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.user.UserIdDto;
+
+/**
+ * Loads the association between a SCM account and a SQ user
+ */
+public class ScmAccountToUserLoader implements CacheLoader&lt;String, UserIdDto&gt; {
+
+<span class="fc" id="L38">  private static final Logger LOGGER = LoggerFactory.getLogger(ScmAccountToUserLoader.class);</span>
+
+  private final DbClient dbClient;
+
+<span class="fc" id="L42">  public ScmAccountToUserLoader(DbClient dbClient) {</span>
+<span class="fc" id="L43">    this.dbClient = dbClient;</span>
+<span class="fc" id="L44">  }</span>
+
+  @Override
+  public UserIdDto load(String scmAccount) {
+<span class="fc" id="L48">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L49">      List&lt;UserIdDto&gt; users = dbClient.userDao().selectActiveUsersByScmAccountOrLoginOrEmail(dbSession, scmAccount);</span>
+<span class="fc bfc" id="L50" title="All 2 branches covered.">      if (users.size() == 1) {</span>
+<span class="fc" id="L51">        return users.iterator().next();</span>
+      }
+<span class="fc bfc" id="L53" title="All 2 branches covered.">      if (!users.isEmpty()) {</span>
+<span class="fc" id="L54">        Collection&lt;String&gt; logins = users.stream()</span>
+<span class="fc" id="L55">          .map(UserIdDto::getLogin)</span>
+<span class="fc" id="L56">          .sorted()</span>
+<span class="fc" id="L57">          .toList();</span>
+<span class="fc" id="L58">        LOGGER.atWarn()</span>
+<span class="fc" id="L59">          .addArgument(scmAccount)</span>
+<span class="fc" id="L60">          .addArgument(Joiner.on(&quot;, &quot;).join(logins))</span>
+<span class="fc" id="L61">          .log(&quot;Multiple users share the SCM account '{}': {}&quot;);</span>
+      }
+<span class="fc" id="L63">      return null;</span>
+<span class="pc bpc" id="L64" title="1 of 2 branches missed.">    }</span>
+  }
+
+  @Override
+  public Map&lt;String, UserIdDto&gt; loadAll(Collection&lt;? extends String&gt; scmAccounts) {
+<span class="fc" id="L69">    throw new UnsupportedOperationException(&quot;Loading by multiple scm accounts is not supported yet&quot;);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

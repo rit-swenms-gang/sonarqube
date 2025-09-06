@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EventDto.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.event</a> &gt; <span class="el_source">EventDto.java</span></div><h1>EventDto.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.event;
+
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+
+import static org.sonar.db.event.EventValidator.checkEventCategory;
+import static org.sonar.db.event.EventValidator.checkEventDescription;
+import static org.sonar.db.event.EventValidator.checkEventName;
+
+<span class="fc" id="L29">public class EventDto {</span>
+
+  public static final String CATEGORY_VERSION = &quot;Version&quot;;
+  public static final String CATEGORY_ALERT = &quot;Alert&quot;;
+  public static final String CATEGORY_PROFILE = &quot;Profile&quot;;
+  public static final String CATEGORY_DEFINITION_CHANGE = &quot;Definition change&quot;;
+  public static final String CATEGORY_ISSUE_DETECTION = &quot;Issue Detection&quot;;
+  public static final String CATEGORY_SQ_UPGRADE = &quot;SQ Upgrade&quot;;
+  private String uuid;
+  private String analysisUuid;
+  private String componentUuid;
+  private String name;
+  private String description;
+  private String category;
+  private Long date;
+  private Long createdAt;
+  private String data;
+
+  public String getUuid() {
+<span class="fc" id="L48">    return uuid;</span>
+  }
+
+  public EventDto setUuid(String uuid) {
+<span class="fc" id="L52">    this.uuid = uuid;</span>
+<span class="fc" id="L53">    return this;</span>
+  }
+
+  public String getAnalysisUuid() {
+<span class="fc" id="L57">    return analysisUuid;</span>
+  }
+
+  public EventDto setAnalysisUuid(String analysisUuid) {
+<span class="fc" id="L61">    this.analysisUuid = analysisUuid;</span>
+<span class="fc" id="L62">    return this;</span>
+  }
+
+  public String getComponentUuid() {
+<span class="fc" id="L66">    return componentUuid;</span>
+  }
+
+  public EventDto setComponentUuid(String componentUuid) {
+<span class="fc" id="L70">    this.componentUuid = componentUuid;</span>
+<span class="fc" id="L71">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getName() {
+<span class="fc" id="L76">    return name;</span>
+  }
+
+  /**
+   * The name of an event should not be null, but we must accept null values as the DB column is not nullable
+   */
+  public EventDto setName(@Nullable String name) {
+<span class="fc" id="L83">    this.name = checkEventName(name);</span>
+<span class="fc" id="L84">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getCategory() {
+<span class="fc" id="L89">    return category;</span>
+  }
+
+  /**
+   * The category of an event should not be null, but we must accept null values as the DB column is not nullable
+   */
+  public EventDto setCategory(@Nullable String category) {
+<span class="fc" id="L96">    this.category = checkEventCategory(category);</span>
+<span class="fc" id="L97">    return this;</span>
+  }
+
+  public Long getCreatedAt() {
+<span class="fc" id="L101">    return createdAt;</span>
+  }
+
+  public EventDto setCreatedAt(Long createdAt) {
+<span class="fc" id="L105">    this.createdAt = createdAt;</span>
+<span class="fc" id="L106">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getData() {
+<span class="fc" id="L111">    return data;</span>
+  }
+
+  public EventDto setData(@Nullable String data) {
+<span class="fc" id="L115">    this.data = data;</span>
+<span class="fc" id="L116">    return this;</span>
+  }
+
+  public Long getDate() {
+<span class="fc" id="L120">    return date;</span>
+  }
+
+  public EventDto setDate(Long date) {
+<span class="fc" id="L124">    this.date = date;</span>
+<span class="fc" id="L125">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getDescription() {
+<span class="fc" id="L130">    return description;</span>
+  }
+
+  public EventDto setDescription(@Nullable String description) {
+<span class="fc" id="L134">    this.description = checkEventDescription(description);</span>
+<span class="fc" id="L135">    return this;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

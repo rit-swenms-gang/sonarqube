@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WebhookDeliveryAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.webhook.ws</a> &gt; <span class="el_source">WebhookDeliveryAction.java</span></div><h1>WebhookDeliveryAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.webhook.ws;
+
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.db.permission.ProjectPermission;
+import org.sonar.core.util.Uuids;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.db.webhook.WebhookDeliveryDto;
+import org.sonar.server.component.ComponentFinder;
+import org.sonar.server.exceptions.NotFoundException;
+import org.sonar.server.user.UserSession;
+import org.sonarqube.ws.Webhooks;
+
+import static java.util.Objects.requireNonNull;
+import static org.sonar.server.webhook.ws.WebhookWsSupport.copyDtoToProtobuf;
+import static org.sonar.server.ws.WsUtils.writeProtobuf;
+
+public class WebhookDeliveryAction implements WebhooksWsAction {
+
+  private static final String PARAM_ID = &quot;deliveryId&quot;;
+
+  private final DbClient dbClient;
+  private final UserSession userSession;
+  private final ComponentFinder componentFinder;
+
+<span class="fc" id="L48">  public WebhookDeliveryAction(DbClient dbClient, UserSession userSession, ComponentFinder componentFinder) {</span>
+<span class="fc" id="L49">    this.dbClient = dbClient;</span>
+<span class="fc" id="L50">    this.userSession = userSession;</span>
+<span class="fc" id="L51">    this.componentFinder = componentFinder;</span>
+<span class="fc" id="L52">  }</span>
+
+  @Override
+  public void define(WebService.NewController controller) {
+<span class="fc" id="L56">    WebService.NewAction action = controller.createAction(&quot;delivery&quot;)</span>
+<span class="fc" id="L57">      .setSince(&quot;6.2&quot;)</span>
+<span class="fc" id="L58">      .setDescription(&quot;Get a webhook delivery by its id.&lt;br/&gt;&quot; +</span>
+        &quot;Require 'Administer System' permission.&lt;br/&gt;&quot; +
+        &quot;Note that additional information are returned by api/webhooks/delivery.&quot;)
+<span class="fc" id="L61">      .setResponseExample(getClass().getResource(&quot;example-delivery.json&quot;))</span>
+<span class="fc" id="L62">      .setHandler(this);</span>
+
+<span class="fc" id="L64">    action.createParam(PARAM_ID)</span>
+<span class="fc" id="L65">      .setDescription(&quot;Id of delivery&quot;)</span>
+<span class="fc" id="L66">      .setRequired(true)</span>
+<span class="fc" id="L67">      .setExampleValue(Uuids.UUID_EXAMPLE_06);</span>
+<span class="fc" id="L68">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+    // fail-fast if not logged in
+<span class="fc" id="L73">    userSession.checkLoggedIn();</span>
+
+<span class="fc" id="L75">    Data data = loadFromDatabase(request.mandatoryParam(PARAM_ID));</span>
+<span class="fc" id="L76">    data.ensureAdminPermission(userSession);</span>
+<span class="fc" id="L77">    data.writeTo(request, response);</span>
+<span class="fc" id="L78">  }</span>
+
+  private Data loadFromDatabase(String deliveryUuid) {
+<span class="fc" id="L81">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L82">      WebhookDeliveryDto delivery = dbClient.webhookDeliveryDao().selectByUuid(dbSession, deliveryUuid)</span>
+<span class="fc" id="L83">        .orElseThrow(() -&gt; new NotFoundException(&quot;Webhook delivery not found&quot;));</span>
+<span class="fc" id="L84">      ProjectDto project = componentFinder.getProjectByUuid(dbSession, delivery.getProjectUuid());</span>
+<span class="fc" id="L85">      return new Data(project, delivery);</span>
+    }
+  }
+
+  private static class Data {
+    private final ProjectDto project;
+    private final WebhookDeliveryDto deliveryDto;
+
+<span class="fc" id="L93">    Data(ProjectDto component, WebhookDeliveryDto delivery) {</span>
+<span class="fc" id="L94">      this.deliveryDto = requireNonNull(delivery);</span>
+<span class="fc" id="L95">      this.project = requireNonNull(component);</span>
+<span class="fc" id="L96">    }</span>
+
+    void ensureAdminPermission(UserSession userSession) {
+<span class="fc" id="L99">      userSession.checkEntityPermission(ProjectPermission.ADMIN, project);</span>
+<span class="fc" id="L100">    }</span>
+
+    void writeTo(Request request, Response response) {
+<span class="fc" id="L103">      Webhooks.DeliveryWsResponse.Builder responseBuilder = Webhooks.DeliveryWsResponse.newBuilder();</span>
+<span class="fc" id="L104">      Webhooks.Delivery.Builder deliveryBuilder = Webhooks.Delivery.newBuilder();</span>
+<span class="fc" id="L105">      copyDtoToProtobuf(project, deliveryDto, deliveryBuilder);</span>
+<span class="fc" id="L106">      responseBuilder.setDelivery(deliveryBuilder);</span>
+
+<span class="fc" id="L108">      writeProtobuf(responseBuilder.build(), request, response);</span>
+<span class="fc" id="L109">    }</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

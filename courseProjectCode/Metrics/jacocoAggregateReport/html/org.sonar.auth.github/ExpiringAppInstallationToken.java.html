@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ExpiringAppInstallationToken.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.auth.github</a> &gt; <span class="el_source">ExpiringAppInstallationToken.java</span></div><h1>ExpiringAppInstallationToken.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.auth.github;
+
+import java.time.Clock;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
+import javax.annotation.concurrent.Immutable;
+
+import static java.util.Objects.requireNonNull;
+
+/**
+ * Token that provides access to the Github API on behalf of
+ * the Github organization that installed the Github App.
+ *
+ * IMPORTANT
+ * Two different Github organizations don't share rate limits.
+ * Two different instances of {@link ExpiringAppInstallationToken} of the same Github organization
+ * share the same quotas (two calls from the two different instances consume
+ * two hits).
+ *
+ * The limit can be higher than 5'000, depending on the number of repositories
+ * and users present in the organization. See
+ * https://developer.github.com/apps/building-github-apps/understanding-rate-limits-for-github-apps/
+ *
+ * When the token is expired, the rate limit is 60 calls per hour for the public IP
+ * of the machine. BE CAREFUL, THAT SHOULD NEVER OCCUR.
+ *
+ * See https://developer.github.com/apps/building-github-apps/authenticating-with-github-apps/#authenticating-as-an-installation
+ */
+@Immutable
+public class ExpiringAppInstallationToken implements AppInstallationToken {
+
+  private final Clock clock;
+  private final String token;
+  private final OffsetDateTime expiresAt;
+
+<span class="fc" id="L55">  public ExpiringAppInstallationToken(Clock clock, String token, String expiresAt) {</span>
+<span class="fc" id="L56">    this.clock = clock;</span>
+<span class="fc" id="L57">    this.token = requireNonNull(token, &quot;token can't be null&quot;);</span>
+<span class="fc" id="L58">    this.expiresAt = OffsetDateTime.parse(expiresAt, DateTimeFormatter.ISO_DATE_TIME);</span>
+<span class="fc" id="L59">  }</span>
+
+  @Override
+  public String getValue() {
+<span class="fc" id="L63">    return token;</span>
+  }
+
+  @Override
+  public String getAuthorizationHeaderPrefix() {
+<span class="fc" id="L68">    return &quot;Token&quot;;</span>
+  }
+
+  public boolean isExpired() {
+<span class="fc" id="L72">    return expiresAt.minusMinutes(1).isBefore(OffsetDateTime.now(clock));</span>
+  }
+
+  @Override
+  public boolean equals(Object o) {
+<span class="fc bfc" id="L77" title="All 2 branches covered.">    if (this == o) {</span>
+<span class="fc" id="L78">      return true;</span>
+    }
+<span class="fc bfc" id="L80" title="All 4 branches covered.">    if (o == null || getClass() != o.getClass()) {</span>
+<span class="fc" id="L81">      return false;</span>
+    }
+<span class="fc" id="L83">    ExpiringAppInstallationToken that = (ExpiringAppInstallationToken) o;</span>
+<span class="fc" id="L84">    return token.equals(that.token);</span>
+  }
+
+  @Override
+  public int hashCode() {
+<span class="fc" id="L89">    return token.hashCode();</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="fc" id="L94">    return token;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

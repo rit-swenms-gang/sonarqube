@@ -1,0 +1,358 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IssueChangeWSSupport.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.issue</a> &gt; <span class="el_source">IssueChangeWSSupport.java</span></div><h1>IssueChangeWSSupport.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.issue;
+
+import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
+import java.io.Serializable;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
+import org.sonar.api.utils.DateUtils;
+import org.sonar.core.issue.FieldDiffs;
+import org.sonar.core.util.stream.MoreCollectors;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.ComponentDto;
+import org.sonar.db.issue.IssueChangeDto;
+import org.sonar.db.issue.IssueDto;
+import org.sonar.db.user.UserDto;
+import org.sonar.markdown.Markdown;
+import org.sonar.server.common.avatar.AvatarResolver;
+import org.sonar.server.user.UserSession;
+import org.sonarqube.ws.Common;
+
+import static com.google.common.base.Strings.emptyToNull;
+import static java.util.Collections.emptyMap;
+import static java.util.Optional.empty;
+import static java.util.Optional.ofNullable;
+import static org.sonar.api.utils.DateUtils.formatDateTime;
+import static org.sonar.db.issue.IssueChangeDto.TYPE_COMMENT;
+import static org.sonar.db.issue.IssueChangeDto.TYPE_FIELD_CHANGE;
+import static org.sonar.server.issue.IssueFieldsSetter.FILE;
+import static org.sonar.server.issue.IssueFieldsSetter.TECHNICAL_DEBT;
+
+public class IssueChangeWSSupport {
+  private static final String EFFORT_CHANGELOG_KEY = &quot;effort&quot;;
+  private final DbClient dbClient;
+  private final AvatarResolver avatarFactory;
+  private final UserSession userSession;
+
+<span class="fc" id="L70">  public IssueChangeWSSupport(DbClient dbClient, AvatarResolver avatarFactory, UserSession userSession) {</span>
+<span class="fc" id="L71">    this.dbClient = dbClient;</span>
+<span class="fc" id="L72">    this.avatarFactory = avatarFactory;</span>
+<span class="fc" id="L73">    this.userSession = userSession;</span>
+<span class="fc" id="L74">  }</span>
+
+<span class="fc" id="L76">  public enum Load {</span>
+<span class="fc" id="L77">    CHANGE_LOG, COMMENTS, ALL</span>
+  }
+
+  public interface FormattingContext {
+
+    List&lt;FieldDiffs&gt; getChanges(IssueDto dto);
+
+    List&lt;IssueChangeDto&gt; getComments(IssueDto dto);
+
+    Set&lt;UserDto&gt; getUsers();
+
+    Optional&lt;UserDto&gt; getUserByUuid(@Nullable String uuid);
+
+    Optional&lt;ComponentDto&gt; getFileByUuid(@Nullable String uuid);
+
+    boolean isUpdatableComment(IssueChangeDto comment);
+  }
+
+  public FormattingContext newFormattingContext(DbSession dbSession, Set&lt;IssueDto&gt; dtos, Load load) {
+<span class="fc" id="L96">    return newFormattingContext(dbSession, dtos, load, Set.of(), Set.of());</span>
+  }
+
+  public FormattingContext newFormattingContext(DbSession dbSession, Set&lt;IssueDto&gt; dtos, Load load, Set&lt;UserDto&gt; preloadedUsers, Set&lt;ComponentDto&gt; preloadedComponents) {
+<span class="fc" id="L100">    Set&lt;String&gt; issueKeys = dtos.stream().map(IssueDto::getKey).collect(Collectors.toSet());</span>
+
+<span class="fc" id="L102">    List&lt;IssueChangeDto&gt; changes = List.of();</span>
+<span class="fc" id="L103">    List&lt;IssueChangeDto&gt; comments = List.of();</span>
+<span class="pc bpc" id="L104" title="1 of 4 branches missed.">    switch (load) {</span>
+      case CHANGE_LOG:
+<span class="fc" id="L106">        changes = dbClient.issueChangeDao().selectByTypeAndIssueKeys(dbSession, issueKeys, TYPE_FIELD_CHANGE);</span>
+<span class="fc" id="L107">        break;</span>
+      case COMMENTS:
+<span class="fc" id="L109">        comments = dbClient.issueChangeDao().selectByTypeAndIssueKeys(dbSession, issueKeys, TYPE_COMMENT);</span>
+<span class="fc" id="L110">        break;</span>
+      case ALL:
+<span class="fc" id="L112">        List&lt;IssueChangeDto&gt; all = dbClient.issueChangeDao().selectByIssueKeys(dbSession, issueKeys);</span>
+<span class="fc" id="L113">        changes = all.stream()</span>
+<span class="fc" id="L114">          .filter(t -&gt; TYPE_FIELD_CHANGE.equals(t.getChangeType()))</span>
+<span class="fc" id="L115">          .toList();</span>
+<span class="fc" id="L116">        comments = all.stream()</span>
+<span class="fc" id="L117">          .filter(t -&gt; TYPE_COMMENT.equals(t.getChangeType()))</span>
+<span class="fc" id="L118">          .toList();</span>
+<span class="fc" id="L119">        break;</span>
+      default:
+<span class="nc" id="L121">        throw new IllegalStateException(&quot;Unsupported Load value:&quot; + load);</span>
+    }
+
+<span class="fc" id="L124">    Map&lt;String, List&lt;FieldDiffs&gt;&gt; changesByRuleKey = indexAndSort(changes, IssueChangeDto::toFieldDiffs, Comparator.comparing(FieldDiffs::creationDate));</span>
+<span class="fc" id="L125">    Map&lt;String, List&lt;IssueChangeDto&gt;&gt; commentsByIssueKey = indexAndSort(comments, t -&gt; t, Comparator.comparing(IssueChangeDto::getIssueChangeCreationDate));</span>
+<span class="fc" id="L126">    Map&lt;String, UserDto&gt; usersByUuid = loadUsers(dbSession, changesByRuleKey, commentsByIssueKey, preloadedUsers);</span>
+<span class="fc" id="L127">    Map&lt;String, ComponentDto&gt; filesByUuid = loadFiles(dbSession, changesByRuleKey, preloadedComponents);</span>
+<span class="fc" id="L128">    Map&lt;String, Boolean&gt; updatableCommentByKey = loadUpdatableFlag(commentsByIssueKey);</span>
+<span class="fc" id="L129">    return new FormattingContextImpl(changesByRuleKey, commentsByIssueKey, usersByUuid, filesByUuid, updatableCommentByKey);</span>
+  }
+
+  private static &lt;T&gt; Map&lt;String, List&lt;T&gt;&gt; indexAndSort(List&lt;IssueChangeDto&gt; changes, Function&lt;IssueChangeDto, T&gt; transform, Comparator&lt;T&gt; sortingComparator) {
+<span class="fc" id="L133">    Multimap&lt;String, IssueChangeDto&gt; unordered = changes.stream()</span>
+<span class="fc" id="L134">      .collect(MoreCollectors.index(IssueChangeDto::getIssueKey, t -&gt; t));</span>
+<span class="fc" id="L135">    return unordered.asMap().entrySet().stream()</span>
+<span class="fc" id="L136">      .collect(Collectors.toMap(Map.Entry::getKey, t -&gt; t.getValue().stream()</span>
+<span class="fc" id="L137">        .map(transform)</span>
+<span class="fc" id="L138">        .sorted(sortingComparator)</span>
+<span class="fc" id="L139">        .toList()));</span>
+  }
+
+  private Map&lt;String, UserDto&gt; loadUsers(DbSession dbSession, Map&lt;String, List&lt;FieldDiffs&gt;&gt; changesByRuleKey,
+    Map&lt;String, List&lt;IssueChangeDto&gt;&gt; commentsByIssueKey, Set&lt;UserDto&gt; preloadedUsers) {
+<span class="fc" id="L144">    Set&lt;String&gt; userUuids = Stream.concat(</span>
+<span class="fc" id="L145">        changesByRuleKey.values().stream()</span>
+<span class="fc" id="L146">          .flatMap(Collection::stream)</span>
+<span class="fc" id="L147">          .map(FieldDiffs::userUuid)</span>
+<span class="fc" id="L148">          .filter(Optional::isPresent)</span>
+<span class="fc" id="L149">          .map(Optional::get),</span>
+<span class="fc" id="L150">        commentsByIssueKey.values().stream()</span>
+<span class="fc" id="L151">          .flatMap(Collection::stream)</span>
+<span class="fc" id="L152">          .map(IssueChangeDto::getUserUuid)</span>
+      )
+<span class="fc" id="L154">      .filter(Objects::nonNull)</span>
+<span class="fc" id="L155">      .collect(Collectors.toSet());</span>
+<span class="fc bfc" id="L156" title="All 2 branches covered.">    if (userUuids.isEmpty()) {</span>
+<span class="fc" id="L157">      return emptyMap();</span>
+    }
+
+<span class="fc" id="L160">    Set&lt;String&gt; preloadedUserUuids = preloadedUsers.stream().map(UserDto::getUuid).collect(Collectors.toSet());</span>
+<span class="fc" id="L161">    Set&lt;String&gt; missingUsersUuids = Sets.difference(userUuids, preloadedUserUuids).immutableCopy();</span>
+<span class="fc bfc" id="L162" title="All 2 branches covered.">    if (missingUsersUuids.isEmpty()) {</span>
+<span class="fc" id="L163">      return preloadedUsers.stream()</span>
+<span class="fc" id="L164">        .filter(t -&gt; userUuids.contains(t.getUuid()))</span>
+<span class="fc" id="L165">        .collect(Collectors.toMap(UserDto::getUuid, Function.identity()));</span>
+    }
+
+<span class="fc" id="L168">    return Stream.concat(</span>
+<span class="fc" id="L169">        preloadedUsers.stream(),</span>
+<span class="fc" id="L170">        dbClient.userDao().selectByUuids(dbSession, missingUsersUuids).stream())</span>
+<span class="fc" id="L171">      .filter(t -&gt; userUuids.contains(t.getUuid()))</span>
+<span class="fc" id="L172">      .collect(Collectors.toMap(UserDto::getUuid, Function.identity()));</span>
+  }
+
+  private Map&lt;String, ComponentDto&gt; loadFiles(DbSession dbSession, Map&lt;String, List&lt;FieldDiffs&gt;&gt; changesByRuleKey, Set&lt;ComponentDto&gt; preloadedComponents) {
+<span class="fc" id="L176">    Set&lt;String&gt; fileUuids = changesByRuleKey.values().stream()</span>
+<span class="fc" id="L177">      .flatMap(Collection::stream)</span>
+<span class="fc" id="L178">      .flatMap(diffs -&gt; {</span>
+<span class="fc" id="L179">        FieldDiffs.Diff diff = diffs.get(FILE);</span>
+<span class="fc bfc" id="L180" title="All 2 branches covered.">        if (diff == null) {</span>
+<span class="fc" id="L181">          return Stream.empty();</span>
+        }
+<span class="fc" id="L183">        return Stream.of(toString(diff.newValue()), toString(diff.oldValue()));</span>
+      })
+<span class="fc" id="L185">      .map(Strings::emptyToNull)</span>
+<span class="fc" id="L186">      .filter(Objects::nonNull)</span>
+<span class="fc" id="L187">      .collect(Collectors.toSet());</span>
+<span class="fc bfc" id="L188" title="All 2 branches covered.">    if (fileUuids.isEmpty()) {</span>
+<span class="fc" id="L189">      return emptyMap();</span>
+    }
+
+<span class="fc" id="L192">    Set&lt;String&gt; preloadedFileUuids = preloadedComponents.stream().map(ComponentDto::uuid).collect(Collectors.toSet());</span>
+<span class="fc" id="L193">    Set&lt;String&gt; missingFileUuids = Sets.difference(fileUuids, preloadedFileUuids).immutableCopy();</span>
+<span class="fc bfc" id="L194" title="All 2 branches covered.">    if (missingFileUuids.isEmpty()) {</span>
+<span class="fc" id="L195">      return preloadedComponents.stream()</span>
+<span class="fc" id="L196">        .filter(t -&gt; fileUuids.contains(t.uuid()))</span>
+<span class="fc" id="L197">        .collect(Collectors.toMap(ComponentDto::uuid, Function.identity()));</span>
+    }
+
+<span class="fc" id="L200">    return Stream.concat(</span>
+<span class="fc" id="L201">        preloadedComponents.stream(),</span>
+<span class="fc" id="L202">        dbClient.componentDao().selectByUuids(dbSession, missingFileUuids).stream())</span>
+<span class="fc" id="L203">      .filter(t -&gt; fileUuids.contains(t.uuid()))</span>
+<span class="fc" id="L204">      .collect(Collectors.toMap(ComponentDto::uuid, Function.identity()));</span>
+  }
+
+  private Map&lt;String, Boolean&gt; loadUpdatableFlag(Map&lt;String, List&lt;IssueChangeDto&gt;&gt; commentsByIssueKey) {
+<span class="fc bfc" id="L208" title="All 2 branches covered.">    if (!userSession.isLoggedIn()) {</span>
+<span class="fc" id="L209">      return emptyMap();</span>
+    }
+<span class="fc" id="L211">    String userUuid = userSession.getUuid();</span>
+<span class="pc bpc" id="L212" title="1 of 2 branches missed.">    if (userUuid == null) {</span>
+<span class="nc" id="L213">      return emptyMap();</span>
+    }
+
+<span class="fc" id="L216">    return commentsByIssueKey.values().stream()</span>
+<span class="fc" id="L217">      .flatMap(Collection::stream)</span>
+<span class="fc" id="L218">      .collect(Collectors.toMap(IssueChangeDto::getKey, t -&gt; userUuid.equals(t.getUserUuid())));</span>
+  }
+
+  public Stream&lt;Common.Changelog&gt; formatChangelog(IssueDto dto, FormattingContext formattingContext) {
+<span class="fc" id="L222">    return formattingContext.getChanges(dto).stream()</span>
+<span class="fc" id="L223">      .map(toWsChangelog(formattingContext));</span>
+  }
+
+  private Function&lt;FieldDiffs, Common.Changelog&gt; toWsChangelog(FormattingContext formattingContext) {
+<span class="fc" id="L227">    return change -&gt; {</span>
+<span class="fc" id="L228">      Common.Changelog.Builder changelogBuilder = Common.Changelog.newBuilder();</span>
+<span class="fc" id="L229">      changelogBuilder.setCreationDate(formatDateTime(change.creationDate()));</span>
+<span class="fc" id="L230">      change.userUuid().flatMap(formattingContext::getUserByUuid)</span>
+<span class="fc" id="L231">        .ifPresent(user -&gt; {</span>
+<span class="fc" id="L232">          changelogBuilder.setUser(user.getLogin());</span>
+<span class="fc" id="L233">          changelogBuilder.setIsUserActive(user.isActive());</span>
+<span class="fc" id="L234">          ofNullable(user.getName()).ifPresent(changelogBuilder::setUserName);</span>
+<span class="fc" id="L235">          ofNullable(emptyToNull(user.getEmail())).ifPresent(email -&gt; changelogBuilder.setAvatar(avatarFactory.create(user)));</span>
+<span class="fc" id="L236">        });</span>
+<span class="fc" id="L237">      change.externalUser().ifPresent(changelogBuilder::setExternalUser);</span>
+<span class="fc" id="L238">      change.webhookSource().ifPresent(changelogBuilder::setWebhookSource);</span>
+<span class="fc" id="L239">      change.diffs().entrySet().stream()</span>
+<span class="fc" id="L240">        .map(toWsDiff(formattingContext))</span>
+<span class="fc" id="L241">        .forEach(changelogBuilder::addDiffs);</span>
+<span class="fc" id="L242">      return changelogBuilder.build();</span>
+    };
+  }
+
+  private static Function&lt;Map.Entry&lt;String, FieldDiffs.Diff&gt;, Common.Changelog.Diff&gt; toWsDiff(FormattingContext formattingContext) {
+<span class="fc" id="L247">    return diff -&gt; {</span>
+<span class="fc" id="L248">      FieldDiffs.Diff value = diff.getValue();</span>
+<span class="fc" id="L249">      Common.Changelog.Diff.Builder diffBuilder = Common.Changelog.Diff.newBuilder();</span>
+<span class="fc" id="L250">      String key = diff.getKey();</span>
+<span class="fc" id="L251">      String oldValue = emptyToNull(toString(value.oldValue()));</span>
+<span class="fc" id="L252">      String newValue = emptyToNull(toString(value.newValue()));</span>
+<span class="pc bpc" id="L253" title="1 of 2 branches missed.">      if (key.equals(FILE)) {</span>
+<span class="nc" id="L254">        diffBuilder.setKey(key);</span>
+<span class="nc" id="L255">        formattingContext.getFileByUuid(newValue).map(ComponentDto::longName).ifPresent(diffBuilder::setNewValue);</span>
+<span class="nc" id="L256">        formattingContext.getFileByUuid(oldValue).map(ComponentDto::longName).ifPresent(diffBuilder::setOldValue);</span>
+      } else {
+<span class="fc bfc" id="L258" title="All 2 branches covered.">        diffBuilder.setKey(key.equals(TECHNICAL_DEBT) ? EFFORT_CHANGELOG_KEY : key);</span>
+<span class="fc" id="L259">        ofNullable(newValue).ifPresent(diffBuilder::setNewValue);</span>
+<span class="fc" id="L260">        ofNullable(oldValue).ifPresent(diffBuilder::setOldValue);</span>
+      }
+<span class="fc" id="L262">      return diffBuilder.build();</span>
+    };
+  }
+
+  public Stream&lt;Common.Comment&gt; formatComments(IssueDto dto, Common.Comment.Builder commentBuilder, FormattingContext formattingContext) {
+<span class="fc" id="L267">    return formattingContext.getComments(dto).stream()</span>
+<span class="fc" id="L268">      .map(comment -&gt; {</span>
+<span class="fc" id="L269">        commentBuilder</span>
+<span class="fc" id="L270">          .clear()</span>
+<span class="fc" id="L271">          .setKey(comment.getKey())</span>
+<span class="fc" id="L272">          .setUpdatable(formattingContext.isUpdatableComment(comment))</span>
+<span class="fc" id="L273">          .setCreatedAt(DateUtils.formatDateTime(new Date(comment.getIssueChangeCreationDate())));</span>
+<span class="fc" id="L274">        String markdown = comment.getChangeData();</span>
+<span class="pc" id="L275">        formattingContext.getUserByUuid(comment.getUserUuid()).ifPresent(user -&gt; commentBuilder.setLogin(user.getLogin()));</span>
+<span class="fc bfc" id="L276" title="All 2 branches covered.">        if (markdown != null) {</span>
+<span class="fc" id="L277">          commentBuilder</span>
+<span class="fc" id="L278">            .setHtmlText(Markdown.convertToHtml(markdown))</span>
+<span class="fc" id="L279">            .setMarkdown(markdown);</span>
+        }
+<span class="fc" id="L281">        return commentBuilder.build();</span>
+      });
+  }
+
+  private static String toString(@Nullable Serializable serializable) {
+<span class="fc bfc" id="L286" title="All 2 branches covered.">    if (serializable != null) {</span>
+<span class="fc" id="L287">      return serializable.toString();</span>
+    }
+<span class="fc" id="L289">    return null;</span>
+  }
+
+  @Immutable
+  public static final class FormattingContextImpl implements FormattingContext {
+    private final Map&lt;String, List&lt;FieldDiffs&gt;&gt; changesByIssueKey;
+    private final Map&lt;String, List&lt;IssueChangeDto&gt;&gt; commentsByIssueKey;
+    private final Map&lt;String, UserDto&gt; usersByUuid;
+    private final Map&lt;String, ComponentDto&gt; filesByUuid;
+    private final Map&lt;String, Boolean&gt; updatableCommentByKey;
+
+    private FormattingContextImpl(Map&lt;String, List&lt;FieldDiffs&gt;&gt; changesByIssueKey,
+      Map&lt;String, List&lt;IssueChangeDto&gt;&gt; commentsByIssueKey,
+      Map&lt;String, UserDto&gt; usersByUuid, Map&lt;String, ComponentDto&gt; filesByUuid,
+<span class="fc" id="L303">      Map&lt;String, Boolean&gt; updatableCommentByKey) {</span>
+<span class="fc" id="L304">      this.changesByIssueKey = changesByIssueKey;</span>
+<span class="fc" id="L305">      this.commentsByIssueKey = commentsByIssueKey;</span>
+<span class="fc" id="L306">      this.usersByUuid = usersByUuid;</span>
+<span class="fc" id="L307">      this.filesByUuid = filesByUuid;</span>
+<span class="fc" id="L308">      this.updatableCommentByKey = updatableCommentByKey;</span>
+<span class="fc" id="L309">    }</span>
+
+    @Override
+    public List&lt;FieldDiffs&gt; getChanges(IssueDto dto) {
+<span class="fc" id="L313">      List&lt;FieldDiffs&gt; fieldDiffs = changesByIssueKey.get(dto.getKey());</span>
+<span class="fc bfc" id="L314" title="All 2 branches covered.">      if (fieldDiffs == null) {</span>
+<span class="fc" id="L315">        return List.of();</span>
+      }
+<span class="fc" id="L317">      return List.copyOf(fieldDiffs);</span>
+    }
+
+    @Override
+    public List&lt;IssueChangeDto&gt; getComments(IssueDto dto) {
+<span class="fc" id="L322">      List&lt;IssueChangeDto&gt; comments = commentsByIssueKey.get(dto.getKey());</span>
+<span class="fc bfc" id="L323" title="All 2 branches covered.">      if (comments == null) {</span>
+<span class="fc" id="L324">        return List.of();</span>
+      }
+<span class="fc" id="L326">      return List.copyOf(comments);</span>
+    }
+
+    @Override
+    public Set&lt;UserDto&gt; getUsers() {
+<span class="fc" id="L331">      return ImmutableSet.copyOf(usersByUuid.values());</span>
+    }
+
+    @Override
+    public Optional&lt;UserDto&gt; getUserByUuid(@Nullable String uuid) {
+<span class="pc bpc" id="L336" title="1 of 2 branches missed.">      if (uuid == null) {</span>
+<span class="nc" id="L337">        return empty();</span>
+      }
+<span class="fc" id="L339">      return Optional.ofNullable(usersByUuid.get(uuid));</span>
+    }
+
+    @Override
+    public Optional&lt;ComponentDto&gt; getFileByUuid(@Nullable String uuid) {
+<span class="pc bpc" id="L344" title="1 of 2 branches missed.">      if (uuid == null) {</span>
+<span class="nc" id="L345">        return empty();</span>
+      }
+<span class="fc" id="L347">      return Optional.ofNullable(filesByUuid.get(uuid));</span>
+    }
+
+    @Override
+    public boolean isUpdatableComment(IssueChangeDto comment) {
+<span class="fc" id="L352">      Boolean flag = updatableCommentByKey.get(comment.getKey());</span>
+<span class="fc bfc" id="L353" title="All 4 branches covered.">      return flag != null &amp;&amp; flag;</span>
+    }
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

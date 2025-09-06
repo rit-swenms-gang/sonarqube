@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultGroupMembershipController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.v2.api.membership.controller</a> &gt; <span class="el_source">DefaultGroupMembershipController.java</span></div><h1>DefaultGroupMembershipController.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.v2.api.membership.controller;
+
+import java.util.List;
+import org.sonar.db.user.UserGroupDto;
+import org.sonar.server.common.SearchResults;
+import org.sonar.server.common.group.service.GroupMembershipSearchRequest;
+import org.sonar.server.common.group.service.GroupMembershipService;
+import org.sonar.server.common.management.ManagedInstanceChecker;
+import org.sonar.server.user.UserSession;
+import org.sonar.server.v2.api.membership.request.GroupMembershipCreateRestRequest;
+import org.sonar.server.v2.api.membership.request.GroupsMembershipSearchRestRequest;
+import org.sonar.server.v2.api.membership.response.GroupMembershipRestResponse;
+import org.sonar.server.v2.api.membership.response.GroupsMembershipSearchRestResponse;
+import org.sonar.server.v2.api.model.RestPage;
+import org.sonar.server.v2.api.response.PageRestResponse;
+
+public class DefaultGroupMembershipController implements GroupMembershipController {
+
+  private final GroupMembershipService groupMembershipService;
+  private final UserSession userSession;
+  private final ManagedInstanceChecker managedInstanceChecker;
+
+<span class="fc" id="L42">  public DefaultGroupMembershipController(UserSession userSession, GroupMembershipService groupMembershipService, ManagedInstanceChecker managedInstanceChecker) {</span>
+<span class="fc" id="L43">    this.groupMembershipService = groupMembershipService;</span>
+<span class="fc" id="L44">    this.userSession = userSession;</span>
+<span class="fc" id="L45">    this.managedInstanceChecker = managedInstanceChecker;</span>
+<span class="fc" id="L46">  }</span>
+
+  @Override
+  public GroupsMembershipSearchRestResponse search(GroupsMembershipSearchRestRequest groupsSearchRestRequest, RestPage restPage) {
+<span class="fc" id="L50">    userSession.checkLoggedIn().checkIsSystemAdministrator();</span>
+<span class="fc" id="L51">    SearchResults&lt;UserGroupDto&gt; groupMembershipSearchResults = searchMembership(groupsSearchRestRequest, restPage);</span>
+
+<span class="fc" id="L53">    List&lt;GroupMembershipRestResponse&gt; groupMembershipRestResponse = toRestGroupMembershipResponse(groupMembershipSearchResults);</span>
+<span class="fc" id="L54">    return new GroupsMembershipSearchRestResponse(groupMembershipRestResponse,</span>
+<span class="fc" id="L55">      new PageRestResponse(restPage.pageIndex(), restPage.pageSize(), groupMembershipSearchResults.total()));</span>
+  }
+
+  private SearchResults&lt;UserGroupDto&gt; searchMembership(GroupsMembershipSearchRestRequest groupsSearchRestRequest, RestPage restPage) {
+<span class="fc" id="L59">    GroupMembershipSearchRequest groupMembershipSearchRequest = new GroupMembershipSearchRequest(groupsSearchRestRequest.groupId(), groupsSearchRestRequest.userId());</span>
+<span class="fc" id="L60">    return groupMembershipService.searchMembers(groupMembershipSearchRequest, restPage.pageIndex(), restPage.pageSize());</span>
+  }
+
+  @Override
+  public void delete(String id) {
+<span class="fc" id="L65">    throwIfNotAllowedToModifyGroups();</span>
+<span class="fc" id="L66">    groupMembershipService.removeMembership(id);</span>
+<span class="fc" id="L67">  }</span>
+
+  @Override
+  public GroupMembershipRestResponse create(GroupMembershipCreateRestRequest request) {
+<span class="fc" id="L71">    throwIfNotAllowedToModifyGroups();</span>
+<span class="fc" id="L72">    UserGroupDto userGroupDto = groupMembershipService.addMembership(request.groupId(), request.userId());</span>
+<span class="fc" id="L73">    return toRestGroupMembershipResponse(userGroupDto);</span>
+  }
+
+  private static List&lt;GroupMembershipRestResponse&gt; toRestGroupMembershipResponse(SearchResults&lt;UserGroupDto&gt; groupMembershipSearchResults) {
+<span class="fc" id="L77">    return groupMembershipSearchResults.searchResults().stream()</span>
+<span class="fc" id="L78">      .map(DefaultGroupMembershipController::toRestGroupMembershipResponse)</span>
+<span class="fc" id="L79">      .toList();</span>
+  }
+
+  private void throwIfNotAllowedToModifyGroups() {
+<span class="fc" id="L83">    userSession.checkIsSystemAdministrator();</span>
+<span class="fc" id="L84">    managedInstanceChecker.throwIfInstanceIsManaged();</span>
+<span class="fc" id="L85">  }</span>
+
+  private static GroupMembershipRestResponse toRestGroupMembershipResponse(UserGroupDto group) {
+<span class="fc" id="L88">    return new GroupMembershipRestResponse(group.getUuid(), group.getGroupUuid(), group.getUserUuid());</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

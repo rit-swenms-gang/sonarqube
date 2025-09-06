@@ -1,0 +1,315 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ProtobufIssueDiskCache.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.util.cache</a> &gt; <span class="el_source">ProtobufIssueDiskCache.java</span></div><h1>ProtobufIssueDiskCache.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.util.cache;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Splitter;
+import com.google.common.collect.ImmutableSet;
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.OutputStream;
+import java.io.Serializable;
+import java.util.Collections;
+import java.util.Date;
+import java.util.Map;
+import javax.annotation.CheckForNull;
+import org.sonar.api.issue.impact.Severity;
+import org.sonar.api.issue.impact.SoftwareQuality;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.api.rules.CleanCodeAttribute;
+import org.sonar.core.rule.RuleType;
+import org.sonar.api.utils.Duration;
+import org.sonar.api.utils.System2;
+import org.sonar.core.issue.DefaultImpact;
+import org.sonar.core.issue.DefaultIssue;
+import org.sonar.core.issue.DefaultIssueComment;
+import org.sonar.core.issue.FieldDiffs;
+import org.sonar.core.util.CloseableIterator;
+import org.sonar.core.util.Protobuf;
+import org.sonar.db.protobuf.DbIssues;
+
+import static java.util.Optional.ofNullable;
+
+public class ProtobufIssueDiskCache implements DiskCache&lt;DefaultIssue&gt; {
+  private static final String TAGS_SEPARATOR = &quot;,&quot;;
+<span class="fc" id="L54">  private static final Splitter STRING_LIST_SPLITTER = Splitter.on(',').trimResults().omitEmptyStrings();</span>
+
+  private final File file;
+  private final System2 system2;
+
+<span class="fc" id="L59">  public ProtobufIssueDiskCache(File file, System2 system2) {</span>
+<span class="fc" id="L60">    this.file = file;</span>
+<span class="fc" id="L61">    this.system2 = system2;</span>
+<span class="fc" id="L62">  }</span>
+
+  @Override
+  public long fileSize() {
+<span class="fc" id="L66">    return file.length();</span>
+  }
+
+  @Override
+  public CacheAppender&lt;DefaultIssue&gt; newAppender() {
+    try {
+<span class="fc" id="L72">      return new ProtoCacheAppender();</span>
+<span class="fc" id="L73">    } catch (FileNotFoundException e) {</span>
+<span class="fc" id="L74">      throw new IllegalStateException(e);</span>
+    }
+  }
+
+  @Override
+  public CloseableIterator&lt;DefaultIssue&gt; traverse() {
+<span class="fc" id="L80">    CloseableIterator&lt;IssueCache.Issue&gt; protoIterator = Protobuf.readStream(file, IssueCache.Issue.parser());</span>
+<span class="fc" id="L81">    return new CloseableIterator&lt;&gt;() {</span>
+      @CheckForNull
+      @Override
+      protected DefaultIssue doNext() {
+<span class="fc bfc" id="L85" title="All 2 branches covered.">        if (protoIterator.hasNext()) {</span>
+<span class="fc" id="L86">          return toDefaultIssue(protoIterator.next());</span>
+        }
+<span class="fc" id="L88">        return null;</span>
+      }
+
+      @Override
+      protected void doClose() {
+<span class="fc" id="L93">        protoIterator.close();</span>
+<span class="fc" id="L94">      }</span>
+    };
+  }
+
+  @VisibleForTesting
+  static DefaultIssue toDefaultIssue(IssueCache.Issue next) {
+<span class="fc" id="L100">    DefaultIssue defaultIssue = new DefaultIssue();</span>
+<span class="fc" id="L101">    defaultIssue.setKey(next.getKey());</span>
+<span class="fc" id="L102">    defaultIssue.setType(RuleType.fromDbConstant(next.getRuleType()));</span>
+<span class="fc bfc" id="L103" title="All 2 branches covered.">    defaultIssue.setComponentUuid(next.hasComponentUuid() ? next.getComponentUuid() : null);</span>
+<span class="fc" id="L104">    defaultIssue.setComponentKey(next.getComponentKey());</span>
+<span class="fc" id="L105">    defaultIssue.setProjectUuid(next.getProjectUuid());</span>
+<span class="fc" id="L106">    defaultIssue.setProjectKey(next.getProjectKey());</span>
+<span class="fc" id="L107">    defaultIssue.setRuleKey(RuleKey.parse(next.getRuleKey()));</span>
+<span class="fc bfc" id="L108" title="All 2 branches covered.">    defaultIssue.setLanguage(next.hasLanguage() ? next.getLanguage() : null);</span>
+<span class="fc bfc" id="L109" title="All 2 branches covered.">    defaultIssue.setSeverity(next.hasSeverity() ? next.getSeverity() : null);</span>
+<span class="fc" id="L110">    defaultIssue.setManualSeverity(next.getManualSeverity());</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">    defaultIssue.setMessage(next.hasMessage() ? next.getMessage() : null);</span>
+<span class="pc bpc" id="L112" title="1 of 2 branches missed.">    defaultIssue.setMessageFormattings(next.hasMessageFormattings() ? next.getMessageFormattings() : null);</span>
+<span class="fc bfc" id="L113" title="All 2 branches covered.">    defaultIssue.setLine(next.hasLine() ? next.getLine() : null);</span>
+<span class="pc bpc" id="L114" title="1 of 2 branches missed.">    defaultIssue.setGap(next.hasGap() ? next.getGap() : null);</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">    defaultIssue.setEffort(next.hasEffort() ? Duration.create(next.getEffort()) : null);</span>
+<span class="fc" id="L116">    defaultIssue.setStatus(next.getStatus());</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">    defaultIssue.setResolution(next.hasResolution() ? next.getResolution() : null);</span>
+<span class="fc bfc" id="L118" title="All 2 branches covered.">    defaultIssue.setAssigneeUuid(next.hasAssigneeUuid() ? next.getAssigneeUuid() : null);</span>
+<span class="pc bpc" id="L119" title="1 of 2 branches missed.">    defaultIssue.setAssigneeLogin(next.hasAssigneeLogin() ? next.getAssigneeLogin() : null);</span>
+<span class="fc bfc" id="L120" title="All 2 branches covered.">    defaultIssue.setChecksum(next.hasChecksum() ? next.getChecksum() : null);</span>
+<span class="fc bfc" id="L121" title="All 2 branches covered.">    defaultIssue.setAuthorLogin(next.hasAuthorLogin() ? next.getAuthorLogin() : null);</span>
+<span class="fc" id="L122">    next.getCommentsList().forEach(c -&gt; defaultIssue.addComment(toDefaultIssueComment(c)));</span>
+<span class="fc" id="L123">    defaultIssue.setTags(ImmutableSet.copyOf(STRING_LIST_SPLITTER.split(next.getTags())));</span>
+<span class="fc" id="L124">    defaultIssue.setCodeVariants(ImmutableSet.copyOf(STRING_LIST_SPLITTER.split(next.getCodeVariants())));</span>
+<span class="fc bfc" id="L125" title="All 2 branches covered.">    defaultIssue.setRuleDescriptionContextKey(next.hasRuleDescriptionContextKey() ? next.getRuleDescriptionContextKey() : null);</span>
+<span class="fc bfc" id="L126" title="All 2 branches covered.">    defaultIssue.setLocations(next.hasLocations() ? next.getLocations() : null);</span>
+<span class="fc" id="L127">    defaultIssue.setIsFromExternalRuleEngine(next.getIsFromExternalRuleEngine());</span>
+<span class="fc" id="L128">    defaultIssue.setCreationDate(new Date(next.getCreationDate()));</span>
+<span class="fc bfc" id="L129" title="All 2 branches covered.">    defaultIssue.setUpdateDate(next.hasUpdateDate() ? new Date(next.getUpdateDate()) : null);</span>
+<span class="pc bpc" id="L130" title="1 of 2 branches missed.">    defaultIssue.setCloseDate(next.hasCloseDate() ? new Date(next.getCloseDate()) : null);</span>
+<span class="fc bfc" id="L131" title="All 2 branches covered.">    defaultIssue.setCurrentChangeWithoutAddChange(next.hasCurrentChanges() ? toDefaultIssueChanges(next.getCurrentChanges()) : null);</span>
+<span class="fc" id="L132">    defaultIssue.setNew(next.getIsNew());</span>
+<span class="fc" id="L133">    defaultIssue.setIsOnChangedLine(next.getIsOnChangedLine());</span>
+<span class="fc" id="L134">    defaultIssue.setIsNewCodeReferenceIssue(next.getIsNewCodeReferenceIssue());</span>
+<span class="fc" id="L135">    defaultIssue.setCopied(next.getIsCopied());</span>
+<span class="fc" id="L136">    defaultIssue.setBeingClosed(next.getBeingClosed());</span>
+<span class="fc" id="L137">    defaultIssue.setOnDisabledRule(next.getOnDisabledRule());</span>
+<span class="fc" id="L138">    defaultIssue.setChanged(next.getIsChanged());</span>
+<span class="fc" id="L139">    defaultIssue.setSendNotifications(next.getSendNotifications());</span>
+<span class="fc bfc" id="L140" title="All 2 branches covered.">    defaultIssue.setSelectedAt(next.hasSelectedAt() ? next.getSelectedAt() : null);</span>
+<span class="fc" id="L141">    defaultIssue.setQuickFixAvailable(next.getQuickFixAvailable());</span>
+<span class="fc" id="L142">    defaultIssue.setPrioritizedRule(next.getIsPrioritizedRule());</span>
+<span class="fc" id="L143">    defaultIssue.setFromSonarQubeUpdate(next.getIsFromSonarqubeUpdate());</span>
+<span class="fc" id="L144">    defaultIssue.setIsNoLongerNewCodeReferenceIssue(next.getIsNoLongerNewCodeReferenceIssue());</span>
+<span class="fc bfc" id="L145" title="All 2 branches covered.">    defaultIssue.setCleanCodeAttribute(next.hasCleanCodeAttribute() ? CleanCodeAttribute.valueOf(next.getCleanCodeAttribute()) : null);</span>
+<span class="fc bfc" id="L146" title="All 2 branches covered.">    if (next.hasAnticipatedTransitionUuid()) {</span>
+<span class="fc" id="L147">      defaultIssue.setAnticipatedTransitionUuid(next.getAnticipatedTransitionUuid());</span>
+    }
+
+<span class="fc bfc" id="L150" title="All 2 branches covered.">    for (IssueCache.Impact impact : next.getImpactsList()) {</span>
+<span class="fc" id="L151">      defaultIssue.addImpact(SoftwareQuality.valueOf(impact.getSoftwareQuality()), Severity.valueOf(impact.getSeverity()), impact.getManualSeverity());</span>
+<span class="fc" id="L152">    }</span>
+<span class="fc bfc" id="L153" title="All 2 branches covered.">    for (IssueCache.FieldDiffs protoFieldDiffs : next.getChangesList()) {</span>
+<span class="fc" id="L154">      defaultIssue.addChange(toDefaultIssueChanges(protoFieldDiffs));</span>
+<span class="fc" id="L155">    }</span>
+<span class="fc" id="L156">    return defaultIssue;</span>
+  }
+
+  @VisibleForTesting
+  static IssueCache.Issue toProto(IssueCache.Issue.Builder builder, DefaultIssue defaultIssue) {
+<span class="fc" id="L161">    builder.clear();</span>
+<span class="fc" id="L162">    builder.setKey(defaultIssue.key());</span>
+<span class="fc" id="L163">    builder.setRuleType(defaultIssue.type().getDbConstant());</span>
+<span class="fc" id="L164">    ofNullable(defaultIssue.getCleanCodeAttribute()).ifPresent(value -&gt; builder.setCleanCodeAttribute(value.name()));</span>
+<span class="fc" id="L165">    ofNullable(defaultIssue.componentUuid()).ifPresent(builder::setComponentUuid);</span>
+<span class="fc" id="L166">    builder.setComponentKey(defaultIssue.componentKey());</span>
+<span class="fc" id="L167">    builder.setProjectUuid(defaultIssue.projectUuid());</span>
+<span class="fc" id="L168">    builder.setProjectKey(defaultIssue.projectKey());</span>
+<span class="fc" id="L169">    builder.setRuleKey(defaultIssue.ruleKey().toString());</span>
+<span class="fc" id="L170">    ofNullable(defaultIssue.language()).ifPresent(builder::setLanguage);</span>
+<span class="fc" id="L171">    ofNullable(defaultIssue.severity()).ifPresent(builder::setSeverity);</span>
+<span class="fc" id="L172">    builder.setManualSeverity(defaultIssue.manualSeverity());</span>
+<span class="fc" id="L173">    ofNullable(defaultIssue.message()).ifPresent(builder::setMessage);</span>
+<span class="pc" id="L174">    ofNullable(defaultIssue.getMessageFormattings()).ifPresent(m -&gt; builder.setMessageFormattings((DbIssues.MessageFormattings) m));</span>
+<span class="fc" id="L175">    ofNullable(defaultIssue.line()).ifPresent(builder::setLine);</span>
+<span class="fc" id="L176">    ofNullable(defaultIssue.gap()).ifPresent(builder::setGap);</span>
+<span class="fc" id="L177">    ofNullable(defaultIssue.effort()).map(Duration::toMinutes).ifPresent(builder::setEffort);</span>
+<span class="fc" id="L178">    builder.setStatus(defaultIssue.status());</span>
+<span class="fc" id="L179">    ofNullable(defaultIssue.resolution()).ifPresent(builder::setResolution);</span>
+<span class="fc" id="L180">    ofNullable(defaultIssue.assignee()).ifPresent(builder::setAssigneeUuid);</span>
+<span class="fc" id="L181">    ofNullable(defaultIssue.assigneeLogin()).ifPresent(builder::setAssigneeLogin);</span>
+<span class="fc" id="L182">    ofNullable(defaultIssue.checksum()).ifPresent(builder::setChecksum);</span>
+<span class="fc" id="L183">    ofNullable(defaultIssue.authorLogin()).ifPresent(builder::setAuthorLogin);</span>
+<span class="fc" id="L184">    defaultIssue.defaultIssueComments().forEach(c -&gt; builder.addComments(toProtoComment(c)));</span>
+<span class="fc" id="L185">    ofNullable(defaultIssue.tags()).ifPresent(t -&gt; builder.setTags(String.join(TAGS_SEPARATOR, t)));</span>
+<span class="fc" id="L186">    ofNullable(defaultIssue.codeVariants()).ifPresent(codeVariant -&gt; builder.setCodeVariants(String.join(TAGS_SEPARATOR, codeVariant)));</span>
+<span class="fc" id="L187">    ofNullable(defaultIssue.getLocations()).ifPresent(l -&gt; builder.setLocations((DbIssues.Locations) l));</span>
+<span class="fc" id="L188">    defaultIssue.getRuleDescriptionContextKey().ifPresent(builder::setRuleDescriptionContextKey);</span>
+<span class="fc" id="L189">    builder.setIsFromExternalRuleEngine(defaultIssue.isFromExternalRuleEngine());</span>
+<span class="fc" id="L190">    builder.setCreationDate(defaultIssue.creationDate().getTime());</span>
+<span class="fc" id="L191">    ofNullable(defaultIssue.updateDate()).map(Date::getTime).ifPresent(builder::setUpdateDate);</span>
+<span class="fc" id="L192">    ofNullable(defaultIssue.closeDate()).map(Date::getTime).ifPresent(builder::setCloseDate);</span>
+<span class="fc" id="L193">    ofNullable(defaultIssue.currentChange()).ifPresent(c -&gt; builder.setCurrentChanges(toProtoIssueChanges(c)));</span>
+<span class="fc" id="L194">    builder.setIsNew(defaultIssue.isNew());</span>
+<span class="fc" id="L195">    builder.setIsOnChangedLine(defaultIssue.isOnChangedLine());</span>
+<span class="fc" id="L196">    builder.setIsPrioritizedRule(defaultIssue.isPrioritizedRule());</span>
+<span class="fc" id="L197">    builder.setIsFromSonarqubeUpdate(defaultIssue.isFromSonarQubeUpdate());</span>
+<span class="fc" id="L198">    builder.setIsNewCodeReferenceIssue(defaultIssue.isNewCodeReferenceIssue());</span>
+<span class="fc" id="L199">    builder.setIsCopied(defaultIssue.isCopied());</span>
+<span class="fc" id="L200">    builder.setBeingClosed(defaultIssue.isBeingClosed());</span>
+<span class="fc" id="L201">    builder.setOnDisabledRule(defaultIssue.isOnDisabledRule());</span>
+<span class="fc" id="L202">    builder.setIsChanged(defaultIssue.isChanged());</span>
+<span class="fc" id="L203">    builder.setSendNotifications(defaultIssue.mustSendNotifications());</span>
+<span class="fc" id="L204">    ofNullable(defaultIssue.selectedAt()).ifPresent(builder::setSelectedAt);</span>
+<span class="fc" id="L205">    builder.setQuickFixAvailable(defaultIssue.isQuickFixAvailable());</span>
+<span class="fc" id="L206">    builder.setIsNoLongerNewCodeReferenceIssue(defaultIssue.isNoLongerNewCodeReferenceIssue());</span>
+<span class="fc" id="L207">    defaultIssue.getAnticipatedTransitionUuid().ifPresent(builder::setAnticipatedTransitionUuid);</span>
+
+<span class="fc bfc" id="L209" title="All 2 branches covered.">    for (DefaultImpact impact : defaultIssue.getImpacts()) {</span>
+<span class="fc" id="L210">      builder.addImpacts(IssueCache.Impact.newBuilder()</span>
+<span class="fc" id="L211">        .setSoftwareQuality(impact.softwareQuality().name())</span>
+<span class="fc" id="L212">        .setSeverity(impact.severity().name())</span>
+<span class="fc" id="L213">        .setManualSeverity(impact.manualSeverity())</span>
+<span class="fc" id="L214">        .build());</span>
+<span class="fc" id="L215">    }</span>
+<span class="fc bfc" id="L216" title="All 2 branches covered.">    for (FieldDiffs fieldDiffs : defaultIssue.changes()) {</span>
+<span class="fc" id="L217">      builder.addChanges(toProtoIssueChanges(fieldDiffs));</span>
+<span class="fc" id="L218">    }</span>
+<span class="fc" id="L219">    return builder.build();</span>
+  }
+
+  private static DefaultIssueComment toDefaultIssueComment(IssueCache.Comment comment) {
+<span class="fc" id="L223">    DefaultIssueComment issueComment = new DefaultIssueComment()</span>
+<span class="fc" id="L224">      .setCreatedAt(new Date(comment.getCreatedAt()))</span>
+<span class="fc" id="L225">      .setUpdatedAt(new Date(comment.getUpdatedAt()))</span>
+<span class="fc" id="L226">      .setNew(comment.getIsNew())</span>
+<span class="fc" id="L227">      .setKey(comment.getKey())</span>
+<span class="fc" id="L228">      .setIssueKey(comment.getIssueKey())</span>
+<span class="fc" id="L229">      .setMarkdownText(comment.getMarkdownText());</span>
+
+<span class="pc bpc" id="L231" title="1 of 2 branches missed.">    if (comment.hasUserUuid()) {</span>
+<span class="fc" id="L232">      issueComment.setUserUuid(comment.getUserUuid());</span>
+    }
+<span class="fc" id="L234">    return issueComment;</span>
+  }
+
+  private static IssueCache.Comment toProtoComment(DefaultIssueComment comment) {
+<span class="fc" id="L238">    IssueCache.Comment.Builder builder = IssueCache.Comment.newBuilder()</span>
+<span class="fc" id="L239">      .setCreatedAt(comment.createdAt().getTime())</span>
+<span class="fc" id="L240">      .setUpdatedAt(comment.updatedAt().getTime())</span>
+<span class="fc" id="L241">      .setIsNew(comment.isNew())</span>
+<span class="fc" id="L242">      .setKey(comment.key())</span>
+<span class="fc" id="L243">      .setIssueKey(comment.issueKey())</span>
+<span class="fc" id="L244">      .setMarkdownText(comment.markdownText());</span>
+
+<span class="pc bpc" id="L246" title="1 of 2 branches missed.">    if (comment.userUuid() != null) {</span>
+<span class="fc" id="L247">      builder.setUserUuid(comment.userUuid());</span>
+    }
+<span class="fc" id="L249">    return builder.build();</span>
+  }
+
+  private static FieldDiffs toDefaultIssueChanges(IssueCache.FieldDiffs fieldDiffs) {
+<span class="fc" id="L253">    FieldDiffs defaultIssueFieldDiffs = new FieldDiffs()</span>
+<span class="fc" id="L254">      .setUserUuid(fieldDiffs.getUserUuid())</span>
+<span class="fc" id="L255">      .setCreationDate(new Date(fieldDiffs.getCreationDate()));</span>
+
+<span class="fc bfc" id="L257" title="All 2 branches covered.">    if (fieldDiffs.hasIssueKey()) {</span>
+<span class="fc" id="L258">      defaultIssueFieldDiffs.setIssueKey(fieldDiffs.getIssueKey());</span>
+    }
+
+<span class="fc bfc" id="L261" title="All 2 branches covered.">    for (Map.Entry&lt;String, IssueCache.Diff&gt; e : fieldDiffs.getDiffsMap().entrySet()) {</span>
+<span class="fc" id="L262">      defaultIssueFieldDiffs.setDiff(e.getKey(),</span>
+<span class="fc bfc" id="L263" title="All 2 branches covered.">        e.getValue().hasOldValue() ? e.getValue().getOldValue() : null,</span>
+<span class="fc bfc" id="L264" title="All 2 branches covered.">        e.getValue().hasNewValue() ? e.getValue().getNewValue() : null);</span>
+<span class="fc" id="L265">    }</span>
+
+<span class="fc" id="L267">    return defaultIssueFieldDiffs;</span>
+  }
+
+  private static IssueCache.FieldDiffs toProtoIssueChanges(FieldDiffs fieldDiffs) {
+<span class="fc" id="L271">    IssueCache.FieldDiffs.Builder builder = IssueCache.FieldDiffs.newBuilder()</span>
+<span class="fc" id="L272">      .setCreationDate(fieldDiffs.creationDate().getTime());</span>
+
+<span class="fc" id="L274">    fieldDiffs.issueKey().ifPresent(builder::setIssueKey);</span>
+<span class="fc" id="L275">    fieldDiffs.userUuid().ifPresent(builder::setUserUuid);</span>
+
+<span class="fc bfc" id="L277" title="All 2 branches covered.">    for (Map.Entry&lt;String, FieldDiffs.Diff&gt; e : fieldDiffs.diffs().entrySet()) {</span>
+<span class="fc" id="L278">      IssueCache.Diff.Builder diffBuilder = IssueCache.Diff.newBuilder();</span>
+<span class="fc" id="L279">      Serializable oldValue = e.getValue().oldValue();</span>
+<span class="fc bfc" id="L280" title="All 2 branches covered.">      if (oldValue != null) {</span>
+<span class="fc" id="L281">        diffBuilder.setOldValue(oldValue.toString());</span>
+      }
+<span class="fc" id="L283">      Serializable newValue = e.getValue().newValue();</span>
+<span class="fc bfc" id="L284" title="All 2 branches covered.">      if (newValue != null) {</span>
+<span class="fc" id="L285">        diffBuilder.setNewValue(newValue.toString());</span>
+
+      }
+<span class="fc" id="L288">      builder.putDiffs(e.getKey(), diffBuilder.build());</span>
+<span class="fc" id="L289">    }</span>
+
+<span class="fc" id="L291">    return builder.build();</span>
+  }
+
+  private class ProtoCacheAppender implements CacheAppender&lt;DefaultIssue&gt; {
+    private final OutputStream out;
+    private final IssueCache.Issue.Builder builder;
+
+<span class="fc" id="L298">    private ProtoCacheAppender() throws FileNotFoundException {</span>
+<span class="fc" id="L299">      this.out = new BufferedOutputStream(new FileOutputStream(file, true));</span>
+<span class="fc" id="L300">      this.builder = IssueCache.Issue.newBuilder();</span>
+<span class="fc" id="L301">    }</span>
+
+    @Override
+    public CacheAppender append(DefaultIssue object) {
+<span class="fc" id="L305">      Protobuf.writeStream(Collections.singleton(toProto(builder, object)), out);</span>
+<span class="fc" id="L306">      return this;</span>
+    }
+
+    @Override
+    public void close() {
+<span class="fc" id="L311">      system2.close(out);</span>
+<span class="fc" id="L312">    }</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

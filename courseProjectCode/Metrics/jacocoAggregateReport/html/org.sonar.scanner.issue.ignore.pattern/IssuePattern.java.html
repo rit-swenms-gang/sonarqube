@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IssuePattern.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.issue.ignore.pattern</a> &gt; <span class="el_source">IssuePattern.java</span></div><h1>IssuePattern.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.issue.ignore.pattern;
+
+import com.google.common.base.MoreObjects;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.api.utils.WildcardPattern;
+
+@Immutable
+public class IssuePattern {
+
+  private final WildcardPattern filePattern;
+  private final WildcardPattern rulePattern;
+
+<span class="fc" id="L34">  public IssuePattern(String filePattern, String rulePattern) {</span>
+<span class="fc" id="L35">    this.filePattern = WildcardPattern.create(filePattern);</span>
+<span class="fc" id="L36">    this.rulePattern = WildcardPattern.create(rulePattern);</span>
+<span class="fc" id="L37">  }</span>
+
+  public WildcardPattern getRulePattern() {
+<span class="fc" id="L40">    return rulePattern;</span>
+  }
+
+  public boolean matchRule(RuleKey rule) {
+<span class="fc" id="L44">    return rulePattern.match(rule.toString());</span>
+  }
+
+  public boolean matchFile(@Nullable String filePath) {
+<span class="fc bfc" id="L48" title="All 4 branches covered.">    return filePath != null &amp;&amp; filePattern.match(filePath);</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="fc" id="L53">    return MoreObjects.toStringHelper(this)</span>
+<span class="fc" id="L54">      .add(&quot;filePattern&quot;, filePattern)</span>
+<span class="fc" id="L55">      .add(&quot;rulePattern&quot;, rulePattern)</span>
+<span class="fc" id="L56">      .toString();</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

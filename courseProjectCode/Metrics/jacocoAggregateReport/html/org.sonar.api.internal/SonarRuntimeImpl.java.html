@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SonarRuntimeImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.api.internal</a> &gt; <span class="el_source">SonarRuntimeImpl.java</span></div><h1>SonarRuntimeImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.api.internal;
+
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
+import org.sonar.api.SonarEdition;
+import org.sonar.api.SonarProduct;
+import org.sonar.api.SonarQubeSide;
+import org.sonar.api.SonarRuntime;
+import org.sonar.api.utils.Version;
+
+import static java.util.Objects.requireNonNull;
+import static org.sonar.api.utils.Preconditions.checkArgument;
+
+/**
+ * @since 6.0
+ */
+@Immutable
+public class SonarRuntimeImpl implements SonarRuntime {
+
+  private final Version apiVersion;
+  private final SonarProduct product;
+  private final SonarQubeSide sonarQubeSide;
+  private final SonarEdition edition;
+
+<span class="fc" id="L44">  private SonarRuntimeImpl(Version apiVersion, SonarProduct product, @Nullable SonarQubeSide sonarQubeSide, @Nullable SonarEdition edition) {</span>
+<span class="fc" id="L45">    this.edition = edition;</span>
+<span class="fc" id="L46">    requireNonNull(product);</span>
+<span class="fc bfc" id="L47" title="All 6 branches covered.">    checkArgument((product == SonarProduct.SONARQUBE) == (sonarQubeSide != null), &quot;sonarQubeSide should be provided only for SonarQube product&quot;);</span>
+<span class="pc bpc" id="L48" title="1 of 6 branches missed.">    checkArgument((product == SonarProduct.SONARQUBE) == (edition != null), &quot;edition should be provided only for SonarQube product&quot;);</span>
+<span class="fc" id="L49">    this.apiVersion = requireNonNull(apiVersion);</span>
+<span class="fc" id="L50">    this.product = product;</span>
+<span class="fc" id="L51">    this.sonarQubeSide = sonarQubeSide;</span>
+<span class="fc" id="L52">  }</span>
+
+  @Override
+  public Version getApiVersion() {
+<span class="fc" id="L56">    return apiVersion;</span>
+  }
+
+  @Override
+  public SonarProduct getProduct() {
+<span class="fc" id="L61">    return product;</span>
+  }
+
+  @Override
+  public SonarQubeSide getSonarQubeSide() {
+<span class="fc bfc" id="L66" title="All 2 branches covered.">    if (sonarQubeSide == null) {</span>
+<span class="fc" id="L67">      throw new UnsupportedOperationException(&quot;Can only be called in SonarQube&quot;);</span>
+    }
+<span class="fc" id="L69">    return sonarQubeSide;</span>
+  }
+
+  @Override
+  public SonarEdition getEdition() {
+<span class="nc bnc" id="L74" title="All 2 branches missed.">    if (sonarQubeSide == null) {</span>
+<span class="nc" id="L75">      throw new UnsupportedOperationException(&quot;Can only be called in SonarQube&quot;);</span>
+    }
+<span class="nc" id="L77">    return edition;</span>
+  }
+
+  /**
+   * Create an instance for SonarQube runtime environment.
+   */
+  public static SonarRuntime forSonarQube(Version apiVersion, SonarQubeSide side, SonarEdition edition) {
+<span class="fc" id="L84">    return new SonarRuntimeImpl(apiVersion, SonarProduct.SONARQUBE, side, edition);</span>
+  }
+
+  /**
+   * Create an instance for SonarLint runtime environment.
+   */
+  public static SonarRuntime forSonarLint(Version version) {
+<span class="fc" id="L91">    return new SonarRuntimeImpl(version, SonarProduct.SONARLINT, null, null);</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

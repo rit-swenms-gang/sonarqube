@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MetadataPublisher.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.report</a> &gt; <span class="el_source">MetadataPublisher.java</span></div><h1>MetadataPublisher.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.report;
+
+import java.io.File;
+import java.nio.file.Path;
+import java.util.Map.Entry;
+import java.util.regex.Pattern;
+import org.sonar.api.batch.fs.internal.AbstractProjectOrModule;
+import org.sonar.api.batch.scm.ScmProvider;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.scanner.ProjectInfo;
+import org.sonar.scanner.bootstrap.ScannerPlugin;
+import org.sonar.scanner.bootstrap.ScannerPluginRepository;
+import org.sonar.scanner.cpd.CpdSettings;
+import org.sonar.scanner.fs.InputModuleHierarchy;
+import org.sonar.scanner.protocol.output.ScannerReport;
+import org.sonar.scanner.protocol.output.ScannerReport.Metadata.BranchType;
+import org.sonar.scanner.protocol.output.ScannerReportWriter;
+import org.sonar.scanner.repository.ReferenceBranchSupplier;
+import org.sonar.scanner.rule.QProfile;
+import org.sonar.scanner.rule.QualityProfiles;
+import org.sonar.scanner.scan.branch.BranchConfiguration;
+import org.sonar.scanner.scan.filesystem.InputComponentStore;
+import org.sonar.scanner.scm.ScmConfiguration;
+import org.sonar.scanner.scm.ScmRevision;
+
+public class MetadataPublisher implements ReportPublisherStep {
+
+<span class="fc" id="L48">  private static final Logger LOG = LoggerFactory.getLogger(MetadataPublisher.class);</span>
+
+  private final QualityProfiles qProfiles;
+  private final ProjectInfo projectInfo;
+  private final InputModuleHierarchy moduleHierarchy;
+  private final CpdSettings cpdSettings;
+  private final ScannerPluginRepository pluginRepository;
+  private final BranchConfiguration branchConfiguration;
+  private final ScmRevision scmRevision;
+  private final InputComponentStore componentStore;
+  private final ScmConfiguration scmConfiguration;
+  private final ReferenceBranchSupplier referenceBranchSupplier;
+
+  public MetadataPublisher(ProjectInfo projectInfo, InputModuleHierarchy moduleHierarchy, QualityProfiles qProfiles,
+    CpdSettings cpdSettings, ScannerPluginRepository pluginRepository, BranchConfiguration branchConfiguration,
+<span class="fc" id="L63">    ScmRevision scmRevision, InputComponentStore componentStore, ScmConfiguration scmConfiguration, ReferenceBranchSupplier referenceBranchSupplier) {</span>
+<span class="fc" id="L64">    this.projectInfo = projectInfo;</span>
+<span class="fc" id="L65">    this.moduleHierarchy = moduleHierarchy;</span>
+<span class="fc" id="L66">    this.qProfiles = qProfiles;</span>
+<span class="fc" id="L67">    this.cpdSettings = cpdSettings;</span>
+<span class="fc" id="L68">    this.pluginRepository = pluginRepository;</span>
+<span class="fc" id="L69">    this.branchConfiguration = branchConfiguration;</span>
+<span class="fc" id="L70">    this.scmRevision = scmRevision;</span>
+<span class="fc" id="L71">    this.componentStore = componentStore;</span>
+<span class="fc" id="L72">    this.scmConfiguration = scmConfiguration;</span>
+<span class="fc" id="L73">    this.referenceBranchSupplier = referenceBranchSupplier;</span>
+<span class="fc" id="L74">  }</span>
+
+  @Override
+  public void publish(ScannerReportWriter writer) {
+<span class="fc" id="L78">    AbstractProjectOrModule rootProject = moduleHierarchy.root();</span>
+<span class="fc" id="L79">    ScannerReport.Metadata.Builder builder = ScannerReport.Metadata.newBuilder()</span>
+<span class="fc" id="L80">      .setAnalysisDate(projectInfo.getAnalysisDate().getTime())</span>
+      // Here we want key without branch
+<span class="fc" id="L82">      .setProjectKey(rootProject.key())</span>
+<span class="fc" id="L83">      .setCrossProjectDuplicationActivated(cpdSettings.isCrossProjectDuplicationEnabled())</span>
+<span class="fc" id="L84">      .setRootComponentRef(rootProject.scannerId());</span>
+<span class="fc" id="L85">    projectInfo.getProjectVersion().ifPresent(builder::setProjectVersion);</span>
+<span class="fc" id="L86">    projectInfo.getBuildString().ifPresent(builder::setBuildString);</span>
+
+<span class="fc bfc" id="L88" title="All 2 branches covered.">    if (branchConfiguration.branchName() != null) {</span>
+<span class="fc" id="L89">      addBranchInformation(builder);</span>
+    }
+
+<span class="fc" id="L92">    String newCodeReferenceBranch = referenceBranchSupplier.getFromProperties();</span>
+<span class="fc bfc" id="L93" title="All 2 branches covered.">    if (newCodeReferenceBranch != null) {</span>
+<span class="fc" id="L94">      builder.setNewCodeReferenceBranch(newCodeReferenceBranch);</span>
+    }
+
+<span class="fc" id="L97">    addScmInformation(builder);</span>
+<span class="fc" id="L98">    addNotAnalyzedFileCountsByLanguage(builder);</span>
+
+<span class="fc bfc" id="L100" title="All 2 branches covered.">    for (QProfile qp : qProfiles.findAll()) {</span>
+<span class="fc" id="L101">      builder.putQprofilesPerLanguage(qp.getLanguage(), ScannerReport.Metadata.QProfile.newBuilder()</span>
+<span class="fc" id="L102">        .setKey(qp.getKey())</span>
+<span class="fc" id="L103">        .setLanguage(qp.getLanguage())</span>
+<span class="fc" id="L104">        .setName(qp.getName())</span>
+<span class="fc" id="L105">        .setRulesUpdatedAt(qp.getRulesUpdatedAt().getTime()).build());</span>
+<span class="fc" id="L106">    }</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">    for (Entry&lt;String, ScannerPlugin&gt; pluginEntry : pluginRepository.getPluginsByKey().entrySet()) {</span>
+<span class="fc" id="L108">      builder.putPluginsByKey(pluginEntry.getKey(), ScannerReport.Metadata.Plugin.newBuilder()</span>
+<span class="fc" id="L109">        .setKey(pluginEntry.getKey())</span>
+<span class="fc" id="L110">        .setUpdatedAt(pluginEntry.getValue().getUpdatedAt()).build());</span>
+<span class="fc" id="L111">    }</span>
+
+<span class="fc" id="L113">    addRelativePathFromScmRoot(builder);</span>
+
+<span class="fc" id="L115">    writer.writeMetadata(builder.build());</span>
+<span class="fc" id="L116">  }</span>
+
+  private void addRelativePathFromScmRoot(ScannerReport.Metadata.Builder builder) {
+<span class="fc" id="L119">    ScmProvider scmProvider = scmConfiguration.provider();</span>
+<span class="fc bfc" id="L120" title="All 2 branches covered.">    if (scmProvider == null) {</span>
+<span class="fc" id="L121">      return;</span>
+    }
+
+<span class="fc" id="L124">    Path projectBasedir = moduleHierarchy.root().getBaseDir();</span>
+    try {
+<span class="fc" id="L126">      builder.setRelativePathFromScmRoot(toSonarQubePath(scmProvider.relativePathFromScmRoot(projectBasedir)));</span>
+<span class="fc" id="L127">    } catch (UnsupportedOperationException e) {</span>
+<span class="fc" id="L128">      LOG.debug(e.getMessage());</span>
+<span class="fc" id="L129">    }</span>
+<span class="fc" id="L130">  }</span>
+
+  private void addScmInformation(ScannerReport.Metadata.Builder builder) {
+    try {
+<span class="fc" id="L134">      scmRevision.get().ifPresent(revisionId -&gt; {</span>
+<span class="fc" id="L135">        LOG.info(&quot;SCM revision ID '{}'&quot;, revisionId);</span>
+<span class="fc" id="L136">        builder.setScmRevisionId(revisionId);</span>
+<span class="fc" id="L137">      });</span>
+<span class="nc" id="L138">    } catch (UnsupportedOperationException e) {</span>
+<span class="nc" id="L139">      LOG.debug(e.getMessage());</span>
+<span class="fc" id="L140">    }</span>
+<span class="fc" id="L141">  }</span>
+
+  private void addNotAnalyzedFileCountsByLanguage(ScannerReport.Metadata.Builder builder) {
+<span class="fc" id="L144">    builder.putAllNotAnalyzedFilesByLanguage(componentStore.getNotAnalysedFilesByLanguage());</span>
+<span class="fc" id="L145">  }</span>
+
+  private void addBranchInformation(ScannerReport.Metadata.Builder builder) {
+<span class="fc" id="L148">    builder.setBranchName(branchConfiguration.branchName());</span>
+<span class="fc" id="L149">    BranchType branchType = toProtobufBranchType(branchConfiguration.branchType());</span>
+<span class="fc" id="L150">    builder.setBranchType(branchType);</span>
+<span class="fc" id="L151">    String referenceBranch = branchConfiguration.referenceBranchName();</span>
+<span class="fc bfc" id="L152" title="All 2 branches covered.">    if (referenceBranch != null) {</span>
+<span class="fc" id="L153">      builder.setReferenceBranchName(referenceBranch);</span>
+    }
+<span class="fc" id="L155">    String targetBranchName = branchConfiguration.targetBranchName();</span>
+<span class="pc bpc" id="L156" title="1 of 2 branches missed.">    if (targetBranchName != null) {</span>
+<span class="fc" id="L157">      builder.setTargetBranchName(targetBranchName);</span>
+    }
+<span class="fc bfc" id="L159" title="All 2 branches covered.">    if (branchType == BranchType.PULL_REQUEST) {</span>
+<span class="fc" id="L160">      builder.setPullRequestKey(branchConfiguration.pullRequestKey());</span>
+    }
+<span class="fc" id="L162">  }</span>
+
+  private static BranchType toProtobufBranchType(org.sonar.scanner.scan.branch.BranchType branchType) {
+<span class="fc bfc" id="L165" title="All 2 branches covered.">    if (branchType == org.sonar.scanner.scan.branch.BranchType.PULL_REQUEST) {</span>
+<span class="fc" id="L166">      return BranchType.PULL_REQUEST;</span>
+    }
+
+<span class="fc" id="L169">    return BranchType.BRANCH;</span>
+  }
+
+  private static String toSonarQubePath(Path path) {
+<span class="fc" id="L173">    String pathAsString = path.toString();</span>
+<span class="fc" id="L174">    char sonarQubeSeparatorChar = '/';</span>
+<span class="pc bpc" id="L175" title="1 of 2 branches missed.">    if (File.separatorChar != sonarQubeSeparatorChar) {</span>
+<span class="nc" id="L176">      return pathAsString.replaceAll(Pattern.quote(File.separator), String.valueOf(sonarQubeSeparatorChar));</span>
+    }
+<span class="fc" id="L178">    return pathAsString;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

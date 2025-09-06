@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultLdapAuthenticator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.auth.ldap</a> &gt; <span class="el_source">DefaultLdapAuthenticator.java</span></div><h1>DefaultLdapAuthenticator.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.auth.ldap;
+
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import javax.naming.NamingException;
+import javax.naming.directory.InitialDirContext;
+import javax.naming.directory.SearchResult;
+import javax.security.auth.login.Configuration;
+import javax.security.auth.login.LoginContext;
+import javax.security.auth.login.LoginException;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.server.ServerSide;
+
+/**
+ * @author Evgeny Mandrikov
+ */
+@ServerSide
+public class DefaultLdapAuthenticator implements LdapAuthenticator {
+
+<span class="fc" id="L42">  private static final Pattern SANITIZE_PATTERN = Pattern.compile(&quot;[\n\r]&quot;);</span>
+
+<span class="fc" id="L44">  private static final Logger LOG = LoggerFactory.getLogger(DefaultLdapAuthenticator.class);</span>
+  private final Map&lt;String, LdapContextFactory&gt; contextFactories;
+  private final Map&lt;String, LdapUserMapping&gt; userMappings;
+
+<span class="fc" id="L48">  public DefaultLdapAuthenticator(Map&lt;String, LdapContextFactory&gt; contextFactories, Map&lt;String, LdapUserMapping&gt; userMappings) {</span>
+<span class="fc" id="L49">    this.contextFactories = contextFactories;</span>
+<span class="fc" id="L50">    this.userMappings = userMappings;</span>
+<span class="fc" id="L51">  }</span>
+
+  @Override
+  public LdapAuthenticationResult doAuthenticate(Context context) {
+<span class="fc" id="L55">    return authenticate(context.getUsername(), context.getPassword());</span>
+  }
+
+  /**
+   * Authenticate the user against LDAP servers until first success.
+   *
+   * @param login    The login to use.
+   * @param password The password to use.
+   * @return false if specified user cannot be authenticated with specified password on any LDAP server
+   */
+  private LdapAuthenticationResult authenticate(String login, String password) {
+<span class="fc bfc" id="L66" title="All 2 branches covered.">    for (Map.Entry&lt;String, LdapUserMapping&gt; ldapEntry : userMappings.entrySet()) {</span>
+<span class="fc" id="L67">      String ldapKey = ldapEntry.getKey();</span>
+<span class="fc" id="L68">      LdapUserMapping ldapUserMapping = ldapEntry.getValue();</span>
+<span class="fc" id="L69">      LdapContextFactory ldapContextFactory = contextFactories.get(ldapKey);</span>
+      final String principal;
+<span class="fc bfc" id="L71" title="All 2 branches covered.">      if (ldapContextFactory.isSasl()) {</span>
+<span class="fc" id="L72">        principal = login;</span>
+      } else {
+<span class="fc" id="L74">        SearchResult result = findUser(login, ldapKey, ldapUserMapping, ldapContextFactory);</span>
+<span class="fc bfc" id="L75" title="All 2 branches covered.">        if (result == null) {</span>
+<span class="fc" id="L76">          continue;</span>
+        }
+<span class="fc" id="L78">        principal = result.getNameInNamespace();</span>
+      }
+<span class="fc" id="L80">      boolean passwordValid = isPasswordValid(password, ldapKey, ldapContextFactory, principal);</span>
+<span class="fc bfc" id="L81" title="All 2 branches covered.">      if (passwordValid) {</span>
+<span class="fc" id="L82">        return LdapAuthenticationResult.success(ldapKey);</span>
+      }
+<span class="fc" id="L84">    }</span>
+<span class="fc" id="L85">    LOG.atDebug().log(&quot;User {} not found&quot;, getSanitizedLogin(login));</span>
+<span class="fc" id="L86">    return LdapAuthenticationResult.failed();</span>
+  }
+
+  private static SearchResult findUser(String login, String ldapKey, LdapUserMapping ldapUserMapping, LdapContextFactory ldapContextFactory) {
+    SearchResult result;
+    try {
+<span class="fc" id="L92">      result = ldapUserMapping.createSearch(ldapContextFactory, login).findUnique();</span>
+<span class="nc" id="L93">    } catch (NamingException e) {</span>
+<span class="nc" id="L94">      LOG.atDebug().log(&quot;User {} not found in server &lt;{}&gt;: {}&quot;, getSanitizedLogin(login), ldapKey, e.toString());</span>
+<span class="nc" id="L95">      return null;</span>
+<span class="fc" id="L96">    }</span>
+<span class="fc bfc" id="L97" title="All 2 branches covered.">    if (result == null) {</span>
+<span class="fc" id="L98">      LOG.atDebug().log(&quot;User {} not found in &lt;{}&gt;&quot;, getSanitizedLogin(login), ldapKey);</span>
+<span class="fc" id="L99">      return null;</span>
+    }
+<span class="fc" id="L101">    return result;</span>
+  }
+
+  private static String getSanitizedLogin(String login) {
+<span class="fc" id="L105">    Matcher matcher = SANITIZE_PATTERN.matcher(login);</span>
+<span class="fc" id="L106">    return matcher.replaceAll(&quot;_&quot;);</span>
+  }
+
+  private boolean isPasswordValid(String password, String ldapKey, LdapContextFactory ldapContextFactory, String principal) {
+<span class="fc bfc" id="L110" title="All 2 branches covered.">    if (ldapContextFactory.isGssapi()) {</span>
+<span class="fc" id="L111">      return checkPasswordUsingGssapi(principal, password, ldapKey);</span>
+    }
+<span class="fc" id="L113">    return checkPasswordUsingBind(principal, password, ldapKey);</span>
+  }
+
+  private boolean checkPasswordUsingBind(String principal, String password, String ldapKey) {
+<span class="fc bfc" id="L117" title="All 2 branches covered.">    if (StringUtils.isEmpty(password)) {</span>
+<span class="fc" id="L118">      LOG.debug(&quot;Password is blank.&quot;);</span>
+<span class="fc" id="L119">      return false;</span>
+    }
+<span class="fc" id="L121">    InitialDirContext context = null;</span>
+    try {
+<span class="fc" id="L123">      context = contextFactories.get(ldapKey).createUserContext(principal, password);</span>
+<span class="fc" id="L124">      return true;</span>
+<span class="fc" id="L125">    } catch (NamingException e) {</span>
+<span class="fc" id="L126">      LOG.debug(&quot;Password not valid for user {} in server {}: {}&quot;, principal, ldapKey, e.getMessage());</span>
+<span class="fc" id="L127">      return false;</span>
+    } finally {
+<span class="fc" id="L129">      ContextHelper.closeQuietly(context);</span>
+    }
+  }
+
+  private boolean checkPasswordUsingGssapi(String principal, String password, String ldapKey) {
+    // Use our custom configuration to avoid reliance on external config
+<span class="fc" id="L135">    Configuration.setConfiguration(new Krb5LoginConfiguration());</span>
+    LoginContext lc;
+    try {
+<span class="fc" id="L138">      lc = new LoginContext(getClass().getName(), new CallbackHandlerImpl(principal, password));</span>
+<span class="fc" id="L139">      lc.login();</span>
+<span class="fc" id="L140">    } catch (LoginException e) {</span>
+      // Bad username: Client not found in Kerberos database
+      // Bad password: Integrity check on decrypted field failed
+<span class="fc" id="L143">      LOG.debug(&quot;Password not valid for {} in server {}: {}&quot;, principal, ldapKey, e.getMessage());</span>
+<span class="fc" id="L144">      return false;</span>
+<span class="fc" id="L145">    }</span>
+    try {
+<span class="fc" id="L147">      lc.logout();</span>
+<span class="nc" id="L148">    } catch (LoginException e) {</span>
+<span class="nc" id="L149">      LOG.warn(&quot;Logout fails&quot;, e);</span>
+<span class="fc" id="L150">    }</span>
+<span class="fc" id="L151">    return true;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

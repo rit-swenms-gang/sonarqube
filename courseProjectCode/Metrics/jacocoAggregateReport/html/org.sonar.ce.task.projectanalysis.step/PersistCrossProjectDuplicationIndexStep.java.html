@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PersistCrossProjectDuplicationIndexStep.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.step</a> &gt; <span class="el_source">PersistCrossProjectDuplicationIndexStep.java</span></div><h1>PersistCrossProjectDuplicationIndexStep.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.step;
+
+import org.sonar.ce.task.projectanalysis.analysis.AnalysisMetadataHolder;
+import org.sonar.ce.common.scanner.ScannerReportReader;
+import org.sonar.ce.task.projectanalysis.component.Component;
+import org.sonar.ce.task.projectanalysis.component.CrawlerDepthLimit;
+import org.sonar.ce.task.projectanalysis.component.DepthTraversalTypeAwareCrawler;
+import org.sonar.ce.task.projectanalysis.component.TreeRootHolder;
+import org.sonar.ce.task.projectanalysis.component.TypeAwareVisitorAdapter;
+import org.sonar.ce.task.projectanalysis.duplication.CrossProjectDuplicationStatusHolder;
+import org.sonar.ce.task.step.ComputationStep;
+import org.sonar.core.util.CloseableIterator;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.duplication.DuplicationUnitDto;
+import org.sonar.scanner.protocol.output.ScannerReport;
+
+import static org.sonar.ce.task.projectanalysis.component.ComponentVisitor.Order.PRE_ORDER;
+
+/**
+ * Persist cross project duplications text blocks into DUPLICATIONS_INDEX table
+ */
+public class PersistCrossProjectDuplicationIndexStep implements ComputationStep {
+
+  private final DbClient dbClient;
+  private final TreeRootHolder treeRootHolder;
+  private final AnalysisMetadataHolder analysisMetadataHolder;
+  private final ScannerReportReader reportReader;
+  private final CrossProjectDuplicationStatusHolder crossProjectDuplicationStatusHolder;
+
+  public PersistCrossProjectDuplicationIndexStep(CrossProjectDuplicationStatusHolder crossProjectDuplicationStatusHolder, DbClient dbClient,
+    TreeRootHolder treeRootHolder, AnalysisMetadataHolder analysisMetadataHolder,
+<span class="fc" id="L52">    ScannerReportReader reportReader) {</span>
+<span class="fc" id="L53">    this.dbClient = dbClient;</span>
+<span class="fc" id="L54">    this.treeRootHolder = treeRootHolder;</span>
+<span class="fc" id="L55">    this.analysisMetadataHolder = analysisMetadataHolder;</span>
+<span class="fc" id="L56">    this.reportReader = reportReader;</span>
+<span class="fc" id="L57">    this.crossProjectDuplicationStatusHolder = crossProjectDuplicationStatusHolder;</span>
+<span class="fc" id="L58">  }</span>
+
+  @Override
+  public void execute(ComputationStep.Context context) {
+<span class="fc bfc" id="L62" title="All 2 branches covered.">    if (!crossProjectDuplicationStatusHolder.isEnabled()) {</span>
+<span class="fc" id="L63">      return;</span>
+    }
+
+<span class="fc" id="L66">    try (DbSession dbSession = dbClient.openSession(true)) {</span>
+<span class="fc" id="L67">      Component project = treeRootHolder.getRoot();</span>
+<span class="fc" id="L68">      DuplicationVisitor visitor = new DuplicationVisitor(dbSession, analysisMetadataHolder.getUuid());</span>
+<span class="fc" id="L69">      new DepthTraversalTypeAwareCrawler(visitor).visit(project);</span>
+<span class="fc" id="L70">      dbSession.commit();</span>
+<span class="fc" id="L71">      context.getStatistics().add(&quot;inserts&quot;, visitor.count);</span>
+    }
+<span class="fc" id="L73">  }</span>
+
+  private class DuplicationVisitor extends TypeAwareVisitorAdapter {
+
+    private final DbSession session;
+    private final String analysisUuid;
+<span class="fc" id="L79">    private int count = 0;</span>
+
+<span class="fc" id="L81">    private DuplicationVisitor(DbSession session, String analysisUuid) {</span>
+<span class="fc" id="L82">      super(CrawlerDepthLimit.FILE, PRE_ORDER);</span>
+<span class="fc" id="L83">      this.session = session;</span>
+<span class="fc" id="L84">      this.analysisUuid = analysisUuid;</span>
+<span class="fc" id="L85">    }</span>
+
+    @Override
+    public void visitFile(Component file) {
+<span class="fc" id="L89">      visitComponent(file);</span>
+<span class="fc" id="L90">    }</span>
+
+    private void visitComponent(Component component) {
+<span class="fc" id="L93">      readFromReport(component);</span>
+<span class="fc" id="L94">    }</span>
+
+    private void readFromReport(Component component) {
+<span class="fc" id="L97">      int indexInFile = 0;</span>
+<span class="fc" id="L98">      try (CloseableIterator&lt;ScannerReport.CpdTextBlock&gt; blocks = reportReader.readCpdTextBlocks(component.getReportAttributes().getRef())) {</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">        while (blocks.hasNext()) {</span>
+<span class="fc" id="L100">          ScannerReport.CpdTextBlock block = blocks.next();</span>
+<span class="fc" id="L101">          dbClient.duplicationDao().insert(</span>
+            session,
+            new DuplicationUnitDto()
+<span class="fc" id="L104">              .setHash(block.getHash())</span>
+<span class="fc" id="L105">              .setStartLine(block.getStartLine())</span>
+<span class="fc" id="L106">              .setEndLine(block.getEndLine())</span>
+<span class="fc" id="L107">              .setIndexInFile(indexInFile)</span>
+<span class="fc" id="L108">              .setAnalysisUuid(analysisUuid)</span>
+<span class="fc" id="L109">              .setComponentUuid(component.getUuid()));</span>
+<span class="fc" id="L110">          indexInFile++;</span>
+<span class="fc" id="L111">        }</span>
+      }
+<span class="fc" id="L113">      count += indexInFile;</span>
+<span class="fc" id="L114">    }</span>
+
+  }
+
+  @Override
+  public String getDescription() {
+<span class="nc" id="L120">    return &quot;Persist cross project duplications&quot;;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

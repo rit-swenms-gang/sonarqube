@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CloseIssuesOnRemovedComponentsVisitor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.issue</a> &gt; <span class="el_source">CloseIssuesOnRemovedComponentsVisitor.java</span></div><h1>CloseIssuesOnRemovedComponentsVisitor.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.issue;
+
+import java.util.List;
+import java.util.Set;
+import org.sonar.ce.task.projectanalysis.component.Component;
+import org.sonar.ce.task.projectanalysis.component.CrawlerDepthLimit;
+import org.sonar.ce.task.projectanalysis.component.TypeAwareVisitorAdapter;
+import org.sonar.ce.task.projectanalysis.util.cache.DiskCache.CacheAppender;
+import org.sonar.core.issue.DefaultIssue;
+
+import static org.sonar.ce.task.projectanalysis.component.ComponentVisitor.Order.POST_ORDER;
+
+/**
+ * Close issues on removed components
+ */
+public class CloseIssuesOnRemovedComponentsVisitor extends TypeAwareVisitorAdapter {
+
+  private final ComponentIssuesLoader issuesLoader;
+  private final ComponentsWithUnprocessedIssues componentsWithUnprocessedIssues;
+  private final ProtoIssueCache protoIssueCache;
+  private final IssueLifecycle issueLifecycle;
+
+  public CloseIssuesOnRemovedComponentsVisitor(ComponentIssuesLoader issuesLoader, ComponentsWithUnprocessedIssues componentsWithUnprocessedIssues, ProtoIssueCache protoIssueCache,
+    IssueLifecycle issueLifecycle) {
+<span class="fc" id="L44">    super(CrawlerDepthLimit.PROJECT, POST_ORDER);</span>
+<span class="fc" id="L45">    this.issuesLoader = issuesLoader;</span>
+<span class="fc" id="L46">    this.componentsWithUnprocessedIssues = componentsWithUnprocessedIssues;</span>
+<span class="fc" id="L47">    this.protoIssueCache = protoIssueCache;</span>
+<span class="fc" id="L48">    this.issueLifecycle = issueLifecycle;</span>
+<span class="fc" id="L49">  }</span>
+
+  @Override
+  public void visitProject(Component project) {
+<span class="fc" id="L53">    closeIssuesForDeletedComponentUuids(componentsWithUnprocessedIssues.getUuids());</span>
+<span class="fc" id="L54">  }</span>
+
+  private void closeIssuesForDeletedComponentUuids(Set&lt;String&gt; deletedComponentUuids) {
+<span class="fc" id="L57">    try (CacheAppender&lt;DefaultIssue&gt; cacheAppender = protoIssueCache.newAppender()) {</span>
+<span class="fc bfc" id="L58" title="All 2 branches covered.">      for (String deletedComponentUuid : deletedComponentUuids) {</span>
+<span class="fc" id="L59">        List&lt;DefaultIssue&gt; issues = issuesLoader.loadOpenIssues(deletedComponentUuid);</span>
+<span class="fc bfc" id="L60" title="All 2 branches covered.">        for (DefaultIssue issue : issues) {</span>
+<span class="fc" id="L61">          issue.setBeingClosed(true);</span>
+          // TODO should be renamed
+<span class="fc" id="L63">          issue.setOnDisabledRule(false);</span>
+<span class="fc" id="L64">          issueLifecycle.doAutomaticTransition(issue);</span>
+<span class="fc" id="L65">          cacheAppender.append(issue);</span>
+<span class="fc" id="L66">        }</span>
+<span class="fc" id="L67">      }</span>
+    }
+<span class="fc" id="L69">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

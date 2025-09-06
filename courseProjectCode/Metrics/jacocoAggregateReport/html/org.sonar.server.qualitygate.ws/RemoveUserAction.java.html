@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RemoveUserAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.qualitygate.ws</a> &gt; <span class="el_source">RemoveUserAction.java</span></div><h1>RemoveUserAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.qualitygate.ws;
+
+import org.sonar.api.server.ws.WebService;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.qualitygate.QualityGateDto;
+import org.sonar.db.user.UserDto;
+
+import static org.sonar.server.qualitygate.ws.QualityGatesWsParameters.ACTION_REMOVE_USER;
+
+public class RemoveUserAction extends AbstractUserAction {
+
+  public RemoveUserAction(DbClient dbClient, QualityGatesWsSupport wsSupport) {
+<span class="fc" id="L33">    super(dbClient, wsSupport);</span>
+<span class="fc" id="L34">  }</span>
+
+  @Override
+  public void define(WebService.NewController context) {
+<span class="fc" id="L38">    WebService.NewAction action = context</span>
+<span class="fc" id="L39">      .createAction(ACTION_REMOVE_USER)</span>
+<span class="fc" id="L40">      .setDescription(&quot;Remove the ability from an user to edit a Quality Gate.&lt;br&gt;&quot; +</span>
+        &quot;Requires one of the following permissions:&quot; +
+        &quot;&lt;ul&gt;&quot; +
+        &quot;  &lt;li&gt;'Administer Quality Gates'&lt;/li&gt;&quot; +
+        &quot;  &lt;li&gt;Edit right on the specified quality gate&lt;/li&gt;&quot; +
+        &quot;&lt;/ul&gt;&quot;)
+<span class="fc" id="L46">      .setHandler(this)</span>
+<span class="fc" id="L47">      .setPost(true)</span>
+<span class="fc" id="L48">      .setSince(&quot;9.2&quot;);</span>
+
+<span class="fc" id="L50">    super.defineGateAndUserParameters(action);</span>
+<span class="fc" id="L51">  }</span>
+
+  @Override
+  protected void apply(DbSession dbSession, QualityGateDto qualityGate, UserDto user) {
+<span class="fc bfc" id="L55" title="All 2 branches covered.">    if (!dbClient.qualityGateUserPermissionDao().exists(dbSession, qualityGate, user)) {</span>
+<span class="fc" id="L56">      return;</span>
+    }
+<span class="fc" id="L58">    dbClient.qualityGateUserPermissionDao().deleteByQualityGateAndUser(dbSession, qualityGate, user);</span>
+<span class="fc" id="L59">    dbSession.commit();</span>
+<span class="fc" id="L60">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

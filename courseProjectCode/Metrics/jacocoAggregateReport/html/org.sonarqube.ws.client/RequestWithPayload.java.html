@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RequestWithPayload.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonarqube.ws.client</a> &gt; <span class="el_source">RequestWithPayload.java</span></div><h1>RequestWithPayload.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonarqube.ws.client;
+
+import java.io.File;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.Function;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+
+/**
+ * @since 5.3
+ */
+public abstract class RequestWithPayload&lt;T extends RequestWithPayload&lt;T&gt;&gt; extends BaseRequest&lt;RequestWithPayload&lt;T&gt;&gt; {
+
+  private String body;
+<span class="fc" id="L36">  private String contentType = null;</span>
+<span class="fc" id="L37">  private final Map&lt;String, Part&gt; parts = new LinkedHashMap&lt;&gt;();</span>
+
+  protected RequestWithPayload(String path) {
+<span class="fc" id="L40">    super(path);</span>
+<span class="fc" id="L41">  }</span>
+
+  public T setBody(String body) {
+<span class="fc" id="L44">    this.body = body;</span>
+<span class="fc" id="L45">    return (T) this;</span>
+  }
+
+  public String getBody() {
+<span class="fc" id="L49">    return body;</span>
+  }
+
+  public boolean hasBody() {
+<span class="fc bfc" id="L53" title="All 2 branches covered.">    return this.body != null;</span>
+  }
+
+  public T setContentType(String contentType) {
+<span class="fc" id="L57">    this.contentType = contentType;</span>
+<span class="fc" id="L58">    return (T) this;</span>
+  }
+
+  public Optional&lt;String&gt; getContentType() {
+<span class="fc" id="L62">    return Optional.ofNullable(contentType);</span>
+  }
+
+  public T setPart(String name, Part part) {
+<span class="fc" id="L66">    this.parts.put(name, part);</span>
+<span class="fc" id="L67">    return (T) this;</span>
+  }
+
+  abstract Function&lt;Request.Builder, Request.Builder&gt; addVerbToBuilder(RequestBody body);
+
+  public Map&lt;String, Part&gt; getParts() {
+<span class="fc" id="L73">    return parts;</span>
+  }
+
+  public static class Part {
+    private final String mediaType;
+    private final File file;
+
+<span class="fc" id="L80">    public Part(String mediaType, File file) {</span>
+<span class="fc" id="L81">      this.mediaType = mediaType;</span>
+<span class="fc" id="L82">      this.file = file;</span>
+<span class="fc" id="L83">    }</span>
+
+    public String getMediaType() {
+<span class="fc" id="L86">      return mediaType;</span>
+    }
+
+    public File getFile() {
+<span class="fc" id="L90">      return file;</span>
+    }
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

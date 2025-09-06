@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DeactivateAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.user.ws</a> &gt; <span class="el_source">DeactivateAction.java</span></div><h1>DeactivateAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.user.ws;
+
+import java.util.HashSet;
+import java.util.Set;
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.api.server.ws.WebService.NewAction;
+import org.sonar.api.utils.text.JsonWriter;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.user.UserDto;
+import org.sonar.server.common.user.service.UserService;
+import org.sonar.server.user.UserSession;
+
+import static java.util.Collections.singletonList;
+import static org.sonar.server.exceptions.BadRequestException.checkRequest;
+import static org.sonar.server.exceptions.NotFoundException.checkFound;
+
+public class DeactivateAction implements UsersWsAction {
+
+  private static final String PARAM_LOGIN = &quot;login&quot;;
+  private static final String PARAM_ANONYMIZE = &quot;anonymize&quot;;
+
+  private final DbClient dbClient;
+  private final UserSession userSession;
+  private final UserJsonWriter userWriter;
+  private final UserService userService;
+
+<span class="fc" id="L50">  public DeactivateAction(DbClient dbClient, UserSession userSession, UserJsonWriter userWriter, UserService userService) {</span>
+<span class="fc" id="L51">    this.dbClient = dbClient;</span>
+<span class="fc" id="L52">    this.userSession = userSession;</span>
+<span class="fc" id="L53">    this.userWriter = userWriter;</span>
+<span class="fc" id="L54">    this.userService = userService;</span>
+<span class="fc" id="L55">  }</span>
+
+  @Override
+  public void define(WebService.NewController controller) {
+<span class="fc" id="L59">    NewAction action = controller.createAction(&quot;deactivate&quot;)</span>
+<span class="fc" id="L60">      .setDescription(&quot;Deactivate a user. Requires Administer System permission&quot;)</span>
+<span class="fc" id="L61">      .setSince(&quot;3.7&quot;)</span>
+<span class="fc" id="L62">      .setPost(true)</span>
+<span class="fc" id="L63">      .setResponseExample(getClass().getResource(&quot;deactivate-example.json&quot;))</span>
+<span class="fc" id="L64">      .setHandler(this)</span>
+<span class="fc" id="L65">      .setDeprecatedSince(&quot;10.4&quot;)</span>
+<span class="fc" id="L66">      .setChangelog(new Change(&quot;10.4&quot;, &quot;Deprecated. Use DELETE api/v2/users-management/users/{id} instead&quot;));</span>
+
+<span class="fc" id="L68">    action.createParam(PARAM_LOGIN)</span>
+<span class="fc" id="L69">      .setDescription(&quot;User login&quot;)</span>
+<span class="fc" id="L70">      .setRequired(true)</span>
+<span class="fc" id="L71">      .setExampleValue(&quot;myuser&quot;);</span>
+
+<span class="fc" id="L73">    action.createParam(PARAM_ANONYMIZE)</span>
+<span class="fc" id="L74">      .setDescription(&quot;Anonymize user in addition to deactivating it&quot;)</span>
+<span class="fc" id="L75">      .setBooleanPossibleValues()</span>
+<span class="fc" id="L76">      .setRequired(false)</span>
+<span class="fc" id="L77">      .setSince(&quot;9.7&quot;)</span>
+<span class="fc" id="L78">      .setDefaultValue(false);</span>
+<span class="fc" id="L79">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L83">    userSession.checkLoggedIn().checkIsSystemAdministrator();</span>
+<span class="fc" id="L84">    String login = request.mandatoryParam(PARAM_LOGIN);</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">    checkRequest(!login.equals(userSession.getLogin()), &quot;Self-deactivation is not possible&quot;);</span>
+<span class="fc" id="L86">    boolean shouldAnonymize = request.mandatoryParamAsBoolean(PARAM_ANONYMIZE);</span>
+<span class="fc" id="L87">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L88">      UserDto userDto = dbClient.userDao().selectByLogin(dbSession, login);</span>
+<span class="fc" id="L89">      checkFound(userDto, &quot;User '%s' doesn't exist&quot;, login);</span>
+<span class="fc" id="L90">      UserDto deactivatedUser = userService.deactivate(userDto.getUuid(), shouldAnonymize);</span>
+<span class="fc" id="L91">      writeResponse(response, deactivatedUser);</span>
+    }
+<span class="fc" id="L93">  }</span>
+
+  private void writeResponse(Response response, UserDto userDto) {
+<span class="fc" id="L96">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L97">      try (JsonWriter json = response.newJsonWriter()) {</span>
+<span class="fc" id="L98">        json.beginObject();</span>
+<span class="fc" id="L99">        json.name(&quot;user&quot;);</span>
+<span class="fc" id="L100">        Set&lt;String&gt; groups = new HashSet&lt;&gt;(dbClient.groupMembershipDao().selectGroupsByLogins(dbSession, singletonList(userDto.getLogin())).get(userDto.getLogin()));</span>
+<span class="fc" id="L101">        userWriter.write(json, userDto, groups, UserJsonWriter.FIELDS);</span>
+<span class="fc" id="L102">        json.endObject();</span>
+      }
+    }
+<span class="fc" id="L105">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

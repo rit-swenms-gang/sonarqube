@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SetAsDefaultAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.qualitygate.ws</a> &gt; <span class="el_source">SetAsDefaultAction.java</span></div><h1>SetAsDefaultAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.qualitygate.ws;
+
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.property.PropertyDto;
+import org.sonar.db.qualitygate.QualityGateDto;
+import org.sonar.server.user.UserSession;
+
+import static org.sonar.db.permission.GlobalPermission.ADMINISTER_QUALITY_GATES;
+import static org.sonar.server.qualitygate.ws.CreateAction.NAME_MAXIMUM_LENGTH;
+import static org.sonar.server.qualitygate.ws.QualityGatesWsParameters.PARAM_NAME;
+
+public class SetAsDefaultAction implements QualityGatesWsAction {
+  private static final String DEFAULT_QUALITY_GATE_PROPERTY_NAME = &quot;qualitygate.default&quot;;
+
+  private final DbClient dbClient;
+  private final UserSession userSession;
+  private final QualityGatesWsSupport wsSupport;
+
+<span class="fc" id="L43">  public SetAsDefaultAction(DbClient dbClient, UserSession userSession, QualityGatesWsSupport qualityGatesWsSupport) {</span>
+<span class="fc" id="L44">    this.dbClient = dbClient;</span>
+<span class="fc" id="L45">    this.userSession = userSession;</span>
+<span class="fc" id="L46">    this.wsSupport = qualityGatesWsSupport;</span>
+<span class="fc" id="L47">  }</span>
+
+  @Override
+  public void define(WebService.NewController controller) {
+<span class="fc" id="L51">    WebService.NewAction action = controller.createAction(&quot;set_as_default&quot;)</span>
+<span class="fc" id="L52">      .setDescription(&quot;Set a quality gate as the default quality gate.&lt;br&gt;&quot; +</span>
+        &quot;Parameter 'name' must be specified. Requires the 'Administer Quality Gates' permission.&quot;)
+<span class="fc" id="L54">      .setSince(&quot;4.3&quot;)</span>
+<span class="fc" id="L55">      .setChangelog(</span>
+        new Change(&quot;10.0&quot;, &quot;Parameter 'id' is removed. Use 'name' instead.&quot;),
+        new Change(&quot;8.4&quot;, &quot;Parameter 'name' added&quot;),
+        new Change(&quot;8.4&quot;, &quot;Parameter 'id' is deprecated. Format changes from integer to string. Use 'name' instead.&quot;))
+<span class="fc" id="L59">      .setPost(true)</span>
+<span class="fc" id="L60">      .setHandler(this);</span>
+
+<span class="fc" id="L62">    action.createParam(PARAM_NAME)</span>
+<span class="fc" id="L63">      .setDescription(&quot;Name of the quality gate to set as default&quot;)</span>
+<span class="fc" id="L64">      .setRequired(true)</span>
+<span class="fc" id="L65">      .setMaximumLength(NAME_MAXIMUM_LENGTH)</span>
+<span class="fc" id="L66">      .setSince(&quot;8.4&quot;)</span>
+<span class="fc" id="L67">      .setExampleValue(&quot;SonarSource Way&quot;);</span>
+<span class="fc" id="L68">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) {
+<span class="fc" id="L72">    String name = request.mandatoryParam(PARAM_NAME);</span>
+
+<span class="fc" id="L74">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L75">      userSession.checkPermission(ADMINISTER_QUALITY_GATES);</span>
+      QualityGateDto qualityGate;
+
+<span class="fc" id="L78">      qualityGate = wsSupport.getByName(dbSession, name);</span>
+
+<span class="fc" id="L80">      dbClient.propertiesDao().saveProperty(new PropertyDto().setKey(DEFAULT_QUALITY_GATE_PROPERTY_NAME).setValue(qualityGate.getUuid()));</span>
+<span class="fc" id="L81">      dbSession.commit();</span>
+    }
+
+<span class="fc" id="L84">    response.noContent();</span>
+<span class="fc" id="L85">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

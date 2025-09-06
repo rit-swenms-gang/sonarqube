@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ResourceDto.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.component</a> &gt; <span class="el_source">ResourceDto.java</span></div><h1>ResourceDto.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.component;
+
+import java.util.Date;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+
+import static org.sonar.db.component.ComponentValidator.checkComponentKey;
+import static org.sonar.db.component.ComponentValidator.checkComponentLongName;
+import static org.sonar.db.component.ComponentValidator.checkComponentName;
+import static org.sonar.db.component.ComponentValidator.checkDescription;
+
+<span class="fc" id="L31">public class ResourceDto {</span>
+
+  private String uuid;
+  private String projectUuid;
+  private String key;
+  private String deprecatedKey;
+  private String name;
+  private String longName;
+  private String path;
+  private String scope;
+  private String qualifier;
+<span class="fc" id="L42">  private boolean enabled = true;</span>
+  private String description;
+  private String language;
+  private String copyComponentUuid;
+  private Date createdAt;
+
+  public String getUuid() {
+<span class="fc" id="L49">    return uuid;</span>
+  }
+
+  public ResourceDto setUuid(String uuid) {
+<span class="fc" id="L53">    this.uuid = uuid;</span>
+<span class="fc" id="L54">    return this;</span>
+  }
+
+  public String getProjectUuid() {
+<span class="nc" id="L58">    return projectUuid;</span>
+  }
+
+  public ResourceDto setProjectUuid(String projectUuid) {
+<span class="nc" id="L62">    this.projectUuid = projectUuid;</span>
+<span class="nc" id="L63">    return this;</span>
+  }
+
+  public String getName() {
+<span class="nc" id="L67">    return name;</span>
+  }
+
+  public ResourceDto setName(String name) {
+<span class="fc" id="L71">    this.name = checkComponentName(name);</span>
+<span class="fc" id="L72">    return this;</span>
+  }
+
+  public String getKey() {
+<span class="fc" id="L76">    return key;</span>
+  }
+
+  public ResourceDto setKey(String s) {
+<span class="fc" id="L80">    this.key = checkComponentKey(s);</span>
+<span class="fc" id="L81">    return this;</span>
+  }
+
+  public String getDeprecatedKey() {
+<span class="fc" id="L85">    return deprecatedKey;</span>
+  }
+
+  public ResourceDto setDeprecatedKey(String s) {
+<span class="nc" id="L89">    this.deprecatedKey = s;</span>
+<span class="nc" id="L90">    return this;</span>
+  }
+
+  public String getPath() {
+<span class="nc" id="L94">    return path;</span>
+  }
+
+  public ResourceDto setPath(String s) {
+<span class="fc" id="L98">    this.path = s;</span>
+<span class="fc" id="L99">    return this;</span>
+  }
+
+  public String getLongName() {
+<span class="nc" id="L103">    return longName;</span>
+  }
+
+  public ResourceDto setLongName(String longName) {
+<span class="nc" id="L107">    this.longName = checkComponentLongName(longName);</span>
+<span class="nc" id="L108">    return this;</span>
+  }
+
+  public String getScope() {
+<span class="fc" id="L112">    return scope;</span>
+  }
+
+  public ResourceDto setScope(String scope) {
+<span class="fc" id="L116">    this.scope = scope;</span>
+<span class="fc" id="L117">    return this;</span>
+  }
+
+  public String getQualifier() {
+<span class="fc" id="L121">    return qualifier;</span>
+  }
+
+  public ResourceDto setQualifier(String qualifier) {
+<span class="fc" id="L125">    this.qualifier = qualifier;</span>
+<span class="fc" id="L126">    return this;</span>
+  }
+
+  public boolean isEnabled() {
+<span class="nc" id="L130">    return enabled;</span>
+  }
+
+  public ResourceDto setEnabled(boolean b) {
+<span class="fc" id="L134">    this.enabled = b;</span>
+<span class="fc" id="L135">    return this;</span>
+  }
+
+  public String getDescription() {
+<span class="nc" id="L139">    return description;</span>
+  }
+
+  public ResourceDto setDescription(String description) {
+<span class="fc" id="L143">    this.description = checkDescription(description);</span>
+<span class="fc" id="L144">    return this;</span>
+  }
+
+  public String getLanguage() {
+<span class="nc" id="L148">    return language;</span>
+  }
+
+  public ResourceDto setLanguage(String language) {
+<span class="fc" id="L152">    this.language = language;</span>
+<span class="fc" id="L153">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getCopyComponentUuid() {
+<span class="nc" id="L158">    return copyComponentUuid;</span>
+  }
+
+  public ResourceDto setCopyComponentUuid(@Nullable String copyComponentUuid) {
+<span class="nc" id="L162">    this.copyComponentUuid = copyComponentUuid;</span>
+<span class="nc" id="L163">    return this;</span>
+  }
+
+  public Date getCreatedAt() {
+<span class="nc" id="L167">    return createdAt;</span>
+  }
+
+  public ResourceDto setCreatedAt(Date date) {
+<span class="nc" id="L171">    this.createdAt = date;</span>
+<span class="nc" id="L172">    return this;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

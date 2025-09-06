@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LiveMeasureTreeUpdaterImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.measure.live</a> &gt; <span class="el_source">LiveMeasureTreeUpdaterImpl.java</span></div><h1>LiveMeasureTreeUpdaterImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.measure.live;
+
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import org.sonar.api.config.Configuration;
+import org.sonar.api.measures.Metric;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.BranchDto;
+import org.sonar.db.component.BranchType;
+import org.sonar.db.component.ComponentDto;
+import org.sonar.db.component.SnapshotDto;
+import org.sonar.server.measure.DebtRatingGrid;
+import org.sonar.server.measure.Rating;
+
+import static org.sonar.api.measures.CoreMetrics.NEW_SECURITY_HOTSPOTS_KEY;
+import static org.sonar.api.measures.CoreMetrics.NEW_SECURITY_HOTSPOTS_REVIEWED_KEY;
+import static org.sonar.api.measures.CoreMetrics.NEW_SECURITY_HOTSPOTS_REVIEWED_STATUS_KEY;
+import static org.sonar.api.measures.CoreMetrics.NEW_SECURITY_HOTSPOTS_TO_REVIEW_STATUS_KEY;
+import static org.sonar.api.measures.CoreMetrics.SECURITY_HOTSPOTS_KEY;
+import static org.sonar.api.measures.CoreMetrics.SECURITY_HOTSPOTS_REVIEWED_KEY;
+import static org.sonar.api.measures.CoreMetrics.SECURITY_HOTSPOTS_REVIEWED_STATUS_KEY;
+import static org.sonar.api.measures.CoreMetrics.SECURITY_HOTSPOTS_TO_REVIEW_STATUS_KEY;
+import static org.sonar.db.newcodeperiod.NewCodePeriodType.REFERENCE_BRANCH;
+
+public class LiveMeasureTreeUpdaterImpl implements LiveMeasureTreeUpdater {
+  private final DbClient dbClient;
+  private final MeasureUpdateFormulaFactory formulaFactory;
+
+<span class="fc" id="L50">  public LiveMeasureTreeUpdaterImpl(DbClient dbClient, MeasureUpdateFormulaFactory formulaFactory) {</span>
+<span class="fc" id="L51">    this.dbClient = dbClient;</span>
+<span class="fc" id="L52">    this.formulaFactory = formulaFactory;</span>
+<span class="fc" id="L53">  }</span>
+
+  @Override
+  public void update(DbSession dbSession, SnapshotDto lastAnalysis, Configuration config, ComponentIndex components, BranchDto branch, MeasureMatrix measures) {
+<span class="fc" id="L57">    long beginningOfLeak = getBeginningOfLeakPeriod(lastAnalysis, branch);</span>
+<span class="fc" id="L58">    boolean shouldUseLeakFormulas = shouldUseLeakFormulas(lastAnalysis, branch);</span>
+
+    // 1. set new measure from issues to each component from touched components to the root
+<span class="fc" id="L61">    updateMatrixWithIssues(dbSession, measures, components, config, shouldUseLeakFormulas, beginningOfLeak);</span>
+
+    // 2. aggregate new measures up the component tree
+<span class="fc" id="L64">    updateMatrixWithHierarchy(measures, components, config, shouldUseLeakFormulas);</span>
+<span class="fc" id="L65">  }</span>
+
+  private void updateMatrixWithHierarchy(MeasureMatrix matrix, ComponentIndex components, Configuration config, boolean useLeakFormulas) {
+<span class="fc" id="L68">    DebtRatingGrid debtRatingGrid = new DebtRatingGrid(config);</span>
+<span class="fc" id="L69">    FormulaContextImpl context = new FormulaContextImpl(matrix, components, debtRatingGrid);</span>
+<span class="fc" id="L70">    components.getSortedTree().forEach(c -&gt; {</span>
+<span class="fc bfc" id="L71" title="All 2 branches covered.">      for (MeasureUpdateFormula formula : formulaFactory.getFormulas()) {</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">        if (shouldComputeMetric(formula, useLeakFormulas, components.getBranch(), matrix)) {</span>
+<span class="fc" id="L73">          context.change(c, formula);</span>
+          try {
+<span class="fc" id="L75">            formula.computeHierarchy(context);</span>
+<span class="nc" id="L76">          } catch (RuntimeException e) {</span>
+<span class="nc" id="L77">            throw new IllegalStateException(&quot;Fail to compute &quot; + formula.getMetric().getKey() + &quot; on &quot;</span>
+<span class="nc" id="L78">              + context.getComponent().getKey() + &quot; (uuid: &quot; + context.getComponent().uuid() + &quot;)&quot;, e);</span>
+<span class="fc" id="L79">          }</span>
+        }
+<span class="fc" id="L81">      }</span>
+<span class="fc" id="L82">    });</span>
+<span class="fc" id="L83">  }</span>
+
+  private void updateMatrixWithIssues(DbSession dbSession, MeasureMatrix matrix, ComponentIndex components, Configuration config, boolean useLeakFormulas, long beginningOfLeak) {
+<span class="fc" id="L86">    DebtRatingGrid debtRatingGrid = new DebtRatingGrid(config);</span>
+<span class="fc" id="L87">    FormulaContextImpl context = new FormulaContextImpl(matrix, components, debtRatingGrid);</span>
+
+<span class="fc" id="L89">    components.getSortedTree().forEach(c -&gt; {</span>
+<span class="fc" id="L90">      IssueCounter issueCounter = new IssueCounter(</span>
+<span class="fc" id="L91">        dbClient.issueDao().selectIssueGroupsByComponent(dbSession, c, beginningOfLeak),</span>
+<span class="fc" id="L92">        dbClient.issueDao().selectIssueImpactGroupsByComponent(dbSession, c, beginningOfLeak),</span>
+<span class="fc" id="L93">        dbClient.issueDao().selectIssueImpactSeverityGroupsByComponent(dbSession, c, beginningOfLeak)</span>
+        );
+<span class="fc bfc" id="L95" title="All 2 branches covered.">      for (MeasureUpdateFormula formula : formulaFactory.getFormulas()) {</span>
+<span class="fc bfc" id="L96" title="All 2 branches covered.">        if (shouldComputeMetric(formula, useLeakFormulas, components.getBranch(), matrix)) {</span>
+<span class="fc" id="L97">          context.change(c, formula);</span>
+          try {
+<span class="fc" id="L99">            formula.compute(context, issueCounter);</span>
+<span class="nc" id="L100">          } catch (RuntimeException e) {</span>
+<span class="nc" id="L101">            throw new IllegalStateException(&quot;Fail to compute &quot; + formula.getMetric().getKey() + &quot; on &quot;</span>
+<span class="nc" id="L102">              + context.getComponent().getKey() + &quot; (uuid: &quot; + context.getComponent().uuid() + &quot;)&quot;, e);</span>
+<span class="fc" id="L103">          }</span>
+        }
+<span class="fc" id="L105">      }</span>
+<span class="fc" id="L106">    });</span>
+<span class="fc" id="L107">  }</span>
+
+  private static boolean shouldComputeMetric(MeasureUpdateFormula formula, boolean useLeakFormulas, ComponentDto branchComponent,
+                                      MeasureMatrix matrix) {
+    // Use formula when the leak period is defined, it's a PR, or the formula is not about the leak period
+<span class="fc bfc" id="L112" title="All 4 branches covered.">    return (useLeakFormulas || !formula.isOnLeak())</span>
+           // Some metrics should only be computed if the metric has been computed on the branch before (during analysis).
+           // Otherwise, the computed measure would only apply to the touched components and be incomplete.
+<span class="fc bfc" id="L115" title="All 4 branches covered.">           &amp;&amp; (!formula.isOnlyIfComputedOnBranch() || matrix.getMeasure(branchComponent, formula.getMetric().getKey()).isPresent());</span>
+  }
+
+  private static long getBeginningOfLeakPeriod(SnapshotDto lastAnalysis, BranchDto branch) {
+<span class="fc bfc" id="L119" title="All 2 branches covered.">    if (isPR(branch)) {</span>
+<span class="fc" id="L120">      return 0L;</span>
+<span class="fc bfc" id="L121" title="All 2 branches covered.">    } else if (REFERENCE_BRANCH.name().equals(lastAnalysis.getPeriodMode())) {</span>
+<span class="fc" id="L122">      return -1;</span>
+    } else {
+<span class="fc" id="L124">      return Optional.ofNullable(lastAnalysis.getPeriodDate()).orElse(Long.MAX_VALUE);</span>
+    }
+  }
+
+  private static boolean isPR(BranchDto branch) {
+<span class="fc bfc" id="L129" title="All 2 branches covered.">    return branch.getBranchType() == BranchType.PULL_REQUEST;</span>
+  }
+
+  private static boolean shouldUseLeakFormulas(SnapshotDto lastAnalysis, BranchDto branch) {
+<span class="fc bfc" id="L133" title="All 6 branches covered.">    return lastAnalysis.getPeriodDate() != null || isPR(branch) || REFERENCE_BRANCH.name().equals(lastAnalysis.getPeriodMode());</span>
+  }
+
+  public static class FormulaContextImpl implements MeasureUpdateFormula.Context {
+    private final MeasureMatrix matrix;
+    private final ComponentIndex componentIndex;
+    private final DebtRatingGrid debtRatingGrid;
+    private ComponentDto currentComponent;
+    private MeasureUpdateFormula currentFormula;
+
+<span class="fc" id="L143">    public FormulaContextImpl(MeasureMatrix matrix, ComponentIndex componentIndex, DebtRatingGrid debtRatingGrid) {</span>
+<span class="fc" id="L144">      this.matrix = matrix;</span>
+<span class="fc" id="L145">      this.componentIndex = componentIndex;</span>
+<span class="fc" id="L146">      this.debtRatingGrid = debtRatingGrid;</span>
+<span class="fc" id="L147">    }</span>
+
+    void change(ComponentDto component, MeasureUpdateFormula formula) {
+<span class="fc" id="L150">      this.currentComponent = component;</span>
+<span class="fc" id="L151">      this.currentFormula = formula;</span>
+<span class="fc" id="L152">    }</span>
+
+    public List&lt;Double&gt; getChildrenValues() {
+<span class="fc" id="L155">      List&lt;ComponentDto&gt; children = componentIndex.getChildren(currentComponent);</span>
+<span class="fc" id="L156">      return children.stream()</span>
+<span class="fc" id="L157">        .flatMap(c -&gt; matrix.getMeasure(c, currentFormula.getMetric().getKey()).stream())</span>
+<span class="fc" id="L158">        .map(MeasureMatrix.Measure::doubleValue)</span>
+<span class="fc" id="L159">        .filter(Objects::nonNull)</span>
+<span class="fc" id="L160">        .toList();</span>
+    }
+
+    public List&lt;String&gt; getChildrenTextValues() {
+<span class="nc" id="L164">      List&lt;ComponentDto&gt; children = componentIndex.getChildren(currentComponent);</span>
+<span class="nc" id="L165">      return children.stream()</span>
+<span class="nc" id="L166">        .flatMap(c -&gt; matrix.getMeasure(c, currentFormula.getMetric().getKey()).stream())</span>
+<span class="nc" id="L167">        .map(MeasureMatrix.Measure::stringValue)</span>
+<span class="nc" id="L168">        .filter(Objects::nonNull)</span>
+<span class="nc" id="L169">        .toList();</span>
+    }
+
+    /**
+     * Some child components may not have the measures 'SECURITY_HOTSPOTS_TO_REVIEW_STATUS' and 'SECURITY_HOTSPOTS_REVIEWED_STATUS' saved for them,
+     * so we may need to calculate them based on 'SECURITY_HOTSPOTS_REVIEWED' and 'SECURITY_HOTSPOTS'.
+     */
+    @Override
+    public long getChildrenHotspotsReviewed() {
+<span class="fc" id="L178">      return getChildrenHotspotsReviewed(SECURITY_HOTSPOTS_REVIEWED_STATUS_KEY, SECURITY_HOTSPOTS_REVIEWED_KEY, SECURITY_HOTSPOTS_KEY);</span>
+    }
+
+    /**
+     * Some child components may not have the measure 'SECURITY_HOTSPOTS_TO_REVIEW_STATUS_KEY'. We assume that 'SECURITY_HOTSPOTS_KEY' has the same value.
+     */
+    @Override
+    public long getChildrenHotspotsToReview() {
+<span class="fc" id="L186">      return componentIndex.getChildren(currentComponent)</span>
+<span class="fc" id="L187">        .stream()</span>
+<span class="fc" id="L188">        .map(c -&gt; matrix.getMeasure(c, SECURITY_HOTSPOTS_TO_REVIEW_STATUS_KEY).or(() -&gt; matrix.getMeasure(c, SECURITY_HOTSPOTS_KEY)))</span>
+<span class="fc" id="L189">        .mapToLong(lmOpt -&gt; lmOpt.map(FormulaContextImpl::getDoubleOrZero).orElse(0D).longValue())</span>
+<span class="fc" id="L190">        .sum();</span>
+    }
+
+    @Override
+    public long getChildrenNewHotspotsReviewed() {
+<span class="fc" id="L195">      return getChildrenHotspotsReviewed(NEW_SECURITY_HOTSPOTS_REVIEWED_STATUS_KEY, NEW_SECURITY_HOTSPOTS_REVIEWED_KEY, NEW_SECURITY_HOTSPOTS_KEY);</span>
+    }
+
+    /**
+     * Some child components may not have the measure 'NEW_SECURITY_HOTSPOTS_TO_REVIEW_STATUS_KEY'. We assume that 'NEW_SECURITY_HOTSPOTS_KEY' has the same value.
+     */
+    @Override
+    public long getChildrenNewHotspotsToReview() {
+<span class="fc" id="L203">      return componentIndex.getChildren(currentComponent)</span>
+<span class="fc" id="L204">        .stream()</span>
+<span class="fc" id="L205">        .map(c -&gt; matrix.getMeasure(c, NEW_SECURITY_HOTSPOTS_TO_REVIEW_STATUS_KEY).or(() -&gt; matrix.getMeasure(c, NEW_SECURITY_HOTSPOTS_KEY)))</span>
+<span class="fc" id="L206">        .mapToLong(lmOpt -&gt; lmOpt.map(FormulaContextImpl::getDoubleOrZero).orElse(0D).longValue())</span>
+<span class="fc" id="L207">        .sum();</span>
+    }
+
+    private long getChildrenHotspotsReviewed(String metricKey, String percMetricKey, String hotspotsMetricKey) {
+<span class="fc" id="L211">      return componentIndex.getChildren(currentComponent)</span>
+<span class="fc" id="L212">        .stream()</span>
+<span class="fc" id="L213">        .mapToLong(c -&gt; getHotspotsReviewed(c, metricKey, percMetricKey, hotspotsMetricKey))</span>
+<span class="fc" id="L214">        .sum();</span>
+    }
+
+    private long getHotspotsReviewed(ComponentDto c, String metricKey, String percMetricKey, String hotspotsMetricKey) {
+<span class="fc" id="L218">      Optional&lt;MeasureMatrix.Measure&gt; measure = matrix.getMeasure(c, metricKey);</span>
+<span class="fc" id="L219">      return measure.map(lm -&gt; getDoubleOrZero(lm).longValue())</span>
+<span class="fc" id="L220">        .orElseGet(() -&gt; matrix.getMeasure(c, percMetricKey)</span>
+<span class="fc" id="L221">          .flatMap(percentage -&gt; matrix.getMeasure(c, hotspotsMetricKey)</span>
+<span class="fc" id="L222">            .map(hotspots -&gt; {</span>
+<span class="fc" id="L223">              double perc = getDoubleOrZero(percentage) / 100D;</span>
+<span class="fc" id="L224">              double toReview = getDoubleOrZero(hotspots);</span>
+<span class="fc" id="L225">              double reviewed = (toReview * perc) / (1D - perc);</span>
+<span class="fc" id="L226">              return Math.round(reviewed);</span>
+            }))
+<span class="fc" id="L228">          .orElse(0L));</span>
+    }
+
+    @Override
+    public ComponentDto getComponent() {
+<span class="nc" id="L233">      return currentComponent;</span>
+    }
+
+    @Override
+    public DebtRatingGrid getDebtRatingGrid() {
+<span class="nc" id="L238">      return debtRatingGrid;</span>
+    }
+
+    @Override
+    public Optional&lt;Double&gt; getValue(Metric metric) {
+<span class="fc" id="L243">      return matrix.getMeasure(currentComponent, metric.getKey()).map(MeasureMatrix.Measure::doubleValue);</span>
+    }
+
+    @Override
+    public Optional&lt;String&gt; getText(Metric metric) {
+<span class="nc" id="L248">      return matrix.getMeasure(currentComponent, metric.getKey()).map(MeasureMatrix.Measure::stringValue);</span>
+    }
+
+    @Override
+    public void setValue(double value) {
+<span class="fc" id="L253">      String metricKey = currentFormula.getMetric().getKey();</span>
+<span class="fc" id="L254">      matrix.setValue(currentComponent, metricKey, value);</span>
+<span class="fc" id="L255">    }</span>
+
+    @Override
+    public void setValue(Rating value) {
+<span class="nc" id="L259">      String metricKey = currentFormula.getMetric().getKey();</span>
+<span class="nc" id="L260">      matrix.setValue(currentComponent, metricKey, value);</span>
+<span class="nc" id="L261">    }</span>
+
+    @Override
+    public void setValue(String value) {
+<span class="nc" id="L265">      String metricKey = currentFormula.getMetric().getKey();</span>
+<span class="nc" id="L266">      matrix.setValue(currentComponent, metricKey, value);</span>
+<span class="nc" id="L267">    }</span>
+
+    private static Double getDoubleOrZero(MeasureMatrix.Measure lm) {
+<span class="fc" id="L270">      return Optional.ofNullable(lm.doubleValue()).orElse(0D);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

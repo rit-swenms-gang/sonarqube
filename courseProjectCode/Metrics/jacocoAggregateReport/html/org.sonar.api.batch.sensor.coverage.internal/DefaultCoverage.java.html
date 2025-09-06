@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultCoverage.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.api.batch.sensor.coverage.internal</a> &gt; <span class="el_source">DefaultCoverage.java</span></div><h1>DefaultCoverage.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.api.batch.sensor.coverage.internal;
+
+import java.util.Collections;
+import java.util.SortedMap;
+import java.util.TreeMap;
+import javax.annotation.Nullable;
+import org.sonar.api.batch.fs.InputFile;
+import org.sonar.api.batch.fs.internal.DefaultInputFile;
+import org.sonar.api.batch.sensor.coverage.NewCoverage;
+import org.sonar.api.batch.sensor.internal.DefaultStorable;
+import org.sonar.api.batch.sensor.internal.SensorStorage;
+
+import static java.util.Objects.requireNonNull;
+import static org.sonar.api.utils.Preconditions.checkState;
+
+public class DefaultCoverage extends DefaultStorable implements NewCoverage {
+
+  private InputFile inputFile;
+<span class="pc" id="L38">  private int totalCoveredLines = 0;</span>
+<span class="pc" id="L39">  private int totalConditions = 0;</span>
+<span class="pc" id="L40">  private int totalCoveredConditions = 0;</span>
+<span class="pc" id="L41">  private SortedMap&lt;Integer, Integer&gt; hitsByLine = new TreeMap&lt;&gt;();</span>
+<span class="pc" id="L42">  private SortedMap&lt;Integer, Integer&gt; conditionsByLine = new TreeMap&lt;&gt;();</span>
+<span class="pc" id="L43">  private SortedMap&lt;Integer, Integer&gt; coveredConditionsByLine = new TreeMap&lt;&gt;();</span>
+
+  public DefaultCoverage() {
+<span class="nc" id="L46">    super();</span>
+<span class="nc" id="L47">  }</span>
+
+  public DefaultCoverage(@Nullable SensorStorage storage) {
+<span class="fc" id="L50">    super(storage);</span>
+<span class="fc" id="L51">  }</span>
+
+  @Override
+  public DefaultCoverage onFile(InputFile inputFile) {
+<span class="fc" id="L55">    this.inputFile = inputFile;</span>
+<span class="fc" id="L56">    return this;</span>
+  }
+
+  public InputFile inputFile() {
+<span class="fc" id="L60">    return inputFile;</span>
+  }
+
+  @Override
+  public NewCoverage lineHits(int line, int hits) {
+<span class="fc" id="L65">    validateFile();</span>
+<span class="fc bfc" id="L66" title="All 2 branches covered.">    if (isExcluded()) {</span>
+<span class="fc" id="L67">      return this;</span>
+    }
+<span class="fc" id="L69">    validateLine(line);</span>
+
+<span class="fc bfc" id="L71" title="All 2 branches covered.">    if (!hitsByLine.containsKey(line)) {</span>
+<span class="fc" id="L72">      hitsByLine.put(line, hits);</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">      if (hits &gt; 0) {</span>
+<span class="fc" id="L74">        totalCoveredLines += 1;</span>
+      }
+    }
+<span class="fc" id="L77">    return this;</span>
+  }
+
+  private void validateLine(int line) {
+<span class="fc bfc" id="L81" title="All 2 branches covered.">    checkState(line &lt;= inputFile.lines(), &quot;Line %s is out of range in the file %s (lines: %s)&quot;, line, inputFile, inputFile.lines());</span>
+<span class="fc bfc" id="L82" title="All 2 branches covered.">    checkState(line &gt; 0, &quot;Line number must be strictly positive: %s&quot;, line);</span>
+<span class="fc" id="L83">  }</span>
+
+  private void validateFile() {
+<span class="fc" id="L86">    requireNonNull(inputFile, &quot;Call onFile() first&quot;);</span>
+<span class="fc" id="L87">  }</span>
+
+  @Override
+  public NewCoverage conditions(int line, int conditions, int coveredConditions) {
+<span class="fc" id="L91">    validateFile();</span>
+<span class="fc bfc" id="L92" title="All 2 branches covered.">    if (isExcluded()) {</span>
+<span class="fc" id="L93">      return this;</span>
+    }
+<span class="fc" id="L95">    validateLine(line);</span>
+
+<span class="pc bpc" id="L97" title="2 of 4 branches missed.">    if (conditions &gt; 0 &amp;&amp; !conditionsByLine.containsKey(line)) {</span>
+<span class="fc" id="L98">      totalConditions += conditions;</span>
+<span class="fc" id="L99">      totalCoveredConditions += coveredConditions;</span>
+<span class="fc" id="L100">      conditionsByLine.put(line, conditions);</span>
+<span class="fc" id="L101">      coveredConditionsByLine.put(line, coveredConditions);</span>
+    }
+<span class="fc" id="L103">    return this;</span>
+  }
+
+  public int coveredLines() {
+<span class="nc" id="L107">    return totalCoveredLines;</span>
+  }
+
+  public int linesToCover() {
+<span class="nc" id="L111">    return hitsByLine.size();</span>
+  }
+
+  public int conditions() {
+<span class="nc" id="L115">    return totalConditions;</span>
+  }
+
+  public int coveredConditions() {
+<span class="nc" id="L119">    return totalCoveredConditions;</span>
+  }
+
+  public SortedMap&lt;Integer, Integer&gt; hitsByLine() {
+<span class="fc" id="L123">    return Collections.unmodifiableSortedMap(hitsByLine);</span>
+  }
+
+  public SortedMap&lt;Integer, Integer&gt; conditionsByLine() {
+<span class="fc" id="L127">    return Collections.unmodifiableSortedMap(conditionsByLine);</span>
+  }
+
+  public SortedMap&lt;Integer, Integer&gt; coveredConditionsByLine() {
+<span class="fc" id="L131">    return Collections.unmodifiableSortedMap(coveredConditionsByLine);</span>
+  }
+
+  @Override
+  public void doSave() {
+<span class="fc" id="L136">    validateFile();</span>
+<span class="pc bpc" id="L137" title="1 of 4 branches missed.">    if (!isExcluded() &amp;&amp; inputFile.type() != InputFile.Type.TEST) {</span>
+<span class="fc" id="L138">      storage.store(this);</span>
+    }
+<span class="fc" id="L140">  }</span>
+
+  private boolean isExcluded() {
+<span class="fc" id="L143">    return ((DefaultInputFile) inputFile).isExcludedForCoverage();</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

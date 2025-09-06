@@ -1,0 +1,379 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SearchResponseLoader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.issue.ws</a> &gt; <span class="el_source">SearchResponseLoader.java</span></div><h1>SearchResponseLoader.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.issue.ws;
+
+import com.google.common.collect.ImmutableSet;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import javax.annotation.Nullable;
+import org.sonar.core.issue.DefaultIssue;
+import org.sonar.core.rule.RuleType;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.BranchDto;
+import org.sonar.db.component.ComponentDto;
+import org.sonar.db.issue.IssueChangeDto;
+import org.sonar.db.issue.IssueDto;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.db.protobuf.DbIssues;
+import org.sonar.db.rule.RuleDto;
+import org.sonar.db.user.UserDto;
+import org.sonar.server.es.Facets;
+import org.sonar.server.issue.TransitionService;
+import org.sonar.server.user.UserSession;
+import org.sonarqube.ws.client.issue.IssuesWsParameters;
+
+import static com.google.common.base.MoreObjects.firstNonNull;
+import static com.google.common.collect.ImmutableSet.copyOf;
+import static com.google.common.collect.Sets.difference;
+import static com.google.common.collect.Sets.newHashSet;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
+import static java.util.Objects.requireNonNull;
+import static java.util.stream.Stream.concat;
+import static org.sonar.db.permission.ProjectPermission.ISSUE_ADMIN;
+import static org.sonar.server.issue.AssignAction.ASSIGN_KEY;
+import static org.sonar.server.issue.CommentAction.COMMENT_KEY;
+import static org.sonar.server.issue.SetSeverityAction.SET_SEVERITY_KEY;
+import static org.sonar.server.issue.SetTypeAction.SET_TYPE_KEY;
+import static org.sonar.server.issue.ws.SearchAdditionalField.ACTIONS;
+import static org.sonar.server.issue.ws.SearchAdditionalField.COMMENTS;
+import static org.sonar.server.issue.ws.SearchAdditionalField.TRANSITIONS;
+
+/**
+ * Loads all the information required for the response of api/issues/search.
+ */
+public class SearchResponseLoader {
+
+  private final UserSession userSession;
+  private final DbClient dbClient;
+  private final TransitionService transitionService;
+
+<span class="fc" id="L78">  public SearchResponseLoader(UserSession userSession, DbClient dbClient, TransitionService transitionService) {</span>
+<span class="fc" id="L79">    this.userSession = userSession;</span>
+<span class="fc" id="L80">    this.dbClient = dbClient;</span>
+<span class="fc" id="L81">    this.transitionService = transitionService;</span>
+<span class="fc" id="L82">  }</span>
+
+  /**
+   * The issue keys are given by the multi-criteria search in Elasticsearch index.
+   * &lt;p&gt;
+   * It will only retrieve from DB data which is not already provided by the specified preloaded {@link SearchResponseData}.&lt;br/&gt;
+   * The returned {@link SearchResponseData} is &lt;strong&gt;not&lt;/strong&gt; the one specified as argument.
+   * &lt;/p&gt;
+   */
+  public SearchResponseData load(SearchResponseData preloadedResponseData, Collector collector, Set&lt;SearchAdditionalField&gt; fields, @Nullable Facets facets) {
+<span class="fc" id="L92">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L93">      SearchResponseData result = new SearchResponseData(loadIssues(preloadedResponseData, collector, dbSession));</span>
+<span class="fc" id="L94">      collector.collect(result.getIssues());</span>
+
+<span class="fc" id="L96">      loadRules(preloadedResponseData, collector, dbSession, result);</span>
+      // order is important - loading of comments complete the list of users: loadComments() is before loadUsers()
+<span class="fc" id="L98">      loadComments(collector, dbSession, fields, result);</span>
+<span class="fc" id="L99">      loadUsers(preloadedResponseData, collector, dbSession, result);</span>
+<span class="fc" id="L100">      loadComponents(preloadedResponseData, collector, dbSession, result);</span>
+      // for all loaded components in result we &quot;join&quot; branches to know to which branch components belong
+<span class="fc" id="L102">      loadBranches(dbSession, result);</span>
+<span class="fc" id="L103">      loadProjects(collector, dbSession, result);</span>
+
+<span class="fc" id="L105">      loadActionsAndTransitions(result, fields);</span>
+<span class="fc" id="L106">      completeTotalEffortFromFacet(facets, result);</span>
+<span class="fc" id="L107">      return result;</span>
+    }
+  }
+
+  private List&lt;IssueDto&gt; loadIssues(SearchResponseData preloadedResponseData, Collector collector, DbSession dbSession) {
+<span class="fc" id="L112">    List&lt;IssueDto&gt; preloadedIssues = preloadedResponseData.getIssues();</span>
+<span class="fc" id="L113">    Set&lt;String&gt; preloadedIssueKeys = preloadedIssues.stream().map(IssueDto::getKey).collect(Collectors.toSet());</span>
+
+<span class="fc" id="L115">    ImmutableSet&lt;String&gt; issueKeys = ImmutableSet.copyOf(collector.getIssueKeys());</span>
+<span class="fc" id="L116">    Set&lt;String&gt; issueKeysToLoad = copyOf(difference(issueKeys, preloadedIssueKeys));</span>
+
+<span class="fc bfc" id="L118" title="All 2 branches covered.">    if (issueKeysToLoad.isEmpty()) {</span>
+<span class="fc" id="L119">      return issueKeys.stream()</span>
+<span class="fc" id="L120">        .map(new KeyToIssueFunction(preloadedIssues)).filter(Objects::nonNull)</span>
+<span class="fc" id="L121">        .toList();</span>
+    }
+
+<span class="fc" id="L124">    List&lt;IssueDto&gt; loadedIssues = dbClient.issueDao().selectByKeys(dbSession, issueKeysToLoad);</span>
+<span class="fc" id="L125">    List&lt;IssueDto&gt; unorderedIssues = concat(preloadedIssues.stream(), loadedIssues.stream())</span>
+<span class="fc" id="L126">      .toList();</span>
+
+<span class="fc" id="L128">    return issueKeys.stream()</span>
+<span class="fc" id="L129">      .map(new KeyToIssueFunction(unorderedIssues))</span>
+<span class="fc" id="L130">      .filter(Objects::nonNull)</span>
+<span class="fc" id="L131">      .toList();</span>
+  }
+
+  private void loadUsers(SearchResponseData preloadedResponseData, Collector collector, DbSession dbSession, SearchResponseData result) {
+<span class="fc" id="L135">    Set&lt;String&gt; usersUuidToLoad = collector.getUserUuids();</span>
+<span class="fc" id="L136">    List&lt;UserDto&gt; preloadedUsers = firstNonNull(preloadedResponseData.getUsers(), emptyList());</span>
+<span class="fc" id="L137">    result.addUsers(preloadedUsers);</span>
+<span class="pc" id="L138">    preloadedUsers.forEach(userDto -&gt; usersUuidToLoad.remove(userDto.getUuid()));</span>
+<span class="fc" id="L139">    result.addUsers(dbClient.userDao().selectByUuids(dbSession, usersUuidToLoad));</span>
+<span class="fc" id="L140">  }</span>
+
+  private void loadComponents(SearchResponseData preloadedResponseData, Collector collector, DbSession dbSession, SearchResponseData result) {
+<span class="fc" id="L143">    Collection&lt;ComponentDto&gt; preloadedComponents = preloadedResponseData.getComponents();</span>
+<span class="fc" id="L144">    Set&lt;String&gt; preloadedComponentUuids = preloadedComponents.stream().map(ComponentDto::uuid).collect(Collectors.toSet());</span>
+<span class="fc" id="L145">    Set&lt;String&gt; componentUuidsToLoad = copyOf(difference(collector.getComponentUuids(), preloadedComponentUuids));</span>
+
+<span class="fc" id="L147">    result.addComponents(preloadedComponents);</span>
+<span class="fc bfc" id="L148" title="All 2 branches covered.">    if (!componentUuidsToLoad.isEmpty()) {</span>
+<span class="fc" id="L149">      result.addComponents(dbClient.componentDao().selectByUuids(dbSession, componentUuidsToLoad));</span>
+    }
+
+    // always load components and branches, because some issue fields still relate to component ids/keys.
+    // They should be dropped but are kept for backward-compatibility (see SearchResponseFormat)
+<span class="fc" id="L154">    result.addComponents(dbClient.componentDao().selectSubProjectsByComponentUuids(dbSession, collector.getComponentUuids()));</span>
+<span class="fc" id="L155">    loadBranchComponents(collector, dbSession, result);</span>
+<span class="fc" id="L156">  }</span>
+
+  private void loadProjects(Collector collector, DbSession dbSession, SearchResponseData result) {
+<span class="fc" id="L159">    List&lt;ProjectDto&gt; projects = dbClient.projectDao().selectByUuids(dbSession, collector.getProjectUuids());</span>
+<span class="fc" id="L160">    result.addProjects(projects);</span>
+<span class="fc" id="L161">  }</span>
+
+  private void loadBranches(DbSession dbSession, SearchResponseData result) {
+<span class="fc" id="L164">    Set&lt;String&gt; branchUuids = result.getComponents().stream()</span>
+<span class="pc bpc" id="L165" title="1 of 2 branches missed.">      .map(c -&gt; c.getCopyComponentUuid() != null ? c.getCopyComponentUuid() : c.branchUuid())</span>
+<span class="fc" id="L166">      .collect(Collectors.toSet());</span>
+<span class="fc" id="L167">    List&lt;BranchDto&gt; branchDtos = dbClient.branchDao().selectByUuids(dbSession, branchUuids);</span>
+<span class="fc" id="L168">    result.addBranches(branchDtos);</span>
+<span class="fc" id="L169">  }</span>
+
+  private void loadBranchComponents(Collector collector, DbSession dbSession, SearchResponseData result) {
+<span class="fc" id="L172">    Collection&lt;ComponentDto&gt; loadedComponents = result.getComponents();</span>
+<span class="fc bfc" id="L173" title="All 2 branches covered.">    for (ComponentDto component : loadedComponents) {</span>
+<span class="fc" id="L174">      collector.addBranchUuid(component.branchUuid());</span>
+<span class="fc" id="L175">    }</span>
+<span class="fc" id="L176">    Set&lt;String&gt; loadedBranchUuids = loadedComponents.stream().filter(cpt -&gt; cpt.uuid().equals(cpt.branchUuid())).map(ComponentDto::uuid).collect(Collectors.toSet());</span>
+<span class="fc" id="L177">    Set&lt;String&gt; branchUuidsToLoad = copyOf(difference(collector.getBranchUuids(), loadedBranchUuids));</span>
+<span class="fc bfc" id="L178" title="All 2 branches covered.">    if (!branchUuidsToLoad.isEmpty()) {</span>
+<span class="fc" id="L179">      List&lt;ComponentDto&gt; branchComponents = dbClient.componentDao().selectByUuids(dbSession, collector.getBranchUuids());</span>
+<span class="fc" id="L180">      result.addComponents(branchComponents);</span>
+    }
+<span class="fc" id="L182">  }</span>
+
+  private void loadRules(SearchResponseData preloadedResponseData, Collector collector, DbSession dbSession, SearchResponseData result) {
+<span class="fc" id="L185">    List&lt;RuleDto&gt; preloadedRules = firstNonNull(preloadedResponseData.getRules(), emptyList());</span>
+<span class="fc" id="L186">    result.addRules(preloadedRules);</span>
+<span class="fc" id="L187">    Set&lt;String&gt; ruleUuidsToLoad = collector.getRuleUuids();</span>
+<span class="fc" id="L188">    preloadedRules.stream().map(RuleDto::getUuid).toList()</span>
+<span class="fc" id="L189">      .forEach(ruleUuidsToLoad::remove);</span>
+
+<span class="fc" id="L191">    List&lt;RuleDto&gt; rules = dbClient.ruleDao().selectByUuids(dbSession, ruleUuidsToLoad);</span>
+<span class="fc" id="L192">    result.addRules(rules);</span>
+<span class="fc" id="L193">    updateNamesOfAdHocRules(result.getRules());</span>
+<span class="fc" id="L194">  }</span>
+
+  private static void updateNamesOfAdHocRules(List&lt;RuleDto&gt; rules) {
+<span class="fc" id="L197">    rules.stream()</span>
+<span class="fc" id="L198">      .filter(RuleDto::isAdHoc)</span>
+<span class="fc bfc" id="L199" title="All 2 branches covered.">      .filter(r -&gt; r.getAdHocName() != null)</span>
+<span class="fc" id="L200">      .forEach(r -&gt; r.setName(r.getAdHocName()));</span>
+<span class="fc" id="L201">  }</span>
+
+  private void loadComments(Collector collector, DbSession dbSession, Set&lt;SearchAdditionalField&gt; fields, SearchResponseData result) {
+<span class="fc bfc" id="L204" title="All 2 branches covered.">    if (fields.contains(COMMENTS)) {</span>
+<span class="fc" id="L205">      List&lt;IssueChangeDto&gt; comments = dbClient.issueChangeDao().selectByTypeAndIssueKeys(dbSession, collector.getIssueKeys(), IssueChangeDto.TYPE_COMMENT);</span>
+<span class="fc" id="L206">      result.setComments(comments);</span>
+<span class="fc" id="L207">      comments.stream()</span>
+<span class="fc bfc" id="L208" title="All 2 branches covered.">        .filter(c -&gt; c.getUserUuid() != null)</span>
+<span class="fc" id="L209">        .forEach(comment -&gt; loadComment(collector, result, comment));</span>
+    }
+<span class="fc" id="L211">  }</span>
+
+  private void loadComment(Collector collector, SearchResponseData result, IssueChangeDto comment) {
+<span class="fc" id="L214">    collector.addUserUuids(singletonList(comment.getUserUuid()));</span>
+<span class="fc bfc" id="L215" title="All 2 branches covered.">    if (canEditOrDelete(comment)) {</span>
+<span class="fc" id="L216">      result.addUpdatableComment(comment.getKey());</span>
+    }
+<span class="fc" id="L218">  }</span>
+
+  private boolean canEditOrDelete(IssueChangeDto dto) {
+<span class="pc bpc" id="L221" title="1 of 4 branches missed.">    return userSession.isLoggedIn() &amp;&amp; requireNonNull(userSession.getUuid(), &quot;User uuid should not be null&quot;).equals(dto.getUserUuid());</span>
+  }
+
+  private void loadActionsAndTransitions(SearchResponseData result, Set&lt;SearchAdditionalField&gt; fields) {
+<span class="pc bpc" id="L225" title="1 of 4 branches missed.">    if (fields.contains(ACTIONS) || fields.contains(TRANSITIONS)) {</span>
+<span class="fc" id="L226">      Map&lt;String, ComponentDto&gt; componentsByProjectUuid = result.getComponents()</span>
+<span class="fc" id="L227">        .stream()</span>
+<span class="fc" id="L228">        .filter(ComponentDto::isRootProject)</span>
+<span class="fc" id="L229">        .collect(Collectors.toMap(ComponentDto::branchUuid, Function.identity()));</span>
+<span class="fc bfc" id="L230" title="All 2 branches covered.">      for (IssueDto issueDto : result.getIssues()) {</span>
+        // so that IssueDto can be used.
+<span class="pc bpc" id="L232" title="1 of 2 branches missed.">        if (fields.contains(ACTIONS)) {</span>
+<span class="fc" id="L233">          ComponentDto branch = componentsByProjectUuid.get(issueDto.getProjectUuid());</span>
+<span class="fc" id="L234">          result.addActions(issueDto.getKey(), listAvailableActions(issueDto, branch));</span>
+        }
+<span class="fc bfc" id="L236" title="All 2 branches covered.">        if (fields.contains(TRANSITIONS)) {</span>
+          // TODO workflow and action engines must not depend on org.sonar.api.issue.Issue but on a generic interface
+<span class="fc" id="L238">          DefaultIssue issue = issueDto.toDefaultIssue();</span>
+<span class="fc" id="L239">          result.addTransitions(issue.key(), transitionService.listTransitionKeys(issue));</span>
+        }
+<span class="fc" id="L241">      }</span>
+    }
+<span class="fc" id="L243">  }</span>
+
+  private Set&lt;String&gt; listAvailableActions(IssueDto issue, ComponentDto branch) {
+<span class="fc" id="L246">    Set&lt;String&gt; availableActions = newHashSet();</span>
+<span class="fc" id="L247">    String login = userSession.getLogin();</span>
+<span class="fc bfc" id="L248" title="All 2 branches covered.">    if (login == null) {</span>
+<span class="fc" id="L249">      return Collections.emptySet();</span>
+    }
+<span class="fc" id="L251">    RuleType ruleType = RuleType.fromDbConstant(issue.getType());</span>
+<span class="fc" id="L252">    availableActions.add(COMMENT_KEY);</span>
+<span class="fc" id="L253">    availableActions.add(&quot;set_tags&quot;);</span>
+<span class="fc bfc" id="L254" title="All 2 branches covered.">    if (issue.getResolution() != null) {</span>
+<span class="fc" id="L255">      return availableActions;</span>
+    }
+<span class="fc" id="L257">    availableActions.add(ASSIGN_KEY);</span>
+<span class="pc bpc" id="L258" title="1 of 4 branches missed.">    if (ruleType != RuleType.SECURITY_HOTSPOT &amp;&amp; userSession.hasComponentPermission(ISSUE_ADMIN, branch)) {</span>
+<span class="fc" id="L259">      availableActions.add(SET_TYPE_KEY);</span>
+<span class="fc" id="L260">      availableActions.add(SET_SEVERITY_KEY);</span>
+    }
+<span class="fc" id="L262">    return availableActions;</span>
+  }
+
+  private static void completeTotalEffortFromFacet(@Nullable Facets facets, SearchResponseData result) {
+<span class="fc bfc" id="L266" title="All 2 branches covered.">    if (facets != null) {</span>
+<span class="fc" id="L267">      Map&lt;String, Long&gt; effortFacet = facets.get(IssuesWsParameters.FACET_MODE_EFFORT);</span>
+<span class="pc bpc" id="L268" title="1 of 2 branches missed.">      if (effortFacet != null) {</span>
+<span class="fc" id="L269">        result.setEffortTotal(effortFacet.get(Facets.TOTAL));</span>
+      }
+    }
+<span class="fc" id="L272">  }</span>
+
+  /**
+   * Collects the keys of all the data to be loaded (users, rules, ...)
+   */
+  public static class Collector {
+<span class="fc" id="L278">    private final Set&lt;String&gt; componentUuids = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L279">    private final Set&lt;String&gt; branchUuids = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L280">    private final Set&lt;String&gt; projectUuids = new HashSet&lt;&gt;();</span>
+    private final List&lt;String&gt; issueKeys;
+<span class="fc" id="L282">    private final Set&lt;String&gt; ruleUuids = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L283">    private final Set&lt;String&gt; userUuids = new HashSet&lt;&gt;();</span>
+
+<span class="fc" id="L285">    public Collector(List&lt;String&gt; issueKeys) {</span>
+<span class="fc" id="L286">      this.issueKeys = issueKeys;</span>
+<span class="fc" id="L287">    }</span>
+
+    void collect(List&lt;IssueDto&gt; issues) {
+<span class="fc bfc" id="L290" title="All 2 branches covered.">      for (IssueDto issue : issues) {</span>
+<span class="fc" id="L291">        componentUuids.add(issue.getComponentUuid());</span>
+<span class="fc" id="L292">        branchUuids.add(issue.getProjectUuid());</span>
+<span class="fc" id="L293">        Optional.ofNullable(issue.getRuleUuid()).ifPresent(ruleUuids::add);</span>
+<span class="fc" id="L294">        String issueAssigneeUuid = issue.getAssigneeUuid();</span>
+<span class="fc bfc" id="L295" title="All 2 branches covered.">        if (issueAssigneeUuid != null) {</span>
+<span class="fc" id="L296">          userUuids.add(issueAssigneeUuid);</span>
+        }
+<span class="fc" id="L298">        collectComponentsFromIssueLocations(issue);</span>
+<span class="fc" id="L299">      }</span>
+<span class="fc" id="L300">    }</span>
+
+    private void collectComponentsFromIssueLocations(IssueDto issue) {
+<span class="fc" id="L303">      DbIssues.Locations locations = issue.parseLocations();</span>
+<span class="fc bfc" id="L304" title="All 2 branches covered.">      if (locations != null) {</span>
+<span class="fc bfc" id="L305" title="All 2 branches covered.">        for (DbIssues.Flow flow : locations.getFlowList()) {</span>
+<span class="fc bfc" id="L306" title="All 2 branches covered.">          for (DbIssues.Location location : flow.getLocationList()) {</span>
+<span class="fc bfc" id="L307" title="All 2 branches covered.">            if (location.hasComponentId()) {</span>
+<span class="fc" id="L308">              componentUuids.add(location.getComponentId());</span>
+            }
+<span class="fc" id="L310">          }</span>
+<span class="fc" id="L311">        }</span>
+      }
+<span class="fc" id="L313">    }</span>
+
+    void addProjectUuids(@Nullable Collection&lt;String&gt; uuids) {
+<span class="pc bpc" id="L316" title="1 of 2 branches missed.">      if (uuids != null) {</span>
+<span class="fc" id="L317">        this.projectUuids.addAll(uuids);</span>
+      }
+<span class="fc" id="L319">    }</span>
+
+    void addBranchUuid(String uuid) {
+<span class="fc" id="L322">      this.branchUuids.add(uuid);</span>
+<span class="fc" id="L323">    }</span>
+
+    void addRuleIds(@Nullable Collection&lt;String&gt; ruleUuids) {
+<span class="pc bpc" id="L326" title="1 of 2 branches missed.">      if (ruleUuids != null) {</span>
+<span class="fc" id="L327">        this.ruleUuids.addAll(ruleUuids);</span>
+      }
+<span class="fc" id="L329">    }</span>
+
+    void addUserUuids(@Nullable Collection&lt;String&gt; userUuids) {
+<span class="pc bpc" id="L332" title="1 of 2 branches missed.">      if (userUuids != null) {</span>
+<span class="fc" id="L333">        this.userUuids.addAll(userUuids);</span>
+      }
+<span class="fc" id="L335">    }</span>
+
+    public Set&lt;String&gt; getProjectUuids() {
+<span class="fc" id="L338">      return projectUuids;</span>
+    }
+
+    public List&lt;String&gt; getIssueKeys() {
+<span class="fc" id="L342">      return issueKeys;</span>
+    }
+
+    public Set&lt;String&gt; getComponentUuids() {
+<span class="fc" id="L346">      return componentUuids;</span>
+    }
+
+    public Set&lt;String&gt; getBranchUuids() {
+<span class="fc" id="L350">      return branchUuids;</span>
+    }
+
+    public Set&lt;String&gt; getRuleUuids() {
+<span class="fc" id="L354">      return ruleUuids;</span>
+    }
+
+    Set&lt;String&gt; getUserUuids() {
+<span class="fc" id="L358">      return userUuids;</span>
+    }
+  }
+
+  private static class KeyToIssueFunction implements Function&lt;String, IssueDto&gt; {
+<span class="fc" id="L363">    private final Map&lt;String, IssueDto&gt; map = new HashMap&lt;&gt;();</span>
+
+<span class="fc" id="L365">    private KeyToIssueFunction(Collection&lt;IssueDto&gt; unordered) {</span>
+<span class="fc bfc" id="L366" title="All 2 branches covered.">      for (IssueDto dto : unordered) {</span>
+<span class="fc" id="L367">        map.put(dto.getKey(), dto);</span>
+<span class="fc" id="L368">      }</span>
+<span class="fc" id="L369">    }</span>
+
+    @Nullable
+    @Override
+    public IssueDto apply(String issueKey) {
+<span class="fc" id="L374">      return map.get(issueKey);</span>
+    }
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

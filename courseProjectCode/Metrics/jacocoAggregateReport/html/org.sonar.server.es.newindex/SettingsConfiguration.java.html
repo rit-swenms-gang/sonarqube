@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SettingsConfiguration.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.es.newindex</a> &gt; <span class="el_source">SettingsConfiguration.java</span></div><h1>SettingsConfiguration.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.es.newindex;
+
+import org.sonar.api.config.Configuration;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.util.Objects.requireNonNull;
+
+public class SettingsConfiguration {
+  public static final int MANUAL_REFRESH_INTERVAL = -1;
+
+  private final Configuration configuration;
+  private final int defaultNbOfShards;
+  private final int refreshInterval;
+
+<span class="fc" id="L34">  private SettingsConfiguration(Builder builder) {</span>
+<span class="fc" id="L35">    this.configuration = builder.configuration;</span>
+<span class="fc" id="L36">    this.defaultNbOfShards = builder.defaultNbOfShards;</span>
+<span class="fc" id="L37">    this.refreshInterval = builder.refreshInterval;</span>
+<span class="fc" id="L38">  }</span>
+
+  public static Builder newBuilder(Configuration configuration) {
+<span class="fc" id="L41">    return new Builder(configuration);</span>
+  }
+
+  public Configuration getConfiguration() {
+<span class="fc" id="L45">    return configuration;</span>
+  }
+
+  public int getDefaultNbOfShards() {
+<span class="fc" id="L49">    return defaultNbOfShards;</span>
+  }
+
+  public int getRefreshInterval() {
+<span class="fc" id="L53">    return refreshInterval;</span>
+  }
+
+  public static class Builder {
+    private final Configuration configuration;
+<span class="fc" id="L58">    private int defaultNbOfShards = 1;</span>
+<span class="fc" id="L59">    private int refreshInterval = 30;</span>
+
+<span class="fc" id="L61">    public Builder(Configuration configuration) {</span>
+<span class="fc" id="L62">      this.configuration = requireNonNull(configuration, &quot;configuration can't be null&quot;);</span>
+<span class="fc" id="L63">    }</span>
+
+    public Builder setDefaultNbOfShards(int defaultNbOfShards) {
+<span class="fc bfc" id="L66" title="All 2 branches covered.">      checkArgument(defaultNbOfShards &gt;= 1, &quot;defaultNbOfShards must be &gt;= 1&quot;);</span>
+<span class="fc" id="L67">      this.defaultNbOfShards = defaultNbOfShards;</span>
+<span class="fc" id="L68">      return this;</span>
+    }
+
+    public Builder setRefreshInterval(int refreshInterval) {
+<span class="fc bfc" id="L72" title="All 4 branches covered.">      checkArgument(refreshInterval == -1 || refreshInterval &gt; 0,</span>
+        &quot;refreshInterval must be either -1 or strictly positive&quot;);
+<span class="fc" id="L74">      this.refreshInterval = refreshInterval;</span>
+<span class="fc" id="L75">      return this;</span>
+    }
+
+    public SettingsConfiguration build() {
+<span class="fc" id="L79">      return new SettingsConfiguration(this);</span>
+    }
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

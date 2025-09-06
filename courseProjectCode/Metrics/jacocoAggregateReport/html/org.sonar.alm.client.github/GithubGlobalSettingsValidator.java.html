@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GithubGlobalSettingsValidator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.alm.client.github</a> &gt; <span class="el_source">GithubGlobalSettingsValidator.java</span></div><h1>GithubGlobalSettingsValidator.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.alm.client.github;
+
+import java.util.Optional;
+import javax.annotation.Nullable;
+import org.apache.commons.lang3.StringUtils;
+import org.sonar.api.config.internal.Encryption;
+import org.sonar.api.config.internal.Settings;
+import org.sonar.api.server.ServerSide;
+import org.sonar.auth.github.GithubAppConfiguration;
+import org.sonar.auth.github.GithubApplicationClient;
+import org.sonar.db.alm.setting.AlmSettingDto;
+
+import static org.apache.commons.lang3.StringUtils.isBlank;
+
+@ServerSide
+public class GithubGlobalSettingsValidator {
+
+  private final Encryption encryption;
+  private final GithubApplicationClient githubApplicationClient;
+
+<span class="fc" id="L40">  public GithubGlobalSettingsValidator(GithubApplicationClientImpl githubApplicationClient, Settings settings) {</span>
+<span class="fc" id="L41">    this.encryption = settings.getEncryption();</span>
+<span class="fc" id="L42">    this.githubApplicationClient = githubApplicationClient;</span>
+<span class="fc" id="L43">  }</span>
+
+  public GithubAppConfiguration validate(AlmSettingDto almSettingDto) {
+<span class="fc" id="L46">    return validate(almSettingDto.getAppId(), almSettingDto.getClientId(), almSettingDto.getClientSecret(), almSettingDto.getPrivateKey(), almSettingDto.getUrl());</span>
+  }
+
+  public GithubAppConfiguration validate(@Nullable String applicationId, @Nullable String clientId, String clientSecret, String privateKey,  @Nullable String url) {
+    long appId;
+    try {
+<span class="fc" id="L52">      appId = Long.parseLong(Optional.ofNullable(applicationId).orElseThrow(() -&gt; new IllegalArgumentException(&quot;Missing appId&quot;)));</span>
+<span class="fc" id="L53">    } catch (NumberFormatException e) {</span>
+<span class="fc" id="L54">      throw new IllegalArgumentException(&quot;Invalid appId; &quot; + e.getMessage());</span>
+<span class="fc" id="L55">    }</span>
+<span class="fc bfc" id="L56" title="All 2 branches covered.">    if (isBlank(clientId)) {</span>
+<span class="fc" id="L57">      throw new IllegalArgumentException(&quot;Missing Client Id&quot;);</span>
+    }
+<span class="fc bfc" id="L59" title="All 2 branches covered.">    if (isBlank(getDecryptedSettingValue(clientSecret))) {</span>
+<span class="fc" id="L60">      throw new IllegalArgumentException(&quot;Missing Client Secret&quot;);</span>
+    }
+<span class="fc" id="L62">    GithubAppConfiguration configuration = new GithubAppConfiguration(appId, getDecryptedSettingValue(privateKey), url);</span>
+
+<span class="fc" id="L64">    githubApplicationClient.checkApiEndpoint(configuration);</span>
+<span class="fc" id="L65">    githubApplicationClient.checkAppPermissions(configuration);</span>
+
+<span class="fc" id="L67">    return configuration;</span>
+  }
+
+  private String getDecryptedSettingValue(String setting) {
+<span class="fc bfc" id="L71" title="All 4 branches covered.">    if (StringUtils.isNotEmpty(setting) &amp;&amp; encryption.isEncrypted(setting)) {</span>
+<span class="fc" id="L72">      return encryption.decrypt(setting);</span>
+    }
+<span class="fc" id="L74">    return setting;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

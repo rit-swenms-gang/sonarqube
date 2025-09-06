@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CreateGithubRequest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonarqube.ws.client.almsettings</a> &gt; <span class="el_source">CreateGithubRequest.java</span></div><h1>CreateGithubRequest.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonarqube.ws.client.almsettings;
+
+import javax.annotation.CheckForNull;
+import jakarta.annotation.Generated;
+import javax.annotation.Nullable;
+
+/**
+ * This is a POST request.
+ * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_settings/create_github&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+ * @since 8.1
+ */
+@Generated(&quot;sonar-ws-generator&quot;)
+<span class="nc" id="L32">public class CreateGithubRequest {</span>
+
+  private String appId;
+  private String key;
+  private String privateKey;
+  private String url;
+  private String clientId;
+  private String clientSecret;
+  private String webhookSecret;
+
+  /**
+   * This is a mandatory parameter.
+   */
+  public CreateGithubRequest setAppId(String appId) {
+<span class="nc" id="L46">    this.appId = appId;</span>
+<span class="nc" id="L47">    return this;</span>
+  }
+
+  public String getAppId() {
+<span class="nc" id="L51">    return appId;</span>
+  }
+
+  /**
+   * This is a mandatory parameter.
+   */
+  public CreateGithubRequest setKey(String key) {
+<span class="nc" id="L58">    this.key = key;</span>
+<span class="nc" id="L59">    return this;</span>
+  }
+
+  public String getKey() {
+<span class="nc" id="L63">    return key;</span>
+  }
+
+  /**
+   * This is a mandatory parameter.
+   */
+  public CreateGithubRequest setPrivateKey(String privateKey) {
+<span class="nc" id="L70">    this.privateKey = privateKey;</span>
+<span class="nc" id="L71">    return this;</span>
+  }
+
+  public String getPrivateKey() {
+<span class="nc" id="L75">    return privateKey;</span>
+  }
+
+  /**
+   * This is a mandatory parameter.
+   */
+  public CreateGithubRequest setUrl(String url) {
+<span class="nc" id="L82">    this.url = url;</span>
+<span class="nc" id="L83">    return this;</span>
+  }
+
+  public String getUrl() {
+<span class="nc" id="L87">    return url;</span>
+  }
+
+  public CreateGithubRequest setClientId(@Nullable String clientId) {
+<span class="nc" id="L91">    this.clientId = clientId;</span>
+<span class="nc" id="L92">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getClientId() {
+<span class="nc" id="L97">    return clientId;</span>
+  }
+
+  public CreateGithubRequest setClientSecret(@Nullable String clientSecret) {
+<span class="nc" id="L101">    this.clientSecret = clientSecret;</span>
+<span class="nc" id="L102">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getClientSecret() {
+<span class="nc" id="L107">    return clientSecret;</span>
+  }
+
+  public CreateGithubRequest setWebhookSecret(@Nullable String webhookSecret) {
+<span class="nc" id="L111">    this.webhookSecret = webhookSecret;</span>
+<span class="nc" id="L112">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getWebhookSecret() {
+<span class="nc" id="L117">    return webhookSecret;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

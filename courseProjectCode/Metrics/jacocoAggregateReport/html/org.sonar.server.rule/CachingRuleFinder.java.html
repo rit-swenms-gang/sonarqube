@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CachingRuleFinder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.rule</a> &gt; <span class="el_source">CachingRuleFinder.java</span></div><h1>CachingRuleFinder.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.rule;
+
+import com.google.common.collect.Ordering;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.api.rule.RuleStatus;
+import org.sonar.api.rules.Rule;
+import org.sonar.api.rules.RuleFinder;
+import org.sonar.api.rules.RulePriority;
+import org.sonar.api.rules.RuleQuery;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.rule.RuleDto;
+import org.sonar.db.rule.RuleParamDto;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.unmodifiableMap;
+
+/**
+ * A {@link RuleFinder} implementation that retrieves all rule definitions and their parameter when instantiated, cache
+ * them in memory and provide implementation of {@link RuleFinder}'s method which only read from this data in memory.
+ */
+public class CachingRuleFinder implements ServerRuleFinder {
+
+<span class="fc" id="L53">  private static final Ordering&lt;Map.Entry&lt;RuleDto, Rule&gt;&gt; FIND_BY_QUERY_ORDER = Ordering.natural().reverse().onResultOf(entry -&gt; entry.getKey().getUpdatedAt());</span>
+
+  private final Map&lt;RuleKey, RuleDto&gt; ruleDtosByKey;
+  private final Map&lt;String, RuleDto&gt; ruleDtosByUuid;
+  private final Map&lt;RuleDto, Rule&gt; ruleByRuleDto;
+  private final Map&lt;RuleKey, Rule&gt; rulesByKey;
+  private final RuleDescriptionFormatter ruleDescriptionFormatter;
+
+<span class="fc" id="L61">  public CachingRuleFinder(DbClient dbClient, RuleDescriptionFormatter ruleDescriptionFormatter) {</span>
+<span class="fc" id="L62">    this.ruleDescriptionFormatter = ruleDescriptionFormatter;</span>
+<span class="fc" id="L63">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L64">      List&lt;RuleDto&gt; dtos = dbClient.ruleDao().selectAll(dbSession);</span>
+<span class="fc" id="L65">      this.ruleDtosByKey = dtos.stream().collect(Collectors.toMap(RuleDto::getKey, d -&gt; d));</span>
+<span class="fc" id="L66">      this.ruleDtosByUuid = dtos.stream().collect(Collectors.toMap(RuleDto::getUuid, d -&gt; d));</span>
+<span class="fc" id="L67">      this.ruleByRuleDto = buildRulesByRuleDefinitionDto(dbClient, dbSession, dtos);</span>
+<span class="fc" id="L68">      this.rulesByKey = this.ruleByRuleDto.entrySet().stream()</span>
+<span class="fc" id="L69">        .collect(Collectors.toMap(entry -&gt; entry.getKey().getKey(), Map.Entry::getValue));</span>
+    }
+<span class="fc" id="L71">  }</span>
+
+  private Map&lt;RuleDto, Rule&gt; buildRulesByRuleDefinitionDto(DbClient dbClient, DbSession dbSession, List&lt;RuleDto&gt; dtos) {
+<span class="fc" id="L74">    Map&lt;String, List&lt;RuleParamDto&gt;&gt; ruleParamsByRuleUuid = retrieveRuleParameters(dbClient, dbSession);</span>
+<span class="fc" id="L75">    Map&lt;RuleDto, Rule&gt; rulesByDefinition = new HashMap&lt;&gt;(dtos.size());</span>
+<span class="fc bfc" id="L76" title="All 2 branches covered.">    for (RuleDto definition : dtos) {</span>
+<span class="fc" id="L77">      rulesByDefinition.put(definition, toRule(definition, ruleParamsByRuleUuid.getOrDefault(definition.getUuid(), emptyList())));</span>
+<span class="fc" id="L78">    }</span>
+<span class="fc" id="L79">    return unmodifiableMap(rulesByDefinition);</span>
+  }
+
+  private static Map&lt;String, List&lt;RuleParamDto&gt;&gt; retrieveRuleParameters(DbClient dbClient, DbSession dbSession) {
+<span class="fc" id="L83">    return dbClient.ruleDao().selectAllRuleParams(dbSession).stream()</span>
+<span class="fc" id="L84">      .collect(Collectors.groupingBy(RuleParamDto::getRuleUuid));</span>
+  }
+
+  @Override
+  @CheckForNull
+  public Rule findByKey(@Nullable String repositoryKey, @Nullable String key) {
+<span class="fc bfc" id="L90" title="All 4 branches covered.">    if (repositoryKey == null || key == null) {</span>
+<span class="fc" id="L91">      return null;</span>
+    }
+<span class="fc" id="L93">    return findByKey(RuleKey.of(repositoryKey, key));</span>
+  }
+
+  @Override
+  @CheckForNull
+  public Rule findByKey(@Nullable RuleKey key) {
+<span class="fc" id="L99">    return rulesByKey.get(key);</span>
+  }
+
+  @Override
+  @CheckForNull
+  public Rule find(@Nullable RuleQuery query) {
+<span class="fc bfc" id="L105" title="All 2 branches covered.">    if (query == null) {</span>
+<span class="fc" id="L106">      return null;</span>
+    }
+
+<span class="fc" id="L109">    return ruleByRuleDto.entrySet().stream()</span>
+<span class="fc" id="L110">      .filter(entry -&gt; matchQuery(entry.getKey(), query))</span>
+<span class="fc" id="L111">      .sorted(FIND_BY_QUERY_ORDER)</span>
+<span class="fc" id="L112">      .map(Map.Entry::getValue)</span>
+<span class="fc" id="L113">      .findFirst()</span>
+<span class="fc" id="L114">      .orElse(null);</span>
+  }
+
+  @Override
+  public Collection&lt;Rule&gt; findAll(@Nullable RuleQuery query) {
+<span class="fc bfc" id="L119" title="All 2 branches covered.">    if (query == null) {</span>
+<span class="fc" id="L120">      return Collections.emptyList();</span>
+    }
+<span class="fc" id="L122">    return ruleByRuleDto.entrySet().stream()</span>
+<span class="fc" id="L123">      .filter(entry -&gt; matchQuery(entry.getKey(), query))</span>
+<span class="fc" id="L124">      .sorted(FIND_BY_QUERY_ORDER)</span>
+<span class="fc" id="L125">      .map(Map.Entry::getValue)</span>
+<span class="fc" id="L126">      .toList();</span>
+  }
+
+  private static boolean matchQuery(RuleDto ruleDto, RuleQuery ruleQuery) {
+<span class="pc bpc" id="L130" title="1 of 2 branches missed.">    if (RuleStatus.REMOVED.equals(ruleDto.getStatus())) {</span>
+<span class="nc" id="L131">      return false;</span>
+    }
+<span class="fc" id="L133">    String repositoryKey = ruleQuery.getRepositoryKey();</span>
+<span class="fc bfc" id="L134" title="All 4 branches covered.">    if (ruleQuery.getRepositoryKey() != null &amp;&amp; !repositoryKey.equals(ruleDto.getRepositoryKey())) {</span>
+<span class="fc" id="L135">      return false;</span>
+    }
+<span class="fc" id="L137">    String key = ruleQuery.getKey();</span>
+<span class="fc bfc" id="L138" title="All 4 branches covered.">    if (key != null &amp;&amp; !key.equals(ruleDto.getRuleKey())) {</span>
+<span class="fc" id="L139">      return false;</span>
+    }
+<span class="fc" id="L141">    String configKey = ruleQuery.getConfigKey();</span>
+<span class="fc bfc" id="L142" title="All 4 branches covered.">    return configKey == null || configKey.equals(ruleDto.getConfigKey());</span>
+  }
+
+  private Rule toRule(RuleDto ruleDto, List&lt;RuleParamDto&gt; params) {
+<span class="fc" id="L146">    String severity = ruleDto.getSeverityString();</span>
+
+<span class="fc" id="L148">    Rule apiRule = Rule.create()</span>
+<span class="fc" id="L149">      .setName(ruleDto.getName())</span>
+<span class="fc" id="L150">      .setKey(ruleDto.getRuleKey())</span>
+<span class="fc" id="L151">      .setConfigKey(ruleDto.getConfigKey())</span>
+<span class="fc" id="L152">      .setIsTemplate(ruleDto.isTemplate())</span>
+<span class="fc" id="L153">      .setCreatedAt(new Date(ruleDto.getCreatedAt()))</span>
+<span class="fc" id="L154">      .setUpdatedAt(new Date(ruleDto.getUpdatedAt()))</span>
+<span class="fc" id="L155">      .setRepositoryKey(ruleDto.getRepositoryKey())</span>
+<span class="pc bpc" id="L156" title="1 of 2 branches missed.">      .setSeverity(severity != null ? RulePriority.valueOf(severity) : null)</span>
+<span class="fc" id="L157">      .setStatus(ruleDto.getStatus().name())</span>
+<span class="fc" id="L158">      .setSystemTags(ruleDto.getSystemTags().toArray(new String[ruleDto.getSystemTags().size()]))</span>
+<span class="fc" id="L159">      .setTags(new String[0]);</span>
+
+<span class="fc" id="L161">    Optional.ofNullable(ruleDescriptionFormatter.getDescriptionAsHtml(ruleDto)).ifPresent(apiRule::setDescription);</span>
+<span class="fc" id="L162">    Optional.ofNullable(ruleDto.getLanguage()).ifPresent(apiRule::setLanguage);</span>
+
+<span class="fc bfc" id="L164" title="All 2 branches covered.">    for (RuleParamDto param : params) {</span>
+<span class="fc" id="L165">      apiRule.createParameter()</span>
+<span class="fc" id="L166">        .setDescription(param.getDescription())</span>
+<span class="fc" id="L167">        .setKey(param.getName())</span>
+<span class="fc" id="L168">        .setType(param.getType())</span>
+<span class="fc" id="L169">        .setDefaultValue(param.getDefaultValue());</span>
+<span class="fc" id="L170">    }</span>
+
+<span class="fc" id="L172">    return apiRule;</span>
+  }
+
+  @Override
+  public Optional&lt;RuleDto&gt; findDtoByKey(RuleKey key) {
+<span class="fc" id="L177">    return Optional.ofNullable(this.ruleDtosByKey.get(key));</span>
+  }
+
+  @Override
+  public Optional&lt;RuleDto&gt; findDtoByUuid(String uuid) {
+<span class="fc" id="L182">    return Optional.ofNullable(this.ruleDtosByUuid.get(uuid));</span>
+  }
+
+  @Override
+  public Collection&lt;RuleDto&gt; findAll() {
+<span class="fc" id="L187">    return ruleDtosByUuid.values();</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

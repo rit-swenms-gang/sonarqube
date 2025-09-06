@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EmailSmtpConfiguration.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.email</a> &gt; <span class="el_source">EmailSmtpConfiguration.java</span></div><h1>EmailSmtpConfiguration.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.email;
+
+import org.sonar.api.ce.ComputeEngineSide;
+import org.sonar.api.config.internal.Encryption;
+import org.sonar.api.config.internal.Settings;
+import org.sonar.api.server.ServerSide;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+
+import static org.sonar.api.CoreProperties.ENCRYPTION_SECRET_KEY_PATH;
+
+@ServerSide
+@ComputeEngineSide
+public class EmailSmtpConfiguration {
+  // Common configuration
+  public static final String EMAIL_CONFIG_SMTP_HOST = &quot;email.smtp_host.secured&quot;;
+  public static final String EMAIL_CONFIG_SMTP_HOST_DEFAULT = &quot;&quot;;
+  public static final String EMAIL_CONFIG_SMTP_PORT = &quot;email.smtp_port.secured&quot;;
+  public static final String EMAIL_CONFIG_SMTP_PORT_DEFAULT = &quot;25&quot;;
+  public static final String EMAIL_CONFIG_SMTP_SECURE_CONNECTION = &quot;email.smtp_secure_connection.secured&quot;;
+  public static final String EMAIL_CONFIG_SMTP_SECURE_CONNECTION_DEFAULT = &quot;&quot;;
+  // Email content
+  public static final String EMAIL_CONFIG_FROM = &quot;email.from&quot;;
+  public static final String EMAIL_CONFIG_FROM_DEFAULT = &quot;noreply@nowhere&quot;;
+  public static final String EMAIL_CONFIG_FROM_NAME = &quot;email.fromName&quot;;
+  public static final String EMAIL_CONFIG_FROM_NAME_DEFAULT = &quot;SonarQube&quot;;
+  public static final String EMAIL_CONFIG_PREFIX = &quot;email.prefix&quot;;
+  public static final String EMAIL_CONFIG_PREFIX_DEFAULT = &quot;[SONARQUBE]&quot;;
+  // Auth selection
+  public static final String EMAIL_CONFIG_SMTP_AUTH_METHOD = &quot;email.smtp.auth.method&quot;;
+  public static final String EMAIL_CONFIG_SMTP_AUTH_METHOD_DEFAULT = &quot;BASIC&quot;;
+  public static final String EMAIL_CONFIG_SMTP_AUTH_METHOD_OAUTH = &quot;OAUTH&quot;;
+  // Basic Auth
+  public static final String EMAIL_CONFIG_SMTP_USERNAME = &quot;email.smtp_username.secured&quot;;
+  public static final String EMAIL_CONFIG_SMTP_USERNAME_DEFAULT = &quot;&quot;;
+  public static final String EMAIL_CONFIG_SMTP_PASSWORD = &quot;email.smtp_password.secured&quot;;
+  public static final String EMAIL_CONFIG_SMTP_PASSWORD_DEFAULT = &quot;&quot;;
+  // OAuth
+  public static final String EMAIL_CONFIG_SMTP_OAUTH_HOST = &quot;email.smtp.oauth.host&quot;;
+  public static final String EMAIL_CONFIG_SMTP_OAUTH_HOST_DEFAULT = &quot;https://login.microsoftonline.com&quot;;
+  public static final String EMAIL_CONFIG_SMTP_OAUTH_CLIENTID = &quot;email.smtp.oauth.clientId&quot;;
+  public static final String EMAIL_CONFIG_SMTP_OAUTH_CLIENTSECRET = &quot;email.smtp.oauth.clientSecret&quot;;
+  public static final String EMAIL_CONFIG_SMTP_OAUTH_TENANT = &quot;email.smtp.oauth.tenant&quot;;
+  public static final String EMAIL_CONFIG_SMTP_OAUTH_SCOPE = &quot;email.smtp.oauth.scope&quot;;
+  public static final String EMAIL_CONFIG_SMTP_OAUTH_SCOPE_DEFAULT = &quot;https://outlook.office365.com/.default&quot;;
+  public static final String EMAIL_CONFIG_SMTP_OAUTH_GRANT = &quot;email.smtp.oauth.grant&quot;;
+  public static final String EMAIL_CONFIG_SMTP_OAUTH_GRANT_DEFAULT = &quot;client_credentials&quot;;
+
+  private final DbClient dbClient;
+  private final Encryption encryption;
+
+<span class="fc" id="L71">  public EmailSmtpConfiguration(DbClient dbClient, Settings settings) {</span>
+<span class="fc" id="L72">    this.dbClient = dbClient;</span>
+<span class="fc" id="L73">    this.encryption = new Encryption(settings.getRawString(ENCRYPTION_SECRET_KEY_PATH).orElse(null));</span>
+<span class="fc" id="L74">  }</span>
+
+  public String getSmtpHost() {
+<span class="nc" id="L77">    return get(EMAIL_CONFIG_SMTP_HOST, EMAIL_CONFIG_SMTP_HOST_DEFAULT);</span>
+  }
+
+  public int getSmtpPort() {
+<span class="nc" id="L81">    return Integer.parseInt(get(EMAIL_CONFIG_SMTP_PORT, EMAIL_CONFIG_SMTP_PORT_DEFAULT));</span>
+  }
+
+  public String getSecureConnection() {
+<span class="nc" id="L85">    return get(EMAIL_CONFIG_SMTP_SECURE_CONNECTION, EMAIL_CONFIG_SMTP_SECURE_CONNECTION_DEFAULT);</span>
+  }
+
+  public String getAuthMethod() {
+<span class="nc" id="L89">    return get(EMAIL_CONFIG_SMTP_AUTH_METHOD, EMAIL_CONFIG_SMTP_AUTH_METHOD_DEFAULT);</span>
+  }
+
+  public String getFrom() {
+<span class="fc" id="L93">    return get(EMAIL_CONFIG_FROM, EMAIL_CONFIG_FROM_DEFAULT);</span>
+  }
+
+  public String getFromName() {
+<span class="nc" id="L97">    return get(EMAIL_CONFIG_FROM_NAME, EMAIL_CONFIG_FROM_NAME_DEFAULT);</span>
+  }
+
+  public String getPrefix() {
+<span class="nc" id="L101">    return get(EMAIL_CONFIG_PREFIX, EMAIL_CONFIG_PREFIX_DEFAULT);</span>
+  }
+
+  public String getSmtpUsername() {
+<span class="nc" id="L105">    return get(EMAIL_CONFIG_SMTP_USERNAME, EMAIL_CONFIG_SMTP_USERNAME_DEFAULT);</span>
+  }
+
+  public String getSmtpPassword() {
+<span class="fc" id="L109">    return get(EMAIL_CONFIG_SMTP_PASSWORD, EMAIL_CONFIG_SMTP_PASSWORD_DEFAULT);</span>
+  }
+
+  public String getOAuthHost() {
+<span class="nc" id="L113">    return get(EMAIL_CONFIG_SMTP_OAUTH_HOST, EMAIL_CONFIG_SMTP_OAUTH_HOST_DEFAULT);</span>
+  }
+
+  public String getOAuthTenant() {
+<span class="nc" id="L117">    return get(EMAIL_CONFIG_SMTP_OAUTH_TENANT, &quot;&quot;);</span>
+  }
+
+  public String getOAuthClientId() {
+<span class="nc" id="L121">    return get(EMAIL_CONFIG_SMTP_OAUTH_CLIENTID, &quot;&quot;);</span>
+  }
+
+  public String getOAuthClientSecret() {
+<span class="nc" id="L125">    return get(EMAIL_CONFIG_SMTP_OAUTH_CLIENTSECRET, &quot;&quot;);</span>
+  }
+
+  public String getOAuthScope() {
+<span class="nc" id="L129">    return get(EMAIL_CONFIG_SMTP_OAUTH_SCOPE, EMAIL_CONFIG_SMTP_OAUTH_SCOPE_DEFAULT);</span>
+  }
+
+  public String getOAuthGrant() {
+<span class="nc" id="L133">    return get(EMAIL_CONFIG_SMTP_OAUTH_GRANT, EMAIL_CONFIG_SMTP_OAUTH_GRANT_DEFAULT);</span>
+  }
+
+  private String get(String key, String defaultValue) {
+<span class="fc" id="L137">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L138">      return dbClient.internalPropertiesDao().selectByKey(dbSession, key)</span>
+<span class="fc" id="L139">        .map(value -&gt; decryptIfNeeded(key, value))</span>
+<span class="fc" id="L140">        .orElse(defaultValue);</span>
+    }
+  }
+
+  private String decryptIfNeeded(String key, String value) {
+<span class="fc bfc" id="L145" title="All 2 branches covered.">    if (!encryption.isEncrypted(value)) {</span>
+<span class="fc" id="L146">      return value;</span>
+    }
+    try {
+<span class="fc" id="L149">      return encryption.decrypt(value);</span>
+<span class="nc" id="L150">    } catch (Exception e) {</span>
+<span class="nc" id="L151">      throw new IllegalStateException(&quot;Fail to decrypt the property %s. Please check your secret key.&quot;.formatted(key), e);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

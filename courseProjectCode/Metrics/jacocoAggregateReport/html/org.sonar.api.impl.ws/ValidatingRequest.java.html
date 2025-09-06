@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ValidatingRequest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.api.impl.ws</a> &gt; <span class="el_source">ValidatingRequest.java</span></div><h1>ValidatingRequest.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.api.impl.ws;
+
+import java.io.InputStream;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.api.server.ws.LocalConnector;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.WebService;
+
+import static java.lang.String.format;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
+import static java.util.Objects.requireNonNull;
+import static org.sonar.api.utils.Preconditions.checkArgument;
+
+/**
+ * @since 4.2
+ */
+<span class="fc" id="L42">public abstract class ValidatingRequest extends Request {</span>
+
+  private static final String COMMA_SPLITTER = &quot;,&quot;;
+  private WebService.Action action;
+  private LocalConnector localConnector;
+
+  public void setAction(WebService.Action action) {
+<span class="fc" id="L49">    this.action = action;</span>
+<span class="fc" id="L50">  }</span>
+
+  public WebService.Action action() {
+<span class="fc" id="L53">    return action;</span>
+  }
+
+  @Override
+  public LocalConnector localConnector() {
+<span class="nc" id="L58">    requireNonNull(localConnector, &quot;Local connector has not been set&quot;);</span>
+<span class="nc" id="L59">    return localConnector;</span>
+  }
+
+  public void setLocalConnector(LocalConnector lc) {
+<span class="fc" id="L63">    this.localConnector = lc;</span>
+<span class="fc" id="L64">  }</span>
+
+  @Override
+  @CheckForNull
+  public String param(String key) {
+<span class="fc" id="L69">    WebService.Param definition = action.param(key);</span>
+<span class="fc" id="L70">    String rawValue = readParam(key, definition);</span>
+<span class="fc" id="L71">    String rawValueOrDefault = Objects.toString(rawValue, definition.defaultValue());</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">    String value = rawValueOrDefault == null ? null : trim(rawValueOrDefault);</span>
+<span class="fc" id="L73">    validateRequiredValue(key, definition, rawValue);</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">    if (value == null) {</span>
+<span class="fc" id="L75">      return null;</span>
+    }
+<span class="fc" id="L77">    validatePossibleValues(key, value, definition);</span>
+<span class="fc" id="L78">    validateMaximumLength(key, definition, rawValueOrDefault);</span>
+<span class="fc" id="L79">    validateMinimumLength(key, definition, rawValueOrDefault);</span>
+<span class="fc" id="L80">    validateMaximumValue(key, definition, value);</span>
+<span class="fc" id="L81">    return value;</span>
+  }
+
+  @Override
+  public List&lt;String&gt; multiParam(String key) {
+<span class="fc" id="L86">    WebService.Param definition = action.param(key);</span>
+<span class="pc bpc" id="L87" title="1 of 2 branches missed.">    if (definition == null) {</span>
+<span class="nc" id="L88">      throw new IllegalArgumentException(&quot;Parameter '&quot; + key + &quot;' not found for action '&quot; + action.key() + &quot;'&quot;);</span>
+    }
+<span class="fc" id="L90">    List&lt;String&gt; values = readMultiParamOrDefaultValue(key, definition);</span>
+<span class="fc" id="L91">    return validateValues(values, definition);</span>
+  }
+
+  private static String trim(String s) {
+    int begin;
+<span class="fc bfc" id="L96" title="All 2 branches covered.">    for (begin = 0; begin &lt; s.length(); begin++) {</span>
+<span class="fc bfc" id="L97" title="All 2 branches covered.">      if (!Character.isWhitespace(s.charAt(begin))) {</span>
+<span class="fc" id="L98">        break;</span>
+      }
+    }
+
+    int end;
+<span class="fc bfc" id="L103" title="All 2 branches covered.">    for (end = s.length(); end &gt; begin; end--) {</span>
+<span class="fc bfc" id="L104" title="All 2 branches covered.">      if (!Character.isWhitespace(s.charAt(end - 1))) {</span>
+<span class="fc" id="L105">        break;</span>
+      }
+    }
+<span class="fc" id="L108">    return s.substring(begin, end);</span>
+  }
+
+  @Override
+  @CheckForNull
+  public InputStream paramAsInputStream(String key) {
+<span class="fc" id="L114">    return readInputStreamParam(key);</span>
+  }
+
+  @Override
+  @CheckForNull
+  public Part paramAsPart(String key) {
+<span class="fc" id="L120">    return readPart(key);</span>
+  }
+
+  @CheckForNull
+  @Override
+  public List&lt;String&gt; paramAsStrings(String key) {
+<span class="fc" id="L126">    WebService.Param definition = action.param(key);</span>
+<span class="fc" id="L127">    String value = Objects.toString(readParam(key, definition), definition.defaultValue());</span>
+<span class="fc bfc" id="L128" title="All 2 branches covered.">    if (value == null) {</span>
+<span class="fc" id="L129">      return null;</span>
+    }
+<span class="fc" id="L131">    List&lt;String&gt; values = Arrays.stream(value.split(COMMA_SPLITTER))</span>
+<span class="fc" id="L132">      .map(String::trim)</span>
+<span class="fc bfc" id="L133" title="All 2 branches covered.">      .filter(s -&gt; !s.isEmpty())</span>
+<span class="fc" id="L134">      .toList();</span>
+<span class="fc" id="L135">    return validateValues(values, definition);</span>
+  }
+
+  @CheckForNull
+  @Override
+  public &lt;E extends Enum&lt;E&gt;&gt; List&lt;E&gt; paramAsEnums(String key, Class&lt;E&gt; enumClass) {
+<span class="nc" id="L141">    List&lt;String&gt; values = paramAsStrings(key);</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">    if (values == null) {</span>
+<span class="nc" id="L143">      return null;</span>
+    }
+<span class="nc" id="L145">    return values.stream()</span>
+<span class="nc bnc" id="L146" title="All 2 branches missed.">      .filter(s -&gt; !s.isEmpty())</span>
+<span class="nc" id="L147">      .map(value -&gt; Enum.valueOf(enumClass, value))</span>
+<span class="nc" id="L148">      .toList();</span>
+  }
+
+  @CheckForNull
+  private String readParam(String key, @Nullable WebService.Param definition) {
+<span class="fc bfc" id="L153" title="All 2 branches covered.">    checkArgument(definition != null, &quot;BUG - parameter '%s' is undefined for action '%s'&quot;, key, action.key());</span>
+<span class="fc" id="L154">    String deprecatedKey = definition.deprecatedKey();</span>
+<span class="fc bfc" id="L155" title="All 2 branches covered.">    String param = deprecatedKey != null ? Objects.toString(readParam(deprecatedKey), readParam(key)) : readParam(key);</span>
+<span class="pc bpc" id="L156" title="1 of 4 branches missed.">    if (param != null &amp;&amp; param.contains(&quot;\0&quot;)) {</span>
+<span class="nc" id="L157">      throw new IllegalArgumentException(&quot;Request parameters are not allowed to contain NUL character&quot;);</span>
+    }
+<span class="fc" id="L159">    return param;</span>
+  }
+
+  private List&lt;String&gt; readMultiParamOrDefaultValue(String key, @Nullable WebService.Param definition) {
+<span class="pc bpc" id="L163" title="1 of 2 branches missed.">    checkArgument(definition != null, &quot;BUG - parameter '%s' is undefined for action '%s'&quot;, key, action.key());</span>
+
+<span class="fc" id="L165">    List&lt;String&gt; keyValues = readMultiParam(key);</span>
+<span class="fc bfc" id="L166" title="All 2 branches covered.">    if (!keyValues.isEmpty()) {</span>
+<span class="fc" id="L167">      return keyValues;</span>
+    }
+
+<span class="fc" id="L170">    String deprecatedKey = definition.deprecatedKey();</span>
+<span class="pc bpc" id="L171" title="1 of 2 branches missed.">    List&lt;String&gt; deprecatedKeyValues = deprecatedKey == null ? emptyList() : readMultiParam(deprecatedKey);</span>
+<span class="pc bpc" id="L172" title="1 of 2 branches missed.">    if (!deprecatedKeyValues.isEmpty()) {</span>
+<span class="nc" id="L173">      return deprecatedKeyValues;</span>
+    }
+
+<span class="fc" id="L176">    String defaultValue = definition.defaultValue();</span>
+<span class="pc bpc" id="L177" title="1 of 2 branches missed.">    return defaultValue == null ? emptyList() : singletonList(defaultValue);</span>
+  }
+
+  @CheckForNull
+  protected abstract String readParam(String key);
+
+  protected abstract List&lt;String&gt; readMultiParam(String key);
+
+  @CheckForNull
+  protected abstract InputStream readInputStreamParam(String key);
+
+  @CheckForNull
+  protected abstract Part readPart(String key);
+
+  private static List&lt;String&gt; validateValues(List&lt;String&gt; values, WebService.Param definition) {
+<span class="fc" id="L192">    Integer maximumValues = definition.maxValuesAllowed();</span>
+<span class="fc bfc" id="L193" title="All 4 branches covered.">    checkArgument(maximumValues == null || values.size() &lt;= maximumValues, &quot;'%s' can contain only %s values, got %s&quot;, definition.key(), maximumValues, values.size());</span>
+<span class="fc" id="L194">    values.forEach(value -&gt; validatePossibleValues(definition.key(), value, definition));</span>
+<span class="fc" id="L195">    return values;</span>
+  }
+
+  private static void validatePossibleValues(String key, String value, WebService.Param definition) {
+<span class="fc" id="L199">    Set&lt;String&gt; possibleValues = definition.possibleValues();</span>
+<span class="fc bfc" id="L200" title="All 2 branches covered.">    if (possibleValues == null) {</span>
+<span class="fc" id="L201">      return;</span>
+    }
+<span class="fc" id="L203">    checkArgument(possibleValues.contains(value), &quot;Value of parameter '%s' (%s) must be one of: %s&quot;, key, value, possibleValues);</span>
+<span class="fc" id="L204">  }</span>
+
+  private static void validateMaximumLength(String key, WebService.Param definition, String valueOrDefault) {
+<span class="fc" id="L207">    Integer maximumLength = definition.maximumLength();</span>
+<span class="fc bfc" id="L208" title="All 2 branches covered.">    if (maximumLength == null) {</span>
+<span class="fc" id="L209">      return;</span>
+    }
+<span class="fc" id="L211">    int valueLength = valueOrDefault.length();</span>
+<span class="fc bfc" id="L212" title="All 2 branches covered.">    checkArgument(valueLength &lt;= maximumLength, &quot;'%s' length (%s) is longer than the maximum authorized (%s)&quot;, key, valueLength, maximumLength);</span>
+<span class="fc" id="L213">  }</span>
+
+  private static void validateMinimumLength(String key, WebService.Param definition, String valueOrDefault) {
+<span class="fc" id="L216">    Integer minimumLength = definition.minimumLength();</span>
+<span class="fc bfc" id="L217" title="All 2 branches covered.">    if (minimumLength == null) {</span>
+<span class="fc" id="L218">      return;</span>
+    }
+<span class="fc" id="L220">    int valueLength = valueOrDefault.length();</span>
+<span class="fc bfc" id="L221" title="All 2 branches covered.">    checkArgument(valueLength &gt;= minimumLength, &quot;'%s' length (%s) is shorter than the minimum authorized (%s)&quot;, key, valueLength, minimumLength);</span>
+<span class="fc" id="L222">  }</span>
+
+  private static void validateMaximumValue(String key, WebService.Param definition, String value) {
+<span class="fc" id="L225">    Integer maximumValue = definition.maximumValue();</span>
+<span class="fc bfc" id="L226" title="All 2 branches covered.">    if (maximumValue == null) {</span>
+<span class="fc" id="L227">      return;</span>
+    }
+<span class="fc" id="L229">    int valueAsInt = validateAsNumeric(key, value);</span>
+<span class="fc bfc" id="L230" title="All 2 branches covered.">    checkArgument(valueAsInt &lt;= maximumValue, &quot;'%s' value (%s) must be less than %s&quot;, key, valueAsInt, maximumValue);</span>
+<span class="fc" id="L231">  }</span>
+
+  private static void validateRequiredValue(String key, WebService.Param definition, @Nullable String value) {
+<span class="fc" id="L234">    boolean required = definition.isRequired();</span>
+<span class="fc bfc" id="L235" title="All 2 branches covered.">    if (required) {</span>
+<span class="fc bfc" id="L236" title="All 2 branches covered.">      checkArgument(value != null, format(MSG_PARAMETER_MISSING, key));</span>
+    }
+<span class="fc" id="L238">  }</span>
+
+  private static int validateAsNumeric(String key, String value) {
+    try {
+<span class="fc" id="L242">      return Integer.parseInt(value);</span>
+<span class="fc" id="L243">    } catch (NumberFormatException exception) {</span>
+<span class="fc" id="L244">      throw new IllegalArgumentException(format(&quot;'%s' value '%s' cannot be parsed as an integer&quot;, key, value), exception);</span>
+    }
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

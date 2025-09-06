@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CoverageLineReader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.source.linereader</a> &gt; <span class="el_source">CoverageLineReader.java</span></div><h1>CoverageLineReader.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.source.linereader;
+
+import java.util.Iterator;
+import java.util.Optional;
+import javax.annotation.CheckForNull;
+import org.sonar.db.protobuf.DbFileSources;
+import org.sonar.scanner.protocol.output.ScannerReport;
+import org.sonar.scanner.protocol.output.ScannerReport.LineCoverage.HasCoveredConditionsCase;
+import org.sonar.scanner.protocol.output.ScannerReport.LineCoverage.HasHitsCase;
+
+public class CoverageLineReader implements LineReader {
+
+  private final Iterator&lt;ScannerReport.LineCoverage&gt; coverageIterator;
+  private ScannerReport.LineCoverage coverage;
+
+<span class="fc" id="L35">  public CoverageLineReader(Iterator&lt;ScannerReport.LineCoverage&gt; coverageIterator) {</span>
+<span class="fc" id="L36">    this.coverageIterator = coverageIterator;</span>
+<span class="fc" id="L37">  }</span>
+
+  @Override
+  public Optional&lt;ReadError&gt; read(DbFileSources.Line.Builder lineBuilder) {
+<span class="fc" id="L41">    ScannerReport.LineCoverage reportCoverage = getNextLineCoverageIfMatchLine(lineBuilder.getLine());</span>
+<span class="fc bfc" id="L42" title="All 2 branches covered.">    if (reportCoverage != null) {</span>
+<span class="fc" id="L43">      processCoverage(lineBuilder, reportCoverage);</span>
+<span class="fc" id="L44">      coverage = null;</span>
+    }
+<span class="fc" id="L46">    return Optional.empty();</span>
+  }
+
+  private static void processCoverage(DbFileSources.Line.Builder lineBuilder, ScannerReport.LineCoverage reportCoverage) {
+<span class="fc bfc" id="L50" title="All 2 branches covered.">    if (reportCoverage.getHasHitsCase() == HasHitsCase.HITS) {</span>
+<span class="fc bfc" id="L51" title="All 2 branches covered.">      lineBuilder.setLineHits(reportCoverage.getHits() ? 1 : 0);</span>
+    }
+<span class="fc bfc" id="L53" title="All 2 branches covered.">    if (reportCoverage.getHasCoveredConditionsCase() == HasCoveredConditionsCase.COVERED_CONDITIONS) {</span>
+<span class="fc" id="L54">      lineBuilder.setConditions(reportCoverage.getConditions());</span>
+<span class="fc" id="L55">      lineBuilder.setCoveredConditions(reportCoverage.getCoveredConditions());</span>
+    }
+<span class="fc" id="L57">  }</span>
+
+  @CheckForNull
+  private ScannerReport.LineCoverage getNextLineCoverageIfMatchLine(int line) {
+    // Get next element (if exists)
+<span class="pc bpc" id="L62" title="1 of 4 branches missed.">    if (coverage == null &amp;&amp; coverageIterator.hasNext()) {</span>
+<span class="fc" id="L63">      coverage = coverageIterator.next();</span>
+    }
+    // Return current element if lines match
+<span class="fc bfc" id="L66" title="All 4 branches covered.">    if (coverage != null &amp;&amp; coverage.getLine() == line) {</span>
+<span class="fc" id="L67">      return coverage;</span>
+    }
+<span class="fc" id="L69">    return null;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

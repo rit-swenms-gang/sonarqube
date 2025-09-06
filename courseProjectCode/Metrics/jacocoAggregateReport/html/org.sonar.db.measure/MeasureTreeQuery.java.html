@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MeasureTreeQuery.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.measure</a> &gt; <span class="el_source">MeasureTreeQuery.java</span></div><h1>MeasureTreeQuery.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.measure;
+
+import java.util.Collection;
+import java.util.Locale;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.db.WildcardPosition;
+import org.sonar.db.component.ComponentDto;
+
+import static com.google.common.collect.Lists.newArrayList;
+import static java.util.Objects.requireNonNull;
+import static org.sonar.db.DaoUtils.buildLikeValue;
+import static org.sonar.db.WildcardPosition.BEFORE_AND_AFTER;
+
+public class MeasureTreeQuery {
+
+<span class="fc" id="L36">  public enum Strategy {</span>
+<span class="fc" id="L37">    CHILDREN, LEAVES</span>
+  }
+
+  @CheckForNull
+  private final String nameOrKeyQuery;
+  // SONAR-7681 a public implementation of List must be used in MyBatis - potential concurrency exceptions otherwise
+  @CheckForNull
+  private final Collection&lt;String&gt; qualifiers;
+  private final Strategy strategy;
+
+<span class="fc" id="L47">  private MeasureTreeQuery(Builder builder) {</span>
+<span class="fc" id="L48">    this.nameOrKeyQuery = builder.nameOrKeyQuery;</span>
+<span class="fc bfc" id="L49" title="All 2 branches covered.">    this.qualifiers = builder.qualifiers == null ? null : newArrayList(builder.qualifiers);</span>
+<span class="fc" id="L50">    this.strategy = requireNonNull(builder.strategy);</span>
+<span class="fc" id="L51">  }</span>
+
+  @CheckForNull
+  public String getNameOrKeyQuery() {
+<span class="fc" id="L55">    return nameOrKeyQuery;</span>
+  }
+
+  /**
+   * Used by MyBatis mapper
+   */
+  @CheckForNull
+  public String getNameOrKeyUpperLikeQuery() {
+<span class="fc bfc" id="L63" title="All 2 branches covered.">    return nameOrKeyQuery == null ? null : buildLikeValue(nameOrKeyQuery, BEFORE_AND_AFTER).toUpperCase(Locale.ENGLISH);</span>
+  }
+
+  @CheckForNull
+  public Collection&lt;String&gt; getQualifiers() {
+<span class="fc" id="L68">    return qualifiers;</span>
+  }
+
+  public Strategy getStrategy() {
+<span class="fc" id="L72">    return strategy;</span>
+  }
+
+  public String getUuidPath(ComponentDto component) {
+<span class="pc bpc" id="L76" title="1 of 3 branches missed.">    switch (strategy) {</span>
+      case CHILDREN:
+<span class="fc" id="L78">        return component.getUuidPath() + component.uuid() + &quot;.&quot;;</span>
+      case LEAVES:
+<span class="fc" id="L80">        return buildLikeValue(component.getUuidPath() + component.uuid() + &quot;.&quot;, WildcardPosition.AFTER);</span>
+      default:
+<span class="nc" id="L82">        throw new IllegalArgumentException(&quot;Unknown strategy : &quot; + strategy);</span>
+    }
+  }
+
+  public boolean returnsEmpty() {
+<span class="fc bfc" id="L87" title="All 4 branches covered.">    return (qualifiers != null &amp;&amp; qualifiers.isEmpty());</span>
+  }
+
+  public static Builder builder() {
+<span class="fc" id="L91">    return new Builder();</span>
+  }
+
+  public static final class Builder {
+
+    @CheckForNull
+    private String nameOrKeyQuery;
+    @CheckForNull
+    private Collection&lt;String&gt; qualifiers;
+    private Strategy strategy;
+
+    private Builder() {
+    }
+
+    public Builder setNameOrKeyQuery(@Nullable String nameOrKeyQuery) {
+<span class="fc" id="L106">      this.nameOrKeyQuery = nameOrKeyQuery;</span>
+<span class="fc" id="L107">      return this;</span>
+    }
+
+    public Builder setQualifiers(Collection&lt;String&gt; qualifiers) {
+<span class="fc" id="L111">      this.qualifiers = qualifiers;</span>
+<span class="fc" id="L112">      return this;</span>
+    }
+
+    public Builder setStrategy(Strategy strategy) {
+<span class="fc" id="L116">      this.strategy = requireNonNull(strategy);</span>
+<span class="fc" id="L117">      return this;</span>
+    }
+
+    public MeasureTreeQuery build() {
+<span class="fc" id="L121">      return new MeasureTreeQuery(this);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

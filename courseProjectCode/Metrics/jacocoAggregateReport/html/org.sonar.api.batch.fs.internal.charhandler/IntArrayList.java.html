@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IntArrayList.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.api.batch.fs.internal.charhandler</a> &gt; <span class="el_source">IntArrayList.java</span></div><h1>IntArrayList.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.api.batch.fs.internal.charhandler;
+
+import java.util.Arrays;
+import java.util.Collection;
+
+/**
+ * Specialization of {@link java.util.ArrayList} to create a list of int (only append elements) and then produce an int[].
+ */
+class IntArrayList {
+
+  /**
+   * Default initial capacity.
+   */
+  private static final int DEFAULT_CAPACITY = 10;
+
+  /**
+   * Shared empty array instance used for default sized empty instances. We
+   * distinguish this from EMPTY_ELEMENTDATA to know how much to inflate when
+   * first element is added.
+   */
+<span class="fc" id="L40">  private static final int[] DEFAULTCAPACITY_EMPTY_ELEMENTDATA = {};</span>
+
+  /**
+   * The array buffer into which the elements of the ArrayList are stored.
+   * The capacity of the IntArrayList is the length of this array buffer. Any
+   * empty IntArrayList with elementData == DEFAULTCAPACITY_EMPTY_ELEMENTDATA
+   * will be expanded to DEFAULT_CAPACITY when the first element is added.
+   */
+  private int[] elementData;
+
+  /**
+   * The size of the IntArrayList (the number of elements it contains).
+   */
+  private int size;
+
+  /**
+   * Constructs an empty list with an initial capacity of ten.
+   */
+<span class="fc" id="L58">  public IntArrayList() {</span>
+<span class="fc" id="L59">    this.elementData = DEFAULTCAPACITY_EMPTY_ELEMENTDATA;</span>
+<span class="fc" id="L60">  }</span>
+
+  /**
+   * Trims the capacity of this &lt;tt&gt;IntArrayList&lt;/tt&gt; instance to be the
+   * list's current size and return the internal array. An application can use this operation to minimize
+   * the storage of an &lt;tt&gt;IntArrayList&lt;/tt&gt; instance.
+   */
+  public int[] trimAndGet() {
+<span class="fc bfc" id="L68" title="All 2 branches covered.">    if (size &lt; elementData.length) {</span>
+<span class="fc" id="L69">      elementData = Arrays.copyOf(elementData, size);</span>
+    }
+<span class="fc" id="L71">    return elementData;</span>
+  }
+
+  private void ensureCapacityInternal(int minCapacity) {
+<span class="fc" id="L75">    int capacity = minCapacity;</span>
+<span class="fc bfc" id="L76" title="All 2 branches covered.">    if (elementData == DEFAULTCAPACITY_EMPTY_ELEMENTDATA) {</span>
+<span class="fc" id="L77">      capacity = Math.max(DEFAULT_CAPACITY, minCapacity);</span>
+    }
+
+<span class="fc" id="L80">    ensureExplicitCapacity(capacity);</span>
+<span class="fc" id="L81">  }</span>
+
+  private void ensureExplicitCapacity(int minCapacity) {
+<span class="fc bfc" id="L84" title="All 2 branches covered.">    if (minCapacity - elementData.length &gt; 0) {</span>
+<span class="fc" id="L85">      grow(minCapacity);</span>
+    }
+<span class="fc" id="L87">  }</span>
+
+  /**
+   * Increases the capacity to ensure that it can hold at least the
+   * number of elements specified by the minimum capacity argument.
+   *
+   * @param minCapacity the desired minimum capacity
+   */
+  private void grow(int minCapacity) {
+<span class="fc" id="L96">    int oldCapacity = elementData.length;</span>
+<span class="fc" id="L97">    int newCapacity = oldCapacity + (oldCapacity &gt;&gt; 1);</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">    if (newCapacity - minCapacity &lt; 0) {</span>
+<span class="fc" id="L99">      newCapacity = minCapacity;</span>
+    }
+<span class="fc" id="L101">    elementData = Arrays.copyOf(elementData, newCapacity);</span>
+<span class="fc" id="L102">  }</span>
+
+  /**
+   * Appends the specified element to the end of this list.
+   *
+   * @param e element to be appended to this list
+   * @return &lt;tt&gt;true&lt;/tt&gt; (as specified by {@link Collection#add})
+   */
+  public boolean add(int e) {
+<span class="fc" id="L111">    ensureCapacityInternal(size + 1);</span>
+<span class="fc" id="L112">    elementData[size] = e;</span>
+<span class="fc" id="L113">    size++;</span>
+<span class="fc" id="L114">    return true;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

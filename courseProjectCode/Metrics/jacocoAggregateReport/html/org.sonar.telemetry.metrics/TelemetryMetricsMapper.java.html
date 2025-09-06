@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TelemetryMetricsMapper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.telemetry.metrics</a> &gt; <span class="el_source">TelemetryMetricsMapper.java</span></div><h1>TelemetryMetricsMapper.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.telemetry.metrics;
+
+import java.util.Collections;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.sonar.telemetry.core.Granularity;
+import org.sonar.telemetry.core.TelemetryDataProvider;
+import org.sonar.telemetry.core.schema.InstallationMetric;
+import org.sonar.telemetry.core.schema.LanguageMetric;
+import org.sonar.telemetry.core.schema.Metric;
+import org.sonar.telemetry.core.schema.ProjectMetric;
+import org.sonar.telemetry.core.schema.UserMetric;
+
+public class TelemetryMetricsMapper {
+
+  private TelemetryMetricsMapper() {
+  }
+
+  public static Set&lt;Metric&gt; mapFromDataProvider(TelemetryDataProvider&lt;?&gt; provider) {
+<span class="pc bpc" id="L39" title="1 of 5 branches missed.">    switch (provider.getDimension()) {</span>
+      case INSTALLATION -&gt; {
+<span class="fc" id="L41">        return mapInstallationMetric(provider);</span>
+      }
+      case PROJECT -&gt; {
+<span class="fc" id="L44">        return mapProjectMetric(provider);</span>
+      }
+      case USER -&gt; {
+<span class="fc" id="L47">        return mapUserMetric(provider);</span>
+      }
+      case LANGUAGE -&gt; {
+<span class="fc" id="L50">        return mapLanguageMetric(provider);</span>
+      }
+<span class="nc" id="L52">      default -&gt; throw new IllegalArgumentException(&quot;Dimension: &quot; + provider.getDimension() + &quot; not yet implemented.&quot;);</span>
+    }
+  }
+
+  private static Set&lt;Metric&gt; mapInstallationMetric(TelemetryDataProvider&lt;?&gt; provider) {
+    // Case 1: the provider has implemented getValues() and it is non‐empty
+<span class="fc" id="L58">    var multiValues = provider.getValues();</span>
+<span class="fc bfc" id="L59" title="All 2 branches covered.">    if (!multiValues.isEmpty()) {</span>
+<span class="fc" id="L60">      return multiValues.entrySet().stream()</span>
+<span class="fc" id="L61">        .map(entry -&gt; new InstallationMetric(</span>
+<span class="fc" id="L62">          provider.getMetricKey() + &quot;.&quot; + entry.getKey(),</span>
+<span class="fc" id="L63">          entry.getValue(),</span>
+<span class="fc" id="L64">          provider.getType(),</span>
+<span class="fc" id="L65">          provider.getGranularity()))</span>
+<span class="fc" id="L66">        .collect(Collectors.toSet());</span>
+    }
+
+    // Case 2: the provider has implemented getValue() and it is non‐empty
+<span class="fc" id="L70">    var singleValue = provider.getValue();</span>
+<span class="fc bfc" id="L71" title="All 2 branches covered.">    if (singleValue.isPresent()) {</span>
+<span class="fc" id="L72">      return Collections.singleton(new InstallationMetric(</span>
+<span class="fc" id="L73">        provider.getMetricKey(),</span>
+<span class="fc" id="L74">        singleValue.orElse(null),</span>
+<span class="fc" id="L75">        provider.getType(),</span>
+<span class="fc" id="L76">        provider.getGranularity()));</span>
+    }
+
+    // Case 3: the provider has not implemented getValue() or getValues(), or both are empty
+<span class="fc bfc" id="L80" title="All 2 branches covered.">    if (provider.getGranularity() == Granularity.ADHOC) {</span>
+<span class="fc" id="L81">      return Collections.emptySet();</span>
+    } else {
+      // It's not clear whether we actually want to send a null metric in this case, but we do for now to be consistent with the previous implementation.
+<span class="fc" id="L84">      return Collections.singleton(new InstallationMetric(</span>
+<span class="fc" id="L85">        provider.getMetricKey(),</span>
+        null,
+<span class="fc" id="L87">        provider.getType(),</span>
+<span class="fc" id="L88">        provider.getGranularity()));</span>
+    }
+  }
+
+  // Note: Dimension.USER does not currently support getValue(). But we just silently ignore it if a provider tries to use it.
+  private static Set&lt;Metric&gt; mapUserMetric(TelemetryDataProvider&lt;?&gt; provider) {
+<span class="fc" id="L94">    return provider.getValues().entrySet().stream()</span>
+<span class="fc" id="L95">      .map(entry -&gt; new UserMetric(</span>
+<span class="fc" id="L96">        provider.getMetricKey(),</span>
+<span class="fc" id="L97">        entry.getValue(),</span>
+<span class="fc" id="L98">        entry.getKey(),</span>
+<span class="fc" id="L99">        provider.getType(),</span>
+<span class="fc" id="L100">        provider.getGranularity()))</span>
+<span class="fc" id="L101">      .collect(Collectors.toSet());</span>
+  }
+
+  // Note: Dimension.PROJECT does not currently support getValue(). But we just silently ignore it if a provider tries to use it.
+  private static Set&lt;Metric&gt; mapProjectMetric(TelemetryDataProvider&lt;?&gt; provider) {
+<span class="fc" id="L106">    return provider.getValues().entrySet().stream()</span>
+<span class="fc" id="L107">      .map(entry -&gt; new ProjectMetric(</span>
+<span class="fc" id="L108">        provider.getMetricKey(),</span>
+<span class="fc" id="L109">        entry.getValue(),</span>
+<span class="fc" id="L110">        entry.getKey(),</span>
+<span class="fc" id="L111">        provider.getType(),</span>
+<span class="fc" id="L112">        provider.getGranularity()))</span>
+<span class="fc" id="L113">      .collect(Collectors.toSet());</span>
+  }
+
+  // Note: Dimension.LANGUAGE does not currently support getValue(). But we just silently ignore it if a provider tries to use it.
+  private static Set&lt;Metric&gt; mapLanguageMetric(TelemetryDataProvider&lt;?&gt; provider) {
+<span class="fc" id="L118">    return provider.getValues().entrySet().stream()</span>
+<span class="fc" id="L119">      .map(entry -&gt; new LanguageMetric(</span>
+<span class="fc" id="L120">        provider.getMetricKey(),</span>
+<span class="fc" id="L121">        entry.getValue(),</span>
+<span class="fc" id="L122">        entry.getKey(),</span>
+<span class="fc" id="L123">        provider.getType(),</span>
+<span class="fc" id="L124">        provider.getGranularity()))</span>
+<span class="fc" id="L125">      .collect(Collectors.toSet());</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

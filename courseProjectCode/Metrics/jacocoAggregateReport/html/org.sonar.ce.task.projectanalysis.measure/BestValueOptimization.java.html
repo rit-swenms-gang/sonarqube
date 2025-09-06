@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BestValueOptimization.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.measure</a> &gt; <span class="el_source">BestValueOptimization.java</span></div><h1>BestValueOptimization.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.measure;
+
+import java.util.function.Predicate;
+import javax.annotation.Nonnull;
+import org.sonar.ce.task.projectanalysis.component.Component;
+import org.sonar.ce.task.projectanalysis.metric.Metric;
+
+import static java.util.Objects.requireNonNull;
+import static org.sonar.ce.task.projectanalysis.measure.ValueType.NO_VALUE;
+
+public class BestValueOptimization implements Predicate&lt;Measure&gt; {
+  private final Metric metric;
+
+<span class="fc" id="L33">  private BestValueOptimization(Metric metric) {</span>
+<span class="fc" id="L34">    this.metric = requireNonNull(metric);</span>
+<span class="fc" id="L35">  }</span>
+
+  public static Predicate&lt;Measure&gt; from(Metric metric, Component component) {
+<span class="fc bfc" id="L38" title="All 4 branches covered.">    if (isBestValueOptimized(metric) &amp;&amp; isBestValueOptimized(component)) {</span>
+<span class="fc" id="L39">      return new BestValueOptimization(metric);</span>
+    }
+<span class="fc" id="L41">    return x -&gt; false;</span>
+  }
+
+  private static boolean isBestValueOptimized(Metric metric) {
+<span class="fc" id="L45">    return metric.isBestValueOptimized();</span>
+  }
+
+  private static boolean isBestValueOptimized(Component component) {
+<span class="fc bfc" id="L49" title="All 2 branches covered.">    return component.getType() == Component.Type.FILE;</span>
+  }
+
+  @Override
+  public boolean test(@Nonnull Measure measure) {
+<span class="fc" id="L54">    return isBestValueOptimized(measure);</span>
+  }
+
+  private boolean isBestValueOptimized(Measure measure) {
+<span class="fc bfc" id="L58" title="All 2 branches covered.">    return measure.getData() == null</span>
+<span class="fc bfc" id="L59" title="All 2 branches covered.">      &amp;&amp; !measure.hasQualityGateStatus()</span>
+<span class="pc bpc" id="L60" title="1 of 4 branches missed.">      &amp;&amp; (measure.getValueType() == NO_VALUE || isBestValue(measure, metric.getBestValue()));</span>
+  }
+
+  private static boolean isBestValue(Measure measure, Double bestValue) {
+<span class="fc bfc" id="L64" title="All 5 branches covered.">    switch (measure.getValueType()) {</span>
+      case BOOLEAN:
+<span class="fc bfc" id="L66" title="All 4 branches covered.">        return (bestValue.intValue() == 1) == measure.getBooleanValue();</span>
+      case INT:
+<span class="fc bfc" id="L68" title="All 2 branches covered.">        return bestValue.intValue() == measure.getIntValue();</span>
+      case LONG:
+<span class="fc bfc" id="L70" title="All 2 branches covered.">        return bestValue.longValue() == measure.getLongValue();</span>
+      case DOUBLE:
+<span class="fc bfc" id="L72" title="All 2 branches covered.">        return bestValue.compareTo(measure.getDoubleValue()) == 0;</span>
+      default:
+<span class="fc" id="L74">        return false;</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ListAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.notification.ws</a> &gt; <span class="el_source">ListAction.java</span></div><h1>ListAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.notification.ws;
+
+import com.google.common.base.Splitter;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import javax.annotation.Nullable;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.db.permission.ProjectPermission;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.entity.EntityDto;
+import org.sonar.db.property.PropertyDto;
+import org.sonar.db.property.PropertyQuery;
+import org.sonar.db.user.UserDto;
+import org.sonar.server.notification.NotificationChannel;
+import org.sonar.server.user.UserSession;
+import org.sonarqube.ws.Notifications.ListResponse;
+import org.sonarqube.ws.Notifications.Notification;
+import org.sonarqube.ws.Notifications.Notification.Builder;
+
+import static java.util.Comparator.comparing;
+import static java.util.Comparator.naturalOrder;
+import static java.util.Comparator.nullsFirst;
+import static java.util.Optional.ofNullable;
+import static org.sonar.server.exceptions.NotFoundException.checkFound;
+import static org.sonar.server.notification.ws.NotificationsWsParameters.ACTION_LIST;
+import static org.sonar.server.notification.ws.NotificationsWsParameters.PARAM_LOGIN;
+import static org.sonar.server.ws.WsUtils.writeProtobuf;
+
+public class ListAction implements NotificationsWsAction {
+
+<span class="fc" id="L61">  private static final Splitter PROPERTY_KEY_SPLITTER = Splitter.on(&quot;.&quot;);</span>
+
+  private final DbClient dbClient;
+  private final UserSession userSession;
+  private final List&lt;String&gt; channels;
+  private final Dispatchers dispatchers;
+
+<span class="fc" id="L68">  public ListAction(NotificationCenter notificationCenter, DbClient dbClient, UserSession userSession, Dispatchers dispatchers) {</span>
+<span class="fc" id="L69">    this.dbClient = dbClient;</span>
+<span class="fc" id="L70">    this.userSession = userSession;</span>
+<span class="fc" id="L71">    this.channels = notificationCenter.getChannels().stream().map(NotificationChannel::getKey).sorted().toList();</span>
+<span class="fc" id="L72">    this.dispatchers = dispatchers;</span>
+<span class="fc" id="L73">  }</span>
+
+  @Override
+  public void define(WebService.NewController context) {
+<span class="fc" id="L77">    WebService.NewAction action = context.createAction(ACTION_LIST)</span>
+<span class="fc" id="L78">      .setDescription(&quot;List notifications of the authenticated user.&lt;br&gt;&quot; +</span>
+        &quot;Requires one of the following permissions:&quot; +
+        &quot;&lt;ul&gt;&quot; +
+        &quot;  &lt;li&gt;Authentication if no login is provided&lt;/li&gt;&quot; +
+        &quot;  &lt;li&gt;System administration if a login is provided&lt;/li&gt;&quot; +
+        &quot;&lt;/ul&gt;&quot;)
+<span class="fc" id="L84">      .setSince(&quot;6.3&quot;)</span>
+<span class="fc" id="L85">      .setResponseExample(getClass().getResource(&quot;list-example.json&quot;))</span>
+<span class="fc" id="L86">      .setHandler(this);</span>
+
+<span class="fc" id="L88">    action.createParam(PARAM_LOGIN)</span>
+<span class="fc" id="L89">      .setDescription(&quot;User login&quot;)</span>
+<span class="fc" id="L90">      .setSince(&quot;6.4&quot;);</span>
+<span class="fc" id="L91">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L95">    ListResponse listResponse = search(request);</span>
+
+<span class="fc" id="L97">    writeProtobuf(listResponse, request, response);</span>
+<span class="fc" id="L98">  }</span>
+
+  private ListResponse search(Request request) {
+<span class="fc" id="L101">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L102">      checkPermissions(request);</span>
+<span class="fc" id="L103">      UserDto user = getUser(dbSession, request);</span>
+<span class="fc" id="L104">      Set&lt;String&gt; globalPermissions = getGlobalPermissions(dbSession, user);</span>
+<span class="fc" id="L105">      return Optional</span>
+<span class="fc" id="L106">        .of(ListResponse.newBuilder())</span>
+<span class="fc" id="L107">        .map(r -&gt; r.addAllChannels(channels))</span>
+<span class="fc" id="L108">        .map(r -&gt; r.addAllGlobalTypes(getAllowedGlobalDispatchers(globalPermissions)))</span>
+<span class="fc" id="L109">        .map(r -&gt; r.addAllPerProjectTypes(getAllowedProjectDispatchers(globalPermissions)))</span>
+<span class="fc" id="L110">        .map(addNotifications(dbSession, user, globalPermissions))</span>
+<span class="fc" id="L111">        .map(ListResponse.Builder::build)</span>
+<span class="fc" id="L112">        .orElseThrow();</span>
+    }
+  }
+
+  private Set&lt;String&gt; getGlobalPermissions(DbSession dbSession, UserDto userDto) {
+<span class="fc" id="L117">    return dbClient.authorizationDao().selectGlobalPermissions(dbSession, userDto.getUuid());</span>
+  }
+
+  private List&lt;String&gt; getAllowedGlobalDispatchers(Set&lt;String&gt; globalPermissions) {
+<span class="fc" id="L121">    return dispatchers.getGlobalDispatchers()</span>
+<span class="fc" id="L122">      .stream()</span>
+<span class="fc" id="L123">      .filter(d -&gt; hasUserPermission(globalPermissions, d))</span>
+<span class="fc" id="L124">      .toList();</span>
+  }
+
+  private List&lt;String&gt; getAllowedProjectDispatchers(Set&lt;String&gt; globalPermissions) {
+<span class="fc" id="L128">    return dispatchers.getProjectDispatchers()</span>
+<span class="fc" id="L129">      .stream()</span>
+<span class="fc" id="L130">      .filter(d -&gt; hasUserPermission(globalPermissions, d))</span>
+<span class="fc" id="L131">      .toList();</span>
+  }
+
+  private boolean hasUserPermission(Set&lt;String&gt; globalPermissions, String dispatcher) {
+<span class="fc bfc" id="L135" title="All 2 branches covered.">    if (!dispatchers.getPermissionRestrictedDispatchers().containsKey(dispatcher)) {</span>
+<span class="fc" id="L136">      return true;</span>
+    }
+<span class="fc" id="L138">    String globalPermission = dispatchers.getPermissionRestrictedDispatchers().get(dispatcher);</span>
+<span class="fc" id="L139">    return globalPermissions.contains(globalPermission);</span>
+  }
+
+  private UserDto getUser(DbSession dbSession, Request request) {
+<span class="fc bfc" id="L143" title="All 2 branches covered.">    String login = request.param(PARAM_LOGIN) == null ? userSession.getLogin() : request.param(PARAM_LOGIN);</span>
+<span class="fc" id="L144">    return checkFound(dbClient.userDao().selectByLogin(dbSession, login), &quot;User '%s' not found&quot;, login);</span>
+  }
+
+  private UnaryOperator&lt;ListResponse.Builder&gt; addNotifications(DbSession dbSession, UserDto user, Set&lt;String&gt; globalPermissions) {
+<span class="fc" id="L148">    return response -&gt; {</span>
+<span class="fc" id="L149">      List&lt;PropertyDto&gt; properties = dbClient.propertiesDao().selectByQuery(PropertyQuery.builder().setUserUuid(user.getUuid()).build(),</span>
+        dbSession);
+<span class="fc" id="L151">      Map&lt;String, EntityDto&gt; entitiesByUuid = searchProjects(dbSession, properties);</span>
+
+<span class="fc" id="L153">      Predicate&lt;PropertyDto&gt; isNotification = prop -&gt; prop.getKey().startsWith(&quot;notification.&quot;);</span>
+<span class="fc bfc" id="L154" title="All 4 branches covered.">      Predicate&lt;PropertyDto&gt; isComponentInDb = prop -&gt; prop.getEntityUuid() == null || entitiesByUuid.containsKey(prop.getEntityUuid());</span>
+
+<span class="fc" id="L156">      Notification.Builder notification = Notification.newBuilder();</span>
+
+<span class="fc" id="L158">      Set&lt;PropertyDto&gt; notificationProps = properties.stream()</span>
+<span class="fc" id="L159">        .filter(isNotification)</span>
+<span class="fc" id="L160">        .filter(channelAndDispatcherAuthorized(globalPermissions))</span>
+<span class="fc" id="L161">        .filter(isComponentInDb).collect(Collectors.toSet());</span>
+
+<span class="fc" id="L163">      Set&lt;Notification&gt; activeNotifications = notificationProps.stream()</span>
+<span class="fc" id="L164">        .filter(prop -&gt; Boolean.parseBoolean(prop.getValue()))</span>
+<span class="fc" id="L165">        .map(p -&gt; toWsNotification(notification, entitiesByUuid, p.getKey(), p.getEntityUuid()))</span>
+<span class="fc" id="L166">        .collect(Collectors.toSet());</span>
+
+<span class="fc" id="L168">      Set&lt;Notification&gt; notificationsEnabledByDefault = getEnabledByDefaultNotifications(notificationProps, notification, entitiesByUuid, globalPermissions);</span>
+
+<span class="fc" id="L170">      Stream.concat(activeNotifications.stream(), notificationsEnabledByDefault.stream())</span>
+<span class="fc" id="L171">        .sorted(comparing(Notification::getProject, nullsFirst(naturalOrder()))</span>
+<span class="fc" id="L172">          .thenComparing(Notification::getChannel)</span>
+<span class="fc" id="L173">          .thenComparing(Notification::getType))</span>
+<span class="fc" id="L174">        .forEach(response::addNotifications);</span>
+
+<span class="fc" id="L176">      return response;</span>
+    };
+  }
+
+  private Set&lt;Notification&gt; getEnabledByDefaultNotifications(Set&lt;PropertyDto&gt; notificationProps, Builder notificationBuilder, Map&lt;String, EntityDto&gt; entitiesByUuid,
+    Set&lt;String&gt; globalPermissions) {
+<span class="fc" id="L182">    Set&lt;String&gt; disabledNotifications = notificationProps.stream()</span>
+<span class="fc bfc" id="L183" title="All 2 branches covered.">      .filter(prop -&gt; !Boolean.parseBoolean(prop.getValue()))</span>
+<span class="fc" id="L184">      .map(PropertyDto::getKey)</span>
+<span class="fc" id="L185">      .collect(Collectors.toSet());</span>
+
+<span class="fc" id="L187">    return dispatchers.getEnabledByDefaultDispatchers()</span>
+<span class="fc" id="L188">      .stream()</span>
+<span class="fc" id="L189">      .filter(d -&gt; hasUserPermission(globalPermissions, d))</span>
+<span class="fc" id="L190">      .flatMap(dispatcher -&gt; channels.stream()</span>
+<span class="fc bfc" id="L191" title="All 2 branches covered.">        .filter(channel -&gt; !isNotificationDisabled(disabledNotifications, dispatcher, channel))</span>
+<span class="fc" id="L192">        .map(channel -&gt; toWsNotification(notificationBuilder, entitiesByUuid, &quot;notification.%s.%s&quot;.formatted(dispatcher, channel), null)))</span>
+<span class="fc" id="L193">      .collect(Collectors.toSet());</span>
+  }
+
+  private static boolean isNotificationDisabled(Set&lt;String&gt; disabledNotification, String dispatcher, String channel) {
+<span class="fc" id="L197">    return disabledNotification.contains(&quot;notification.%s.%s&quot;.formatted(dispatcher, channel));</span>
+  }
+
+  private Predicate&lt;PropertyDto&gt; channelAndDispatcherAuthorized(Set&lt;String&gt; globalPermissions) {
+<span class="fc" id="L201">    return prop -&gt; {</span>
+<span class="fc" id="L202">      List&lt;String&gt; key = PROPERTY_KEY_SPLITTER.splitToList(prop.getKey());</span>
+<span class="pc bpc" id="L203" title="1 of 2 branches missed.">      return key.size() == 3</span>
+<span class="fc bfc" id="L204" title="All 2 branches covered.">        &amp;&amp; channels.contains(key.get(2))</span>
+<span class="fc bfc" id="L205" title="All 2 branches covered.">        &amp;&amp; isDispatcherAuthorized(prop, key.get(1), globalPermissions);</span>
+    };
+  }
+
+  private boolean isDispatcherAuthorized(PropertyDto prop, String dispatcher, Set&lt;String&gt; globalPermissions) {
+<span class="fc bfc" id="L210" title="All 4 branches covered.">    return ((prop.getEntityUuid() != null &amp;&amp; dispatchers.getProjectDispatchers().contains(dispatcher))</span>
+<span class="fc bfc" id="L211" title="All 2 branches covered.">      || dispatchers.getGlobalDispatchers().contains(dispatcher))</span>
+<span class="fc bfc" id="L212" title="All 2 branches covered.">      &amp;&amp; hasUserPermission(globalPermissions, dispatcher);</span>
+  }
+
+  private Map&lt;String, EntityDto&gt; searchProjects(DbSession dbSession, List&lt;PropertyDto&gt; properties) {
+<span class="fc" id="L216">    Set&lt;String&gt; entityUuids = properties.stream()</span>
+<span class="fc" id="L217">      .map(PropertyDto::getEntityUuid)</span>
+<span class="fc" id="L218">      .filter(Objects::nonNull)</span>
+<span class="fc" id="L219">      .collect(Collectors.toSet());</span>
+<span class="fc" id="L220">    Set&lt;String&gt; authorizedProjectUuids = dbClient.authorizationDao().keepAuthorizedEntityUuids(dbSession, entityUuids,</span>
+<span class="fc" id="L221">      userSession.getUuid(), ProjectPermission.USER);</span>
+<span class="fc" id="L222">    return dbClient.entityDao().selectByUuids(dbSession, entityUuids)</span>
+<span class="fc" id="L223">      .stream()</span>
+<span class="fc" id="L224">      .filter(c -&gt; authorizedProjectUuids.contains(c.getUuid()))</span>
+<span class="fc" id="L225">      .collect(Collectors.toMap(EntityDto::getUuid, Function.identity()));</span>
+  }
+
+  private static Notification toWsNotification(Builder notification,
+    Map&lt;String, EntityDto&gt; projectsByUuid, String key, @Nullable String entityUuid) {
+<span class="fc" id="L230">    notification.clear();</span>
+<span class="fc" id="L231">    List&lt;String&gt; propertyKey = Splitter.on(&quot;.&quot;).splitToList(key);</span>
+<span class="fc" id="L232">    notification.setType(propertyKey.get(1));</span>
+<span class="fc" id="L233">    notification.setChannel(propertyKey.get(2));</span>
+<span class="fc" id="L234">    ofNullable(entityUuid).ifPresent(componentUuid -&gt; populateProjectFields(notification, componentUuid, projectsByUuid));</span>
+<span class="fc" id="L235">    return notification.build();</span>
+  }
+
+  private static void populateProjectFields(Builder notification, String componentUuid, Map&lt;String, EntityDto&gt; projectsByUuid) {
+<span class="fc" id="L239">    EntityDto project = projectsByUuid.get(componentUuid);</span>
+<span class="fc" id="L240">    notification</span>
+<span class="fc" id="L241">      .setProject(project.getKey())</span>
+<span class="fc" id="L242">      .setProjectName(project.getName());</span>
+<span class="fc" id="L243">  }</span>
+
+  private void checkPermissions(Request request) {
+<span class="fc bfc" id="L246" title="All 2 branches covered.">    if (request.param(PARAM_LOGIN) == null) {</span>
+<span class="fc" id="L247">      userSession.checkLoggedIn();</span>
+    } else {
+<span class="fc" id="L249">      userSession.checkIsSystemAdministrator();</span>
+    }
+<span class="fc" id="L251">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

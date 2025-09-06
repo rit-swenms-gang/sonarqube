@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SqTables.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.version</a> &gt; <span class="el_source">SqTables.java</span></div><h1>SqTables.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.version;
+
+import java.util.Set;
+
+public final class SqTables {
+
+  /**
+   * List of all the tables.
+   * This list is hardcoded because we didn't succeed in using java.sql.DatabaseMetaData#getTables() in the same way
+   * for all the supported databases, particularly due to Oracle results.
+   */
+<span class="fc" id="L31">  public static final Set&lt;String&gt; TABLES = Set.of(</span>
+    &quot;active_rules&quot;,
+    &quot;active_rule_parameters&quot;,
+    &quot;alm_settings&quot;,
+    &quot;alm_pats&quot;,
+    &quot;analysis_properties&quot;,
+    &quot;app_branch_project_branch&quot;,
+    &quot;app_projects&quot;,
+    &quot;architecture_graphs&quot;,
+    &quot;audits&quot;,
+    &quot;ce_activity&quot;,
+    &quot;ce_queue&quot;,
+    &quot;ce_task_characteristics&quot;,
+    &quot;ce_task_input&quot;,
+    &quot;ce_task_message&quot;,
+    &quot;ce_scanner_context&quot;,
+    &quot;components&quot;,
+    &quot;default_qprofiles&quot;,
+    &quot;deprecated_rule_keys&quot;,
+    &quot;devops_perms_mapping&quot;,
+    &quot;duplications_index&quot;,
+    &quot;es_queue&quot;,
+    &quot;events&quot;,
+    &quot;event_component_changes&quot;,
+    &quot;external_groups&quot;,
+    &quot;file_sources&quot;,
+    &quot;github_orgs_groups&quot;,
+    &quot;groups&quot;,
+    &quot;groups_users&quot;,
+    &quot;group_roles&quot;,
+    &quot;internal_component_props&quot;,
+    &quot;internal_properties&quot;,
+    &quot;issues&quot;,
+    &quot;issues_fixed&quot;,
+    &quot;issues_impacts&quot;,
+    &quot;issue_changes&quot;,
+    &quot;measures&quot;,
+    &quot;metrics&quot;,
+    &quot;migration_logs&quot;,
+    &quot;new_code_periods&quot;,
+    &quot;new_code_reference_issues&quot;,
+    &quot;notifications&quot;,
+    &quot;org_qprofiles&quot;,
+    &quot;permission_templates&quot;,
+    &quot;perm_templates_users&quot;,
+    &quot;perm_templates_groups&quot;,
+    &quot;perm_tpl_characteristics&quot;,
+    &quot;plugins&quot;,
+    &quot;portfolios&quot;,
+    &quot;portfolio_projects&quot;,
+    &quot;portfolio_proj_branches&quot;,
+    &quot;portfolio_references&quot;,
+    &quot;projects&quot;,
+    &quot;project_alm_settings&quot;,
+    &quot;project_badge_token&quot;,
+    &quot;project_branches&quot;,
+    &quot;project_dependencies&quot;,
+    &quot;project_links&quot;,
+    &quot;project_measures&quot;,
+    &quot;project_qprofiles&quot;,
+    &quot;project_qgates&quot;,
+    &quot;properties&quot;,
+    &quot;push_events&quot;,
+    &quot;qprofile_changes&quot;,
+    &quot;qprofile_edit_groups&quot;,
+    &quot;qprofile_edit_users&quot;,
+    &quot;quality_gates&quot;,
+    &quot;qgate_user_permissions&quot;,
+    &quot;qgate_group_permissions&quot;,
+    &quot;quality_gate_conditions&quot;,
+    &quot;saml_message_ids&quot;,
+    &quot;report_schedules&quot;,
+    &quot;report_subscriptions&quot;,
+    &quot;rules&quot;,
+    &quot;rule_desc_sections&quot;,
+    &quot;rule_tags&quot;,
+    &quot;rules_default_impacts&quot;,
+    &quot;rules_parameters&quot;,
+    &quot;rules_profiles&quot;,
+    &quot;rule_repositories&quot;,
+    &quot;sca_analyses&quot;,
+    &quot;sca_dependencies&quot;,
+    &quot;sca_encountered_licenses&quot;,
+    &quot;sca_issues&quot;,
+    &quot;sca_issues_releases&quot;,
+    &quot;sca_issue_rels_changes&quot;,
+    &quot;sca_lic_prof_categories&quot;,
+    &quot;sca_lic_prof_customs&quot;,
+    &quot;sca_lic_prof_projects&quot;,
+    &quot;sca_license_profiles&quot;,
+    &quot;sca_releases&quot;,
+    &quot;sca_vulnerability_issues&quot;,
+    &quot;scanner_analysis_cache&quot;,
+    &quot;schema_migrations&quot;,
+    &quot;scim_groups&quot;,
+    &quot;scim_users&quot;,
+    &quot;scm_accounts&quot;,
+    &quot;session_tokens&quot;,
+    &quot;snapshots&quot;,
+    &quot;telemetry_metrics_sent&quot;,
+    &quot;users&quot;,
+    &quot;user_ai_tool_usages&quot;,
+    &quot;user_dismissed_messages&quot;,
+    &quot;user_roles&quot;,
+    &quot;user_tokens&quot;,
+    &quot;webhooks&quot;,
+    &quot;webhook_deliveries&quot;);
+
+  private SqTables() {
+    // prevents instantiation
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

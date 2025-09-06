@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PullRequestTrackerExecution.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.issue</a> &gt; <span class="el_source">PullRequestTrackerExecution.java</span></div><h1>PullRequestTrackerExecution.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.issue;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import javax.annotation.Nullable;
+import org.sonar.api.issue.Issue;
+import org.sonar.ce.task.projectanalysis.component.Component;
+import org.sonar.ce.task.projectanalysis.source.NewLinesRepository;
+import org.sonar.core.issue.DefaultIssue;
+import org.sonar.core.issue.tracking.Input;
+import org.sonar.core.issue.tracking.Tracker;
+import org.sonar.core.issue.tracking.Tracking;
+
+public class PullRequestTrackerExecution {
+  private final TrackerBaseInputFactory baseInputFactory;
+  private final Tracker&lt;DefaultIssue, DefaultIssue&gt; tracker;
+  private final NewLinesRepository newLinesRepository;
+
+  public PullRequestTrackerExecution(TrackerBaseInputFactory baseInputFactory,
+<span class="fc" id="L42">    Tracker&lt;DefaultIssue, DefaultIssue&gt; tracker, NewLinesRepository newLinesRepository) {</span>
+<span class="fc" id="L43">    this.baseInputFactory = baseInputFactory;</span>
+<span class="fc" id="L44">    this.tracker = tracker;</span>
+<span class="fc" id="L45">    this.newLinesRepository = newLinesRepository;</span>
+<span class="fc" id="L46">  }</span>
+
+  public Tracking&lt;DefaultIssue, DefaultIssue&gt; track(Component component, Input&lt;DefaultIssue&gt; rawInput, @Nullable Input&lt;DefaultIssue&gt; targetInput) {
+    // Step 1: only keep issues on changed lines
+<span class="fc" id="L50">    List&lt;DefaultIssue&gt; filteredRaws = keepIssuesHavingAtLeastOneLocationOnChangedLines(component, rawInput.getIssues());</span>
+<span class="fc" id="L51">    Input&lt;DefaultIssue&gt; unmatchedRawsAfterChangedLineFiltering = createInput(rawInput, filteredRaws);</span>
+
+    // Step 2: remove issues that are resolved in the target branch
+    Input&lt;DefaultIssue&gt; unmatchedRawsAfterTargetResolvedTracking;
+<span class="pc bpc" id="L55" title="1 of 2 branches missed.">    if (targetInput != null) {</span>
+<span class="fc" id="L56">      List&lt;DefaultIssue&gt; resolvedTargetIssues = targetInput.getIssues().stream().filter(i -&gt; Issue.STATUS_RESOLVED.equals(i.status())).toList();</span>
+<span class="fc" id="L57">      Input&lt;DefaultIssue&gt; resolvedTargetInput = createInput(targetInput, resolvedTargetIssues);</span>
+<span class="fc" id="L58">      Tracking&lt;DefaultIssue, DefaultIssue&gt; prResolvedTracking = tracker.trackNonClosed(unmatchedRawsAfterChangedLineFiltering, resolvedTargetInput);</span>
+<span class="fc" id="L59">      unmatchedRawsAfterTargetResolvedTracking = createInput(rawInput, prResolvedTracking.getUnmatchedRaws().toList());</span>
+<span class="fc" id="L60">    } else {</span>
+<span class="nc" id="L61">      unmatchedRawsAfterTargetResolvedTracking = unmatchedRawsAfterChangedLineFiltering;</span>
+    }
+
+    // Step 3: track issues with previous analysis of the current PR
+<span class="fc" id="L65">    Input&lt;DefaultIssue&gt; previousAnalysisInput = baseInputFactory.create(component);</span>
+<span class="fc" id="L66">    return tracker.trackNonClosed(unmatchedRawsAfterTargetResolvedTracking, previousAnalysisInput);</span>
+  }
+
+  private static Input&lt;DefaultIssue&gt; createInput(Input&lt;DefaultIssue&gt; input, Collection&lt;DefaultIssue&gt; issues) {
+<span class="fc" id="L70">    return new DefaultTrackingInput(issues, input.getLineHashSequence(), input.getBlockHashSequence());</span>
+  }
+
+  private List&lt;DefaultIssue&gt; keepIssuesHavingAtLeastOneLocationOnChangedLines(Component component, Collection&lt;DefaultIssue&gt; issues) {
+<span class="pc bpc" id="L74" title="1 of 2 branches missed.">    if (component.getType() != Component.Type.FILE) {</span>
+<span class="nc" id="L75">      return Collections.emptyList();</span>
+    }
+<span class="fc" id="L77">    final Optional&lt;Set&lt;Integer&gt;&gt; newLinesOpt = newLinesRepository.getNewLines(component);</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">    if (!newLinesOpt.isPresent()) {</span>
+<span class="fc" id="L79">      return Collections.emptyList();</span>
+    }
+<span class="fc" id="L81">    final Set&lt;Integer&gt; newLines = newLinesOpt.get();</span>
+<span class="fc" id="L82">    return issues.stream()</span>
+<span class="fc" id="L83">      .filter(i -&gt; IssueLocations.allLinesFor(i, component.getUuid()).anyMatch(newLines::contains))</span>
+<span class="fc" id="L84">      .toList();</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

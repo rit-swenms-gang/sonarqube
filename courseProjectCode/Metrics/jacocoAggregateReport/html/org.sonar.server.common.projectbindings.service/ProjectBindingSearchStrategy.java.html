@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ProjectBindingSearchStrategy.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.common.projectbindings.service</a> &gt; <span class="el_source">ProjectBindingSearchStrategy.java</span></div><h1>ProjectBindingSearchStrategy.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.common.projectbindings.service;
+
+import java.util.List;
+import java.util.function.Function;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.alm.setting.ProjectAlmSettingDto;
+import org.sonar.db.alm.setting.ProjectAlmSettingQuery;
+
+/**
+ * Enum-based strategy for searching project bindings based on Git repository information.
+ * Each ALM platform (GitHub, Azure DevOps, Bitbucket) has different storage patterns for repository information in the database.
+ */
+<span class="fc" id="L33">public enum ProjectBindingSearchStrategy {</span>
+
+  /**
+   * GitHub search strategy.
+   * GitHub stores repository information in &quot;org/repo&quot; format in the alm_repo column.
+   */
+<span class="fc" id="L39">  GITHUB(info -&gt; ProjectAlmSettingQuery.forAlmRepo(info.slug())),</span>
+
+  /**
+   * Azure DevOps search strategy.
+   * Azure DevOps stores project name in alm_slug and repository name in alm_repo.
+   */
+<span class="fc" id="L45">  AZURE_DEVOPS(info -&gt; ProjectAlmSettingQuery.forAlmRepoAndSlug(info.repository(), info.projectName())),</span>
+
+  /**
+   * Bitbucket search strategy.
+   * Bitbucket stores repository name in the alm_repo column.
+   */
+<span class="fc" id="L51">  BITBUCKET(info -&gt; ProjectAlmSettingQuery.forAlmRepo(info.repository()));</span>
+
+  private final Function&lt;GitUrlParser.RepositoryInfo, ProjectAlmSettingQuery&gt; queryBuilder;
+
+<span class="fc" id="L55">  ProjectBindingSearchStrategy(Function&lt;GitUrlParser.RepositoryInfo, ProjectAlmSettingQuery&gt; queryBuilder) {</span>
+<span class="fc" id="L56">    this.queryBuilder = queryBuilder;</span>
+<span class="fc" id="L57">  }</span>
+
+  /**
+   * Searches for project ALM settings based on the provided repository information.
+   * 
+   * @param dbClient the database client
+   * @param session the database session
+   * @param repositoryInfo parsed Git repository information
+   * @return list of matching project ALM settings
+   */
+  public List&lt;ProjectAlmSettingDto&gt; search(DbClient dbClient, DbSession session, GitUrlParser.RepositoryInfo repositoryInfo) {
+<span class="fc" id="L68">    ProjectAlmSettingQuery query = queryBuilder.apply(repositoryInfo);</span>
+<span class="fc" id="L69">    return dbClient.projectAlmSettingDao().selectProjectAlmSettings(session, query, 1, Integer.MAX_VALUE);</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

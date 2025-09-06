@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UsersSearchRestRequest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.v2.api.user.request</a> &gt; <span class="el_source">UsersSearchRestRequest.java</span></div><h1>UsersSearchRestRequest.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.v2.api.user.request;
+
+import io.swagger.v3.oas.annotations.extensions.Extension;
+import io.swagger.v3.oas.annotations.extensions.ExtensionProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
+import javax.annotation.Nullable;
+
+<span class="fc" id="L27">public record UsersSearchRestRequest(</span>
+  @Schema(defaultValue = &quot;true&quot;, description = &quot;Return active/inactive users&quot;)
+  Boolean active,
+
+  @Nullable
+  @Schema(description = &quot;Return managed or non-managed users. Only available for managed instances, throws for non-managed instances&quot;)
+  Boolean managed,
+
+  @Nullable
+  @Schema(description = &quot;Filter on login, name and email.\n&quot;
+    + &quot;This parameter performs a partial match (contains), it is case insensitive.&quot;)
+  String q,
+
+  @Nullable
+  @Schema(description = &quot;Filter on externalIdentity.\n&quot;
+    + &quot;This parameter perform a case-sensitive exact match&quot;)
+  String externalIdentity,
+
+  @Nullable
+  @Schema(description = &quot;Filter users based on the last connection date field. Only users who interacted with this instance at or after the date will be returned. &quot;
+    + &quot;The format must be ISO 8601 datetime format (YYYY-MM-DDThh:mm:ss±hhmm)&quot;,
+    example = &quot;2020-01-01T00:00:00+0100&quot;)
+  String sonarQubeLastConnectionDateFrom,
+
+  @Nullable
+  @Schema(description = &quot;Filter users based on the last connection date field. Only users that never connected or who interacted with this instance at &quot;
+    + &quot;or before the date will be returned. The format must be ISO 8601 datetime format (YYYY-MM-DDThh:mm:ss±hhmm)&quot;,
+    example = &quot;2020-01-01T00:00:00+0100&quot;)
+  String sonarQubeLastConnectionDateTo,
+
+  @Nullable
+  @Schema(description = &quot;Filter users based on the SonarLint last connection date field Only users who interacted with this instance using SonarLint at or after &quot;
+    + &quot;the date will be returned. The format must be ISO 8601 datetime format (YYYY-MM-DDThh:mm:ss±hhmm)&quot;,
+    example = &quot;2020-01-01T00:00:00+0100&quot;)
+  String sonarLintLastConnectionDateFrom,
+
+  @Nullable
+  @Schema(description = &quot;Filter users based on the SonarLint last connection date field. Only users that never connected or who interacted with this instance &quot;
+    + &quot;using SonarLint at or before the date will be returned. The format must be ISO 8601 datetime format (YYYY-MM-DDThh:mm:ss±hhmm)&quot;,
+    example = &quot;2020-01-01T00:00:00+0100&quot;)
+  String sonarLintLastConnectionDateTo,
+
+  @Nullable
+  @Schema(description = &quot;Filter users belonging to group. Only available for system administrators. Using != operator will exclude users from this group.&quot;,
+    extensions = @Extension(properties = {@ExtensionProperty(name = &quot;internal&quot;, value = &quot;true&quot;)}))
+  String groupId
+
+) {
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

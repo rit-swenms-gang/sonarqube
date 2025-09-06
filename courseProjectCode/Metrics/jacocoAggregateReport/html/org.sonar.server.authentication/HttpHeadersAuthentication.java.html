@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HttpHeadersAuthentication.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.authentication</a> &gt; <span class="el_source">HttpHeadersAuthentication.java</span></div><h1>HttpHeadersAuthentication.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.authentication;
+
+import com.google.common.base.Splitter;
+import java.util.Collections;
+import java.util.Date;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import javax.annotation.CheckForNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.Startable;
+import org.sonar.api.config.Configuration;
+import org.sonar.api.server.authentication.Display;
+import org.sonar.api.server.authentication.IdentityProvider;
+import org.sonar.api.server.authentication.UserIdentity;
+import org.sonar.api.server.http.HttpRequest;
+import org.sonar.api.server.http.HttpResponse;
+import org.sonar.api.utils.System2;
+import org.sonar.db.user.UserDto;
+import org.sonar.process.ProcessProperties;
+import org.sonar.server.authentication.event.AuthenticationEvent;
+import org.sonar.server.authentication.event.AuthenticationEvent.Source;
+import org.sonar.server.authentication.event.AuthenticationException;
+import org.sonar.server.exceptions.BadRequestException;
+
+import static org.apache.commons.lang3.time.DateUtils.addMinutes;
+import static org.sonar.process.ProcessProperties.Property.SONAR_WEB_SSO_EMAIL_HEADER;
+import static org.sonar.process.ProcessProperties.Property.SONAR_WEB_SSO_ENABLE;
+import static org.sonar.process.ProcessProperties.Property.SONAR_WEB_SSO_GROUPS_HEADER;
+import static org.sonar.process.ProcessProperties.Property.SONAR_WEB_SSO_LOGIN_HEADER;
+import static org.sonar.process.ProcessProperties.Property.SONAR_WEB_SSO_NAME_HEADER;
+import static org.sonar.process.ProcessProperties.Property.SONAR_WEB_SSO_REFRESH_INTERVAL_IN_MINUTES;
+import static org.sonar.server.user.ExternalIdentity.SQ_AUTHORITY;
+
+/**
+ * Authentication based on the HTTP request headers. The front proxy
+ * is responsible for validating user identity.
+ */
+public class HttpHeadersAuthentication implements Startable {
+
+<span class="fc" id="L64">  private static final Logger LOG = LoggerFactory.getLogger(HttpHeadersAuthentication.class);</span>
+
+<span class="fc" id="L66">  private static final Splitter COMA_SPLITTER = Splitter.on(&quot;,&quot;).trimResults().omitEmptyStrings();</span>
+
+  private static final String LAST_REFRESH_TIME_TOKEN_PARAM = &quot;ssoLastRefreshTime&quot;;
+
+<span class="fc" id="L70">  private static final EnumSet&lt;ProcessProperties.Property&gt; PROPERTIES = EnumSet.of(</span>
+    SONAR_WEB_SSO_LOGIN_HEADER,
+    SONAR_WEB_SSO_NAME_HEADER,
+    SONAR_WEB_SSO_EMAIL_HEADER,
+    SONAR_WEB_SSO_GROUPS_HEADER,
+    SONAR_WEB_SSO_REFRESH_INTERVAL_IN_MINUTES);
+
+  private final System2 system2;
+  private final Configuration config;
+  private final UserRegistrar userRegistrar;
+  private final JwtHttpHandler jwtHttpHandler;
+  private final AuthenticationEvent authenticationEvent;
+<span class="fc" id="L82">  private final Map&lt;String, String&gt; settingsByKey = new HashMap&lt;&gt;();</span>
+
+<span class="fc" id="L84">  private boolean enabled = false;</span>
+
+  public HttpHeadersAuthentication(System2 system2, Configuration config, UserRegistrar userRegistrar,
+<span class="fc" id="L87">    JwtHttpHandler jwtHttpHandler, AuthenticationEvent authenticationEvent) {</span>
+<span class="fc" id="L88">    this.system2 = system2;</span>
+<span class="fc" id="L89">    this.config = config;</span>
+<span class="fc" id="L90">    this.userRegistrar = userRegistrar;</span>
+<span class="fc" id="L91">    this.jwtHttpHandler = jwtHttpHandler;</span>
+<span class="fc" id="L92">    this.authenticationEvent = authenticationEvent;</span>
+<span class="fc" id="L93">  }</span>
+
+  @Override
+  public void start() {
+<span class="fc bfc" id="L97" title="All 2 branches covered.">    if (config.getBoolean(SONAR_WEB_SSO_ENABLE.getKey()).orElse(false)) {</span>
+<span class="fc" id="L98">      LOG.info(&quot;HTTP headers authentication enabled&quot;);</span>
+<span class="fc" id="L99">      enabled = true;</span>
+<span class="fc" id="L100">      PROPERTIES.forEach(entry -&gt; settingsByKey.put(entry.getKey(), config.get(entry.getKey()).orElse(entry.getDefaultValue())));</span>
+    }
+<span class="fc" id="L102">  }</span>
+
+  @Override
+  public void stop() {
+    // Nothing to do
+<span class="nc" id="L107">  }</span>
+
+  public Optional&lt;UserDto&gt; authenticate(HttpRequest request, HttpResponse response) {
+    try {
+<span class="fc" id="L111">      return doAuthenticate(request, response);</span>
+<span class="fc" id="L112">    } catch (BadRequestException e) {</span>
+<span class="fc" id="L113">      throw AuthenticationException.newBuilder()</span>
+<span class="fc" id="L114">        .setSource(Source.sso())</span>
+<span class="fc" id="L115">        .setMessage(e.getMessage())</span>
+<span class="fc" id="L116">        .build();</span>
+    }
+  }
+
+  private Optional&lt;UserDto&gt; doAuthenticate(HttpRequest request, HttpResponse response) {
+<span class="fc bfc" id="L121" title="All 2 branches covered.">    if (!enabled) {</span>
+<span class="fc" id="L122">      return Optional.empty();</span>
+    }
+<span class="fc" id="L124">    Map&lt;String, String&gt; headerValuesByNames = getHeaders(request);</span>
+<span class="fc" id="L125">    String login = getHeaderValue(headerValuesByNames, SONAR_WEB_SSO_LOGIN_HEADER.getKey());</span>
+<span class="fc bfc" id="L126" title="All 2 branches covered.">    if (login == null) {</span>
+<span class="fc" id="L127">      return Optional.empty();</span>
+    }
+<span class="fc" id="L129">    Optional&lt;UserDto&gt; user = getUserFromToken(request, response);</span>
+<span class="fc bfc" id="L130" title="All 4 branches covered.">    if (user.isPresent() &amp;&amp; login.equals(user.get().getLogin())) {</span>
+<span class="fc" id="L131">      return user;</span>
+    }
+
+<span class="fc" id="L134">    UserDto userDto = doAuthenticate(headerValuesByNames, login);</span>
+<span class="fc" id="L135">    jwtHttpHandler.generateToken(userDto, Map.of(LAST_REFRESH_TIME_TOKEN_PARAM, system2.now()), request, response);</span>
+<span class="fc" id="L136">    authenticationEvent.loginSuccess(request, userDto.getLogin(), Source.sso());</span>
+<span class="fc" id="L137">    return Optional.of(userDto);</span>
+  }
+
+  private Optional&lt;UserDto&gt; getUserFromToken(HttpRequest request, HttpResponse response) {
+<span class="fc" id="L141">    Optional&lt;JwtHttpHandler.Token&gt; token = jwtHttpHandler.getToken(request, response);</span>
+<span class="fc bfc" id="L142" title="All 2 branches covered.">    if (token.isEmpty()) {</span>
+<span class="fc" id="L143">      return Optional.empty();</span>
+    }
+<span class="fc" id="L145">    Date now = new Date(system2.now());</span>
+<span class="fc" id="L146">    int refreshIntervalInMinutes = Integer.parseInt(settingsByKey.get(SONAR_WEB_SSO_REFRESH_INTERVAL_IN_MINUTES.getKey()));</span>
+<span class="fc" id="L147">    Long lastFreshTime = (Long) token.get().getProperties().get(LAST_REFRESH_TIME_TOKEN_PARAM);</span>
+<span class="fc bfc" id="L148" title="All 4 branches covered.">    if (lastFreshTime == null || now.after(addMinutes(new Date(lastFreshTime), refreshIntervalInMinutes))) {</span>
+<span class="fc" id="L149">      return Optional.empty();</span>
+    }
+<span class="fc" id="L151">    return Optional.of(token.get().getUserDto());</span>
+  }
+
+  private UserDto doAuthenticate(Map&lt;String, String&gt; headerValuesByNames, String login) {
+<span class="fc" id="L155">    String name = getHeaderValue(headerValuesByNames, SONAR_WEB_SSO_NAME_HEADER.getKey());</span>
+<span class="fc" id="L156">    String email = getHeaderValue(headerValuesByNames, SONAR_WEB_SSO_EMAIL_HEADER.getKey());</span>
+<span class="fc" id="L157">    UserIdentity.Builder userIdentityBuilder = UserIdentity.builder()</span>
+<span class="fc bfc" id="L158" title="All 2 branches covered.">      .setName(name == null ? login : name)</span>
+<span class="fc" id="L159">      .setEmail(email)</span>
+<span class="fc" id="L160">      .setProviderLogin(login);</span>
+<span class="fc bfc" id="L161" title="All 2 branches covered.">    if (hasHeader(headerValuesByNames, SONAR_WEB_SSO_GROUPS_HEADER.getKey())) {</span>
+<span class="fc" id="L162">      String groupsValue = getHeaderValue(headerValuesByNames, SONAR_WEB_SSO_GROUPS_HEADER.getKey());</span>
+<span class="fc bfc" id="L163" title="All 2 branches covered.">      userIdentityBuilder.setGroups(groupsValue == null ? Collections.emptySet() : new HashSet&lt;&gt;(COMA_SPLITTER.splitToList(groupsValue)));</span>
+    }
+<span class="fc" id="L165">    return userRegistrar.register(</span>
+<span class="fc" id="L166">      UserRegistration.builder()</span>
+<span class="fc" id="L167">        .setUserIdentity(userIdentityBuilder.build())</span>
+<span class="fc" id="L168">        .setProvider(new SsoIdentityProvider())</span>
+<span class="fc" id="L169">        .setSource(Source.sso())</span>
+<span class="fc" id="L170">        .build());</span>
+  }
+
+  @CheckForNull
+  private String getHeaderValue(Map&lt;String, String&gt; headerValuesByNames, String settingKey) {
+<span class="fc" id="L175">    return headerValuesByNames.get(settingsByKey.get(settingKey).toLowerCase(Locale.ENGLISH));</span>
+  }
+
+  private static Map&lt;String, String&gt; getHeaders(HttpRequest request) {
+<span class="fc" id="L179">    Map&lt;String, String&gt; headers = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L180">    Collections.list(request.getHeaderNames()).forEach(header -&gt; headers.put(header.toLowerCase(Locale.ENGLISH), request.getHeader(header)));</span>
+<span class="fc" id="L181">    return headers;</span>
+  }
+
+  private boolean hasHeader(Map&lt;String, String&gt; headerValuesByNames, String settingKey) {
+<span class="fc" id="L185">    return headerValuesByNames.containsKey(settingsByKey.get(settingKey).toLowerCase(Locale.ENGLISH));</span>
+  }
+
+  private static class SsoIdentityProvider implements IdentityProvider {
+    @Override
+    public String getKey() {
+<span class="fc" id="L191">      return SQ_AUTHORITY;</span>
+    }
+
+    @Override
+    public String getName() {
+<span class="nc" id="L196">      return getKey();</span>
+    }
+
+    @Override
+    public Display getDisplay() {
+<span class="nc" id="L201">      return null;</span>
+    }
+
+    @Override
+    public boolean isEnabled() {
+<span class="nc" id="L206">      return true;</span>
+    }
+
+    @Override
+    public boolean allowsUsersToSignUp() {
+<span class="fc" id="L211">      return true;</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

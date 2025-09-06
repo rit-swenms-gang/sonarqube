@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ListAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.almsettings.ws</a> &gt; <span class="el_source">ListAction.java</span></div><h1>ListAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.almsettings.ws;
+
+import java.util.Comparator;
+import java.util.List;
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.alm.setting.ALM;
+import org.sonar.db.alm.setting.AlmSettingDto;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.server.component.ComponentFinder;
+import org.sonar.server.user.UserSession;
+import org.sonarqube.ws.AlmSettings.AlmSetting;
+import org.sonarqube.ws.AlmSettings.ListWsResponse;
+
+import static java.util.Optional.ofNullable;
+import static org.sonar.db.permission.ProjectPermission.ADMIN;
+import static org.sonar.db.permission.GlobalPermission.PROVISION_PROJECTS;
+import static org.sonar.server.common.AlmSettingMapper.toResponseAlm;
+import static org.sonar.server.ws.WsUtils.writeProtobuf;
+
+public class ListAction implements AlmSettingsWsAction {
+
+  private static final String PARAM_PROJECT = &quot;project&quot;;
+  private static final String BITBUCKETCLOUD_ROOT_URL = &quot;https://bitbucket.org/&quot;;
+
+  private final DbClient dbClient;
+  private final UserSession userSession;
+  private final ComponentFinder componentFinder;
+
+<span class="fc" id="L53">  public ListAction(DbClient dbClient, UserSession userSession, ComponentFinder componentFinder) {</span>
+<span class="fc" id="L54">    this.dbClient = dbClient;</span>
+<span class="fc" id="L55">    this.userSession = userSession;</span>
+<span class="fc" id="L56">    this.componentFinder = componentFinder;</span>
+<span class="fc" id="L57">  }</span>
+
+  @Override
+  public void define(WebService.NewController context) {
+<span class="fc" id="L61">    WebService.NewAction action = context.createAction(&quot;list&quot;)</span>
+<span class="fc" id="L62">      .setDescription(&quot;List DevOps Platform setting available for a given project, sorted by DevOps Platform key&lt;br/&gt;&quot; +</span>
+        &quot;Requires the 'Administer project' permission if the '&quot; + PARAM_PROJECT + &quot;' parameter is provided, requires the 'Create Projects' permission otherwise.&quot;)
+<span class="fc" id="L64">      .setSince(&quot;8.1&quot;)</span>
+<span class="fc" id="L65">      .setResponseExample(getClass().getResource(&quot;example-list.json&quot;))</span>
+<span class="fc" id="L66">      .setHandler(this);</span>
+
+<span class="fc" id="L68">    action</span>
+<span class="fc" id="L69">      .createParam(PARAM_PROJECT)</span>
+<span class="fc" id="L70">      .setDescription(&quot;Project key&quot;)</span>
+<span class="fc" id="L71">      .setRequired(false);</span>
+
+<span class="fc" id="L73">    action.setChangelog(</span>
+      new Change(&quot;8.3&quot;, &quot;Permission needed changed to 'Administer project' or 'Create Projects'&quot;),
+      new Change(&quot;8.2&quot;, &quot;Permission needed changed from 'Administer project' to 'Create Projects'&quot;),
+      new Change(&quot;8.6&quot;, &quot;Field 'URL' added for Azure definitions&quot;));
+<span class="fc" id="L77">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) {
+<span class="fc" id="L81">    ListWsResponse wsResponse = doHandle(request);</span>
+<span class="fc" id="L82">    writeProtobuf(wsResponse, request, response);</span>
+<span class="fc" id="L83">  }</span>
+
+  private ListWsResponse doHandle(Request request) {
+<span class="fc" id="L86">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L87">      Request.StringParam projectKey = request.getParam(PARAM_PROJECT);</span>
+<span class="fc bfc" id="L88" title="All 2 branches covered.">      if (projectKey.isPresent()) {</span>
+<span class="fc" id="L89">        ProjectDto project = componentFinder.getProjectByKey(dbSession, projectKey.getValue());</span>
+<span class="fc" id="L90">        userSession.checkEntityPermission(ADMIN, project);</span>
+<span class="fc" id="L91">      } else {</span>
+<span class="fc" id="L92">        userSession.checkPermission(PROVISION_PROJECTS);</span>
+      }
+
+<span class="fc" id="L95">      List&lt;AlmSettingDto&gt; settings = dbClient.almSettingDao().selectAll(dbSession);</span>
+<span class="fc" id="L96">      List&lt;AlmSetting&gt; wsAlmSettings = settings</span>
+<span class="fc" id="L97">        .stream()</span>
+<span class="fc" id="L98">        .sorted(Comparator.comparing(AlmSettingDto::getKey))</span>
+<span class="fc" id="L99">        .map(almSetting -&gt; {</span>
+<span class="fc" id="L100">          AlmSetting.Builder almSettingBuilder = AlmSetting.newBuilder()</span>
+<span class="fc" id="L101">            .setKey(almSetting.getKey())</span>
+<span class="fc" id="L102">            .setAlm(toResponseAlm(almSetting.getAlm()));</span>
+
+<span class="fc bfc" id="L104" title="All 2 branches covered.">          if (almSetting.getAlm() == ALM.BITBUCKET_CLOUD) {</span>
+<span class="fc" id="L105">            almSettingBuilder.setUrl(BITBUCKETCLOUD_ROOT_URL + almSetting.getAppId() + &quot;/&quot;);</span>
+          } else {
+<span class="fc" id="L107">            ofNullable(almSetting.getUrl()).ifPresent(almSettingBuilder::setUrl);</span>
+          }
+
+<span class="fc" id="L110">          return almSettingBuilder.build();</span>
+        })
+<span class="fc" id="L112">        .toList();</span>
+<span class="fc" id="L113">      return ListWsResponse.newBuilder()</span>
+<span class="fc" id="L114">        .addAllAlmSettings(wsAlmSettings).build();</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

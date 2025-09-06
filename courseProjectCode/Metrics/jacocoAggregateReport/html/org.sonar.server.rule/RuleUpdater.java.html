@@ -1,0 +1,371 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RuleUpdater.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.rule</a> &gt; <span class="el_source">RuleUpdater.java</span></div><h1>RuleUpdater.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.rule;
+
+import com.google.common.base.Function;
+import com.google.common.base.Strings;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Multimap;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Consumer;
+import javax.annotation.Nonnull;
+import org.apache.commons.lang3.builder.EqualsBuilder;
+import org.sonar.api.issue.impact.SoftwareQuality;
+import org.sonar.api.rule.RuleStatus;
+import org.sonar.api.rule.Severity;
+import org.sonar.api.server.ServerSide;
+import org.sonar.api.server.debt.DebtRemediationFunction;
+import org.sonar.api.server.rule.internal.ImpactMapper;
+import org.sonar.api.utils.System2;
+import org.sonar.core.rule.RuleType;
+import org.sonar.core.rule.RuleTypeMapper;
+import org.sonar.core.util.UuidFactory;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.qualityprofile.ActiveRuleDto;
+import org.sonar.db.qualityprofile.ActiveRuleParamDto;
+import org.sonar.db.qualityprofile.OrgActiveRuleDto;
+import org.sonar.db.rule.RuleDescriptionSectionDto;
+import org.sonar.db.rule.RuleDto;
+import org.sonar.db.rule.RuleParamDto;
+import org.sonar.server.rule.index.RuleIndexer;
+import org.sonar.server.user.UserSession;
+
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Strings.isNullOrEmpty;
+import static com.google.common.collect.FluentIterable.from;
+import static com.google.common.collect.Lists.newArrayList;
+import static org.apache.commons.lang3.StringUtils.isBlank;
+import static org.sonar.api.server.rule.internal.ImpactMapper.convertToDeprecatedSeverity;
+import static org.sonar.api.server.rule.internal.ImpactMapper.convertToRuleType;
+import static org.sonar.core.rule.ImpactSeverityMapper.mapImpactSeverity;
+import static org.sonar.db.rule.RuleDescriptionSectionDto.createDefaultRuleDescriptionSection;
+
+@ServerSide
+public class RuleUpdater {
+
+  private final DbClient dbClient;
+  private final RuleIndexer ruleIndexer;
+  private final UuidFactory uuidFactory;
+  private final System2 system;
+
+<span class="fc" id="L74">  public RuleUpdater(DbClient dbClient, RuleIndexer ruleIndexer, UuidFactory uuidFactory, System2 system) {</span>
+<span class="fc" id="L75">    this.dbClient = dbClient;</span>
+<span class="fc" id="L76">    this.ruleIndexer = ruleIndexer;</span>
+<span class="fc" id="L77">    this.uuidFactory = uuidFactory;</span>
+<span class="fc" id="L78">    this.system = system;</span>
+<span class="fc" id="L79">  }</span>
+
+  /**
+   * Update manual rules and custom rules (rules instantiated from templates)
+   */
+  public boolean update(DbSession dbSession, RuleUpdate update, UserSession userSession) {
+<span class="fc bfc" id="L85" title="All 2 branches covered.">    if (update.isEmpty()) {</span>
+<span class="fc" id="L86">      return false;</span>
+    }
+
+<span class="fc" id="L89">    RuleDto rule = getRuleDto(update);</span>
+    // validate only the changes, not all the rule fields
+<span class="fc" id="L91">    apply(update, rule, userSession);</span>
+<span class="fc" id="L92">    update(dbSession, rule);</span>
+<span class="fc" id="L93">    updateParameters(dbSession, update, rule);</span>
+<span class="fc" id="L94">    ruleIndexer.commitAndIndex(dbSession, rule.getUuid());</span>
+
+<span class="fc" id="L96">    return true;</span>
+  }
+
+  /**
+   * Load all the DTOs required for validating changes and updating rule
+   */
+  private RuleDto getRuleDto(RuleUpdate change) {
+<span class="fc" id="L103">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L104">      return dbClient.ruleDao().selectOrFailByKey(dbSession, change.getRuleKey());</span>
+    }
+  }
+
+  private void apply(RuleUpdate update, RuleDto rule, UserSession userSession) {
+<span class="fc bfc" id="L109" title="All 2 branches covered.">    if (update.isChangeName()) {</span>
+<span class="fc" id="L110">      updateName(update, rule);</span>
+    }
+<span class="fc bfc" id="L112" title="All 2 branches covered.">    if (update.isChangeDescription()) {</span>
+<span class="fc" id="L113">      updateDescription(update, rule);</span>
+    }
+<span class="fc bfc" id="L115" title="All 2 branches covered.">    if (update.isChangeSeverity()) {</span>
+<span class="fc" id="L116">      updateSeverity(update, rule);</span>
+    }
+<span class="fc bfc" id="L118" title="All 2 branches covered.">    if (update.isChangeImpacts()) {</span>
+<span class="fc" id="L119">      updateImpactSeverityAndStandardSeverityIfTypeMatch(update, rule);</span>
+    }
+<span class="fc bfc" id="L121" title="All 2 branches covered.">    if (update.isChangeStatus()) {</span>
+<span class="fc" id="L122">      updateStatus(update, rule);</span>
+    }
+<span class="fc bfc" id="L124" title="All 2 branches covered.">    if (update.isChangeMarkdownNote()) {</span>
+<span class="fc" id="L125">      updateMarkdownNote(update, rule, userSession);</span>
+    }
+<span class="fc bfc" id="L127" title="All 2 branches covered.">    if (update.isChangeTags()) {</span>
+<span class="fc" id="L128">      updateTags(update, rule);</span>
+    }
+    // order is important -&gt; sub-characteristic must be set
+<span class="fc bfc" id="L131" title="All 2 branches covered.">    if (update.isChangeDebtRemediationFunction()) {</span>
+<span class="fc" id="L132">      updateDebtRemediationFunction(update, rule);</span>
+    }
+<span class="fc" id="L134">  }</span>
+
+  private static void updateImpactSeverity(RuleDto rule, String severity) {
+<span class="fc" id="L137">    rule.getDefaultImpacts()</span>
+<span class="fc" id="L138">      .stream()</span>
+<span class="pc bpc" id="L139" title="1 of 2 branches missed.">      .filter(i -&gt; i.getSoftwareQuality() == ImpactMapper.convertToSoftwareQuality(RuleTypeMapper.toApiRuleType(rule.getEnumType())))</span>
+<span class="fc" id="L140">      .findFirst()</span>
+<span class="fc" id="L141">      .ifPresent(i -&gt; i.setSeverity(mapImpactSeverity(severity)));</span>
+<span class="fc" id="L142">  }</span>
+
+  private static void updateImpactSeverityAndStandardSeverityIfTypeMatch(RuleUpdate update, RuleDto rule) {
+<span class="fc" id="L145">    Map&lt;SoftwareQuality, org.sonar.api.issue.impact.Severity&gt; impacts = update.getImpactSeverities();</span>
+<span class="pc bpc" id="L146" title="1 of 2 branches missed.">    if (impacts.isEmpty()) {</span>
+<span class="nc" id="L147">      throw new IllegalArgumentException(&quot;Impacts are is missing&quot;);</span>
+    }
+<span class="fc" id="L149">    impacts.forEach((key, value) -&gt; rule.getDefaultImpacts()</span>
+<span class="fc" id="L150">      .stream()</span>
+<span class="fc bfc" id="L151" title="All 2 branches covered.">      .filter(i -&gt; i.getSoftwareQuality() == key)</span>
+<span class="fc" id="L152">      .findFirst()</span>
+<span class="fc" id="L153">      .ifPresent(i -&gt; {</span>
+<span class="fc" id="L154">        i.setSeverity(value);</span>
+<span class="fc bfc" id="L155" title="All 2 branches covered.">        if (RuleTypeMapper.toRuleType(convertToRuleType(key)) == RuleType.fromDbConstant(rule.getType())) {</span>
+<span class="fc" id="L156">          rule.setSeverity(convertToDeprecatedSeverity(value));</span>
+        }
+<span class="fc" id="L158">      }));</span>
+<span class="fc" id="L159">  }</span>
+
+  private static void updateName(RuleUpdate update, RuleDto rule) {
+<span class="fc" id="L162">    String name = update.getName();</span>
+<span class="fc bfc" id="L163" title="All 2 branches covered.">    if (isNullOrEmpty(name)) {</span>
+<span class="fc" id="L164">      throw new IllegalArgumentException(&quot;The name is missing&quot;);</span>
+    }
+<span class="fc" id="L166">    rule.setName(name);</span>
+<span class="fc" id="L167">  }</span>
+
+  private void updateDescription(RuleUpdate update, RuleDto rule) {
+<span class="fc" id="L170">    String description = update.getMarkdownDescription();</span>
+<span class="fc bfc" id="L171" title="All 2 branches covered.">    if (isNullOrEmpty(description)) {</span>
+<span class="fc" id="L172">      throw new IllegalArgumentException(&quot;The description is missing&quot;);</span>
+    }
+<span class="fc" id="L174">    RuleDescriptionSectionDto descriptionSectionDto = createDefaultRuleDescriptionSection(uuidFactory.create(), description);</span>
+<span class="fc" id="L175">    rule.setDescriptionFormat(RuleDto.Format.MARKDOWN);</span>
+<span class="fc" id="L176">    rule.replaceRuleDescriptionSectionDtos(List.of(descriptionSectionDto));</span>
+<span class="fc" id="L177">  }</span>
+
+  private static void updateSeverity(RuleUpdate update, RuleDto rule) {
+<span class="fc" id="L180">    String severity = update.getSeverity();</span>
+<span class="pc bpc" id="L181" title="2 of 4 branches missed.">    if (isNullOrEmpty(severity) || !Severity.ALL.contains(severity)) {</span>
+<span class="nc" id="L182">      throw new IllegalArgumentException(&quot;The severity is invalid&quot;);</span>
+    }
+<span class="fc" id="L184">    rule.setSeverity(severity);</span>
+<span class="fc" id="L185">    updateImpactSeverity(rule, severity);</span>
+<span class="fc" id="L186">  }</span>
+
+  private static void updateStatus(RuleUpdate update, RuleDto rule) {
+<span class="fc" id="L189">    RuleStatus status = update.getStatus();</span>
+<span class="pc bpc" id="L190" title="1 of 2 branches missed.">    if (status == null) {</span>
+<span class="nc" id="L191">      throw new IllegalArgumentException(&quot;The status is missing&quot;);</span>
+    }
+<span class="fc" id="L193">    rule.setStatus(status);</span>
+<span class="fc" id="L194">  }</span>
+
+  private static void updateTags(RuleUpdate update, RuleDto rule) {
+<span class="fc" id="L197">    Set&lt;String&gt; tags = update.getTags();</span>
+<span class="pc bpc" id="L198" title="1 of 4 branches missed.">    if (tags == null || tags.isEmpty()) {</span>
+<span class="fc" id="L199">      rule.setTags(Collections.emptySet());</span>
+    } else {
+<span class="fc" id="L201">      RuleTagHelper.applyTags(rule, tags);</span>
+    }
+<span class="fc" id="L203">  }</span>
+
+  private static void updateDebtRemediationFunction(RuleUpdate update, RuleDto rule) {
+<span class="fc" id="L206">    DebtRemediationFunction function = update.getDebtRemediationFunction();</span>
+<span class="fc bfc" id="L207" title="All 2 branches covered.">    if (function == null) {</span>
+<span class="fc" id="L208">      rule.setRemediationFunction(null);</span>
+<span class="fc" id="L209">      rule.setRemediationGapMultiplier(null);</span>
+<span class="fc" id="L210">      rule.setRemediationBaseEffort(null);</span>
+    } else {
+<span class="pc bpc" id="L212" title="1 of 2 branches missed.">      if (isSameAsDefaultFunction(function, rule)) {</span>
+        // reset to default
+<span class="nc" id="L214">        rule.setRemediationFunction(null);</span>
+<span class="nc" id="L215">        rule.setRemediationGapMultiplier(null);</span>
+<span class="nc" id="L216">        rule.setRemediationBaseEffort(null);</span>
+      } else {
+<span class="fc" id="L218">        rule.setRemediationFunction(function.type().name());</span>
+<span class="fc" id="L219">        rule.setRemediationGapMultiplier(function.gapMultiplier());</span>
+<span class="fc" id="L220">        rule.setRemediationBaseEffort(function.baseEffort());</span>
+      }
+    }
+<span class="fc" id="L223">  }</span>
+
+  private void updateMarkdownNote(RuleUpdate update, RuleDto rule, UserSession userSession) {
+<span class="fc bfc" id="L226" title="All 2 branches covered.">    if (isBlank(update.getMarkdownNote())) {</span>
+<span class="fc" id="L227">      rule.setNoteData(null);</span>
+<span class="fc" id="L228">      rule.setNoteCreatedAt(null);</span>
+<span class="fc" id="L229">      rule.setNoteUpdatedAt(null);</span>
+<span class="fc" id="L230">      rule.setNoteUserUuid(null);</span>
+    } else {
+<span class="fc" id="L232">      long now = system.now();</span>
+<span class="fc" id="L233">      rule.setNoteData(update.getMarkdownNote());</span>
+<span class="pc bpc" id="L234" title="1 of 2 branches missed.">      rule.setNoteCreatedAt(rule.getNoteCreatedAt() != null ? rule.getNoteCreatedAt() : now);</span>
+<span class="fc" id="L235">      rule.setNoteUpdatedAt(now);</span>
+<span class="fc" id="L236">      rule.setNoteUserUuid(userSession.getUuid());</span>
+    }
+<span class="fc" id="L238">  }</span>
+
+  private static boolean isSameAsDefaultFunction(DebtRemediationFunction fn, RuleDto rule) {
+<span class="fc" id="L241">    return new EqualsBuilder()</span>
+<span class="fc" id="L242">      .append(fn.type().name(), rule.getDefRemediationFunction())</span>
+<span class="fc" id="L243">      .append(fn.gapMultiplier(), rule.getDefRemediationGapMultiplier())</span>
+<span class="fc" id="L244">      .append(fn.baseEffort(), rule.getDefRemediationBaseEffort())</span>
+<span class="fc" id="L245">      .isEquals();</span>
+  }
+
+  private void updateParameters(DbSession dbSession, RuleUpdate update, RuleDto rule) {
+<span class="pc bpc" id="L249" title="1 of 4 branches missed.">    if (update.isChangeParameters() &amp;&amp; update.isCustomRule()) {</span>
+<span class="fc" id="L250">      RuleDto customRule = rule;</span>
+<span class="fc" id="L251">      String templateUuid = customRule.getTemplateUuid();</span>
+<span class="fc" id="L252">      checkNotNull(templateUuid, &quot;Rule '%s' has no persisted template!&quot;, customRule);</span>
+<span class="fc" id="L253">      Optional&lt;RuleDto&gt; templateRule = dbClient.ruleDao().selectByUuid(templateUuid, dbSession);</span>
+<span class="pc bpc" id="L254" title="1 of 2 branches missed.">      if (!templateRule.isPresent()) {</span>
+<span class="nc" id="L255">        throw new IllegalStateException(String.format(&quot;Template %s of rule %s does not exist&quot;,</span>
+<span class="nc" id="L256">          customRule.getTemplateUuid(), customRule.getKey()));</span>
+      }
+<span class="fc" id="L258">      List&lt;String&gt; paramKeys = newArrayList();</span>
+
+      // Load active rules and its parameters in cache
+<span class="fc" id="L261">      Multimap&lt;ActiveRuleDto, ActiveRuleParamDto&gt; activeRuleParamsByActiveRule = getActiveRuleParamsByActiveRule(dbSession, customRule);</span>
+      // Browse custom rule parameters to create, update or delete them
+<span class="fc" id="L263">      deleteOrUpdateParameters(dbSession, update, customRule, paramKeys, activeRuleParamsByActiveRule);</span>
+    }
+<span class="fc" id="L265">  }</span>
+
+  private Multimap&lt;ActiveRuleDto, ActiveRuleParamDto&gt; getActiveRuleParamsByActiveRule(DbSession dbSession, RuleDto customRule) {
+<span class="fc" id="L268">    List&lt;OrgActiveRuleDto&gt; activeRuleDtos = dbClient.activeRuleDao().selectByOrgRuleUuid(dbSession, customRule.getUuid());</span>
+<span class="fc" id="L269">    Map&lt;String, OrgActiveRuleDto&gt; activeRuleByUuid = from(activeRuleDtos).uniqueIndex(ActiveRuleDto::getUuid);</span>
+<span class="fc" id="L270">    List&lt;String&gt; activeRuleUuids = Lists.transform(activeRuleDtos, ActiveRuleDto::getUuid);</span>
+<span class="fc" id="L271">    List&lt;ActiveRuleParamDto&gt; activeRuleParamDtos = dbClient.activeRuleDao().selectParamsByActiveRuleUuids(dbSession, activeRuleUuids);</span>
+<span class="fc" id="L272">    return from(activeRuleParamDtos)</span>
+<span class="fc" id="L273">      .index(new ActiveRuleParamToActiveRule(activeRuleByUuid));</span>
+  }
+
+  private void deleteOrUpdateParameters(DbSession dbSession, RuleUpdate update, RuleDto customRule, List&lt;String&gt; paramKeys,
+    Multimap&lt;ActiveRuleDto, ActiveRuleParamDto&gt; activeRuleParamsByActiveRule) {
+<span class="fc bfc" id="L278" title="All 2 branches covered.">    for (RuleParamDto ruleParamDto : dbClient.ruleDao().selectRuleParamsByRuleKey(dbSession, update.getRuleKey())) {</span>
+<span class="fc" id="L279">      String key = ruleParamDto.getName();</span>
+<span class="fc" id="L280">      String value = Strings.emptyToNull(update.parameter(key));</span>
+
+      // Update rule param
+<span class="fc" id="L283">      ruleParamDto.setDefaultValue(value);</span>
+<span class="fc" id="L284">      dbClient.ruleDao().updateRuleParam(dbSession, customRule, ruleParamDto);</span>
+
+<span class="fc bfc" id="L286" title="All 2 branches covered.">      if (value != null) {</span>
+        // Update linked active rule params or create new one
+<span class="fc" id="L288">        updateOrInsertActiveRuleParams(dbSession, ruleParamDto, activeRuleParamsByActiveRule);</span>
+      } else {
+        // Delete linked active rule params
+<span class="fc" id="L291">        deleteActiveRuleParams(dbSession, key, activeRuleParamsByActiveRule.values());</span>
+      }
+<span class="fc" id="L293">      paramKeys.add(key);</span>
+<span class="fc" id="L294">    }</span>
+<span class="fc" id="L295">  }</span>
+
+  private void updateOrInsertActiveRuleParams(DbSession dbSession, RuleParamDto ruleParamDto, Multimap&lt;ActiveRuleDto, ActiveRuleParamDto&gt; activeRuleParamsByActiveRule) {
+<span class="fc" id="L298">    activeRuleParamsByActiveRule</span>
+<span class="fc" id="L299">      .keySet()</span>
+<span class="fc" id="L300">      .forEach(new UpdateOrInsertActiveRuleParams(dbSession, dbClient, ruleParamDto, activeRuleParamsByActiveRule));</span>
+<span class="fc" id="L301">  }</span>
+
+  private void deleteActiveRuleParams(DbSession dbSession, String key, Collection&lt;ActiveRuleParamDto&gt; activeRuleParamDtos) {
+<span class="fc" id="L304">    activeRuleParamDtos.forEach(new DeleteActiveRuleParams(dbSession, dbClient, key));</span>
+<span class="fc" id="L305">  }</span>
+
+  private static class ActiveRuleParamToActiveRule implements Function&lt;ActiveRuleParamDto, ActiveRuleDto&gt; {
+    private final Map&lt;String, OrgActiveRuleDto&gt; activeRuleByUuid;
+
+<span class="fc" id="L310">    private ActiveRuleParamToActiveRule(Map&lt;String, OrgActiveRuleDto&gt; activeRuleByUuid) {</span>
+<span class="fc" id="L311">      this.activeRuleByUuid = activeRuleByUuid;</span>
+<span class="fc" id="L312">    }</span>
+
+    @Override
+    public OrgActiveRuleDto apply(@Nonnull ActiveRuleParamDto input) {
+<span class="fc" id="L316">      return activeRuleByUuid.get(input.getActiveRuleUuid());</span>
+    }
+  }
+
+  private static class UpdateOrInsertActiveRuleParams implements Consumer&lt;ActiveRuleDto&gt; {
+    private final DbSession dbSession;
+    private final DbClient dbClient;
+    private final RuleParamDto ruleParamDto;
+    private final Multimap&lt;ActiveRuleDto, ActiveRuleParamDto&gt; activeRuleParams;
+
+<span class="fc" id="L326">    private UpdateOrInsertActiveRuleParams(DbSession dbSession, DbClient dbClient, RuleParamDto ruleParamDto, Multimap&lt;ActiveRuleDto, ActiveRuleParamDto&gt; activeRuleParams) {</span>
+<span class="fc" id="L327">      this.dbSession = dbSession;</span>
+<span class="fc" id="L328">      this.dbClient = dbClient;</span>
+<span class="fc" id="L329">      this.ruleParamDto = ruleParamDto;</span>
+<span class="fc" id="L330">      this.activeRuleParams = activeRuleParams;</span>
+<span class="fc" id="L331">    }</span>
+
+    @Override
+    public void accept(@Nonnull ActiveRuleDto activeRuleDto) {
+<span class="fc" id="L335">      Map&lt;String, ActiveRuleParamDto&gt; activeRuleParamByKey = from(activeRuleParams.get(activeRuleDto))</span>
+<span class="fc" id="L336">        .uniqueIndex(ActiveRuleParamDto::getKey);</span>
+<span class="fc" id="L337">      ActiveRuleParamDto activeRuleParamDto = activeRuleParamByKey.get(ruleParamDto.getName());</span>
+<span class="fc bfc" id="L338" title="All 2 branches covered.">      if (activeRuleParamDto != null) {</span>
+<span class="fc" id="L339">        dbClient.activeRuleDao().updateParam(dbSession, activeRuleParamDto.setValue(ruleParamDto.getDefaultValue()));</span>
+      } else {
+<span class="fc" id="L341">        dbClient.activeRuleDao().insertParam(dbSession, activeRuleDto, ActiveRuleParamDto.createFor(ruleParamDto).setValue(ruleParamDto.getDefaultValue()));</span>
+      }
+<span class="fc" id="L343">    }</span>
+  }
+
+  private static class DeleteActiveRuleParams implements Consumer&lt;ActiveRuleParamDto&gt; {
+    private final DbSession dbSession;
+    private final DbClient dbClient;
+    private final String key;
+
+<span class="fc" id="L351">    public DeleteActiveRuleParams(DbSession dbSession, DbClient dbClient, String key) {</span>
+<span class="fc" id="L352">      this.dbSession = dbSession;</span>
+<span class="fc" id="L353">      this.dbClient = dbClient;</span>
+<span class="fc" id="L354">      this.key = key;</span>
+<span class="fc" id="L355">    }</span>
+
+    @Override
+    public void accept(@Nonnull ActiveRuleParamDto activeRuleParamDto) {
+<span class="pc bpc" id="L359" title="1 of 2 branches missed.">      if (activeRuleParamDto.getKey().equals(key)) {</span>
+<span class="nc" id="L360">        dbClient.activeRuleDao().deleteParamByUuid(dbSession, activeRuleParamDto.getUuid());</span>
+      }
+<span class="fc" id="L362">    }</span>
+  }
+
+  private void update(DbSession session, RuleDto rule) {
+<span class="fc" id="L366">    rule.setUpdatedAt(system.now());</span>
+<span class="fc" id="L367">    dbClient.ruleDao().update(session, rule);</span>
+<span class="fc" id="L368">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

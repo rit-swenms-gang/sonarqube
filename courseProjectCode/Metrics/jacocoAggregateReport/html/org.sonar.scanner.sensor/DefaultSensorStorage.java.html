@@ -1,0 +1,501 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultSensorStorage.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.sensor</a> &gt; <span class="el_source">DefaultSensorStorage.java</span></div><h1>DefaultSensorStorage.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.sensor;
+
+import static java.lang.Math.max;
+import static org.sonar.api.measures.CoreMetrics.COMMENT_LINES_DATA_KEY;
+import static org.sonar.api.measures.CoreMetrics.LINES_KEY;
+import static org.sonar.api.measures.CoreMetrics.PUBLIC_DOCUMENTED_API_DENSITY_KEY;
+import static org.sonar.api.measures.CoreMetrics.TEST_SUCCESS_DENSITY_KEY;
+import static org.sonar.api.utils.Preconditions.checkArgument;
+
+import com.google.protobuf.ByteString;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.Serializable;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
+import javax.annotation.Nullable;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.batch.fs.InputComponent;
+import org.sonar.api.batch.fs.InputDir;
+import org.sonar.api.batch.fs.InputFile;
+import org.sonar.api.batch.fs.TextRange;
+import org.sonar.api.batch.fs.internal.DefaultInputComponent;
+import org.sonar.api.batch.fs.internal.DefaultInputFile;
+import org.sonar.api.batch.fs.internal.DefaultInputModule;
+import org.sonar.api.batch.measure.Metric;
+import org.sonar.api.batch.measure.MetricFinder;
+import org.sonar.api.batch.sensor.code.NewSignificantCode;
+import org.sonar.api.batch.sensor.code.internal.DefaultSignificantCode;
+import org.sonar.api.batch.sensor.coverage.NewCoverage;
+import org.sonar.api.batch.sensor.coverage.internal.DefaultCoverage;
+import org.sonar.api.batch.sensor.cpd.NewCpdTokens;
+import org.sonar.api.batch.sensor.cpd.internal.DefaultCpdTokens;
+import org.sonar.api.batch.sensor.error.AnalysisError;
+import org.sonar.api.batch.sensor.highlighting.NewHighlighting;
+import org.sonar.api.batch.sensor.highlighting.internal.DefaultHighlighting;
+import org.sonar.api.batch.sensor.internal.SensorStorage;
+import org.sonar.api.batch.sensor.issue.ExternalIssue;
+import org.sonar.api.batch.sensor.issue.Issue;
+import org.sonar.api.batch.sensor.measure.Measure;
+import org.sonar.api.batch.sensor.measure.internal.DefaultMeasure;
+import org.sonar.api.batch.sensor.rule.AdHocRule;
+import org.sonar.api.batch.sensor.symbol.NewSymbolTable;
+import org.sonar.api.batch.sensor.symbol.internal.DefaultSymbolTable;
+import org.sonar.api.config.Configuration;
+import org.sonar.api.issue.impact.Severity;
+import org.sonar.api.issue.impact.SoftwareQuality;
+import org.sonar.api.measures.CoreMetrics;
+import org.sonar.api.rules.CleanCodeAttribute;
+import org.sonar.api.rules.RuleType;
+import org.sonar.api.utils.KeyValueFormat;
+import org.sonar.core.metric.ScannerMetrics;
+import org.sonar.core.util.CloseableIterator;
+import org.sonar.duplications.block.Block;
+import org.sonar.duplications.internal.pmd.PmdBlockChunker;
+import org.sonar.scanner.cpd.index.SonarCpdBlockIndex;
+import org.sonar.scanner.issue.ImpactMapper;
+import org.sonar.scanner.issue.IssuePublisher;
+import org.sonar.scanner.protocol.Constants;
+import org.sonar.scanner.protocol.output.FileStructure;
+import org.sonar.scanner.protocol.output.ScannerReport;
+import org.sonar.scanner.protocol.output.ScannerReportWriter;
+import org.sonar.scanner.report.ReportPublisher;
+import org.sonar.scanner.report.ScannerReportUtils;
+import org.sonar.scanner.repository.ContextPropertiesCache;
+import org.sonar.scanner.repository.TelemetryCache;
+import org.sonar.scanner.scan.branch.BranchConfiguration;
+
+public class DefaultSensorStorage implements SensorStorage {
+
+<span class="fc" id="L96">  private static final Logger LOG = LoggerFactory.getLogger(DefaultSensorStorage.class);</span>
+  private static final int DEFAULT_CPD_MIN_LINES = 10;
+
+  /**
+   * The metrics that can be computed by analyzers but that are
+   * filtered from analysis reports. That allows analyzers to continue
+   * providing measures that are supported only by older versions.
+   * &lt;p&gt;
+   * The metrics in this list should not be declared in {@link ScannerMetrics#ALLOWED_CORE_METRICS}.
+   */
+<span class="fc" id="L106">  private static final Set&lt;String&gt; DEPRECATED_METRICS_KEYS = Set.of(</span>
+    COMMENT_LINES_DATA_KEY);
+
+  /**
+   * Metrics that were computed by analyzers and that are now computed
+   * by core
+   */
+<span class="fc" id="L113">  private static final Set&lt;String&gt; NEWLY_CORE_METRICS_KEYS = Set.of(</span>
+    // Computed on Scanner side
+    LINES_KEY,
+    // Computed on CE side
+    TEST_SUCCESS_DENSITY_KEY,
+    PUBLIC_DOCUMENTED_API_DENSITY_KEY);
+
+  private final MetricFinder metricFinder;
+  private final IssuePublisher moduleIssues;
+  private final ReportPublisher reportPublisher;
+  private final SonarCpdBlockIndex index;
+  private final ContextPropertiesCache contextPropertiesCache;
+  private final TelemetryCache telemetryCache;
+  private final Configuration settings;
+  private final ScannerMetrics scannerMetrics;
+  private final BranchConfiguration branchConfiguration;
+<span class="fc" id="L129">  private final Set&lt;String&gt; alreadyLogged = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L130">  private final Set&lt;String&gt; alreadyAddedData = new HashSet&lt;&gt;();</span>
+
+  public DefaultSensorStorage(MetricFinder metricFinder, IssuePublisher moduleIssues, Configuration settings, ReportPublisher reportPublisher, SonarCpdBlockIndex index,
+<span class="fc" id="L133">    ContextPropertiesCache contextPropertiesCache, TelemetryCache telemetryCache, ScannerMetrics scannerMetrics, BranchConfiguration branchConfiguration) {</span>
+<span class="fc" id="L134">    this.metricFinder = metricFinder;</span>
+<span class="fc" id="L135">    this.moduleIssues = moduleIssues;</span>
+<span class="fc" id="L136">    this.settings = settings;</span>
+<span class="fc" id="L137">    this.reportPublisher = reportPublisher;</span>
+<span class="fc" id="L138">    this.index = index;</span>
+<span class="fc" id="L139">    this.contextPropertiesCache = contextPropertiesCache;</span>
+<span class="fc" id="L140">    this.telemetryCache = telemetryCache;</span>
+<span class="fc" id="L141">    this.scannerMetrics = scannerMetrics;</span>
+<span class="fc" id="L142">    this.branchConfiguration = branchConfiguration;</span>
+<span class="fc" id="L143">  }</span>
+
+  @Override
+  public void store(Measure newMeasure) {
+<span class="fc" id="L147">    saveMeasure(newMeasure.inputComponent(), (DefaultMeasure&lt;?&gt;) newMeasure);</span>
+<span class="fc" id="L148">  }</span>
+
+  private void logOnce(String metricKey, String msg, Object... params) {
+<span class="pc bpc" id="L151" title="1 of 2 branches missed.">    if (alreadyLogged.add(metricKey)) {</span>
+<span class="fc" id="L152">      LOG.warn(msg, params);</span>
+    }
+<span class="fc" id="L154">  }</span>
+
+  private void saveMeasure(InputComponent component, DefaultMeasure&lt;?&gt; measure) {
+<span class="fc bfc" id="L157" title="All 2 branches covered.">    if (component.isFile()) {</span>
+<span class="fc" id="L158">      DefaultInputFile defaultInputFile = (DefaultInputFile) component;</span>
+<span class="fc" id="L159">      defaultInputFile.setPublished(true);</span>
+    }
+
+<span class="fc bfc" id="L162" title="All 6 branches covered.">    if (component instanceof InputDir || (component instanceof DefaultInputModule defaultInputModule &amp;&amp; defaultInputModule.definition().getParent() != null)) {</span>
+<span class="fc" id="L163">      logOnce(measure.metric().key(), &quot;Storing measures on folders or modules is deprecated. Provided value of metric '{}' is ignored.&quot;,</span>
+<span class="fc" id="L164">        measure.metric().key());</span>
+<span class="fc" id="L165">      return;</span>
+    }
+
+<span class="pc bpc" id="L168" title="1 of 2 branches missed.">    if (DEPRECATED_METRICS_KEYS.contains(measure.metric().key())) {</span>
+<span class="nc" id="L169">      logOnce(measure.metric().key(), &quot;Metric '{}' is deprecated. Provided value is ignored.&quot;, measure.metric().key());</span>
+<span class="nc" id="L170">      return;</span>
+    }
+
+<span class="fc" id="L173">    Metric metric = metricFinder.findByKey(measure.metric().key());</span>
+<span class="fc bfc" id="L174" title="All 2 branches covered.">    if (metric == null) {</span>
+<span class="fc" id="L175">      throw new UnsupportedOperationException(&quot;Unknown metric: &quot; + measure.metric().key());</span>
+    }
+
+<span class="pc bpc" id="L178" title="1 of 4 branches missed.">    if (!measure.isFromCore() &amp;&amp; NEWLY_CORE_METRICS_KEYS.contains(measure.metric().key())) {</span>
+<span class="fc" id="L179">      logOnce(measure.metric().key(), &quot;Metric '{}' is an internal metric computed by SonarQube. Provided value is ignored.&quot;,</span>
+<span class="fc" id="L180">        measure.metric().key());</span>
+<span class="fc" id="L181">      return;</span>
+    }
+
+<span class="fc bfc" id="L184" title="All 2 branches covered.">    if (!scannerMetrics.getMetrics().contains(metric)) {</span>
+<span class="fc" id="L185">      throw new UnsupportedOperationException(&quot;Metric '&quot; + metric.key() + &quot;' should not be computed by a Sensor&quot;);</span>
+    }
+
+<span class="pc bpc" id="L188" title="1 of 2 branches missed.">    if (((DefaultInputComponent) component).hasMeasureFor(metric)) {</span>
+<span class="nc" id="L189">      throw new UnsupportedOperationException(&quot;Can not add the same measure twice on &quot; + component + &quot;: &quot; + measure);</span>
+    }
+<span class="fc" id="L191">    ((DefaultInputComponent) component).setHasMeasureFor(metric);</span>
+<span class="fc bfc" id="L192" title="All 2 branches covered.">    if (metric.key().equals(CoreMetrics.EXECUTABLE_LINES_DATA_KEY)) {</span>
+<span class="pc bpc" id="L193" title="1 of 2 branches missed.">      if (component.isFile()) {</span>
+<span class="fc" id="L194">        ((DefaultInputFile) component).setExecutableLines(</span>
+<span class="fc bfc" id="L195" title="All 2 branches covered.">          KeyValueFormat.parseIntInt((String) measure.value()).entrySet().stream().filter(e -&gt; e.getValue() &gt; 0).map(Map.Entry::getKey).collect(Collectors.toSet()));</span>
+      } else {
+<span class="nc" id="L197">        throw new IllegalArgumentException(&quot;Executable lines can only be saved on files&quot;);</span>
+      }
+    }
+<span class="fc" id="L200">    reportPublisher.getWriter().appendComponentMeasure(((DefaultInputComponent) component).scannerId(), toReportMeasure(measure));</span>
+<span class="fc" id="L201">  }</span>
+
+  public boolean hasIssues(DefaultInputComponent inputComponent) {
+<span class="fc" id="L204">    return reportPublisher.getReader().hasIssues(inputComponent.scannerId());</span>
+  }
+
+  public static ScannerReport.Measure toReportMeasure(DefaultMeasure measureToSave) {
+<span class="fc" id="L208">    ScannerReport.Measure.Builder builder = ScannerReport.Measure.newBuilder();</span>
+<span class="fc" id="L209">    builder.setMetricKey(measureToSave.metric().key());</span>
+<span class="fc" id="L210">    setValueAccordingToType(builder, measureToSave);</span>
+<span class="fc" id="L211">    return builder.build();</span>
+  }
+
+  private static void setValueAccordingToType(ScannerReport.Measure.Builder builder, DefaultMeasure&lt;?&gt; measure) {
+<span class="fc" id="L215">    Serializable value = measure.value();</span>
+<span class="fc" id="L216">    Metric&lt;?&gt; metric = measure.metric();</span>
+<span class="pc bpc" id="L217" title="1 of 2 branches missed.">    if (Boolean.class.equals(metric.valueType())) {</span>
+<span class="nc" id="L218">      builder.setBooleanValue(ScannerReport.Measure.BoolValue.newBuilder().setValue((Boolean) value));</span>
+<span class="fc bfc" id="L219" title="All 2 branches covered.">    } else if (Integer.class.equals(metric.valueType())) {</span>
+<span class="fc" id="L220">      builder.setIntValue(ScannerReport.Measure.IntValue.newBuilder().setValue(((Number) value).intValue()));</span>
+<span class="pc bpc" id="L221" title="1 of 2 branches missed.">    } else if (Double.class.equals(metric.valueType())) {</span>
+<span class="nc" id="L222">      builder.setDoubleValue(ScannerReport.Measure.DoubleValue.newBuilder().setValue(((Number) value).doubleValue()));</span>
+<span class="fc bfc" id="L223" title="All 2 branches covered.">    } else if (String.class.equals(metric.valueType())) {</span>
+<span class="fc" id="L224">      builder.setStringValue(ScannerReport.Measure.StringValue.newBuilder().setValue((String) value));</span>
+<span class="pc bpc" id="L225" title="1 of 2 branches missed.">    } else if (Long.class.equals(metric.valueType())) {</span>
+<span class="fc" id="L226">      builder.setLongValue(ScannerReport.Measure.LongValue.newBuilder().setValue(((Number) value).longValue()));</span>
+    } else {
+<span class="nc" id="L228">      throw new UnsupportedOperationException(&quot;Unsupported type :&quot; + metric.valueType());</span>
+    }
+<span class="fc" id="L230">  }</span>
+
+  private boolean shouldSkipStorage(DefaultInputFile defaultInputFile) {
+<span class="pc bpc" id="L233" title="1 of 4 branches missed.">    return branchConfiguration.isPullRequest() &amp;&amp; defaultInputFile.status() == InputFile.Status.SAME;</span>
+  }
+
+  /**
+   * Thread safe assuming that each issues for each file are only written once.
+   */
+  @Override
+  public void store(Issue issue) {
+<span class="fc bfc" id="L241" title="All 2 branches covered.">    if (issue.primaryLocation().inputComponent() instanceof DefaultInputFile defaultInputFile) {</span>
+<span class="fc bfc" id="L242" title="All 2 branches covered.">      if (shouldSkipStorage(defaultInputFile)) {</span>
+<span class="fc" id="L243">        return;</span>
+      }
+<span class="fc" id="L245">      defaultInputFile.setPublished(true);</span>
+    }
+<span class="fc" id="L247">    moduleIssues.initAndAddIssue(issue);</span>
+<span class="fc" id="L248">  }</span>
+
+  /**
+   * Thread safe assuming that each issues for each file are only written once.
+   */
+  @Override
+  public void store(ExternalIssue externalIssue) {
+<span class="fc bfc" id="L255" title="All 2 branches covered.">    if (externalIssue.primaryLocation().inputComponent() instanceof DefaultInputFile defaultInputFile) {</span>
+<span class="fc" id="L256">      defaultInputFile.setPublished(true);</span>
+    }
+<span class="fc" id="L258">    moduleIssues.initAndAddExternalIssue(externalIssue);</span>
+<span class="fc" id="L259">  }</span>
+
+  @Override
+  public void store(AdHocRule adHocRule) {
+<span class="fc" id="L263">    ScannerReportWriter writer = reportPublisher.getWriter();</span>
+<span class="fc" id="L264">    final ScannerReport.AdHocRule.Builder builder = ScannerReport.AdHocRule.newBuilder();</span>
+<span class="fc" id="L265">    builder.setEngineId(adHocRule.engineId());</span>
+<span class="fc" id="L266">    builder.setRuleId(adHocRule.ruleId());</span>
+<span class="fc" id="L267">    builder.setName(adHocRule.name());</span>
+<span class="fc" id="L268">    String description = adHocRule.description();</span>
+<span class="pc bpc" id="L269" title="1 of 2 branches missed.">    if (description != null) {</span>
+<span class="fc" id="L270">      builder.setDescription(description);</span>
+    }
+
+<span class="fc" id="L273">    org.sonar.api.batch.rule.Severity severity = adHocRule.severity();</span>
+<span class="fc bfc" id="L274" title="All 2 branches covered.">    if (severity != null) {</span>
+<span class="fc" id="L275">      builder.setSeverity(Constants.Severity.valueOf(severity.name()));</span>
+    }
+
+<span class="fc" id="L278">    RuleType type = adHocRule.type();</span>
+<span class="fc bfc" id="L279" title="All 2 branches covered.">    if (type != null) {</span>
+<span class="fc" id="L280">      builder.setType(ScannerReport.IssueType.valueOf(type.name()));</span>
+    }
+<span class="fc" id="L282">    builder.addAllDefaultImpacts(mapImpacts(adHocRule.defaultImpacts()));</span>
+
+<span class="fc" id="L284">    CleanCodeAttribute cleanCodeAttribute = adHocRule.cleanCodeAttribute();</span>
+<span class="fc bfc" id="L285" title="All 2 branches covered.">    if (cleanCodeAttribute != null) {</span>
+<span class="fc" id="L286">      builder.setCleanCodeAttribute(cleanCodeAttribute.name());</span>
+    }
+<span class="fc" id="L288">    writer.appendAdHocRule(builder.build());</span>
+<span class="fc" id="L289">  }</span>
+
+  private static List&lt;ScannerReport.Impact&gt; mapImpacts(Map&lt;SoftwareQuality, Severity&gt; impactsMap) {
+<span class="fc" id="L292">    return impactsMap.entrySet().stream()</span>
+<span class="fc" id="L293">      .map(e -&gt; ScannerReport.Impact.newBuilder()</span>
+<span class="fc" id="L294">        .setSoftwareQuality(ScannerReport.SoftwareQuality.valueOf(e.getKey().name()))</span>
+<span class="fc" id="L295">        .setSeverity(ImpactMapper.mapImpactSeverity(e.getValue())).build())</span>
+<span class="fc" id="L296">      .toList();</span>
+  }
+
+  @Override
+  public void store(NewHighlighting newHighlighting) {
+<span class="fc" id="L301">    DefaultHighlighting highlighting = (DefaultHighlighting) newHighlighting;</span>
+<span class="fc" id="L302">    ScannerReportWriter writer = reportPublisher.getWriter();</span>
+<span class="fc" id="L303">    DefaultInputFile inputFile = (DefaultInputFile) highlighting.inputFile();</span>
+<span class="fc bfc" id="L304" title="All 2 branches covered.">    if (shouldSkipStorage(inputFile)) {</span>
+<span class="fc" id="L305">      return;</span>
+    }
+<span class="fc" id="L307">    inputFile.setPublished(true);</span>
+<span class="fc" id="L308">    int componentRef = inputFile.scannerId();</span>
+<span class="fc bfc" id="L309" title="All 2 branches covered.">    if (writer.hasComponentData(FileStructure.Domain.SYNTAX_HIGHLIGHTINGS, componentRef)) {</span>
+<span class="fc" id="L310">      throw new UnsupportedOperationException(&quot;Trying to save highlighting twice for the same file is not supported: &quot; + inputFile);</span>
+    }
+<span class="fc" id="L312">    final ScannerReport.SyntaxHighlightingRule.Builder builder = ScannerReport.SyntaxHighlightingRule.newBuilder();</span>
+<span class="fc" id="L313">    final ScannerReport.TextRange.Builder rangeBuilder = ScannerReport.TextRange.newBuilder();</span>
+
+<span class="fc" id="L315">    writer.writeComponentSyntaxHighlighting(componentRef,</span>
+<span class="fc" id="L316">      highlighting.getSyntaxHighlightingRuleSet().stream()</span>
+<span class="fc" id="L317">        .map(input -&gt; {</span>
+<span class="fc" id="L318">          builder.setRange(rangeBuilder.setStartLine(input.range().start().line())</span>
+<span class="fc" id="L319">            .setStartOffset(input.range().start().lineOffset())</span>
+<span class="fc" id="L320">            .setEndLine(input.range().end().line())</span>
+<span class="fc" id="L321">            .setEndOffset(input.range().end().lineOffset())</span>
+<span class="fc" id="L322">            .build());</span>
+<span class="fc" id="L323">          builder.setType(ScannerReportUtils.toProtocolType(input.getTextType()));</span>
+<span class="fc" id="L324">          return builder.build();</span>
+<span class="fc" id="L325">        }).toList());</span>
+<span class="fc" id="L326">  }</span>
+
+  @Override
+  public void store(NewSymbolTable newSymbolTable) {
+<span class="fc" id="L330">    DefaultSymbolTable symbolTable = (DefaultSymbolTable) newSymbolTable;</span>
+<span class="fc" id="L331">    ScannerReportWriter writer = reportPublisher.getWriter();</span>
+<span class="fc" id="L332">    DefaultInputFile inputFile = (DefaultInputFile) symbolTable.inputFile();</span>
+<span class="pc bpc" id="L333" title="1 of 2 branches missed.">    if (shouldSkipStorage(inputFile)) {</span>
+<span class="nc" id="L334">      return;</span>
+    }
+<span class="fc" id="L336">    inputFile.setPublished(true);</span>
+<span class="fc" id="L337">    int componentRef = inputFile.scannerId();</span>
+<span class="fc bfc" id="L338" title="All 2 branches covered.">    if (writer.hasComponentData(FileStructure.Domain.SYMBOLS, componentRef)) {</span>
+<span class="fc" id="L339">      throw new UnsupportedOperationException(&quot;Trying to save symbol table twice for the same file is not supported: &quot; + symbolTable.inputFile());</span>
+    }
+<span class="fc" id="L341">    final ScannerReport.Symbol.Builder builder = ScannerReport.Symbol.newBuilder();</span>
+<span class="fc" id="L342">    final ScannerReport.TextRange.Builder rangeBuilder = ScannerReport.TextRange.newBuilder();</span>
+<span class="fc" id="L343">    writer.writeComponentSymbols(componentRef,</span>
+<span class="fc" id="L344">      symbolTable.getReferencesBySymbol().entrySet().stream()</span>
+<span class="fc" id="L345">        .map(input -&gt; {</span>
+<span class="fc" id="L346">          builder.clear();</span>
+<span class="fc" id="L347">          rangeBuilder.clear();</span>
+<span class="fc" id="L348">          TextRange declaration = input.getKey();</span>
+<span class="fc" id="L349">          builder.setDeclaration(rangeBuilder.setStartLine(declaration.start().line())</span>
+<span class="fc" id="L350">            .setStartOffset(declaration.start().lineOffset())</span>
+<span class="fc" id="L351">            .setEndLine(declaration.end().line())</span>
+<span class="fc" id="L352">            .setEndOffset(declaration.end().lineOffset())</span>
+<span class="fc" id="L353">            .build());</span>
+<span class="fc bfc" id="L354" title="All 2 branches covered.">          for (TextRange reference : input.getValue()) {</span>
+<span class="fc" id="L355">            builder.addReference(rangeBuilder.setStartLine(reference.start().line())</span>
+<span class="fc" id="L356">              .setStartOffset(reference.start().lineOffset())</span>
+<span class="fc" id="L357">              .setEndLine(reference.end().line())</span>
+<span class="fc" id="L358">              .setEndOffset(reference.end().lineOffset())</span>
+<span class="fc" id="L359">              .build());</span>
+<span class="fc" id="L360">          }</span>
+<span class="fc" id="L361">          return builder.build();</span>
+<span class="fc" id="L362">        }).toList());</span>
+<span class="fc" id="L363">  }</span>
+
+  @Override
+  public void store(NewCoverage coverage) {
+<span class="fc" id="L367">    DefaultCoverage defaultCoverage = (DefaultCoverage) coverage;</span>
+<span class="fc" id="L368">    DefaultInputFile inputFile = (DefaultInputFile) defaultCoverage.inputFile();</span>
+<span class="fc" id="L369">    inputFile.setPublished(true);</span>
+
+<span class="fc" id="L371">    SortedMap&lt;Integer, ScannerReport.LineCoverage.Builder&gt; coveragePerLine = reloadExistingCoverage(inputFile);</span>
+
+<span class="fc" id="L373">    int lineCount = inputFile.lines();</span>
+<span class="fc" id="L374">    mergeLineCoverageValues(lineCount, defaultCoverage.hitsByLine(), coveragePerLine,</span>
+<span class="fc bfc" id="L375" title="All 4 branches covered.">      (value, builder) -&gt; builder.setHits(builder.getHits() || value &gt; 0));</span>
+<span class="fc" id="L376">    mergeLineCoverageValues(lineCount, defaultCoverage.conditionsByLine(), coveragePerLine,</span>
+<span class="fc" id="L377">      (value, builder) -&gt; builder.setConditions(max(value, builder.getConditions())));</span>
+<span class="fc" id="L378">    mergeLineCoverageValues(lineCount, defaultCoverage.coveredConditionsByLine(), coveragePerLine,</span>
+<span class="fc" id="L379">      (value, builder) -&gt; builder.setCoveredConditions(max(value, builder.getCoveredConditions())));</span>
+
+<span class="fc" id="L381">    reportPublisher.getWriter().writeComponentCoverage(inputFile.scannerId(),</span>
+<span class="fc" id="L382">      coveragePerLine.values().stream().map(ScannerReport.LineCoverage.Builder::build).toList());</span>
+
+<span class="fc" id="L384">  }</span>
+
+  private SortedMap&lt;Integer, ScannerReport.LineCoverage.Builder&gt; reloadExistingCoverage(DefaultInputFile inputFile) {
+<span class="fc" id="L387">    SortedMap&lt;Integer, ScannerReport.LineCoverage.Builder&gt; coveragePerLine = new TreeMap&lt;&gt;();</span>
+<span class="fc" id="L388">    try (CloseableIterator&lt;ScannerReport.LineCoverage&gt; lineCoverageCloseableIterator = reportPublisher.getReader().readComponentCoverage(inputFile.scannerId())) {</span>
+<span class="fc bfc" id="L389" title="All 2 branches covered.">      while (lineCoverageCloseableIterator.hasNext()) {</span>
+<span class="fc" id="L390">        final ScannerReport.LineCoverage lineCoverage = lineCoverageCloseableIterator.next();</span>
+<span class="fc" id="L391">        coveragePerLine.put(lineCoverage.getLine(), ScannerReport.LineCoverage.newBuilder(lineCoverage));</span>
+<span class="fc" id="L392">      }</span>
+    }
+<span class="fc" id="L394">    return coveragePerLine;</span>
+  }
+
+  interface LineCoverageOperation {
+    void apply(Integer value, ScannerReport.LineCoverage.Builder builder);
+  }
+
+  private static void mergeLineCoverageValues(int lineCount, SortedMap&lt;Integer, Integer&gt; valueByLine, SortedMap&lt;Integer, ScannerReport.LineCoverage.Builder&gt; coveragePerLine,
+    LineCoverageOperation op) {
+<span class="fc bfc" id="L403" title="All 2 branches covered.">    for (Map.Entry&lt;Integer, Integer&gt; lineMeasure : valueByLine.entrySet()) {</span>
+<span class="fc" id="L404">      int lineIdx = lineMeasure.getKey();</span>
+<span class="pc bpc" id="L405" title="1 of 2 branches missed.">      if (lineIdx &lt;= lineCount) {</span>
+<span class="fc" id="L406">        Integer value = lineMeasure.getValue();</span>
+<span class="fc" id="L407">        op.apply(value, coveragePerLine.computeIfAbsent(lineIdx, line -&gt; ScannerReport.LineCoverage.newBuilder().setLine(line)));</span>
+      }
+<span class="fc" id="L409">    }</span>
+<span class="fc" id="L410">  }</span>
+
+  @Override
+  public void store(NewCpdTokens cpdTokens) {
+<span class="fc" id="L414">    DefaultCpdTokens defaultCpdTokens = (DefaultCpdTokens) cpdTokens;</span>
+<span class="fc" id="L415">    DefaultInputFile inputFile = (DefaultInputFile) defaultCpdTokens.inputFile();</span>
+<span class="fc" id="L416">    inputFile.setPublished(true);</span>
+<span class="fc" id="L417">    PmdBlockChunker blockChunker = new PmdBlockChunker(getCpdBlockSize(inputFile.language()));</span>
+<span class="fc" id="L418">    List&lt;Block&gt; blocks = blockChunker.chunk(inputFile.key(), defaultCpdTokens.getTokenLines());</span>
+<span class="fc" id="L419">    index.insert(inputFile, blocks);</span>
+<span class="fc" id="L420">  }</span>
+
+  private int getCpdBlockSize(@Nullable String languageKey) {
+<span class="pc bpc" id="L423" title="1 of 2 branches missed.">    if (languageKey == null) {</span>
+<span class="nc" id="L424">      return DEFAULT_CPD_MIN_LINES;</span>
+    }
+<span class="fc" id="L426">    return settings.getInt(&quot;sonar.cpd.&quot; + languageKey + &quot;.minimumLines&quot;)</span>
+<span class="fc" id="L427">      .orElseGet(() -&gt; {</span>
+<span class="pc bpc" id="L428" title="1 of 2 branches missed.">        if (&quot;cobol&quot;.equals(languageKey)) {</span>
+<span class="nc" id="L429">          return 30;</span>
+        }
+<span class="pc bpc" id="L431" title="1 of 2 branches missed.">        if (&quot;abap&quot;.equals(languageKey)) {</span>
+<span class="nc" id="L432">          return 20;</span>
+        }
+<span class="fc" id="L434">        return DEFAULT_CPD_MIN_LINES;</span>
+      });
+  }
+
+  @Override
+  public void store(AnalysisError analysisError) {
+<span class="nc" id="L440">    DefaultInputFile defaultInputFile = (DefaultInputFile) analysisError.inputFile();</span>
+<span class="nc bnc" id="L441" title="All 2 branches missed.">    if (shouldSkipStorage(defaultInputFile)) {</span>
+<span class="nc" id="L442">      return;</span>
+    }
+<span class="nc" id="L444">    defaultInputFile.setPublished(true);</span>
+<span class="nc" id="L445">  }</span>
+
+  @Override
+  public void storeProperty(String key, String value) {
+<span class="fc" id="L449">    contextPropertiesCache.put(key, value);</span>
+<span class="fc" id="L450">  }</span>
+
+  public void storeTelemetry(String key, String value) {
+<span class="fc" id="L453">    telemetryCache.put(key, value);</span>
+<span class="fc" id="L454">  }</span>
+
+  @Override
+  public void store(NewSignificantCode newSignificantCode) {
+<span class="fc" id="L458">    DefaultSignificantCode significantCode = (DefaultSignificantCode) newSignificantCode;</span>
+<span class="fc" id="L459">    ScannerReportWriter writer = reportPublisher.getWriter();</span>
+<span class="fc" id="L460">    DefaultInputFile inputFile = (DefaultInputFile) significantCode.inputFile();</span>
+<span class="fc bfc" id="L461" title="All 2 branches covered.">    if (shouldSkipStorage(inputFile)) {</span>
+<span class="fc" id="L462">      return;</span>
+    }
+<span class="fc" id="L464">    inputFile.setPublished(true);</span>
+<span class="fc" id="L465">    int componentRef = inputFile.scannerId();</span>
+<span class="fc bfc" id="L466" title="All 2 branches covered.">    if (writer.hasComponentData(FileStructure.Domain.SGNIFICANT_CODE, componentRef)) {</span>
+<span class="fc" id="L467">      throw new UnsupportedOperationException(</span>
+<span class="fc" id="L468">        &quot;Trying to save significant code information twice for the same file is not supported: &quot; + significantCode.inputFile());</span>
+    }
+
+<span class="fc" id="L471">    List&lt;ScannerReport.LineSgnificantCode&gt; protobuf = significantCode.significantCodePerLine().values().stream()</span>
+<span class="fc" id="L472">      .map(range -&gt; ScannerReport.LineSgnificantCode.newBuilder()</span>
+<span class="fc" id="L473">        .setLine(range.start().line())</span>
+<span class="fc" id="L474">        .setStartOffset(range.start().lineOffset())</span>
+<span class="fc" id="L475">        .setEndOffset(range.end().lineOffset())</span>
+<span class="fc" id="L476">        .build())</span>
+<span class="fc" id="L477">      .toList();</span>
+
+<span class="fc" id="L479">    writer.writeComponentSignificantCode(componentRef, protobuf);</span>
+<span class="fc" id="L480">  }</span>
+
+  public void storeAnalysisData(String key, String mimeType, InputStream data) {
+<span class="pc bpc" id="L483" title="1 of 2 branches missed.">    checkArgument(!StringUtils.isBlank(key), &quot;Key must not be null&quot;);</span>
+<span class="pc bpc" id="L484" title="1 of 2 branches missed.">    checkArgument(!alreadyAddedData.contains(key), &quot;A data with this key already exists&quot;);</span>
+<span class="pc bpc" id="L485" title="1 of 2 branches missed.">    checkArgument(!StringUtils.isBlank(mimeType), &quot;MimeType must not be null&quot;);</span>
+<span class="pc bpc" id="L486" title="1 of 2 branches missed.">    checkArgument(data != null, &quot;Data must not be null&quot;);</span>
+<span class="fc" id="L487">    alreadyAddedData.add(key);</span>
+<span class="fc" id="L488">    try (data) {</span>
+<span class="fc" id="L489">      ScannerReport.AnalysisData analysisData = ScannerReport.AnalysisData.newBuilder()</span>
+<span class="fc" id="L490">        .setKey(key)</span>
+<span class="fc" id="L491">        .setMimeType(mimeType)</span>
+<span class="fc" id="L492">        .setData(ByteString.readFrom(data))</span>
+<span class="fc" id="L493">        .build();</span>
+<span class="fc" id="L494">      ScannerReportWriter writer = reportPublisher.getWriter();</span>
+<span class="fc" id="L495">      writer.appendAnalysisData(analysisData);</span>
+<span class="nc" id="L496">    } catch (IOException e) {</span>
+<span class="nc" id="L497">      throw new IllegalArgumentException(&quot;Failed to read data InputStream&quot;, e);</span>
+<span class="fc" id="L498">    }</span>
+<span class="fc" id="L499">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

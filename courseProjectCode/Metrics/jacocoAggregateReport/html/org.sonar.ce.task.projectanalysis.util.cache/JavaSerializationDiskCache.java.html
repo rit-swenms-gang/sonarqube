@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JavaSerializationDiskCache.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.util.cache</a> &gt; <span class="el_source">JavaSerializationDiskCache.java</span></div><h1>JavaSerializationDiskCache.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.util.cache;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.ObjectOutputStream;
+import java.io.OutputStream;
+import java.io.Serializable;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
+import org.sonar.api.utils.System2;
+import org.sonar.core.util.CloseableIterator;
+
+/**
+ * Serialize and deserialize objects on disk. No search capabilities, only traversal (full scan).
+ */
+public class JavaSerializationDiskCache&lt;O extends Serializable&gt; implements DiskCache&lt;O&gt; {
+
+  private final File file;
+  private final System2 system2;
+
+<span class="fc" id="L41">  public JavaSerializationDiskCache(File file, System2 system2) {</span>
+<span class="fc" id="L42">    this.system2 = system2;</span>
+<span class="fc" id="L43">    this.file = file;</span>
+<span class="fc" id="L44">    OutputStream output = null;</span>
+<span class="fc" id="L45">    boolean threw = true;</span>
+    try {
+      // writes the serialization stream header required when calling &quot;traverse()&quot;
+      // on empty stream. Moreover it allows to call multiple times &quot;newAppender()&quot;
+<span class="fc" id="L49">      output = new ObjectOutputStream(new FileOutputStream(file));</span>
+<span class="fc" id="L50">      output.flush();</span>
+<span class="fc" id="L51">      threw = false;</span>
+<span class="fc" id="L52">    } catch (IOException e) {</span>
+<span class="fc" id="L53">      throw new IllegalStateException(&quot;Fail to write into file: &quot; + file, e);</span>
+    } finally {
+<span class="fc bfc" id="L55" title="All 2 branches covered.">      if (threw) {</span>
+        // do not hide initial exception
+<span class="fc" id="L57">        IOUtils.closeQuietly(output);</span>
+      } else {
+        // raise an exception if can't close
+<span class="fc" id="L60">        system2.close(output);</span>
+      }
+    }
+<span class="fc" id="L63">  }</span>
+
+  @Override
+  public long fileSize() {
+<span class="nc" id="L67">    return file.length();</span>
+  }
+
+  @Override
+  public CacheAppender&lt;O&gt; newAppender() {
+<span class="fc" id="L72">    return new JavaSerializationCacheAppender();</span>
+  }
+
+  @Override
+  public CloseableIterator&lt;O&gt; traverse() {
+    try {
+<span class="fc" id="L78">      return new ObjectInputStreamIterator&lt;&gt;(FileUtils.openInputStream(file));</span>
+<span class="nc" id="L79">    } catch (IOException e) {</span>
+<span class="nc" id="L80">      throw new IllegalStateException(&quot;Fail to traverse file: &quot; + file, e);</span>
+    }
+  }
+
+  public class JavaSerializationCacheAppender&lt;O extends Serializable&gt; implements CacheAppender&lt;O&gt; {
+    private final ObjectOutputStream output;
+
+<span class="fc" id="L87">    private JavaSerializationCacheAppender() {</span>
+      try {
+<span class="fc" id="L89">        this.output = new ObjectOutputStream(new FileOutputStream(file, true)) {</span>
+          @Override
+          protected void writeStreamHeader() {
+            // do not write stream headers as it's already done in constructor of DiskCache
+<span class="fc" id="L93">          }</span>
+        };
+<span class="nc" id="L95">      } catch (IOException e) {</span>
+<span class="nc" id="L96">        throw new IllegalStateException(&quot;Fail to open file &quot; + file, e);</span>
+<span class="fc" id="L97">      }</span>
+<span class="fc" id="L98">    }</span>
+
+    @Override
+    public CacheAppender append(O object) {
+      try {
+<span class="fc" id="L103">        output.writeObject(object);</span>
+<span class="fc" id="L104">        output.reset();</span>
+<span class="fc" id="L105">        return this;</span>
+<span class="nc" id="L106">      } catch (IOException e) {</span>
+<span class="nc" id="L107">        throw new IllegalStateException(&quot;Fail to write into file &quot; + file, e);</span>
+      }
+    }
+
+    @Override
+    public void close() {
+<span class="fc" id="L113">      system2.close(output);</span>
+<span class="fc" id="L114">    }</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Lifecycle.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.process</a> &gt; <span class="el_source">Lifecycle.java</span></div><h1>Lifecycle.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.process;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
+import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import static org.sonar.process.Lifecycle.State.HARD_STOPPING;
+import static org.sonar.process.Lifecycle.State.INIT;
+import static org.sonar.process.Lifecycle.State.OPERATIONAL;
+import static org.sonar.process.Lifecycle.State.RESTARTING;
+import static org.sonar.process.Lifecycle.State.STARTED;
+import static org.sonar.process.Lifecycle.State.STARTING;
+import static org.sonar.process.Lifecycle.State.STOPPED;
+import static org.sonar.process.Lifecycle.State.STOPPING;
+
+<span class="fc" id="L42">public class Lifecycle {</span>
+<span class="fc" id="L43">  private static final Logger LOG = LoggerFactory.getLogger(Lifecycle.class);</span>
+
+<span class="fc" id="L45">  public enum State {</span>
+<span class="fc" id="L46">    INIT, STARTING, STARTED, OPERATIONAL, RESTARTING, STOPPING, HARD_STOPPING, STOPPED</span>
+  }
+
+<span class="fc" id="L49">  private static final Map&lt;State, Set&lt;State&gt;&gt; TRANSITIONS = buildTransitions();</span>
+
+<span class="fc" id="L51">  private AtomicReference&lt;State&gt; state = new AtomicReference&lt;&gt;(INIT);</span>
+
+  private static Map&lt;State, Set&lt;State&gt;&gt; buildTransitions() {
+<span class="fc" id="L54">    Map&lt;State, Set&lt;State&gt;&gt; res = new EnumMap&lt;&gt;(State.class);</span>
+<span class="fc" id="L55">    res.put(INIT, toSet(STARTING));</span>
+<span class="fc" id="L56">    res.put(STARTING, toSet(STARTED, STOPPING, HARD_STOPPING));</span>
+<span class="fc" id="L57">    res.put(STARTED, toSet(OPERATIONAL, RESTARTING, STOPPING, HARD_STOPPING));</span>
+<span class="fc" id="L58">    res.put(OPERATIONAL, toSet(RESTARTING, STOPPING, HARD_STOPPING));</span>
+<span class="fc" id="L59">    res.put(RESTARTING, toSet(STARTING, HARD_STOPPING));</span>
+<span class="fc" id="L60">    res.put(STOPPING, toSet(HARD_STOPPING, STOPPED));</span>
+<span class="fc" id="L61">    res.put(HARD_STOPPING, toSet(STOPPED));</span>
+<span class="fc" id="L62">    res.put(STOPPED, toSet());</span>
+<span class="fc" id="L63">    return res;</span>
+  }
+
+  private static Set&lt;State&gt; toSet(State... states) {
+<span class="fc bfc" id="L67" title="All 2 branches covered.">    if (states.length == 0) {</span>
+<span class="fc" id="L68">      return Collections.emptySet();</span>
+    }
+<span class="fc bfc" id="L70" title="All 2 branches covered.">    if (states.length == 1) {</span>
+<span class="fc" id="L71">      return Collections.singleton(states[0]);</span>
+    }
+<span class="fc" id="L73">    return EnumSet.copyOf(Arrays.asList(states));</span>
+  }
+
+  public boolean isCurrentState(State candidateState) {
+<span class="fc" id="L77">    State currentState = this.state.get();</span>
+<span class="pc bpc" id="L78" title="1 of 2 branches missed.">    boolean res = currentState == candidateState;</span>
+<span class="fc" id="L79">    LOG.trace(&quot;isCurrentState({}): {} ({})&quot;, candidateState, res, currentState);</span>
+<span class="fc" id="L80">    return res;</span>
+  }
+
+  public boolean tryToMoveTo(State to) {
+<span class="fc" id="L84">    AtomicReference&lt;State&gt; lastFrom = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L85">    State newState = this.state.updateAndGet(from -&gt; {</span>
+<span class="fc" id="L86">      lastFrom.set(from);</span>
+<span class="fc bfc" id="L87" title="All 2 branches covered.">      if (TRANSITIONS.get(from).contains(to)) {</span>
+<span class="fc" id="L88">        return to;</span>
+      }
+<span class="fc" id="L90">      return from;</span>
+    });
+
+<span class="fc bfc" id="L93" title="All 4 branches covered.">    boolean updated = newState == to &amp;&amp; lastFrom.get() != to;</span>
+<span class="fc" id="L94">    LOG.trace(&quot;tryToMoveTo from {} to {} =&gt; {}&quot;, lastFrom.get(), to, updated);</span>
+<span class="fc" id="L95">    return updated;</span>
+  }
+
+  @Override
+  public boolean equals(@Nullable Object o) {
+<span class="fc bfc" id="L100" title="All 2 branches covered.">    if (this == o) {</span>
+<span class="fc" id="L101">      return true;</span>
+    }
+<span class="fc bfc" id="L103" title="All 4 branches covered.">    if (o == null || getClass() != o.getClass()) {</span>
+<span class="fc" id="L104">      return false;</span>
+    }
+<span class="fc" id="L106">    Lifecycle lifecycle = (Lifecycle) o;</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">    return state.get() == lifecycle.state.get();</span>
+  }
+
+  @Override
+  public int hashCode() {
+<span class="fc" id="L112">    return state.get().hashCode();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

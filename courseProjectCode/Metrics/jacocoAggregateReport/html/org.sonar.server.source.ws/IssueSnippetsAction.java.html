@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IssueSnippetsAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.source.ws</a> &gt; <span class="el_source">IssueSnippetsAction.java</span></div><h1>IssueSnippetsAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.source.ws;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.api.utils.text.JsonWriter;
+import org.sonar.db.permission.ProjectPermission;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.BranchDto;
+import org.sonar.db.component.ComponentDto;
+import org.sonar.db.component.SnapshotDto;
+import org.sonar.db.issue.IssueDto;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.db.protobuf.DbCommons;
+import org.sonar.db.protobuf.DbFileSources;
+import org.sonar.db.protobuf.DbIssues;
+import org.sonar.server.component.ws.ComponentViewerJsonWriter;
+import org.sonar.server.exceptions.NotFoundException;
+import org.sonar.server.source.SourceService;
+import org.sonar.server.user.UserSession;
+
+import static com.google.common.io.Resources.getResource;
+import static java.lang.String.format;
+
+public class IssueSnippetsAction implements SourcesWsAction {
+  private final DbClient dbClient;
+  private final UserSession userSession;
+  private final SourceService sourceService;
+  private final ComponentViewerJsonWriter componentViewerJsonWriter;
+  private final LinesJsonWriter linesJsonWriter;
+
+  public IssueSnippetsAction(DbClient dbClient, UserSession userSession, SourceService sourceService, LinesJsonWriter linesJsonWriter,
+<span class="fc" id="L61">    ComponentViewerJsonWriter componentViewerJsonWriter) {</span>
+<span class="fc" id="L62">    this.sourceService = sourceService;</span>
+<span class="fc" id="L63">    this.dbClient = dbClient;</span>
+<span class="fc" id="L64">    this.userSession = userSession;</span>
+<span class="fc" id="L65">    this.linesJsonWriter = linesJsonWriter;</span>
+<span class="fc" id="L66">    this.componentViewerJsonWriter = componentViewerJsonWriter;</span>
+<span class="fc" id="L67">  }</span>
+
+  @Override
+  public void define(WebService.NewController controller) {
+<span class="fc" id="L71">    WebService.NewAction action = controller.createAction(&quot;issue_snippets&quot;)</span>
+<span class="fc" id="L72">      .setDescription(&quot;Get code snippets involved in an issue or hotspot. Requires 'See Source Code permission' permission on the project&lt;br/&gt;&quot;)</span>
+<span class="fc" id="L73">      .setSince(&quot;7.8&quot;)</span>
+<span class="fc" id="L74">      .setInternal(true)</span>
+<span class="fc" id="L75">      .setResponseExample(getResource(getClass(), &quot;example-issue-snippets.json&quot;))</span>
+<span class="fc" id="L76">      .setHandler(this);</span>
+
+<span class="fc" id="L78">    action</span>
+<span class="fc" id="L79">      .createParam(&quot;issueKey&quot;)</span>
+<span class="fc" id="L80">      .setRequired(true)</span>
+<span class="fc" id="L81">      .setDescription(&quot;Issue or hotspot key&quot;)</span>
+<span class="fc" id="L82">      .setExampleValue(&quot;AU-Tpxb--iU5OvuD2FLy&quot;);</span>
+<span class="fc" id="L83">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L87">    String issueKey = request.mandatoryParam(&quot;issueKey&quot;);</span>
+<span class="fc" id="L88">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L89">      IssueDto issueDto = dbClient.issueDao().selectByKey(dbSession, issueKey)</span>
+<span class="fc" id="L90">        .orElseThrow(() -&gt; new NotFoundException(format(&quot;Issue with key '%s' does not exist&quot;, issueKey)));</span>
+<span class="fc" id="L91">      ProjectDto projectDto = dbClient.projectDao().selectByBranchUuid(dbSession, issueDto.getProjectUuid())</span>
+<span class="pc" id="L92">        .orElseThrow(() -&gt; new NotFoundException(format(&quot;Project with uuid '%s' does not exist&quot;, issueDto.getProjectUuid())));</span>
+
+<span class="fc" id="L94">      userSession.checkEntityPermission(ProjectPermission.CODEVIEWER, projectDto);</span>
+
+<span class="fc" id="L96">      DbIssues.Locations locations = issueDto.parseLocations();</span>
+<span class="fc" id="L97">      String componentUuid = issueDto.getComponentUuid();</span>
+<span class="pc bpc" id="L98" title="2 of 4 branches missed.">      if (locations == null || componentUuid == null) {</span>
+<span class="nc" id="L99">        response.noContent();</span>
+      } else {
+<span class="fc" id="L101">        Map&lt;String, TreeSet&lt;Integer&gt;&gt; linesPerComponent = getLinesPerComponent(componentUuid, locations);</span>
+<span class="fc" id="L102">        Map&lt;String, ComponentDto&gt; componentsByUuid = dbClient.componentDao().selectByUuids(dbSession, linesPerComponent.keySet())</span>
+<span class="fc" id="L103">          .stream().collect(Collectors.toMap(ComponentDto::uuid, c -&gt; c));</span>
+
+<span class="fc" id="L105">        Set&lt;String&gt; branchUuids = componentsByUuid.values().stream()</span>
+<span class="fc" id="L106">          .map(ComponentDto::branchUuid)</span>
+<span class="fc" id="L107">          .collect(Collectors.toSet());</span>
+
+<span class="fc" id="L109">        Map&lt;String, BranchDto&gt; branches = dbClient.branchDao()</span>
+<span class="fc" id="L110">          .selectByUuids(dbSession, branchUuids)</span>
+<span class="fc" id="L111">          .stream()</span>
+<span class="fc" id="L112">          .collect(Collectors.toMap(BranchDto::getUuid, b -&gt; b));</span>
+
+<span class="fc" id="L114">        try (JsonWriter jsonWriter = response.newJsonWriter()) {</span>
+<span class="fc" id="L115">          jsonWriter.beginObject();</span>
+
+<span class="fc bfc" id="L117" title="All 2 branches covered.">          for (Map.Entry&lt;String, TreeSet&lt;Integer&gt;&gt; e : linesPerComponent.entrySet()) {</span>
+<span class="fc" id="L118">            ComponentDto componentDto = componentsByUuid.get(e.getKey());</span>
+<span class="fc bfc" id="L119" title="All 2 branches covered.">            if (componentDto != null) {</span>
+<span class="fc" id="L120">              writeSnippet(dbSession, jsonWriter, projectDto, componentDto, e.getValue(), branches.get(componentDto.branchUuid()));</span>
+            }
+<span class="fc" id="L122">          }</span>
+
+<span class="fc" id="L124">          jsonWriter.endObject();</span>
+        }
+      }
+    }
+<span class="fc" id="L128">  }</span>
+
+  private void writeSnippet(DbSession dbSession, JsonWriter writer, ProjectDto projectDto, ComponentDto fileDto, Set&lt;Integer&gt; lines, BranchDto branchDto) {
+<span class="fc" id="L131">    Optional&lt;Iterable&lt;DbFileSources.Line&gt;&gt; lineSourcesOpt = sourceService.getLines(dbSession, fileDto.uuid(), lines);</span>
+<span class="fc bfc" id="L132" title="All 2 branches covered.">    if (lineSourcesOpt.isEmpty()) {</span>
+<span class="fc" id="L133">      return;</span>
+    }
+
+<span class="pc" id="L136">    Supplier&lt;Optional&lt;Long&gt;&gt; periodDateSupplier = () -&gt; dbClient.snapshotDao()</span>
+<span class="nc" id="L137">      .selectLastAnalysisByComponentUuid(dbSession, fileDto.branchUuid())</span>
+<span class="nc" id="L138">      .map(SnapshotDto::getPeriodDate);</span>
+
+<span class="fc" id="L140">    Iterable&lt;DbFileSources.Line&gt; lineSources = lineSourcesOpt.get();</span>
+
+<span class="fc" id="L142">    writer.name(fileDto.getKey()).beginObject();</span>
+
+<span class="fc" id="L144">    writer.name(&quot;component&quot;).beginObject();</span>
+<span class="pc bpc" id="L145" title="1 of 2 branches missed.">    String branch = branchDto.isMain() ? null : branchDto.getBranchKey();</span>
+<span class="fc" id="L146">    String pullRequest = branchDto.getPullRequestKey();</span>
+<span class="fc" id="L147">    componentViewerJsonWriter.writeComponentWithoutFav(writer, projectDto, fileDto, branch, pullRequest);</span>
+<span class="fc" id="L148">    componentViewerJsonWriter.writeMeasures(writer, fileDto, dbSession);</span>
+<span class="fc" id="L149">    writer.endObject();</span>
+<span class="fc" id="L150">    linesJsonWriter.writeSource(lineSources, writer, periodDateSupplier, userSession.isLoggedIn());</span>
+
+<span class="fc" id="L152">    writer.endObject();</span>
+<span class="fc" id="L153">  }</span>
+
+  private static Map&lt;String, TreeSet&lt;Integer&gt;&gt; getLinesPerComponent(String componentUuid, DbIssues.Locations locations) {
+<span class="fc" id="L156">    Map&lt;String, TreeSet&lt;Integer&gt;&gt; linesPerComponent = new HashMap&lt;&gt;();</span>
+
+<span class="pc bpc" id="L158" title="1 of 2 branches missed.">    if (locations.hasTextRange()) {</span>
+      // extra lines for the main location
+<span class="nc" id="L160">      addTextRange(linesPerComponent, componentUuid, locations.getTextRange(), 9);</span>
+    }
+<span class="fc bfc" id="L162" title="All 2 branches covered.">    for (DbIssues.Flow flow : locations.getFlowList()) {</span>
+<span class="fc bfc" id="L163" title="All 2 branches covered.">      for (DbIssues.Location l : flow.getLocationList()) {</span>
+<span class="pc bpc" id="L164" title="1 of 2 branches missed.">        if (l.hasComponentId()) {</span>
+<span class="fc" id="L165">          addTextRange(linesPerComponent, l.getComponentId(), l.getTextRange(), 5);</span>
+        } else {
+<span class="nc" id="L167">          addTextRange(linesPerComponent, componentUuid, l.getTextRange(), 5);</span>
+        }
+<span class="fc" id="L169">      }</span>
+<span class="fc" id="L170">    }</span>
+
+<span class="fc" id="L172">    return linesPerComponent;</span>
+  }
+
+  private static void addTextRange(Map&lt;String, TreeSet&lt;Integer&gt;&gt; linesPerComponent, String componentUuid,
+    DbCommons.TextRange textRange, int numLinesAfterIssue) {
+<span class="fc" id="L177">    int start = textRange.getStartLine() - 5;</span>
+<span class="fc" id="L178">    int end = textRange.getEndLine() + numLinesAfterIssue;</span>
+
+<span class="fc" id="L180">    TreeSet&lt;Integer&gt; lines = linesPerComponent.computeIfAbsent(componentUuid, c -&gt; new TreeSet&lt;&gt;());</span>
+<span class="fc" id="L181">    IntStream.rangeClosed(start, end).forEach(lines::add);</span>
+
+    // If two snippets in the same component are 10 lines apart from each other, include those 10 lines.
+<span class="fc" id="L184">    Integer closestToStart = lines.lower(start);</span>
+<span class="pc bpc" id="L185" title="1 of 4 branches missed.">    if (closestToStart != null &amp;&amp; closestToStart &gt;= start - 11) {</span>
+<span class="fc" id="L186">      IntStream.range(closestToStart + 1, start).forEach(lines::add);</span>
+    }
+
+<span class="fc" id="L189">    Integer closestToEnd = lines.higher(end);</span>
+<span class="pc bpc" id="L190" title="3 of 4 branches missed.">    if (closestToEnd != null &amp;&amp; closestToEnd &lt;= end + 11) {</span>
+<span class="nc" id="L191">      IntStream.range(end + 1, closestToEnd).forEach(lines::add);</span>
+    }
+
+<span class="fc" id="L194">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

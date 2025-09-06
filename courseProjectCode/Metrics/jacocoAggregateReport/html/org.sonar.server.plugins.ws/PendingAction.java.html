@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PendingAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.plugins.ws</a> &gt; <span class="el_source">PendingAction.java</span></div><h1>PendingAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.plugins.ws;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSortedSet;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.core.platform.PluginInfo;
+import org.sonar.server.plugins.PluginDownloader;
+import org.sonar.server.plugins.PluginUninstaller;
+import org.sonar.server.plugins.ServerPluginRepository;
+import org.sonar.server.plugins.UpdateCenterMatrixFactory;
+import org.sonar.server.user.UserSession;
+import org.sonar.updatecenter.common.Plugin;
+import org.sonarqube.ws.Plugins.PendingPluginsWsResponse;
+import org.sonarqube.ws.Plugins.PluginDetails;
+
+import static org.sonar.server.plugins.ws.PluginWSCommons.NAME_KEY_PLUGIN_METADATA_COMPARATOR;
+import static org.sonar.server.plugins.ws.PluginWSCommons.buildPluginDetails;
+import static org.sonar.server.plugins.ws.PluginWSCommons.compatiblePluginsByKey;
+import static org.sonar.server.ws.WsUtils.writeProtobuf;
+
+/**
+ * Implementation of the {@code pending} action for the Plugins WebService.
+ */
+public class PendingAction implements PluginsWsAction {
+  private final UserSession userSession;
+  private final PluginDownloader pluginDownloader;
+  private final ServerPluginRepository serverPluginRepository;
+  private final UpdateCenterMatrixFactory updateCenterMatrixFactory;
+  private final PluginUninstaller pluginUninstaller;
+
+  public PendingAction(UserSession userSession, PluginDownloader pluginDownloader,
+<span class="fc" id="L60">    ServerPluginRepository serverPluginRepository, PluginUninstaller pluginUninstaller, UpdateCenterMatrixFactory updateCenterMatrixFactory) {</span>
+<span class="fc" id="L61">    this.userSession = userSession;</span>
+<span class="fc" id="L62">    this.pluginDownloader = pluginDownloader;</span>
+<span class="fc" id="L63">    this.serverPluginRepository = serverPluginRepository;</span>
+<span class="fc" id="L64">    this.pluginUninstaller = pluginUninstaller;</span>
+<span class="fc" id="L65">    this.updateCenterMatrixFactory = updateCenterMatrixFactory;</span>
+<span class="fc" id="L66">  }</span>
+
+  @Override
+  public void define(WebService.NewController controller) {
+<span class="fc" id="L70">    controller.createAction(&quot;pending&quot;)</span>
+<span class="fc" id="L71">      .setDescription(&quot;Get the list of plugins which will either be installed or removed at the next startup of the SonarQube instance, sorted by plugin name.&lt;br/&gt;&quot; +</span>
+        &quot;Require 'Administer System' permission.&quot;)
+<span class="fc" id="L73">      .setSince(&quot;5.2&quot;)</span>
+<span class="fc" id="L74">      .setChangelog(</span>
+        new Change(&quot;9.8&quot;, &quot;The 'documentationPath' field is deprecated&quot;),
+        new Change(&quot;8.0&quot;, &quot;The 'documentationPath' field is added&quot;)
+      )
+<span class="fc" id="L78">      .setHandler(this)</span>
+<span class="fc" id="L79">      .setResponseExample(this.getClass().getResource(&quot;example-pending_plugins.json&quot;));</span>
+<span class="fc" id="L80">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L84">    userSession.checkIsSystemAdministrator();</span>
+<span class="fc" id="L85">    ImmutableMap&lt;String, Plugin&gt; compatiblePluginsByKey = compatiblePluginsByKey(updateCenterMatrixFactory);</span>
+<span class="fc" id="L86">    PendingPluginsWsResponse.Builder buildResponse = buildResponse(compatiblePluginsByKey);</span>
+<span class="fc" id="L87">    writeProtobuf(buildResponse.build(), request, response);</span>
+<span class="fc" id="L88">  }</span>
+
+  private PendingPluginsWsResponse.Builder buildResponse(ImmutableMap&lt;String, Plugin&gt; compatiblePluginsByKey) {
+<span class="fc" id="L91">    Collection&lt;PluginInfo&gt; uninstalledPlugins = pluginUninstaller.getUninstalledPlugins();</span>
+<span class="fc" id="L92">    Collection&lt;PluginInfo&gt; downloadedPlugins = pluginDownloader.getDownloadedPlugins();</span>
+<span class="fc" id="L93">    Collection&lt;PluginInfo&gt; installedPlugins = serverPluginRepository.getPluginInfos();</span>
+<span class="fc" id="L94">    Set&lt;String&gt; installedPluginKeys = installedPlugins.stream().map(PluginInfo::getKey).collect(Collectors.toSet());</span>
+
+<span class="fc" id="L96">    Collection&lt;PluginInfo&gt; newPlugins = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L97">    Collection&lt;PluginInfo&gt; updatedPlugins = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">    for (PluginInfo pluginInfo : downloadedPlugins) {</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">      if (installedPluginKeys.contains(pluginInfo.getKey())) {</span>
+<span class="fc" id="L100">        updatedPlugins.add(pluginInfo);</span>
+      } else {
+<span class="fc" id="L102">        newPlugins.add(pluginInfo);</span>
+      }
+<span class="fc" id="L104">    }</span>
+
+<span class="fc" id="L106">    PendingPluginsWsResponse.Builder builder = PendingPluginsWsResponse.newBuilder();</span>
+<span class="fc" id="L107">    builder.addAllInstalling(getPlugins(newPlugins, compatiblePluginsByKey));</span>
+<span class="fc" id="L108">    builder.addAllUpdating(getPlugins(updatedPlugins, compatiblePluginsByKey));</span>
+<span class="fc" id="L109">    builder.addAllRemoving(getPlugins(uninstalledPlugins, compatiblePluginsByKey));</span>
+<span class="fc" id="L110">    return builder;</span>
+  }
+
+  private static List&lt;PluginDetails&gt; getPlugins(Collection&lt;PluginInfo&gt; plugins, Map&lt;String, Plugin&gt; compatiblePluginsByKey) {
+<span class="fc" id="L114">    return ImmutableSortedSet.copyOf(NAME_KEY_PLUGIN_METADATA_COMPARATOR, plugins)</span>
+<span class="fc" id="L115">      .stream()</span>
+<span class="fc" id="L116">      .map(pluginInfo -&gt; {</span>
+<span class="fc" id="L117">        Plugin plugin = compatiblePluginsByKey.get(pluginInfo.getKey());</span>
+<span class="fc" id="L118">        return buildPluginDetails(null, pluginInfo, null, plugin);</span>
+      })
+<span class="fc" id="L120">      .toList();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

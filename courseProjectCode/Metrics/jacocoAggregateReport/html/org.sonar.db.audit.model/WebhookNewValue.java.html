@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WebhookNewValue.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.audit.model</a> &gt; <span class="el_source">WebhookNewValue.java</span></div><h1>WebhookNewValue.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.audit.model;
+
+import java.util.function.UnaryOperator;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.db.webhook.WebhookDto;
+
+public class WebhookNewValue extends NewValue {
+  /**
+   * @deprecated The uuids in the audit logs are not product requirement anymore and will be removed in 11.x
+   */
+  @Deprecated(since = &quot;10.2&quot;)
+  @Nullable
+  private String webhookUuid;
+
+  @Nullable
+  private String name;
+
+  @Nullable
+  private String url;
+
+  /**
+   * @deprecated The uuids in the audit logs are not product requirement anymore and will be removed in 11.x
+   */
+  @Deprecated(since = &quot;10.2&quot;)
+  @Nullable
+  private String projectUuid;
+
+  @Nullable
+  private String projectKey;
+
+  @Nullable
+  private String projectName;
+
+  public WebhookNewValue(WebhookDto dto, @Nullable String projectKey, @Nullable String projectName) {
+<span class="fc" id="L56">    this(dto.getUuid(), dto.getName(), dto.getProjectUuid(), projectKey, projectName, dto.getUrl());</span>
+<span class="fc" id="L57">  }</span>
+
+<span class="fc" id="L59">  public WebhookNewValue(String webhookUuid, String webhookName) {</span>
+<span class="fc" id="L60">    this.webhookUuid = webhookUuid;</span>
+<span class="fc" id="L61">    this.name = webhookName;</span>
+<span class="fc" id="L62">  }</span>
+
+  public WebhookNewValue(String webhookUuid, String webhookName, @Nullable String projectUuid, @Nullable String projectKey,
+<span class="fc" id="L65">    @Nullable String projectName, @Nullable String url) {</span>
+<span class="fc" id="L66">    this.webhookUuid = webhookUuid;</span>
+<span class="fc" id="L67">    this.name = webhookName;</span>
+<span class="fc" id="L68">    this.url = url;</span>
+<span class="fc" id="L69">    this.projectUuid = projectUuid;</span>
+<span class="fc" id="L70">    this.projectKey = projectKey;</span>
+<span class="fc" id="L71">    this.projectName = projectName;</span>
+<span class="fc" id="L72">  }</span>
+
+<span class="fc" id="L74">  public WebhookNewValue(ProjectDto projectDto) {</span>
+<span class="fc" id="L75">    this.projectUuid = projectDto.getUuid();</span>
+<span class="fc" id="L76">    this.projectKey = projectDto.getKey();</span>
+<span class="fc" id="L77">    this.projectName = projectDto.getName();</span>
+<span class="fc" id="L78">  }</span>
+
+  public void sanitizeUrl(UnaryOperator&lt;String&gt; sanitizer) {
+<span class="fc bfc" id="L81" title="All 2 branches covered.">    if (this.url != null) {</span>
+<span class="fc" id="L82">      this.url = sanitizer.apply(this.url);</span>
+    }
+<span class="fc" id="L84">  }</span>
+
+  /**
+   * @deprecated The uuids in the audit logs are not product requirement anymore and will be removed in 11.x
+   */
+  @Deprecated(since = &quot;10.2&quot;)
+  @CheckForNull
+  public String getWebhookUuid() {
+<span class="fc" id="L92">    return this.webhookUuid;</span>
+  }
+
+  @CheckForNull
+  public String getName() {
+<span class="fc" id="L97">    return this.name;</span>
+  }
+
+  @CheckForNull
+  public String getUrl() {
+<span class="fc" id="L102">    return this.url;</span>
+  }
+
+  /**
+   * @deprecated The uuids in the audit logs are not product requirement anymore and will be removed in 11.x
+   */
+  @Deprecated(since = &quot;10.2&quot;)
+  @CheckForNull
+  public String getProjectUuid() {
+<span class="fc" id="L111">    return this.projectUuid;</span>
+  }
+
+  @CheckForNull
+  public String getProjectKey() {
+<span class="fc" id="L116">    return this.projectKey;</span>
+  }
+
+  @CheckForNull
+  public String getProjectName() {
+<span class="fc" id="L121">    return this.projectName;</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="fc" id="L126">    StringBuilder sb = new StringBuilder(&quot;{&quot;);</span>
+<span class="fc" id="L127">    addField(sb, &quot;\&quot;webhookUuid\&quot;: &quot;, this.webhookUuid, true);</span>
+<span class="fc" id="L128">    addField(sb, &quot;\&quot;name\&quot;: &quot;, this.name, true);</span>
+<span class="fc" id="L129">    addField(sb, &quot;\&quot;url\&quot;: &quot;, this.url, true);</span>
+<span class="fc" id="L130">    addField(sb, &quot;\&quot;projectUuid\&quot;: &quot;, this.projectUuid, true);</span>
+<span class="fc" id="L131">    addField(sb, &quot;\&quot;projectKey\&quot;: &quot;, this.projectKey, true);</span>
+<span class="fc" id="L132">    addField(sb, &quot;\&quot;projectName\&quot;: &quot;, this.projectName, true);</span>
+<span class="fc" id="L133">    endString(sb);</span>
+<span class="fc" id="L134">    return sb.toString();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>QGChangeEventListenersImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.qualitygate.changeevent</a> &gt; <span class="el_source">QGChangeEventListenersImpl.java</span></div><h1>QGChangeEventListenersImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.qualitygate.changeevent;
+
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Multimap;
+import java.util.Collection;
+import java.util.List;
+import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.core.issue.DefaultIssue;
+import org.sonar.core.util.stream.MoreCollectors;
+import org.sonar.server.qualitygate.changeevent.QGChangeEventListener.ChangedIssue;
+
+import static com.google.common.collect.ImmutableSet.toImmutableSet;
+import static java.lang.String.format;
+
+/**
+ * Broadcast a given collection of {@link QGChangeEvent} for a specific trigger to all the registered
+ * {@link QGChangeEventListener} in the ioc container.
+ *
+ * This class ensures that an {@link Exception} occurring calling one of the {@link QGChangeEventListener} doesn't
+ * prevent from calling the others.
+ */
+public class QGChangeEventListenersImpl implements QGChangeEventListeners {
+<span class="fc" id="L44">  private static final Logger LOG = LoggerFactory.getLogger(QGChangeEventListenersImpl.class);</span>
+
+  private final Set&lt;QGChangeEventListener&gt; listeners;
+
+<span class="fc" id="L48">  public QGChangeEventListenersImpl(Set&lt;QGChangeEventListener&gt; listeners) {</span>
+<span class="fc" id="L49">    this.listeners = listeners;</span>
+<span class="fc" id="L50">  }</span>
+
+  @Override
+  public void broadcastOnIssueChange(List&lt;DefaultIssue&gt; issues, Collection&lt;QGChangeEvent&gt; changeEvents, boolean fromAlm) {
+<span class="fc bfc" id="L54" title="All 6 branches covered.">    if (listeners.isEmpty() || issues.isEmpty() || changeEvents.isEmpty()) {</span>
+<span class="fc" id="L55">      return;</span>
+    }
+
+    try {
+<span class="fc" id="L59">      broadcastChangeEventsToBranches(issues, changeEvents, fromAlm);</span>
+<span class="fc" id="L60">    } catch (Error e) {</span>
+<span class="fc" id="L61">      LOG.warn(format(&quot;Broadcasting to listeners failed for %s events&quot;, changeEvents.size()), e);</span>
+<span class="fc" id="L62">    }</span>
+<span class="fc" id="L63">  }</span>
+
+  @Override
+  public void broadcastOnAnyChange(Collection&lt;QGChangeEvent&gt; changeEvents, boolean fromAlm) {
+<span class="fc bfc" id="L67" title="All 4 branches covered.">    if (listeners.isEmpty() || changeEvents.isEmpty()) {</span>
+<span class="fc" id="L68">      return;</span>
+    }
+
+    try {
+<span class="fc bfc" id="L72" title="All 2 branches covered.">      for (var changeEvent : changeEvents) {</span>
+<span class="fc" id="L73">        listeners.forEach(listener -&gt; broadcastChangeEventToListener(Set.of(), changeEvent, listener));</span>
+<span class="fc" id="L74">      }</span>
+<span class="nc" id="L75">    } catch (Error e) {</span>
+<span class="nc" id="L76">      LOG.warn(format(&quot;Broadcasting to listeners failed for %s events&quot;, changeEvents.size()), e);</span>
+<span class="fc" id="L77">    }</span>
+<span class="fc" id="L78">  }</span>
+
+  private void broadcastChangeEventsToBranches(List&lt;DefaultIssue&gt; issues, Collection&lt;QGChangeEvent&gt; changeEvents, boolean fromAlm) {
+<span class="fc" id="L81">    Multimap&lt;String, QGChangeEvent&gt; eventsByBranchUuid = changeEvents.stream()</span>
+<span class="fc" id="L82">      .collect(MoreCollectors.index(qgChangeEvent -&gt; qgChangeEvent.getBranch().getUuid()));</span>
+
+<span class="fc" id="L84">    Multimap&lt;String, DefaultIssue&gt; issueByBranchUuid = issues.stream()</span>
+<span class="fc" id="L85">      .collect(MoreCollectors.index(DefaultIssue::projectUuid));</span>
+
+<span class="fc" id="L87">    issueByBranchUuid.asMap().forEach(</span>
+<span class="fc" id="L88">      (branchUuid, branchIssues) -&gt; broadcastChangeEventsToBranch(branchIssues, eventsByBranchUuid.get(branchUuid), fromAlm));</span>
+<span class="fc" id="L89">  }</span>
+
+  private void broadcastChangeEventsToBranch(Collection&lt;DefaultIssue&gt; branchIssues, Collection&lt;QGChangeEvent&gt; branchQgChangeEvents, boolean fromAlm) {
+<span class="fc" id="L92">    Set&lt;ChangedIssue&gt; changedIssues = toChangedIssues(branchIssues, fromAlm);</span>
+<span class="fc" id="L93">    branchQgChangeEvents.forEach(changeEvent -&gt; broadcastChangeEventToListeners(changedIssues, changeEvent));</span>
+<span class="fc" id="L94">  }</span>
+
+  private static ImmutableSet&lt;ChangedIssue&gt; toChangedIssues(Collection&lt;DefaultIssue&gt; defaultIssues, boolean fromAlm) {
+<span class="fc" id="L97">    return defaultIssues.stream()</span>
+<span class="fc" id="L98">      .map(defaultIssue -&gt; new ChangedIssueImpl(defaultIssue, fromAlm))</span>
+<span class="fc" id="L99">      .collect(toImmutableSet());</span>
+  }
+
+  private void broadcastChangeEventToListeners(Set&lt;ChangedIssue&gt; changedIssues, QGChangeEvent changeEvent) {
+<span class="fc" id="L103">    listeners.forEach(listener -&gt; broadcastChangeEventToListener(changedIssues, changeEvent, listener));</span>
+<span class="fc" id="L104">  }</span>
+
+  private static void broadcastChangeEventToListener(Set&lt;ChangedIssue&gt; changedIssues, QGChangeEvent changeEvent, QGChangeEventListener listener) {
+    try {
+<span class="fc" id="L108">      LOG.trace(&quot;calling onChange() on listener {} for events {}...&quot;, listener.getClass().getName(), changeEvent);</span>
+<span class="fc" id="L109">      listener.onIssueChanges(changeEvent, changedIssues);</span>
+<span class="fc" id="L110">    } catch (Exception e) {</span>
+<span class="fc" id="L111">      LOG.warn(format(&quot;onChange() call failed on listener %s for events %s&quot;, listener.getClass().getName(), changeEvent), e);</span>
+<span class="fc" id="L112">    }</span>
+<span class="fc" id="L113">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

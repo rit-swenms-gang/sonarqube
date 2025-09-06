@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContainsInComparator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.duplications.detector</a> &gt; <span class="el_source">ContainsInComparator.java</span></div><h1>ContainsInComparator.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.duplications.detector;
+
+import java.util.Comparator;
+
+import org.sonar.duplications.index.ClonePart;
+import org.sonar.duplications.utils.FastStringComparator;
+
+/**
+ * Allows to determine if ClonePart includes another ClonePart.
+ * Inclusion is the partial order, so in fact this class violates contracts of {@link Comparator},
+ * however it allows to use {@link org.sonar.duplications.utils.SortedListsUtils} for efficient filtering.
+ */
+public final class ContainsInComparator implements Comparator&lt;ClonePart&gt; {
+
+  /**
+   * Defines order by resourceId.
+   */
+<span class="fc" id="L37">  public static final Comparator&lt;ClonePart&gt; RESOURCE_ID_COMPARATOR = (o1, o2) -&gt; FastStringComparator.INSTANCE.compare(o1.getResourceId(), o2.getResourceId());</span>
+
+  /**
+   * Defines order by resourceId and by unitStart.
+   */
+<span class="fc" id="L42">  public static final Comparator&lt;ClonePart&gt; CLONEPART_COMPARATOR = (o1, o2) -&gt; {</span>
+<span class="fc" id="L43">    int c = RESOURCE_ID_COMPARATOR.compare(o1, o2);</span>
+<span class="fc bfc" id="L44" title="All 2 branches covered.">    if (c == 0) {</span>
+<span class="fc" id="L45">      return o1.getUnitStart() - o2.getUnitStart();</span>
+    }
+<span class="fc" id="L47">    return c;</span>
+  };
+
+  private final int l1;
+  private final int l2;
+
+  /**
+   * Constructs new comparator for two parts with lengths {@code l1} and {@code l2} respectively.
+   */
+<span class="fc" id="L56">  public ContainsInComparator(int l1, int l2) {</span>
+<span class="fc" id="L57">    this.l1 = l1;</span>
+<span class="fc" id="L58">    this.l2 = l2;</span>
+<span class="fc" id="L59">  }</span>
+
+  /**
+   * Compares two parts on inclusion.
+   * part1 includes part2 if {@code (part1.resourceId == part2.resourceId) &amp;&amp; (part1.unitStart &lt;= part2.unitStart) &amp;&amp; (part2.unitEnd &lt;= part1.unitEnd)}.
+   * 
+   * @return 0 if part1 includes part2,
+   *         1 if resourceId of part1 is greater than resourceId of part2 or if unitStart of part1 is greater than unitStart of part2,
+   *         -1 in all other cases
+   */
+  @Override
+  public int compare(ClonePart part1, ClonePart part2) {
+<span class="fc" id="L71">    int c = RESOURCE_ID_COMPARATOR.compare(part1, part2);</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">    if (c == 0) {</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">      if (part1.getUnitStart() &lt;= part2.getUnitStart()) {</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">        if (part2.getUnitStart() + l2 &lt;= part1.getUnitStart() + l1) {</span>
+          // part1 contains part2
+<span class="fc" id="L76">          return 0;</span>
+        } else {
+          // SortedListsUtils#contains should continue search
+<span class="fc" id="L79">          return -1;</span>
+        }
+      } else {
+        // unitStart of part1 is less than unitStart of part2 - SortedListsUtils#contains should stop search
+<span class="fc" id="L83">        return 1;</span>
+      }
+    } else {
+<span class="fc" id="L86">      return c;</span>
+    }
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

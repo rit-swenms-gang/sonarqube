@@ -1,0 +1,251 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PersistIssuesStep.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.step</a> &gt; <span class="el_source">PersistIssuesStep.java</span></div><h1>PersistIssuesStep.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.step;
+
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import org.sonar.api.utils.System2;
+import org.sonar.ce.task.projectanalysis.issue.ProtoIssueCache;
+import org.sonar.ce.task.projectanalysis.issue.RuleRepository;
+import org.sonar.ce.task.projectanalysis.issue.UpdateConflictResolver;
+import org.sonar.ce.task.projectanalysis.period.PeriodHolder;
+import org.sonar.ce.task.step.ComputationStep;
+import org.sonar.core.issue.DefaultIssue;
+import org.sonar.core.util.CloseableIterator;
+import org.sonar.core.util.UuidFactory;
+import org.sonar.db.BatchSession;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.issue.AnticipatedTransitionMapper;
+import org.sonar.db.issue.IssueChangeMapper;
+import org.sonar.db.issue.IssueDao;
+import org.sonar.db.issue.IssueDto;
+import org.sonar.db.issue.NewCodeReferenceIssueDto;
+import org.sonar.db.newcodeperiod.NewCodePeriodType;
+import org.sonar.server.issue.IssueStorage;
+
+import static org.sonar.core.util.FileUtils.humanReadableByteCountSI;
+import static org.sonar.db.issue.IssueDto.toDtoForComputationInsert;
+
+public class PersistIssuesStep implements ComputationStep {
+  // holding up to 1000 DefaultIssue (max size of addedIssues and updatedIssues at any given time) in memory should not
+  // be a problem while making sure we leverage extensively the batch feature to speed up persistence
+  private static final int ISSUE_BATCHING_SIZE = BatchSession.MAX_BATCH_SIZE * 2;
+
+  private final DbClient dbClient;
+  private final System2 system2;
+  private final UpdateConflictResolver conflictResolver;
+  private final RuleRepository ruleRepository;
+  private final PeriodHolder periodHolder;
+  private final ProtoIssueCache protoIssueCache;
+  private final IssueStorage issueStorage;
+  private final UuidFactory uuidFactory;
+
+  public PersistIssuesStep(DbClient dbClient, System2 system2, UpdateConflictResolver conflictResolver,
+    RuleRepository ruleRepository, PeriodHolder periodHolder, ProtoIssueCache protoIssueCache, IssueStorage issueStorage,
+<span class="fc" id="L67">    UuidFactory uuidFactory) {</span>
+<span class="fc" id="L68">    this.dbClient = dbClient;</span>
+<span class="fc" id="L69">    this.system2 = system2;</span>
+<span class="fc" id="L70">    this.conflictResolver = conflictResolver;</span>
+<span class="fc" id="L71">    this.ruleRepository = ruleRepository;</span>
+<span class="fc" id="L72">    this.periodHolder = periodHolder;</span>
+<span class="fc" id="L73">    this.protoIssueCache = protoIssueCache;</span>
+<span class="fc" id="L74">    this.issueStorage = issueStorage;</span>
+<span class="fc" id="L75">    this.uuidFactory = uuidFactory;</span>
+<span class="fc" id="L76">  }</span>
+
+  @Override
+  public void execute(ComputationStep.Context context) {
+<span class="fc" id="L80">    context.getStatistics().add(&quot;cacheSize&quot;, humanReadableByteCountSI(protoIssueCache.fileSize()));</span>
+<span class="fc" id="L81">    IssueStatistics statistics = new IssueStatistics();</span>
+<span class="fc" id="L82">    try (DbSession dbSession = dbClient.openSession(true);</span>
+<span class="fc" id="L83">      CloseableIterator&lt;DefaultIssue&gt; issues = protoIssueCache.traverse()) {</span>
+<span class="fc" id="L84">      List&lt;DefaultIssue&gt; addedIssues = new ArrayList&lt;&gt;(ISSUE_BATCHING_SIZE);</span>
+<span class="fc" id="L85">      List&lt;DefaultIssue&gt; updatedIssues = new ArrayList&lt;&gt;(ISSUE_BATCHING_SIZE);</span>
+<span class="fc" id="L86">      List&lt;DefaultIssue&gt; noLongerNewIssues = new ArrayList&lt;&gt;(ISSUE_BATCHING_SIZE);</span>
+<span class="fc" id="L87">      List&lt;DefaultIssue&gt; newCodeIssuesToMigrate = new ArrayList&lt;&gt;(ISSUE_BATCHING_SIZE);</span>
+<span class="fc" id="L88">      IssueDao issueDao = dbClient.issueDao();</span>
+<span class="fc" id="L89">      IssueChangeMapper changeMapper = dbSession.getMapper(IssueChangeMapper.class);</span>
+<span class="fc" id="L90">      AnticipatedTransitionMapper anticipatedTransitionMapper = dbSession.getMapper(AnticipatedTransitionMapper.class);</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">      while (issues.hasNext()) {</span>
+<span class="fc" id="L92">        DefaultIssue issue = issues.next();</span>
+<span class="fc bfc" id="L93" title="All 4 branches covered.">        if (issue.isNew() || issue.isCopied()) {</span>
+<span class="fc" id="L94">          addedIssues.add(issue);</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">          if (addedIssues.size() &gt;= ISSUE_BATCHING_SIZE) {</span>
+<span class="fc" id="L96">            persistNewIssues(statistics, addedIssues, issueDao, changeMapper, anticipatedTransitionMapper, dbSession);</span>
+<span class="fc" id="L97">            addedIssues.clear();</span>
+          }
+<span class="fc bfc" id="L99" title="All 2 branches covered.">        } else if (issue.isChanged()) {</span>
+<span class="fc" id="L100">          updatedIssues.add(issue);</span>
+<span class="fc bfc" id="L101" title="All 2 branches covered.">          if (updatedIssues.size() &gt;= ISSUE_BATCHING_SIZE) {</span>
+<span class="fc" id="L102">            persistUpdatedIssues(statistics, updatedIssues, issueDao, changeMapper, dbSession);</span>
+<span class="fc" id="L103">            updatedIssues.clear();</span>
+          }
+<span class="pc bpc" id="L105" title="1 of 4 branches missed.">        } else if (isOnBranchUsingReferenceBranch() &amp;&amp; issue.isNoLongerNewCodeReferenceIssue()) {</span>
+<span class="fc" id="L106">          noLongerNewIssues.add(issue);</span>
+<span class="pc bpc" id="L107" title="1 of 2 branches missed.">          if (noLongerNewIssues.size() &gt;= ISSUE_BATCHING_SIZE) {</span>
+<span class="nc" id="L108">            persistNoLongerNewIssues(statistics, noLongerNewIssues, issueDao, dbSession);</span>
+<span class="nc" id="L109">            noLongerNewIssues.clear();</span>
+          }
+<span class="pc bpc" id="L111" title="1 of 4 branches missed.">        } else if (isOnBranchUsingReferenceBranch() &amp;&amp; issue.isToBeMigratedAsNewCodeReferenceIssue()) {</span>
+<span class="fc" id="L112">          newCodeIssuesToMigrate.add(issue);</span>
+<span class="pc bpc" id="L113" title="1 of 2 branches missed.">          if (newCodeIssuesToMigrate.size() &gt;= ISSUE_BATCHING_SIZE) {</span>
+<span class="nc" id="L114">            persistNewCodeIssuesToMigrate(statistics, newCodeIssuesToMigrate, issueDao, dbSession);</span>
+<span class="nc" id="L115">            newCodeIssuesToMigrate.clear();</span>
+          }
+        }
+<span class="fc" id="L118">      }</span>
+
+<span class="fc" id="L120">      persistNewIssues(statistics, addedIssues, issueDao, changeMapper, anticipatedTransitionMapper, dbSession);</span>
+<span class="fc" id="L121">      persistUpdatedIssues(statistics, updatedIssues, issueDao, changeMapper, dbSession);</span>
+<span class="fc" id="L122">      persistNoLongerNewIssues(statistics, noLongerNewIssues, issueDao, dbSession);</span>
+<span class="fc" id="L123">      persistNewCodeIssuesToMigrate(statistics, newCodeIssuesToMigrate, issueDao, dbSession);</span>
+<span class="fc" id="L124">      flushSession(dbSession);</span>
+    } finally {
+<span class="fc" id="L126">      statistics.dumpTo(context);</span>
+    }
+<span class="fc" id="L128">  }</span>
+
+  private void persistNewIssues(IssueStatistics statistics, List&lt;DefaultIssue&gt; addedIssues,
+    IssueDao issueDao, IssueChangeMapper changeMapper, AnticipatedTransitionMapper anticipatedTransitionMapper, DbSession dbSession) {
+
+<span class="fc" id="L133">    final long now = system2.now();</span>
+
+<span class="fc" id="L135">    List&lt;IssueDto&gt; issueDtos = new LinkedList&lt;&gt;();</span>
+<span class="fc" id="L136">    addedIssues.forEach(addedIssue -&gt; {</span>
+<span class="fc" id="L137">      String ruleUuid = ruleRepository.getByKey(addedIssue.ruleKey()).getUuid();</span>
+<span class="fc" id="L138">      IssueDto dto = toDtoForComputationInsert(addedIssue, ruleUuid, now);</span>
+<span class="fc" id="L139">      issueDao.insertWithoutImpacts(dbSession, dto);</span>
+<span class="fc" id="L140">      issueDtos.add(dto);</span>
+<span class="fc bfc" id="L141" title="All 4 branches covered.">      if (isOnBranchUsingReferenceBranch() &amp;&amp; addedIssue.isOnChangedLine()) {</span>
+<span class="fc" id="L142">        issueDao.insertAsNewCodeOnReferenceBranch(dbSession, NewCodeReferenceIssueDto.fromIssueDto(dto, now, uuidFactory));</span>
+      }
+<span class="fc" id="L144">      statistics.inserts++;</span>
+<span class="fc" id="L145">      issueStorage.insertChanges(changeMapper, addedIssue, uuidFactory);</span>
+<span class="fc" id="L146">      addedIssue.getAnticipatedTransitionUuid().ifPresent(anticipatedTransitionMapper::delete);</span>
+<span class="fc" id="L147">    });</span>
+
+<span class="fc" id="L149">    issueDtos.forEach(issueDto -&gt; insertAdditionalIssueData(issueDao, dbSession, issueDto));</span>
+<span class="fc" id="L150">  }</span>
+
+  private static void insertAdditionalIssueData(IssueDao issueDao, DbSession dbSession, IssueDto issueDto) {
+<span class="fc" id="L153">    issueDao.insertIssueImpacts(dbSession, issueDto);</span>
+<span class="fc" id="L154">  }</span>
+
+  private void persistUpdatedIssues(IssueStatistics statistics, List&lt;DefaultIssue&gt; updatedIssues, IssueDao issueDao,
+    IssueChangeMapper changeMapper, DbSession dbSession) {
+<span class="fc bfc" id="L158" title="All 2 branches covered.">    if (updatedIssues.isEmpty()) {</span>
+<span class="fc" id="L159">      return;</span>
+    }
+
+<span class="fc" id="L162">    long now = system2.now();</span>
+<span class="fc" id="L163">    LinkedList&lt;IssueDto&gt; updatedIssueDtos = new LinkedList&lt;&gt;();</span>
+<span class="fc" id="L164">    updatedIssues.forEach(i -&gt; {</span>
+<span class="fc" id="L165">      IssueDto dto = IssueDto.toDtoForUpdate(i, now);</span>
+<span class="fc" id="L166">      boolean isUpdated = issueDao.updateIfBeforeSelectedDate(dbSession, dto);</span>
+<span class="fc bfc" id="L167" title="All 2 branches covered.">      if (isUpdated) {</span>
+<span class="fc" id="L168">        updatedIssueDtos.add(dto);</span>
+      }
+<span class="fc" id="L170">      statistics.updates++;</span>
+<span class="fc" id="L171">    });</span>
+<span class="fc" id="L172">    updatedIssueDtos.forEach(i -&gt; issueDao.deleteIssueImpacts(dbSession, i));</span>
+<span class="fc" id="L173">    updatedIssueDtos.forEach(i -&gt; issueDao.insertIssueImpacts(dbSession, i));</span>
+
+    // retrieve those of the updatedIssues which have not been updated and apply conflictResolver on them
+<span class="fc" id="L176">    List&lt;String&gt; updatedIssueKeys = updatedIssues.stream().map(DefaultIssue::key).toList();</span>
+<span class="fc" id="L177">    List&lt;IssueDto&gt; conflictIssueKeys = issueDao.selectByKeysIfNotUpdatedAt(dbSession, updatedIssueKeys, now);</span>
+<span class="fc bfc" id="L178" title="All 2 branches covered.">    if (!conflictIssueKeys.isEmpty()) {</span>
+<span class="fc" id="L179">      updatedIssueDtos.clear();</span>
+<span class="fc" id="L180">      Map&lt;String, DefaultIssue&gt; issuesByKeys = updatedIssues.stream().collect(Collectors.toMap(DefaultIssue::key, Function.identity()));</span>
+<span class="fc" id="L181">      conflictIssueKeys</span>
+<span class="fc" id="L182">        .forEach(dbIssue -&gt; {</span>
+<span class="fc" id="L183">          DefaultIssue updatedIssue = issuesByKeys.get(dbIssue.getKey());</span>
+<span class="fc" id="L184">          IssueDto issueToBeUpdated = conflictResolver.resolve(updatedIssue, dbIssue);</span>
+<span class="fc" id="L185">          issueDao.updateWithoutIssueImpacts(dbSession, issueToBeUpdated);</span>
+<span class="fc" id="L186">          updatedIssueDtos.add(issueToBeUpdated);</span>
+<span class="fc" id="L187">          statistics.merged++;</span>
+<span class="fc" id="L188">        });</span>
+
+<span class="fc" id="L190">      updatedIssueDtos.forEach(i -&gt; issueDao.deleteIssueImpacts(dbSession, i));</span>
+<span class="fc" id="L191">      updatedIssueDtos.forEach(i -&gt; issueDao.insertIssueImpacts(dbSession, i));</span>
+    }
+
+<span class="fc" id="L194">    updatedIssues.forEach(i -&gt; issueStorage.insertChanges(changeMapper, i, uuidFactory));</span>
+<span class="fc" id="L195">  }</span>
+
+  private static void persistNoLongerNewIssues(IssueStatistics statistics, List&lt;DefaultIssue&gt; noLongerNewIssues, IssueDao issueDao, DbSession dbSession) {
+<span class="fc bfc" id="L198" title="All 2 branches covered.">    if (noLongerNewIssues.isEmpty()) {</span>
+<span class="fc" id="L199">      return;</span>
+    }
+
+<span class="fc" id="L202">    noLongerNewIssues.forEach(i -&gt; {</span>
+<span class="fc" id="L203">      issueDao.deleteAsNewCodeOnReferenceBranch(dbSession, i.key());</span>
+<span class="fc" id="L204">      statistics.updates++;</span>
+<span class="fc" id="L205">    });</span>
+
+<span class="fc" id="L207">  }</span>
+
+  private void persistNewCodeIssuesToMigrate(IssueStatistics statistics, List&lt;DefaultIssue&gt; newCodeIssuesToMigrate, IssueDao issueDao, DbSession dbSession) {
+<span class="fc bfc" id="L210" title="All 2 branches covered.">    if (newCodeIssuesToMigrate.isEmpty()) {</span>
+<span class="fc" id="L211">      return;</span>
+    }
+
+<span class="fc" id="L214">    long now = system2.now();</span>
+<span class="fc" id="L215">    newCodeIssuesToMigrate.forEach(i -&gt; {</span>
+<span class="fc" id="L216">      issueDao.insertAsNewCodeOnReferenceBranch(dbSession, NewCodeReferenceIssueDto.fromIssueKey(i.key(), now, uuidFactory));</span>
+<span class="fc" id="L217">      statistics.updates++;</span>
+<span class="fc" id="L218">    });</span>
+<span class="fc" id="L219">  }</span>
+
+  private static void flushSession(DbSession dbSession) {
+<span class="fc" id="L222">    dbSession.flushStatements();</span>
+<span class="fc" id="L223">    dbSession.commit();</span>
+<span class="fc" id="L224">  }</span>
+
+  private boolean isOnBranchUsingReferenceBranch() {
+<span class="pc bpc" id="L227" title="1 of 2 branches missed.">    if (periodHolder.hasPeriod()) {</span>
+<span class="fc" id="L228">      return periodHolder.getPeriod().getMode().equals(NewCodePeriodType.REFERENCE_BRANCH.name());</span>
+    }
+<span class="nc" id="L230">    return false;</span>
+  }
+
+  @Override
+  public String getDescription() {
+<span class="fc" id="L235">    return &quot;Persist issues&quot;;</span>
+  }
+
+<span class="fc" id="L238">  private static class IssueStatistics {</span>
+<span class="fc" id="L239">    private int inserts = 0;</span>
+<span class="fc" id="L240">    private int updates = 0;</span>
+<span class="fc" id="L241">    private int merged = 0;</span>
+
+    private void dumpTo(ComputationStep.Context context) {
+<span class="fc" id="L244">      context.getStatistics()</span>
+<span class="fc" id="L245">        .add(&quot;inserts&quot;, String.valueOf(inserts))</span>
+<span class="fc" id="L246">        .add(&quot;updates&quot;, String.valueOf(updates))</span>
+<span class="fc" id="L247">        .add(&quot;merged&quot;, String.valueOf(merged));</span>
+<span class="fc" id="L248">    }</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NewMaintainabilityMeasuresVisitor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.qualitymodel</a> &gt; <span class="el_source">NewMaintainabilityMeasuresVisitor.java</span></div><h1>NewMaintainabilityMeasuresVisitor.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.qualitymodel;
+
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.measures.CoreMetrics;
+import org.sonar.api.utils.KeyValueFormat;
+import org.sonar.ce.task.projectanalysis.component.Component;
+import org.sonar.ce.task.projectanalysis.component.CrawlerDepthLimit;
+import org.sonar.ce.task.projectanalysis.component.PathAwareVisitorAdapter;
+import org.sonar.ce.task.projectanalysis.formula.counter.LongValue;
+import org.sonar.ce.task.projectanalysis.issue.IntegrateIssuesVisitor;
+import org.sonar.ce.task.projectanalysis.measure.Measure;
+import org.sonar.ce.task.projectanalysis.measure.MeasureRepository;
+import org.sonar.ce.task.projectanalysis.metric.Metric;
+import org.sonar.ce.task.projectanalysis.metric.MetricRepository;
+import org.sonar.ce.task.projectanalysis.source.NewLinesRepository;
+import org.sonar.core.metric.SoftwareQualitiesMetrics;
+
+import static org.sonar.api.measures.CoreMetrics.NCLOC_DATA_KEY;
+import static org.sonar.api.measures.CoreMetrics.NEW_DEVELOPMENT_COST_KEY;
+import static org.sonar.api.measures.CoreMetrics.NEW_MAINTAINABILITY_RATING_KEY;
+import static org.sonar.api.measures.CoreMetrics.NEW_SQALE_DEBT_RATIO_KEY;
+import static org.sonar.api.measures.CoreMetrics.NEW_TECHNICAL_DEBT_KEY;
+import static org.sonar.api.utils.KeyValueFormat.newIntegerConverter;
+import static org.sonar.ce.task.projectanalysis.component.ComponentVisitor.Order.POST_ORDER;
+import static org.sonar.ce.task.projectanalysis.measure.Measure.newMeasureBuilder;
+import static org.sonar.core.metric.SoftwareQualitiesMetrics.NEW_SOFTWARE_QUALITY_MAINTAINABILITY_DEBT_RATIO_KEY;
+import static org.sonar.core.metric.SoftwareQualitiesMetrics.NEW_SOFTWARE_QUALITY_MAINTAINABILITY_REMEDIATION_EFFORT_KEY;
+
+/**
+ * This visitor depends on {@link IntegrateIssuesVisitor} for the computation of
+ * metric {@link CoreMetrics#NEW_TECHNICAL_DEBT}.
+ * Compute following measure :
+ * {@link CoreMetrics#NEW_SQALE_DEBT_RATIO_KEY}
+ * {@link CoreMetrics#NEW_MAINTAINABILITY_RATING_KEY}
+ * {@link SoftwareQualitiesMetrics#NEW_SOFTWARE_QUALITY_MAINTAINABILITY_DEBT_RATIO_KEY}
+ * {@link SoftwareQualitiesMetrics#NEW_SOFTWARE_QUALITY_MAINTAINABILITY_RATING_KEY}
+ */
+public class NewMaintainabilityMeasuresVisitor extends PathAwareVisitorAdapter&lt;NewMaintainabilityMeasuresVisitor.Counter&gt; {
+<span class="fc" id="L62">  private static final Logger LOG = LoggerFactory.getLogger(NewMaintainabilityMeasuresVisitor.class);</span>
+
+  private final MeasureRepository measureRepository;
+  private final NewLinesRepository newLinesRepository;
+  private final RatingSettings ratingSettings;
+
+  private final Metric newDebtMetric;
+  private final Metric nclocDataMetric;
+
+  private final Metric newDevelopmentCostMetric;
+  private final Metric newDebtRatioMetric;
+  private final Metric newMaintainabilityRatingMetric;
+
+  private final Metric newSoftwareQualityMaintainabilityDebtRatioMetric;
+  private final Metric newSoftwareQualityMaintainabilityRatingMetric;
+  private final Metric newSoftwareQualityRemediationEffortKey;
+
+  public NewMaintainabilityMeasuresVisitor(MetricRepository metricRepository, MeasureRepository measureRepository, NewLinesRepository newLinesRepository,
+    RatingSettings ratingSettings) {
+<span class="fc" id="L81">    super(CrawlerDepthLimit.FILE, POST_ORDER, CounterFactory.INSTANCE);</span>
+<span class="fc" id="L82">    this.measureRepository = measureRepository;</span>
+<span class="fc" id="L83">    this.newLinesRepository = newLinesRepository;</span>
+<span class="fc" id="L84">    this.ratingSettings = ratingSettings;</span>
+
+    // computed by NewDebtAggregator which is executed by IntegrateIssuesVisitor
+<span class="fc" id="L87">    this.newDebtMetric = metricRepository.getByKey(NEW_TECHNICAL_DEBT_KEY);</span>
+<span class="fc" id="L88">    this.newSoftwareQualityRemediationEffortKey = metricRepository.getByKey(NEW_SOFTWARE_QUALITY_MAINTAINABILITY_REMEDIATION_EFFORT_KEY);</span>
+    // which line is ncloc and which isn't
+<span class="fc" id="L90">    this.nclocDataMetric = metricRepository.getByKey(NCLOC_DATA_KEY);</span>
+
+    // output metrics
+<span class="fc" id="L93">    this.newDevelopmentCostMetric = metricRepository.getByKey(NEW_DEVELOPMENT_COST_KEY);</span>
+<span class="fc" id="L94">    this.newDebtRatioMetric = metricRepository.getByKey(NEW_SQALE_DEBT_RATIO_KEY);</span>
+<span class="fc" id="L95">    this.newMaintainabilityRatingMetric = metricRepository.getByKey(NEW_MAINTAINABILITY_RATING_KEY);</span>
+<span class="fc" id="L96">    this.newSoftwareQualityMaintainabilityDebtRatioMetric = metricRepository.getByKey(NEW_SOFTWARE_QUALITY_MAINTAINABILITY_DEBT_RATIO_KEY);</span>
+<span class="fc" id="L97">    this.newSoftwareQualityMaintainabilityRatingMetric = metricRepository.getByKey(SoftwareQualitiesMetrics.NEW_SOFTWARE_QUALITY_MAINTAINABILITY_RATING_KEY);</span>
+<span class="fc" id="L98">  }</span>
+
+  @Override
+  public void visitProject(Component project, Path&lt;Counter&gt; path) {
+<span class="fc" id="L102">    computeAndSaveNewDebtRatioMeasure(project, path);</span>
+<span class="fc" id="L103">  }</span>
+
+  @Override
+  public void visitDirectory(Component directory, Path&lt;Counter&gt; path) {
+<span class="fc" id="L107">    computeAndSaveNewDebtRatioMeasure(directory, path);</span>
+<span class="fc" id="L108">    increaseNewDebtAndDevCostOfParent(path);</span>
+<span class="fc" id="L109">  }</span>
+
+  @Override
+  public void visitFile(Component file, Path&lt;Counter&gt; path) {
+<span class="fc" id="L113">    initNewDebtRatioCounter(file, path);</span>
+<span class="fc" id="L114">    computeAndSaveNewDebtRatioMeasure(file, path);</span>
+<span class="fc" id="L115">    increaseNewDebtAndDevCostOfParent(path);</span>
+<span class="fc" id="L116">  }</span>
+
+  private void computeAndSaveNewDebtRatioMeasure(Component component, Path&lt;Counter&gt; path) {
+<span class="fc bfc" id="L119" title="All 2 branches covered.">    if (!newLinesRepository.newLinesAvailable()) {</span>
+<span class="fc" id="L120">      return;</span>
+    }
+
+<span class="fc" id="L123">    float newDevelopmentCost = path.current().getDevCost().getValue();</span>
+<span class="fc" id="L124">    measureRepository.add(component, this.newDevelopmentCostMetric, newMeasureBuilder().create(newDevelopmentCost));</span>
+
+<span class="fc" id="L126">    double density = computeDensity(path.current().getNewDebt(), path.current().getDevCost());</span>
+<span class="fc" id="L127">    double newDebtRatio = 100.0 * density;</span>
+<span class="fc" id="L128">    int newMaintainabilityRating = ratingSettings.getDebtRatingGrid().getRatingForDensity(density).getIndex();</span>
+<span class="fc" id="L129">    measureRepository.add(component, this.newDebtRatioMetric, newMeasureBuilder().create(newDebtRatio));</span>
+<span class="fc" id="L130">    measureRepository.add(component, this.newMaintainabilityRatingMetric, newMeasureBuilder().create(newMaintainabilityRating));</span>
+
+<span class="fc" id="L132">    double densityBasedOnSoftwareQuality = computeDensity(path.current().getNewSoftwareQualityDebt(), path.current().getDevCost());</span>
+<span class="fc" id="L133">    double newSoftwareQualityDebtRatio = 100.0 * densityBasedOnSoftwareQuality;</span>
+<span class="fc" id="L134">    int newSoftwareQualityMaintainabilityRating = ratingSettings.getDebtRatingGrid().getRatingForDensity(densityBasedOnSoftwareQuality).getIndex();</span>
+<span class="fc" id="L135">    measureRepository.add(component, this.newSoftwareQualityMaintainabilityDebtRatioMetric, newMeasureBuilder().create(newSoftwareQualityDebtRatio));</span>
+<span class="fc" id="L136">    measureRepository.add(component, this.newSoftwareQualityMaintainabilityRatingMetric, newMeasureBuilder().create(newSoftwareQualityMaintainabilityRating));</span>
+<span class="fc" id="L137">  }</span>
+
+  private static double computeDensity(LongValue newDebt, LongValue devCost) {
+<span class="fc bfc" id="L140" title="All 2 branches covered.">    if (newDebt.isSet()) {</span>
+<span class="fc" id="L141">      long developmentCost = devCost.getValue();</span>
+<span class="pc bpc" id="L142" title="1 of 2 branches missed.">      if (developmentCost != 0L) {</span>
+<span class="fc" id="L143">        return newDebt.getValue() / (double) developmentCost;</span>
+      }
+    }
+<span class="fc" id="L146">    return 0D;</span>
+  }
+
+  private static long getLongValue(Optional&lt;Measure&gt; measure) {
+<span class="fc" id="L150">    return measure.map(NewMaintainabilityMeasuresVisitor::getLongValue).orElse(0L);</span>
+  }
+
+  private static long getLongValue(Measure measure) {
+<span class="fc" id="L154">    return measure.getLongValue();</span>
+  }
+
+  private void initNewDebtRatioCounter(Component file, Path&lt;Counter&gt; path) {
+    // first analysis, no period, no differential value to compute, save processing time and return now
+<span class="fc bfc" id="L159" title="All 2 branches covered.">    if (!newLinesRepository.newLinesAvailable()) {</span>
+<span class="fc" id="L160">      return;</span>
+    }
+
+<span class="fc" id="L163">    Optional&lt;Set&lt;Integer&gt;&gt; changedLines = newLinesRepository.getNewLines(file);</span>
+
+<span class="fc bfc" id="L165" title="All 2 branches covered.">    if (!changedLines.isPresent()) {</span>
+<span class="fc" id="L166">      LOG.trace(&quot;No information about changed lines is available for file '{}'. Dev cost will be zero.&quot;, file.getKey());</span>
+<span class="fc" id="L167">      return;</span>
+    }
+
+<span class="fc" id="L170">    Optional&lt;Measure&gt; nclocDataMeasure = measureRepository.getRawMeasure(file, this.nclocDataMetric);</span>
+<span class="fc bfc" id="L171" title="All 2 branches covered.">    if (!nclocDataMeasure.isPresent()) {</span>
+<span class="fc" id="L172">      return;</span>
+    }
+
+<span class="fc" id="L175">    initNewDebtRatioCounter(path.current(), file, nclocDataMeasure.get(), changedLines.get());</span>
+<span class="fc" id="L176">  }</span>
+
+  private void initNewDebtRatioCounter(Counter devCostCounter, Component file, Measure nclocDataMeasure, Set&lt;Integer&gt; changedLines) {
+<span class="fc" id="L179">    boolean hasDevCost = false;</span>
+
+<span class="fc" id="L181">    long lineDevCost = ratingSettings.getDevCost();</span>
+<span class="fc bfc" id="L182" title="All 2 branches covered.">    for (Integer nclocLineIndex : nclocLineIndexes(nclocDataMeasure)) {</span>
+<span class="fc bfc" id="L183" title="All 2 branches covered.">      if (changedLines.contains(nclocLineIndex)) {</span>
+<span class="fc" id="L184">        devCostCounter.incrementDevCost(lineDevCost);</span>
+<span class="fc" id="L185">        hasDevCost = true;</span>
+      }
+<span class="fc" id="L187">    }</span>
+<span class="fc bfc" id="L188" title="All 2 branches covered.">    if (hasDevCost) {</span>
+<span class="fc" id="L189">      long newDebt = getLongValue(measureRepository.getRawMeasure(file, this.newDebtMetric));</span>
+<span class="fc" id="L190">      devCostCounter.incrementNewDebt(newDebt);</span>
+
+<span class="fc" id="L192">      long newSoftwareQualityDebt = getLongValue(measureRepository.getRawMeasure(file, this.newSoftwareQualityRemediationEffortKey));</span>
+<span class="fc" id="L193">      devCostCounter.incrementNewSoftwareQualityDebt(newSoftwareQualityDebt);</span>
+    }
+<span class="fc" id="L195">  }</span>
+
+  private static void increaseNewDebtAndDevCostOfParent(Path&lt;Counter&gt; path) {
+<span class="fc" id="L198">    path.parent().add(path.current());</span>
+<span class="fc" id="L199">  }</span>
+
+  /**
+   * NCLOC_DATA contains Key-value pairs, where key - is a number of line, and value - is an indicator of whether line
+   * contains code (1) or not (0).
+   * This method parses the value of the NCLOC_DATA measure and return the line numbers of lines which contain code.
+   */
+  private static Iterable&lt;Integer&gt; nclocLineIndexes(Measure nclocDataMeasure) {
+<span class="fc" id="L207">    Map&lt;Integer, Integer&gt; parsedNclocData = KeyValueFormat.parse(nclocDataMeasure.getData(), newIntegerConverter(), newIntegerConverter());</span>
+<span class="fc" id="L208">    return parsedNclocData.entrySet()</span>
+<span class="fc" id="L209">      .stream()</span>
+<span class="fc bfc" id="L210" title="All 2 branches covered.">      .filter(entry -&gt; entry.getValue() == 1)</span>
+<span class="fc" id="L211">      .map(Map.Entry::getKey)</span>
+<span class="fc" id="L212">      .toList();</span>
+  }
+
+<span class="fc" id="L215">  public static final class Counter {</span>
+<span class="fc" id="L216">    private final LongValue newDebt = new LongValue();</span>
+<span class="fc" id="L217">    private final LongValue newSoftwareQualityDebt = new LongValue();</span>
+<span class="fc" id="L218">    private final LongValue devCost = new LongValue();</span>
+
+    public void add(Counter counter) {
+<span class="fc" id="L221">      this.newDebt.increment(counter.newDebt);</span>
+<span class="fc" id="L222">      this.newSoftwareQualityDebt.increment(counter.newSoftwareQualityDebt);</span>
+<span class="fc" id="L223">      this.devCost.increment(counter.devCost);</span>
+<span class="fc" id="L224">    }</span>
+
+    void incrementNewDebt(long value) {
+<span class="fc" id="L227">      newDebt.increment(value);</span>
+<span class="fc" id="L228">    }</span>
+
+    void incrementNewSoftwareQualityDebt(long value) {
+<span class="fc" id="L231">      newSoftwareQualityDebt.increment(value);</span>
+<span class="fc" id="L232">    }</span>
+
+    void incrementDevCost(long value) {
+<span class="fc" id="L235">      devCost.increment(value);</span>
+<span class="fc" id="L236">    }</span>
+
+    LongValue getNewDebt() {
+<span class="fc" id="L239">      return this.newDebt;</span>
+    }
+
+    LongValue getNewSoftwareQualityDebt() {
+<span class="fc" id="L243">      return this.newSoftwareQualityDebt;</span>
+    }
+
+    LongValue getDevCost() {
+<span class="fc" id="L247">      return this.devCost;</span>
+    }
+  }
+
+  private static class CounterFactory extends SimpleStackElementFactory&lt;Counter&gt; {
+<span class="fc" id="L252">    public static final CounterFactory INSTANCE = new CounterFactory();</span>
+
+    @Override
+    public Counter createForAny(Component component) {
+<span class="fc" id="L256">      return new Counter();</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

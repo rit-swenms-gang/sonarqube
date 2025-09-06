@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OAuthCsrfVerifier.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.authentication</a> &gt; <span class="el_source">OAuthCsrfVerifier.java</span></div><h1>OAuthCsrfVerifier.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.authentication;
+
+import java.math.BigInteger;
+import java.security.SecureRandom;
+import org.sonar.api.server.authentication.OAuth2IdentityProvider;
+import org.sonar.api.server.http.Cookie;
+import org.sonar.api.server.http.HttpRequest;
+import org.sonar.api.server.http.HttpResponse;
+import org.sonar.server.authentication.event.AuthenticationException;
+
+import static java.lang.String.format;
+import static org.apache.commons.codec.digest.DigestUtils.sha256Hex;
+import static org.apache.commons.lang3.StringUtils.isBlank;
+import static org.sonar.server.authentication.Cookies.findCookie;
+import static org.sonar.server.authentication.Cookies.newCookieBuilder;
+import static org.sonar.server.authentication.event.AuthenticationEvent.Source;
+
+<span class="fc" id="L37">public class OAuthCsrfVerifier {</span>
+
+  private static final String CSRF_STATE_COOKIE = &quot;OAUTHSTATE&quot;;
+  private static final String DEFAULT_STATE_PARAMETER_NAME = &quot;state&quot;;
+
+  public String generateState(HttpRequest request, HttpResponse response) {
+    // Create a state token to prevent request forgery.
+    // Store it in the session for later validation.
+<span class="fc" id="L45">    String state = new BigInteger(130, new SecureRandom()).toString(32);</span>
+<span class="fc" id="L46">    response.addCookie(newCookieBuilder(request).setName(CSRF_STATE_COOKIE).setValue(sha256Hex(state)).setHttpOnly(true).setExpiry(-1).build());</span>
+<span class="fc" id="L47">    return state;</span>
+  }
+
+  public void verifyState(HttpRequest request, HttpResponse response, OAuth2IdentityProvider provider) {
+<span class="fc" id="L51">    verifyState(request, response, provider, DEFAULT_STATE_PARAMETER_NAME);</span>
+<span class="fc" id="L52">  }</span>
+
+  public void verifyState(HttpRequest request, HttpResponse response, OAuth2IdentityProvider provider, String parameterName) {
+<span class="fc" id="L55">    Cookie cookie = findCookie(CSRF_STATE_COOKIE, request)</span>
+<span class="fc" id="L56">      .orElseThrow(AuthenticationException.newBuilder()</span>
+<span class="fc" id="L57">        .setSource(Source.oauth2(provider))</span>
+<span class="fc" id="L58">        .setMessage(format(&quot;Cookie '%s' is missing&quot;, CSRF_STATE_COOKIE))::build);</span>
+<span class="fc" id="L59">    String hashInCookie = cookie.getValue();</span>
+
+    // remove cookie
+<span class="fc" id="L62">    response.addCookie(newCookieBuilder(request).setName(CSRF_STATE_COOKIE).setValue(null).setHttpOnly(true).setExpiry(0).build());</span>
+
+<span class="fc" id="L64">    String stateInRequest = request.getParameter(parameterName);</span>
+<span class="fc bfc" id="L65" title="All 4 branches covered.">    if (isBlank(stateInRequest) || !sha256Hex(stateInRequest).equals(hashInCookie)) {</span>
+<span class="fc" id="L66">      throw AuthenticationException.newBuilder()</span>
+<span class="fc" id="L67">        .setSource(Source.oauth2(provider))</span>
+<span class="fc" id="L68">        .setMessage(&quot;CSRF state value is invalid&quot;)</span>
+<span class="fc" id="L69">        .build();</span>
+    }
+<span class="fc" id="L71">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

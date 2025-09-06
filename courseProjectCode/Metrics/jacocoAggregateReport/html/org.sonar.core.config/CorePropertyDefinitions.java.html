@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CorePropertyDefinitions.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.core.config</a> &gt; <span class="el_source">CorePropertyDefinitions.java</span></div><h1>CorePropertyDefinitions.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.core.config;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import org.sonar.api.CoreProperties;
+import org.sonar.api.PropertyType;
+import org.sonar.api.config.PropertyDefinition;
+import org.sonar.api.config.PropertyDefinition.ConfigScope;
+import org.sonar.core.extension.PluginRiskConsent;
+
+import static java.util.Arrays.asList;
+import static org.sonar.api.PropertyType.BOOLEAN;
+import static org.sonar.api.PropertyType.SINGLE_SELECT_LIST;
+import static org.sonar.api.PropertyType.STRING;
+import static org.sonar.api.PropertyType.TEXT;
+import static org.sonar.core.extension.PluginRiskConsent.NOT_ACCEPTED;
+
+public class CorePropertyDefinitions {
+
+  public static final String SONAR_ANALYSIS = &quot;sonar.analysis.&quot;;
+  public static final String SONAR_PROJECTCREATION_MAINBRANCHNAME = &quot;sonar.projectCreation.mainBranchName&quot;;
+  public static final String SONAR_ANALYSIS_DETECTEDSCM = &quot;sonar.analysis.detectedscm&quot;;
+  public static final String SONAR_ANALYSIS_DETECTEDCI = &quot;sonar.analysis.detectedci&quot;;
+
+  public static final String DISABLE_NOTIFICATION_ON_BUILT_IN_QPROFILES = &quot;sonar.builtInQualityProfiles.disableNotificationOnUpdate&quot;;
+
+  public static final String ALLOW_DISABLE_INHERITED_RULES = &quot;sonar.qualityProfiles.allowDisableInheritedRules&quot;;
+
+  public static final String PLUGINS_RISK_CONSENT = &quot;sonar.plugins.risk.consent&quot;;
+
+  public static final String DOCUMENTATION_BASE_URL = &quot;sonar.documentation.baseUrl&quot;;
+
+  public static final String SUBCATEGORY_PROJECT_CREATION = &quot;subProjectCreation&quot;;
+  public static final String SUBCATEGORY_QUALITY_PROFILE = &quot;qualityProfile&quot;;
+
+  private CorePropertyDefinitions() {
+    // only static stuff
+  }
+
+  public static List&lt;PropertyDefinition&gt; all() {
+<span class="fc" id="L61">    List&lt;PropertyDefinition&gt; defs = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L62">    defs.addAll(IssueExclusionProperties.all());</span>
+<span class="fc" id="L63">    defs.addAll(ExclusionProperties.all());</span>
+<span class="fc" id="L64">    defs.addAll(SecurityProperties.all());</span>
+<span class="fc" id="L65">    defs.addAll(DebtProperties.all());</span>
+<span class="fc" id="L66">    defs.addAll(PurgeProperties.all());</span>
+<span class="fc" id="L67">    defs.addAll(ScannerProperties.all());</span>
+<span class="fc" id="L68">    defs.addAll(MQRModeProperties.all());</span>
+<span class="fc" id="L69">    defs.addAll(AiCodefixPropertyDefinitions.all());</span>
+
+<span class="fc" id="L71">    defs.addAll(asList(</span>
+<span class="fc" id="L72">      PropertyDefinition.builder(CoreProperties.MODULE_LEVEL_ARCHIVED_SETTINGS)</span>
+<span class="fc" id="L73">        .name(&quot;Archived Sub-Projects Settings&quot;)</span>
+<span class="fc" id="L74">        .description(&quot;DEPRECATED - List of the properties that were previously configured at sub-project / module level. &quot; +</span>
+          &quot;These properties are not used anymore and should now be configured at project level. When you've made the &quot; +
+          &quot;necessary changes, clear this setting to prevent analysis from showing a warning about it.&quot;)
+<span class="fc" id="L77">        .category(CoreProperties.CATEGORY_GENERAL)</span>
+<span class="fc" id="L78">        .subCategory(CoreProperties.SUBCATEGORY_MODULES)</span>
+<span class="fc" id="L79">        .onlyOnConfigScopes(ConfigScope.PROJECT)</span>
+<span class="fc" id="L80">        .type(TEXT)</span>
+<span class="fc" id="L81">        .build(),</span>
+<span class="fc" id="L82">      PropertyDefinition.builder(CoreProperties.SERVER_BASE_URL)</span>
+<span class="fc" id="L83">        .name(&quot;Server base URL&quot;)</span>
+<span class="fc" id="L84">        .description(</span>
+          &quot;HTTP(S) URL of this SonarQube server, such as &lt;i&gt;https://yourhost.yourdomain/sonar&lt;/i&gt;. &quot;
+            + &quot;This value is used outside SonarQube itself, e.g. for PR decoration, emails, etc.&quot;)
+<span class="fc" id="L87">        .category(CoreProperties.CATEGORY_GENERAL)</span>
+<span class="fc" id="L88">        .build(),</span>
+<span class="fc" id="L89">      PropertyDefinition.builder(SONAR_PROJECTCREATION_MAINBRANCHNAME)</span>
+<span class="fc" id="L90">        .name(&quot;Default main branch name&quot;)</span>
+<span class="fc" id="L91">        .category(CoreProperties.CATEGORY_GENERAL)</span>
+<span class="fc" id="L92">        .subCategory(SUBCATEGORY_PROJECT_CREATION)</span>
+<span class="fc" id="L93">        .description(&quot;Each project has a main branch at creation. This setting defines the instance-wide default main branch name. &quot;</span>
+          + &quot; A user can override this when creating a project. This setting does not apply to projects imported from a DevOps platform.&quot;)
+<span class="fc" id="L95">        .type(STRING)</span>
+<span class="fc" id="L96">        .defaultValue(&quot;main&quot;)</span>
+<span class="fc" id="L97">        .build(),</span>
+<span class="fc" id="L98">      PropertyDefinition.builder(CoreProperties.ENCRYPTION_SECRET_KEY_PATH)</span>
+<span class="fc" id="L99">        .name(&quot;Encryption secret key path&quot;)</span>
+<span class="fc" id="L100">        .description(&quot;Path to a file that contains encryption secret key that is used to encrypting other settings.&quot;)</span>
+<span class="fc" id="L101">        .type(STRING)</span>
+<span class="fc" id="L102">        .hidden()</span>
+<span class="fc" id="L103">        .build(),</span>
+<span class="fc" id="L104">      PropertyDefinition.builder(&quot;sonar.authenticator.downcase&quot;)</span>
+<span class="fc" id="L105">        .name(&quot;Downcase login&quot;)</span>
+<span class="fc" id="L106">        .description(&quot;Downcase login during user authentication, typically for Active Directory&quot;)</span>
+<span class="fc" id="L107">        .type(BOOLEAN)</span>
+<span class="fc" id="L108">        .defaultValue(String.valueOf(false))</span>
+<span class="fc" id="L109">        .hidden()</span>
+<span class="fc" id="L110">        .build(),</span>
+<span class="fc" id="L111">      PropertyDefinition.builder(DISABLE_NOTIFICATION_ON_BUILT_IN_QPROFILES)</span>
+<span class="fc" id="L112">        .name(&quot;Avoid quality profiles notification&quot;)</span>
+<span class="fc" id="L113">        .description(&quot;Avoid sending email notification on each update of built-in quality profiles to quality profile administrators.&quot;)</span>
+<span class="fc" id="L114">        .defaultValue(Boolean.toString(false))</span>
+<span class="fc" id="L115">        .category(CoreProperties.CATEGORY_GENERAL)</span>
+<span class="fc" id="L116">        .subCategory(SUBCATEGORY_QUALITY_PROFILE)</span>
+<span class="fc" id="L117">        .type(BOOLEAN)</span>
+<span class="fc" id="L118">        .build(),</span>
+<span class="fc" id="L119">      PropertyDefinition.builder(ALLOW_DISABLE_INHERITED_RULES)</span>
+<span class="fc" id="L120">        .name(&quot;Enable deactivation of inherited rules&quot;)</span>
+<span class="fc" id="L121">        .description(&quot;Set if users with 'Administer Quality Profiles' permission are allowed to deactivate inherited rules in quality profiles.&quot;)</span>
+<span class="fc" id="L122">        .defaultValue(Boolean.toString(true))</span>
+<span class="fc" id="L123">        .category(CoreProperties.CATEGORY_GENERAL)</span>
+<span class="fc" id="L124">        .subCategory(SUBCATEGORY_QUALITY_PROFILE)</span>
+<span class="fc" id="L125">        .type(BOOLEAN)</span>
+<span class="fc" id="L126">        .build(),</span>
+<span class="fc" id="L127">      PropertyDefinition.builder(PLUGINS_RISK_CONSENT)</span>
+<span class="fc" id="L128">        .name(&quot;State of user plugins risk consent&quot;)</span>
+<span class="fc" id="L129">        .description(&quot;Determine whether user is required to accept plugins risk consent&quot;)</span>
+<span class="fc" id="L130">        .defaultValue(NOT_ACCEPTED.name())</span>
+<span class="fc" id="L131">        .options(Arrays.stream(PluginRiskConsent.values()).map(Enum::name).toList())</span>
+<span class="fc" id="L132">        .hidden()</span>
+<span class="fc" id="L133">        .type(SINGLE_SELECT_LIST)</span>
+<span class="fc" id="L134">        .build(),</span>
+<span class="fc" id="L135">      PropertyDefinition.builder(DOCUMENTATION_BASE_URL)</span>
+<span class="fc" id="L136">        .name(&quot;Base URL of the documentation&quot;)</span>
+<span class="fc" id="L137">        .description(&quot;Override the base URL to be used in SonarQube documentation links.&quot;)</span>
+<span class="fc" id="L138">        .hidden()</span>
+<span class="fc" id="L139">        .type(STRING)</span>
+<span class="fc" id="L140">        .build(),</span>
+
+      // WEB LOOK&amp;FEEL
+<span class="fc" id="L143">      PropertyDefinition.builder(WebConstants.SONAR_LF_LOGO_URL)</span>
+<span class="fc" id="L144">        .deprecatedKey(&quot;sonar.branding.image&quot;)</span>
+<span class="fc" id="L145">        .name(&quot;Logo URL&quot;)</span>
+<span class="fc" id="L146">        .description(&quot;URL to logo image. Any standard format is accepted.&quot;)</span>
+<span class="fc" id="L147">        .category(CoreProperties.CATEGORY_GENERAL)</span>
+<span class="fc" id="L148">        .subCategory(CoreProperties.SUBCATEGORY_LOOKNFEEL)</span>
+<span class="fc" id="L149">        .build(),</span>
+<span class="fc" id="L150">      PropertyDefinition.builder(WebConstants.SONAR_LF_LOGO_WIDTH_PX)</span>
+<span class="fc" id="L151">        .deprecatedKey(&quot;sonar.branding.image.width&quot;)</span>
+<span class="fc" id="L152">        .name(&quot;Width of image in pixels&quot;)</span>
+<span class="fc" id="L153">        .description(&quot;Width in pixels, constrained to 150px (the height of the image is constrained to 40px).&quot;)</span>
+<span class="fc" id="L154">        .category(CoreProperties.CATEGORY_GENERAL)</span>
+<span class="fc" id="L155">        .subCategory(CoreProperties.SUBCATEGORY_LOOKNFEEL)</span>
+<span class="fc" id="L156">        .build(),</span>
+<span class="fc" id="L157">      PropertyDefinition.builder(WebConstants.SONAR_LF_ENABLE_GRAVATAR)</span>
+<span class="fc" id="L158">        .name(&quot;Enable support of gravatars&quot;)</span>
+<span class="fc" id="L159">        .description(&quot;Gravatars are profile pictures of users based on their email.&quot;)</span>
+<span class="fc" id="L160">        .type(BOOLEAN)</span>
+<span class="fc" id="L161">        .defaultValue(String.valueOf(false))</span>
+<span class="fc" id="L162">        .category(CoreProperties.CATEGORY_GENERAL)</span>
+<span class="fc" id="L163">        .subCategory(CoreProperties.SUBCATEGORY_LOOKNFEEL)</span>
+<span class="fc" id="L164">        .build(),</span>
+<span class="fc" id="L165">      PropertyDefinition.builder(WebConstants.SONAR_LF_GRAVATAR_SERVER_URL)</span>
+<span class="fc" id="L166">        .name(&quot;Gravatar URL&quot;)</span>
+<span class="fc" id="L167">        .description(&quot;Optional URL of custom Gravatar service. Accepted variables are {EMAIL_MD5} for MD5 hash of email and {SIZE} for the picture size in pixels.&quot;)</span>
+<span class="fc" id="L168">        .defaultValue(&quot;https://secure.gravatar.com/avatar/{EMAIL_MD5}.jpg?s={SIZE}&amp;d=identicon&quot;)</span>
+<span class="fc" id="L169">        .category(CoreProperties.CATEGORY_GENERAL)</span>
+<span class="fc" id="L170">        .subCategory(CoreProperties.SUBCATEGORY_LOOKNFEEL)</span>
+<span class="fc" id="L171">        .build(),</span>
+
+      // ISSUES
+<span class="fc" id="L174">      PropertyDefinition.builder(CoreProperties.DEVELOPER_AGGREGATED_INFO_DISABLED)</span>
+<span class="fc" id="L175">        .name(&quot;Disable developer aggregated information&quot;)</span>
+<span class="fc" id="L176">        .description(&quot;Don't show issue facets aggregating information per developer&quot;)</span>
+<span class="fc" id="L177">        .category(CoreProperties.CATEGORY_GENERAL)</span>
+<span class="fc" id="L178">        .subCategory(CoreProperties.SUBCATEGORY_ISSUES)</span>
+<span class="fc" id="L179">        .onConfigScopes(ConfigScope.PROJECT)</span>
+<span class="fc" id="L180">        .type(BOOLEAN)</span>
+<span class="fc" id="L181">        .defaultValue(Boolean.toString(false))</span>
+<span class="fc" id="L182">        .build(),</span>
+
+<span class="fc" id="L184">      PropertyDefinition.builder(CoreProperties.DEFAULT_ISSUE_ASSIGNEE)</span>
+<span class="fc" id="L185">        .name(&quot;Default Assignee&quot;)</span>
+<span class="fc" id="L186">        .description(&quot;New issues will be assigned to this user each time it is not possible to determine the user who is the author of the issue.&quot;)</span>
+<span class="fc" id="L187">        .category(CoreProperties.CATEGORY_GENERAL)</span>
+<span class="fc" id="L188">        .subCategory(CoreProperties.SUBCATEGORY_ISSUES)</span>
+<span class="fc" id="L189">        .onConfigScopes(ConfigScope.PROJECT)</span>
+<span class="fc" id="L190">        .type(PropertyType.USER_LOGIN)</span>
+<span class="fc" id="L191">        .build(),</span>
+
+      // QUALITY GATE
+<span class="fc" id="L194">      PropertyDefinition.builder(CoreProperties.QUALITY_GATE_IGNORE_SMALL_CHANGES)</span>
+<span class="fc" id="L195">        .name(&quot;Ignore duplication and coverage on small changes&quot;)</span>
+<span class="fc" id="L196">        .description(&quot;Quality Gate conditions about duplications in new code and coverage on new code are ignored until the number of new lines is at least 20.&quot;)</span>
+<span class="fc" id="L197">        .category(CoreProperties.CATEGORY_GENERAL)</span>
+<span class="fc" id="L198">        .subCategory(CoreProperties.SUBCATEGORY_QUALITY_GATE)</span>
+<span class="fc" id="L199">        .onConfigScopes(ConfigScope.PROJECT)</span>
+<span class="fc" id="L200">        .type(BOOLEAN)</span>
+<span class="fc" id="L201">        .defaultValue(Boolean.toString(true))</span>
+<span class="fc" id="L202">        .build(),</span>
+
+      // CPD
+<span class="fc" id="L205">      PropertyDefinition.builder(CoreProperties.CPD_CROSS_PROJECT)</span>
+<span class="fc" id="L206">        .defaultValue(Boolean.toString(false))</span>
+<span class="fc" id="L207">        .name(&quot;Cross project duplication detection&quot;)</span>
+<span class="fc" id="L208">        .description(&quot;DEPRECATED - By default, SonarQube detects duplications at project level. This means that a block &quot;</span>
+          + &quot;duplicated on two different projects won't be reported. Setting this parameter to \&quot;true\&quot; &quot;
+          + &quot;allows to detect duplicates across projects. Note that activating &quot;
+          + &quot;this property will significantly increase each SonarQube analysis time, &quot;
+          + &quot;and therefore badly impact the performances of report processing as more and more projects &quot;
+          + &quot;are getting involved in this cross project duplication mechanism.&quot;)
+<span class="fc" id="L214">        .onConfigScopes(ConfigScope.PROJECT)</span>
+<span class="fc" id="L215">        .category(CoreProperties.CATEGORY_GENERAL)</span>
+<span class="fc" id="L216">        .subCategory(CoreProperties.SUBCATEGORY_DUPLICATIONS)</span>
+<span class="fc" id="L217">        .type(BOOLEAN)</span>
+<span class="fc" id="L218">        .build(),</span>
+<span class="fc" id="L219">      PropertyDefinition.builder(CoreProperties.CPD_EXCLUSIONS)</span>
+<span class="fc" id="L220">        .defaultValue(&quot;&quot;)</span>
+<span class="fc" id="L221">        .name(&quot;Duplication Exclusions&quot;)</span>
+<span class="fc" id="L222">        .description(&quot;Patterns used to exclude some source files from the duplication detection mechanism. &quot; +</span>
+          &quot;See below to know how to use wildcards to specify this property.&quot;)
+<span class="fc" id="L224">        .onConfigScopes(ConfigScope.PROJECT)</span>
+<span class="fc" id="L225">        .category(CoreProperties.CATEGORY_EXCLUSIONS)</span>
+<span class="fc" id="L226">        .subCategory(CoreProperties.SUBCATEGORY_DUPLICATIONS_EXCLUSIONS)</span>
+<span class="fc" id="L227">        .multiValues(true)</span>
+<span class="fc" id="L228">        .build()));</span>
+
+<span class="fc" id="L230">    return defs;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

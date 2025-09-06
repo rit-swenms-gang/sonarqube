@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultGroupController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.v2.api.group.controller</a> &gt; <span class="el_source">DefaultGroupController.java</span></div><h1>DefaultGroupController.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.v2.api.group.controller;
+
+import java.util.List;
+import org.jetbrains.annotations.Nullable;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.server.common.SearchResults;
+import org.sonar.server.common.group.service.GroupInformation;
+import org.sonar.server.common.group.service.GroupSearchRequest;
+import org.sonar.server.common.group.service.GroupService;
+import org.sonar.server.common.management.ManagedInstanceChecker;
+import org.sonar.server.exceptions.NotFoundException;
+import org.sonar.server.user.UserSession;
+import org.sonar.server.v2.api.group.request.GroupCreateRestRequest;
+import org.sonar.server.v2.api.group.request.GroupUpdateRestRequest;
+import org.sonar.server.v2.api.group.request.GroupsSearchRestRequest;
+import org.sonar.server.v2.api.group.response.GroupsSearchRestResponse;
+import org.sonar.server.v2.api.group.response.GroupRestResponse;
+import org.sonar.server.v2.api.model.RestPage;
+import org.sonar.server.v2.api.response.PageRestResponse;
+
+public class DefaultGroupController implements GroupController {
+
+  private static final String GROUP_NOT_FOUND_MESSAGE = &quot;Group '%s' not found&quot;;
+  private final GroupService groupService;
+  private final DbClient dbClient;
+  private final UserSession userSession;
+  private final ManagedInstanceChecker managedInstanceChecker;
+
+<span class="fc" id="L49">  public DefaultGroupController(UserSession userSession, DbClient dbClient, GroupService groupService, ManagedInstanceChecker managedInstanceChecker) {</span>
+<span class="fc" id="L50">    this.groupService = groupService;</span>
+<span class="fc" id="L51">    this.dbClient = dbClient;</span>
+<span class="fc" id="L52">    this.userSession = userSession;</span>
+<span class="fc" id="L53">    this.managedInstanceChecker = managedInstanceChecker;</span>
+<span class="fc" id="L54">  }</span>
+
+  @Override
+  public GroupsSearchRestResponse search(GroupsSearchRestRequest groupsSearchRestRequest, @Nullable String excludedUserId, RestPage restPage) {
+<span class="fc" id="L58">    userSession.checkLoggedIn().checkIsSystemAdministrator();</span>
+<span class="fc" id="L59">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L60">      GroupSearchRequest groupSearchRequest = new GroupSearchRequest(groupsSearchRestRequest.q(), groupsSearchRestRequest.managed(), groupsSearchRestRequest.userId(),</span>
+<span class="fc" id="L61">        excludedUserId, restPage.pageIndex(), restPage.pageSize());</span>
+<span class="fc" id="L62">      SearchResults&lt;GroupInformation&gt; searchResults = groupService.search(dbSession, groupSearchRequest);</span>
+<span class="fc" id="L63">      List&lt;GroupRestResponse&gt; groupRestResponses = toGroupRestResponses(searchResults);</span>
+<span class="fc" id="L64">      return new GroupsSearchRestResponse(groupRestResponses, new PageRestResponse(restPage.pageIndex(), restPage.pageSize(), searchResults.total()));</span>
+    }
+  }
+
+  private static List&lt;GroupRestResponse&gt; toGroupRestResponses(SearchResults&lt;GroupInformation&gt; searchResults) {
+<span class="fc" id="L69">    return searchResults.searchResults().stream()</span>
+<span class="fc" id="L70">      .map(DefaultGroupController::toRestGroup)</span>
+<span class="fc" id="L71">      .toList();</span>
+  }
+
+  @Override
+  public GroupRestResponse fetchGroup(String id) {
+<span class="fc" id="L76">    userSession.checkLoggedIn().checkIsSystemAdministrator();</span>
+<span class="fc" id="L77">    try (DbSession session = dbClient.openSession(false)) {</span>
+<span class="fc" id="L78">      GroupInformation groupInformation = findGroupInformationOrThrow(id, session);</span>
+<span class="fc" id="L79">      return toRestGroup(groupInformation);</span>
+    }
+  }
+
+  @Override
+  public void deleteGroup(String id) {
+<span class="fc" id="L85">    try (DbSession session = dbClient.openSession(false)) {</span>
+<span class="fc" id="L86">      throwIfNotAllowedToDeleteGroup(id, session);</span>
+<span class="fc" id="L87">      GroupInformation group = findGroupInformationOrThrow(id, session);</span>
+<span class="fc" id="L88">      groupService.delete(session, group.groupDto());</span>
+<span class="fc" id="L89">      session.commit();</span>
+    }
+<span class="fc" id="L91">  }</span>
+
+  @Override
+  public GroupRestResponse updateGroup(String id, GroupUpdateRestRequest updateRequest) {
+<span class="fc" id="L95">    throwIfNotAllowedToModifyGroups();</span>
+<span class="fc" id="L96">    try (DbSession session = dbClient.openSession(false)) {</span>
+<span class="fc" id="L97">      GroupInformation group = findGroupInformationOrThrow(id, session);</span>
+<span class="fc" id="L98">      GroupInformation updatedGroup = groupService.updateGroup(</span>
+        session,
+<span class="fc" id="L100">        group.groupDto(),</span>
+<span class="fc" id="L101">        updateRequest.getName().orElse(group.groupDto().getName()),</span>
+<span class="fc" id="L102">        updateRequest.getDescription().orElse(group.groupDto().getDescription()));</span>
+<span class="fc" id="L103">      session.commit();</span>
+<span class="fc" id="L104">      return toRestGroup(updatedGroup);</span>
+    }
+  }
+
+  private GroupInformation findGroupInformationOrThrow(String id, DbSession session) {
+<span class="fc" id="L109">    return groupService.findGroupByUuid(session, id)</span>
+<span class="fc" id="L110">      .orElseThrow(() -&gt; new NotFoundException(String.format(GROUP_NOT_FOUND_MESSAGE, id)));</span>
+  }
+
+  private void throwIfNotAllowedToDeleteGroup(String id, DbSession session) {
+<span class="fc" id="L114">    userSession.checkIsSystemAdministrator();</span>
+<span class="fc" id="L115">    managedInstanceChecker.throwIfGroupIsManaged(session, id);</span>
+<span class="fc" id="L116">  }</span>
+
+  @Override
+  public GroupRestResponse create(GroupCreateRestRequest request) {
+<span class="fc" id="L120">    throwIfNotAllowedToModifyGroups();</span>
+<span class="fc" id="L121">    try (DbSession session = dbClient.openSession(false)) {</span>
+<span class="fc" id="L122">      GroupInformation createdGroup = groupService.createGroup(session, request.name(), request.description());</span>
+<span class="fc" id="L123">      session.commit();</span>
+<span class="fc" id="L124">      return toRestGroup(createdGroup);</span>
+    }
+  }
+
+  private void throwIfNotAllowedToModifyGroups() {
+<span class="fc" id="L129">    userSession.checkIsSystemAdministrator();</span>
+<span class="fc" id="L130">    managedInstanceChecker.throwIfInstanceIsManaged();</span>
+<span class="fc" id="L131">  }</span>
+
+  private static GroupRestResponse toRestGroup(GroupInformation group) {
+<span class="fc" id="L134">    return new GroupRestResponse(group.groupDto().getUuid(), group.groupDto().getName(), group.groupDto().getDescription(), group.isManaged(), group.isDefault());</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

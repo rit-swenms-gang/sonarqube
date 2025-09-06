@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Tracker.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.core.issue.tracking</a> &gt; <span class="el_source">Tracker.java</span></div><h1>Tracker.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.core.issue.tracking;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.stream.Stream;
+import org.sonar.api.issue.Issue;
+import org.sonar.api.scanner.ScannerSide;
+
+@ScannerSide
+<span class="fc" id="L29">public class Tracker&lt;RAW extends Trackable, BASE extends Trackable&gt; extends AbstractTracker&lt;RAW, BASE&gt; {</span>
+
+  public NonClosedTracking&lt;RAW, BASE&gt; trackNonClosed(Input&lt;RAW&gt; rawInput, Input&lt;BASE&gt; baseInput) {
+<span class="fc" id="L32">    NonClosedTracking&lt;RAW, BASE&gt; tracking = NonClosedTracking.of(rawInput, baseInput);</span>
+
+    // 1. match by rule, line, line hash and message
+<span class="fc" id="L35">    match(tracking, LineAndLineHashAndMessage::new);</span>
+
+    // 2. match issues with same rule, same line and same line hash, but not necessarily with same message
+<span class="fc" id="L38">    match(tracking, LineAndLineHashKey::new);</span>
+
+    // 3. detect code moves by comparing blocks of codes
+<span class="fc" id="L41">    detectCodeMoves(rawInput, baseInput, tracking);</span>
+
+    // 4. match issues with same rule, same message and same line hash
+<span class="fc" id="L44">    match(tracking, LineHashAndMessageKey::new);</span>
+
+    // 5. match issues with same rule, same line and same message
+<span class="fc" id="L47">    match(tracking, LineAndMessageKey::new);</span>
+
+    // 6. match issues with same rule and same line hash but different line and different message.
+    // See SONAR-2812
+<span class="fc" id="L51">    match(tracking, LineHashKey::new);</span>
+
+<span class="fc" id="L53">    return tracking;</span>
+  }
+
+  public Tracking&lt;RAW, BASE&gt; trackClosed(NonClosedTracking&lt;RAW, BASE&gt; nonClosedTracking, Input&lt;BASE&gt; baseInput) {
+<span class="fc" id="L57">    ClosedTracking&lt;RAW, BASE&gt; closedTracking = ClosedTracking.of(nonClosedTracking, baseInput);</span>
+<span class="fc" id="L58">    match(closedTracking, LineAndLineHashAndMessage::new);</span>
+
+<span class="fc" id="L60">    return mergedTracking(nonClosedTracking, closedTracking);</span>
+  }
+
+  private void detectCodeMoves(Input&lt;RAW&gt; rawInput, Input&lt;BASE&gt; baseInput, Tracking&lt;RAW, BASE&gt; tracking) {
+<span class="fc bfc" id="L64" title="All 2 branches covered.">    if (!tracking.isComplete()) {</span>
+<span class="fc" id="L65">      new BlockRecognizer&lt;RAW, BASE&gt;().match(rawInput, baseInput, tracking);</span>
+    }
+<span class="fc" id="L67">  }</span>
+
+  private static class ClosedTracking&lt;RAW extends Trackable, BASE extends Trackable&gt; extends Tracking&lt;RAW, BASE&gt; {
+    private final Input&lt;BASE&gt; baseInput;
+
+    ClosedTracking(NonClosedTracking&lt;RAW, BASE&gt; nonClosedTracking, Input&lt;BASE&gt; closedBaseInput) {
+<span class="fc" id="L73">      super(nonClosedTracking.getRawInput().getIssues(), closedBaseInput.getIssues(), nonClosedTracking.rawToBase, nonClosedTracking.baseToRaw);</span>
+<span class="fc" id="L74">      this.baseInput = closedBaseInput;</span>
+<span class="fc" id="L75">    }</span>
+
+    public static &lt;RAW extends Trackable, BASE extends Trackable&gt; ClosedTracking&lt;RAW, BASE&gt; of(NonClosedTracking&lt;RAW, BASE&gt; nonClosedTracking, Input&lt;BASE&gt; baseInput) {
+<span class="pc" id="L78">      Input&lt;BASE&gt; closedBaseInput = new FilteringBaseInputWrapper&lt;&gt;(baseInput, t -&gt; Issue.STATUS_CLOSED.equals(t.getStatus()));</span>
+<span class="fc" id="L79">      return new ClosedTracking&lt;&gt;(nonClosedTracking, closedBaseInput);</span>
+    }
+
+    public Input&lt;BASE&gt; getBaseInput() {
+<span class="fc" id="L83">      return baseInput;</span>
+    }
+  }
+
+  private Tracking&lt;RAW, BASE&gt; mergedTracking(NonClosedTracking&lt;RAW, BASE&gt; nonClosedTracking, ClosedTracking&lt;RAW, BASE&gt; closedTracking) {
+<span class="fc" id="L88">    return new Tracking&lt;&gt;(nonClosedTracking.getRawInput().getIssues(),</span>
+<span class="fc" id="L89">      concatIssues(nonClosedTracking, closedTracking),</span>
+      closedTracking.rawToBase, closedTracking.baseToRaw);
+  }
+
+  private static &lt;RAW extends Trackable, BASE extends Trackable&gt; List&lt;BASE&gt; concatIssues(
+    NonClosedTracking&lt;RAW, BASE&gt; nonClosedTracking, ClosedTracking&lt;RAW, BASE&gt; closedTracking) {
+<span class="fc" id="L95">    Collection&lt;BASE&gt; nonClosedIssues = nonClosedTracking.getBaseInput().getIssues();</span>
+<span class="fc" id="L96">    Collection&lt;BASE&gt; closeIssues = closedTracking.getBaseInput().getIssues();</span>
+<span class="fc" id="L97">    return Stream.concat(nonClosedIssues.stream(), closeIssues.stream())</span>
+<span class="fc" id="L98">      .toList();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

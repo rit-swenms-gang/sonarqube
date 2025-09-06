@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DatabaseServerCompatibility.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform</a> &gt; <span class="el_source">DatabaseServerCompatibility.java</span></div><h1>DatabaseServerCompatibility.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform;
+
+import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.SonarEdition;
+import org.sonar.api.SonarRuntime;
+import org.sonar.api.Startable;
+import org.sonar.api.utils.MessageException;
+import org.sonar.core.documentation.DocumentationLinkGenerator;
+import org.sonar.server.platform.db.migration.version.DatabaseVersion;
+
+import static org.sonar.server.log.ServerProcessLogging.STARTUP_LOGGER_NAME;
+import static org.sonar.server.platform.db.migration.version.DatabaseVersion.MIN_UPGRADE_VERSION_COMMUNITY_BUILD_READABLE;
+import static org.sonar.server.platform.db.migration.version.DatabaseVersion.MIN_UPGRADE_VERSION_HUMAN_READABLE;
+
+public class DatabaseServerCompatibility implements Startable {
+
+  private static final String HIGHLIGHTER = &quot;################################################################################&quot;;
+
+  private final DatabaseVersion version;
+
+  private final DocumentationLinkGenerator documentationLinkGenerator;
+
+  private final SonarRuntime sonarRuntime;
+
+<span class="fc" id="L46">  public DatabaseServerCompatibility(DatabaseVersion version, DocumentationLinkGenerator documentationLinkGenerator, SonarRuntime sonarRuntime) {</span>
+<span class="fc" id="L47">    this.version = version;</span>
+<span class="fc" id="L48">    this.documentationLinkGenerator = documentationLinkGenerator;</span>
+<span class="fc" id="L49">    this.sonarRuntime = sonarRuntime;</span>
+<span class="fc" id="L50">  }</span>
+
+  @Override
+  public void start() {
+<span class="fc" id="L54">    DatabaseVersion.Status status = version.getStatus();</span>
+<span class="fc bfc" id="L55" title="All 2 branches covered.">    if (status == DatabaseVersion.Status.REQUIRES_DOWNGRADE) {</span>
+<span class="fc" id="L56">      throw MessageException.of(&quot;Database was upgraded to a more recent version of SonarQube. &quot;</span>
+        + &quot;A backup must probably be restored or the DB settings are incorrect.&quot;);
+    }
+<span class="fc bfc" id="L59" title="All 2 branches covered.">    if (status == DatabaseVersion.Status.REQUIRES_UPGRADE) {</span>
+<span class="fc" id="L60">      Optional&lt;Long&gt; currentVersion = this.version.getVersion();</span>
+<span class="pc bpc" id="L61" title="1 of 4 branches missed.">      if (currentVersion.isPresent() &amp;&amp; currentVersion.get() &lt; DatabaseVersion.MIN_UPGRADE_VERSION) {</span>
+<span class="fc" id="L62">        throw MessageException.of(buildVersionTooOldMessage());</span>
+      }
+<span class="fc" id="L64">      String documentationLink = documentationLinkGenerator.getDocumentationLink(&quot;/server-upgrade-and-maintenance/upgrade/upgrade-the-server/roadmap&quot;);</span>
+<span class="fc" id="L65">      String msg = String.format(&quot;The database must be manually upgraded. Please backup the database and browse /setup. &quot;</span>
+        + &quot;For more information: %s&quot;, documentationLink);
+<span class="fc" id="L67">      LoggerFactory.getLogger(DatabaseServerCompatibility.class).warn(msg);</span>
+<span class="fc" id="L68">      Logger logger = LoggerFactory.getLogger(STARTUP_LOGGER_NAME);</span>
+<span class="fc" id="L69">      logger.warn(HIGHLIGHTER);</span>
+<span class="fc" id="L70">      logger.warn(msg);</span>
+<span class="fc" id="L71">      logger.warn(HIGHLIGHTER);</span>
+    }
+<span class="fc" id="L73">  }</span>
+
+  private String buildVersionTooOldMessage() {
+<span class="fc bfc" id="L76" title="All 2 branches covered.">    if (sonarRuntime.getEdition() == SonarEdition.COMMUNITY) {</span>
+<span class="fc" id="L77">      return &quot;The version of SonarQube you are trying to upgrade from is too old. Please upgrade to the &quot; +</span>
+        MIN_UPGRADE_VERSION_COMMUNITY_BUILD_READABLE + &quot; version first.&quot;;
+    } else {
+<span class="fc" id="L80">      return &quot;The version of SonarQube you are trying to upgrade from is too old. Please upgrade to the &quot; +</span>
+        MIN_UPGRADE_VERSION_HUMAN_READABLE + &quot; Long-Term Active version first.&quot;;
+    }
+
+  }
+
+  @Override
+  public void stop() {
+    // do nothing
+<span class="nc" id="L89">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

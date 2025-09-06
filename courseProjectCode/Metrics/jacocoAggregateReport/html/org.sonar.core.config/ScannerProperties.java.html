@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ScannerProperties.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.core.config</a> &gt; <span class="el_source">ScannerProperties.java</span></div><h1>ScannerProperties.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.core.config;
+
+import java.util.List;
+import org.sonar.api.CoreProperties;
+import org.sonar.api.config.PropertyDefinition;
+import org.sonar.api.config.PropertyDefinition.ConfigScope;
+
+import static java.util.Arrays.asList;
+import static org.sonar.api.PropertyType.BOOLEAN;
+import static org.sonar.api.PropertyType.INTEGER;
+
+public class ScannerProperties {
+
+  public static final String BRANCHES_DOC_LINK_SUFFIX = &quot;/analyzing-source-code/analysis-parameters/#multibranch&quot;;
+
+  public static final String BRANCH_NAME = &quot;sonar.branch.name&quot;;
+
+  public static final String PULL_REQUEST_KEY = &quot;sonar.pullrequest.key&quot;;
+  public static final String PULL_REQUEST_BRANCH = &quot;sonar.pullrequest.branch&quot;;
+  public static final String PULL_REQUEST_BASE = &quot;sonar.pullrequest.base&quot;;
+  public static final String FILE_SIZE_LIMIT = &quot;sonar.filesize.limit&quot;;
+  public static final String LINKS_SOURCES_DEV = &quot;sonar.links.scm_dev&quot;;
+  public static final String DISABLE_PROJECT_AND_ORG_AUTODETECTION = &quot;sonar.keys_autodetection.disabled&quot;;
+  public static final String PLUGIN_LOADING_OPTIMIZATION_KEY = &quot;sonar.plugins.downloadOnlyRequired&quot;;
+
+  private ScannerProperties() {
+    // only static stuff
+  }
+
+  public static List&lt;PropertyDefinition&gt; all() {
+<span class="fc" id="L50">    return asList(</span>
+<span class="fc" id="L51">      PropertyDefinition.builder(CoreProperties.SCM_DISABLED_KEY)</span>
+<span class="fc" id="L52">        .name(&quot;Disable the SCM Sensor&quot;)</span>
+<span class="fc" id="L53">        .description(&quot;Disable the retrieval of blame information from Source Control Manager&quot;)</span>
+<span class="fc" id="L54">        .category(CoreProperties.CATEGORY_SCM)</span>
+<span class="fc" id="L55">        .type(BOOLEAN)</span>
+<span class="fc" id="L56">        .onConfigScopes(ConfigScope.PROJECT)</span>
+<span class="fc" id="L57">        .defaultValue(String.valueOf(false))</span>
+<span class="fc" id="L58">        .build(),</span>
+<span class="fc" id="L59">      PropertyDefinition.builder(CoreProperties.SCM_PROVIDER_KEY)</span>
+<span class="fc" id="L60">        .name(&quot;Key of the SCM provider for this project&quot;)</span>
+<span class="fc" id="L61">        .description(&quot;Force the provider to be used to get SCM information for this project. By default auto-detection is done. Example: svn, git.&quot;)</span>
+<span class="fc" id="L62">        .category(CoreProperties.CATEGORY_SCM)</span>
+<span class="fc" id="L63">        .onlyOnConfigScopes(ConfigScope.PROJECT)</span>
+<span class="fc" id="L64">        .build(),</span>
+<span class="fc" id="L65">      PropertyDefinition.builder(BRANCH_NAME)</span>
+<span class="fc" id="L66">        .name(&quot;Optional name of SonarQube/SCM branch&quot;)</span>
+<span class="fc" id="L67">        .description(&quot;Provide a name for the branch being analyzed. It might match an existing branch of the project, otherwise a new branch will be created.&quot;)</span>
+<span class="fc" id="L68">        .hidden()</span>
+<span class="fc" id="L69">        .build(),</span>
+<span class="fc" id="L70">      PropertyDefinition.builder(PULL_REQUEST_BRANCH)</span>
+<span class="fc" id="L71">        .name(&quot;Optional name of pull request&quot;)</span>
+<span class="fc" id="L72">        .description(&quot;Provide a name for the pull request being analyzed. It might match an existing pull request of the project, otherwise a new pull request will be created.&quot;)</span>
+<span class="fc" id="L73">        .hidden()</span>
+<span class="fc" id="L74">        .build(),</span>
+<span class="fc" id="L75">      PropertyDefinition.builder(PULL_REQUEST_BASE)</span>
+<span class="fc" id="L76">        .name(&quot;Optional name of target branch to merge into&quot;)</span>
+<span class="fc" id="L77">        .description(</span>
+          &quot;Defines the target branch of the pull request being analyzed. &quot;
+            + &quot;If no target is defined, the main branch is used as the target.&quot;)
+<span class="fc" id="L80">        .hidden()</span>
+<span class="fc" id="L81">        .build(),</span>
+<span class="fc" id="L82">      PropertyDefinition.builder(DISABLE_PROJECT_AND_ORG_AUTODETECTION)</span>
+<span class="fc" id="L83">        .name(&quot;Disables project auto-detection&quot;)</span>
+<span class="fc" id="L84">        .description(&quot;Disables auto-detection of project keys from scanner execution environment.&quot;)</span>
+<span class="fc" id="L85">        .type(BOOLEAN)</span>
+<span class="fc" id="L86">        .hidden()</span>
+<span class="fc" id="L87">        .build(),</span>
+<span class="fc" id="L88">      PropertyDefinition.builder(FILE_SIZE_LIMIT)</span>
+<span class="fc" id="L89">        .name(&quot;Limit of a file size excluded from analysis in MB&quot;)</span>
+<span class="fc" id="L90">        .type(INTEGER)</span>
+<span class="fc" id="L91">        .defaultValue(&quot;20&quot;)</span>
+<span class="fc" id="L92">        .description(</span>
+          &quot;Allows discarding files from analysis exceeding certain sizes.&quot;)
+<span class="fc" id="L94">        .hidden()</span>
+<span class="fc" id="L95">        .build(),</span>
+<span class="fc" id="L96">      PropertyDefinition.builder(PLUGIN_LOADING_OPTIMIZATION_KEY)</span>
+<span class="fc" id="L97">        .name(&quot;Analyzers loading optimization&quot;)</span>
+<span class="fc" id="L98">        .description(&quot;When enabled, scanners will only download analyzers required for detected languages.&quot;)</span>
+<span class="fc" id="L99">        .category(CoreProperties.CATEGORY_GENERAL)</span>
+<span class="fc" id="L100">        .subCategory(&quot;Performance&quot;)</span>
+<span class="fc" id="L101">        .type(BOOLEAN)</span>
+<span class="fc" id="L102">        .defaultValue(&quot;true&quot;)</span>
+<span class="fc" id="L103">        .build());</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

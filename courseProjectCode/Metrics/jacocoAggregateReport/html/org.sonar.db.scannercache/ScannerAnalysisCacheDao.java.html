@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ScannerAnalysisCacheDao.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.scannercache</a> &gt; <span class="el_source">ScannerAnalysisCacheDao.java</span></div><h1>ScannerAnalysisCacheDao.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.scannercache;
+
+import java.io.InputStream;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import javax.annotation.CheckForNull;
+import org.sonar.db.Dao;
+import org.sonar.db.DbInputStream;
+import org.sonar.db.DatabaseUtils;
+import org.sonar.db.DbSession;
+
+<span class="fc" id="L35">public class ScannerAnalysisCacheDao implements Dao {</span>
+  public void removeAll(DbSession session) {
+<span class="fc" id="L37">    mapper(session).removeAll();</span>
+<span class="fc" id="L38">  }</span>
+
+  public void remove(DbSession session, String branchUuid) {
+<span class="fc" id="L41">    mapper(session).remove(branchUuid);</span>
+<span class="fc" id="L42">  }</span>
+
+  public void insert(DbSession dbSession, String branchUuid, InputStream data) {
+<span class="fc" id="L45">    Connection connection = dbSession.getConnection();</span>
+<span class="fc" id="L46">    try (PreparedStatement stmt = connection.prepareStatement(</span>
+      &quot;INSERT INTO scanner_analysis_cache (branch_uuid, data) VALUES (?, ?)&quot;)) {
+<span class="fc" id="L48">      stmt.setString(1, branchUuid);</span>
+<span class="fc" id="L49">      stmt.setBinaryStream(2, data);</span>
+<span class="fc" id="L50">      stmt.executeUpdate();</span>
+<span class="fc" id="L51">      connection.commit();</span>
+<span class="fc" id="L52">    } catch (SQLException e) {</span>
+<span class="fc" id="L53">      throw new IllegalStateException(&quot;Fail to insert cache for branch &quot; + branchUuid, e);</span>
+<span class="fc" id="L54">    }</span>
+<span class="fc" id="L55">  }</span>
+
+  public void cleanOlderThan7Days(DbSession session) {
+<span class="fc" id="L58">    long timestamp = LocalDateTime.now().minusDays(7).toInstant(ZoneOffset.UTC).toEpochMilli();</span>
+<span class="fc" id="L59">    mapper(session).cleanOlderThan(timestamp);</span>
+<span class="fc" id="L60">  }</span>
+
+  @CheckForNull
+  public DbInputStream selectData(DbSession dbSession, String branchUuid) {
+<span class="fc" id="L64">    PreparedStatement stmt = null;</span>
+<span class="fc" id="L65">    ResultSet rs = null;</span>
+<span class="fc" id="L66">    DbInputStream result = null;</span>
+    try {
+<span class="fc" id="L68">      stmt = dbSession.getConnection().prepareStatement(&quot;SELECT data FROM scanner_analysis_cache WHERE branch_uuid=?&quot;);</span>
+<span class="fc" id="L69">      stmt.setString(1, branchUuid);</span>
+<span class="fc" id="L70">      rs = stmt.executeQuery();</span>
+<span class="fc bfc" id="L71" title="All 2 branches covered.">      if (rs.next()) {</span>
+<span class="fc" id="L72">        result = new DbInputStream(stmt, rs, rs.getBinaryStream(1));</span>
+<span class="fc" id="L73">        return result;</span>
+      }
+<span class="fc" id="L75">      return null;</span>
+<span class="fc" id="L76">    } catch (SQLException e) {</span>
+<span class="fc" id="L77">      throw new IllegalStateException(&quot;Fail to select cache for branch &quot; + branchUuid, e);</span>
+    } finally {
+<span class="fc bfc" id="L79" title="All 2 branches covered.">      if (result == null) {</span>
+<span class="fc" id="L80">        DatabaseUtils.closeQuietly(rs);</span>
+<span class="fc" id="L81">        DatabaseUtils.closeQuietly(stmt);</span>
+      }
+    }
+  }
+
+  private static ScannerAnalysisCacheMapper mapper(DbSession session) {
+<span class="fc" id="L87">    return session.getMapper(ScannerAnalysisCacheMapper.class);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

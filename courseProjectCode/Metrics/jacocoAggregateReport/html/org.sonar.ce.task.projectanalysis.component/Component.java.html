@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Component.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.component</a> &gt; <span class="el_source">Component.java</span></div><h1>Component.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.component;
+
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Set;
+import javax.annotation.CheckForNull;
+
+public interface Component {
+<span class="fc" id="L28">  enum Type {</span>
+<span class="fc" id="L29">    PROJECT(0), DIRECTORY(2), FILE(3), VIEW(0), SUBVIEW(1), PROJECT_VIEW(2);</span>
+
+<span class="fc" id="L31">    private static final Set&lt;Type&gt; REPORT_TYPES = EnumSet.of(PROJECT, DIRECTORY, FILE);</span>
+<span class="fc" id="L32">    private static final Set&lt;Type&gt; VIEWS_TYPES = EnumSet.of(VIEW, SUBVIEW, PROJECT_VIEW);</span>
+
+    private final int depth;
+
+<span class="fc" id="L36">    Type(int depth) {</span>
+<span class="fc" id="L37">      this.depth = depth;</span>
+<span class="fc" id="L38">    }</span>
+
+    public int getDepth() {
+<span class="fc" id="L41">      return depth;</span>
+    }
+
+    public boolean isDeeperThan(Type otherType) {
+<span class="fc bfc" id="L45" title="All 2 branches covered.">      return this.getDepth() &gt; otherType.getDepth();</span>
+    }
+
+    public boolean isHigherThan(Type otherType) {
+<span class="fc bfc" id="L49" title="All 2 branches covered.">      return this.getDepth() &lt; otherType.getDepth();</span>
+    }
+
+    public boolean isReportType() {
+<span class="fc" id="L53">      return REPORT_TYPES.contains(this);</span>
+    }
+
+    public boolean isViewsType() {
+<span class="fc" id="L57">      return VIEWS_TYPES.contains(this);</span>
+    }
+  }
+
+  /**
+   * On a branch, CHANGED and ADDED are relative to the previous analysis.
+   * On a pull request, these are relative to the base branch.
+   */
+<span class="fc" id="L65">  enum Status {</span>
+<span class="fc" id="L66">    UNAVAILABLE, SAME, CHANGED, ADDED</span>
+  }
+
+  Type getType();
+
+  Status getStatus();
+
+  /**
+   * Returns the component uuid
+   */
+  String getUuid();
+
+  /**
+   * Returns the key as it will be displayed in the ui.
+   * If legacy branch feature is used, the key will contain the branch name
+   * If new branch feature is used, the key will not contain the branch name
+   */
+  String getKey();
+
+  /**
+   * The component long name. For files and directories this is the project relative path.
+   */
+  String getName();
+
+  /**
+   * The component short name. For files and directories this is the parent relative path (ie filename for files). For projects and view this is the same as {@link #getName()}
+   */
+  String getShortName();
+
+  /**
+   * The optional description of the component.
+   */
+  @CheckForNull
+  String getDescription();
+
+  List&lt;Component&gt; getChildren();
+
+  /**
+   * Returns the attributes specific to components of type {@link Type#PROJECT}.
+   *
+   * @throws IllegalStateException when the component's type is not {@link Type#PROJECT}.
+   */
+  ProjectAttributes getProjectAttributes();
+
+  /**
+   * Returns the attributes specific to components of type {@link Type#PROJECT},
+   * {@link Type#DIRECTORY} or {@link Type#FILE}.
+   *
+   * @throws IllegalStateException when the component's type is neither {@link Type#PROJECT},
+   *         {@link Type#DIRECTORY} nor {@link Type#FILE}.
+   */
+  ReportAttributes getReportAttributes();
+
+  /**
+   * The attributes of the Component if it's type is File.
+   *
+   * @throws IllegalStateException if the Component's type is not {@link Type#FILE}
+   */
+  FileAttributes getFileAttributes();
+
+  /**
+   * The attributes of the Component if it's type is {@link Type#PROJECT_VIEW}.
+   *
+   * @throws IllegalStateException if the Component's type is not {@link Type#PROJECT_VIEW}
+   */
+  ProjectViewAttributes getProjectViewAttributes();
+
+  /**
+   * The attributes of the Component if it's type is {@link Type#SUBVIEW}.
+   *
+   * @throws IllegalStateException if the Component's type is not {@link Type#SUBVIEW}
+   */
+  SubViewAttributes getSubViewAttributes();
+
+  /**
+   * The attributes of the Component if it's type is {@link Type#VIEW}.
+   *
+   * @throws IllegalStateException if the Component's type is not {@link Type#VIEW}
+   */
+  ViewAttributes getViewAttributes();
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

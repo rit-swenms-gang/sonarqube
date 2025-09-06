@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BasicAuthentication.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.authentication</a> &gt; <span class="el_source">BasicAuthentication.java</span></div><h1>BasicAuthentication.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.authentication;
+
+import java.util.Base64;
+import java.util.Optional;
+import org.sonar.api.server.http.HttpRequest;
+import org.sonar.db.user.UserDto;
+import org.sonar.server.authentication.event.AuthenticationEvent;
+import org.sonar.server.authentication.event.AuthenticationException;
+import org.sonar.server.usertoken.UserTokenAuthentication;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.apache.commons.lang3.StringUtils.startsWithIgnoreCase;
+import static org.sonar.server.authentication.event.AuthenticationEvent.Method;
+import static org.sonar.server.authentication.event.AuthenticationEvent.Source;
+
+/**
+ * HTTP BASIC authentication relying on tuple {login, password}.
+ * Login can represent a user access token.
+ *
+ * @see CredentialsAuthentication for standard login/password authentication
+ * @see UserTokenAuthentication for user access token
+ */
+public class BasicAuthentication {
+
+  private final CredentialsAuthentication credentialsAuthentication;
+  private final UserTokenAuthentication userTokenAuthentication;
+
+<span class="fc" id="L47">  public BasicAuthentication(CredentialsAuthentication credentialsAuthentication, UserTokenAuthentication userTokenAuthentication) {</span>
+<span class="fc" id="L48">    this.credentialsAuthentication = credentialsAuthentication;</span>
+<span class="fc" id="L49">    this.userTokenAuthentication = userTokenAuthentication;</span>
+<span class="fc" id="L50">  }</span>
+
+  public Optional&lt;UserDto&gt; authenticate(HttpRequest request) {
+<span class="fc" id="L53">    return extractCredentialsFromHeader(request)</span>
+<span class="fc" id="L54">      .flatMap(credentials -&gt; Optional.ofNullable(authenticate(credentials, request)));</span>
+  }
+
+  public static Optional&lt;Credentials&gt; extractCredentialsFromHeader(HttpRequest request) {
+<span class="fc" id="L58">    String authorizationHeader = request.getHeader(&quot;Authorization&quot;);</span>
+<span class="fc bfc" id="L59" title="All 4 branches covered.">    if (authorizationHeader == null || !startsWithIgnoreCase(authorizationHeader, &quot;BASIC&quot;)) {</span>
+<span class="fc" id="L60">      return Optional.empty();</span>
+    }
+
+<span class="fc" id="L63">    String basicAuthEncoded = authorizationHeader.substring(6);</span>
+<span class="fc" id="L64">    String basicAuthDecoded = getDecodedBasicAuth(basicAuthEncoded);</span>
+
+<span class="fc" id="L66">    int semiColonPos = basicAuthDecoded.indexOf(':');</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">    if (semiColonPos &lt;= 0) {</span>
+<span class="fc" id="L68">      throw AuthenticationException.newBuilder()</span>
+<span class="fc" id="L69">        .setSource(Source.local(Method.BASIC))</span>
+<span class="fc" id="L70">        .setMessage(&quot;Decoded basic auth does not contain ':'&quot;)</span>
+<span class="fc" id="L71">        .build();</span>
+    }
+<span class="fc" id="L73">    String login = basicAuthDecoded.substring(0, semiColonPos);</span>
+<span class="fc" id="L74">    String password = basicAuthDecoded.substring(semiColonPos + 1);</span>
+<span class="fc" id="L75">    return Optional.of(new Credentials(login, password));</span>
+  }
+
+  private static String getDecodedBasicAuth(String basicAuthEncoded) {
+    try {
+<span class="fc" id="L80">      return new String(Base64.getDecoder().decode(basicAuthEncoded.getBytes(UTF_8)), UTF_8);</span>
+<span class="fc" id="L81">    } catch (Exception e) {</span>
+<span class="fc" id="L82">      throw AuthenticationException.newBuilder()</span>
+<span class="fc" id="L83">        .setSource(Source.local(Method.BASIC))</span>
+<span class="fc" id="L84">        .setMessage(&quot;Invalid basic header&quot;)</span>
+<span class="fc" id="L85">        .build();</span>
+    }
+  }
+
+  private UserDto authenticate(Credentials credentials, HttpRequest request) {
+<span class="fc bfc" id="L90" title="All 2 branches covered.">    if (credentials.getPassword().isEmpty()) {</span>
+<span class="fc" id="L91">      Optional&lt;UserAuthResult&gt; userAuthResult = userTokenAuthentication.authenticate(request);</span>
+<span class="fc bfc" id="L92" title="All 2 branches covered.">      if (userAuthResult.isPresent()) {</span>
+<span class="fc" id="L93">        return userAuthResult.get().getUserDto();</span>
+      } else {
+<span class="fc" id="L95">        throw AuthenticationException.newBuilder()</span>
+<span class="fc" id="L96">          .setSource(AuthenticationEvent.Source.local(AuthenticationEvent.Method.SONARQUBE_TOKEN))</span>
+<span class="fc" id="L97">          .setMessage(&quot;User doesn't exist&quot;)</span>
+<span class="fc" id="L98">          .build();</span>
+      }
+    }
+<span class="fc" id="L101">    return credentialsAuthentication.authenticate(credentials, request, Method.BASIC);</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

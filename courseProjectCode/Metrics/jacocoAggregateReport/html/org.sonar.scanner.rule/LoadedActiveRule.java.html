@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LoadedActiveRule.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.rule</a> &gt; <span class="el_source">LoadedActiveRule.java</span></div><h1>LoadedActiveRule.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.rule;
+
+import java.util.Map;
+import java.util.Set;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.api.issue.impact.Severity;
+import org.sonar.api.issue.impact.SoftwareQuality;
+import org.sonar.api.rule.RuleKey;
+
+public class LoadedActiveRule {
+  private RuleKey ruleKey;
+  private String severity;
+  private Map&lt;SoftwareQuality, Severity&gt; impacts;
+  private String name;
+  private String language;
+  private Map&lt;String, String&gt; params;
+  private long createdAt;
+  private long updatedAt;
+  private String templateRuleKey;
+  private String internalKey;
+  private Set&lt;RuleKey&gt; deprecatedKeys;
+  private String qProfileKey;
+
+<span class="fc" id="L44">  public LoadedActiveRule() {</span>
+    // nothing to do here
+<span class="fc" id="L46">  }</span>
+
+  public RuleKey getRuleKey() {
+<span class="fc" id="L49">    return ruleKey;</span>
+  }
+
+  public void setRuleKey(RuleKey ruleKey) {
+<span class="fc" id="L53">    this.ruleKey = ruleKey;</span>
+<span class="fc" id="L54">  }</span>
+
+  public String getName() {
+<span class="fc" id="L57">    return name;</span>
+  }
+
+  public void setName(String name) {
+<span class="fc" id="L61">    this.name = name;</span>
+<span class="fc" id="L62">  }</span>
+
+  public String getSeverity() {
+<span class="fc" id="L65">    return severity;</span>
+  }
+
+  public void setSeverity(String severity) {
+<span class="fc" id="L69">    this.severity = severity;</span>
+<span class="fc" id="L70">  }</span>
+
+  public Map&lt;SoftwareQuality, Severity&gt; getImpacts() {
+<span class="fc" id="L73">    return impacts;</span>
+  }
+
+  public void setImpacts(Map&lt;SoftwareQuality, Severity&gt; impacts) {
+<span class="fc" id="L77">    this.impacts = impacts;</span>
+<span class="fc" id="L78">  }</span>
+
+  public String getLanguage() {
+<span class="fc" id="L81">    return language;</span>
+  }
+
+  public void setLanguage(String language) {
+<span class="fc" id="L85">    this.language = language;</span>
+<span class="fc" id="L86">  }</span>
+
+  public Map&lt;String, String&gt; getParams() {
+<span class="fc" id="L89">    return params;</span>
+  }
+
+  public void setParams(Map&lt;String, String&gt; params) {
+<span class="fc" id="L93">    this.params = params;</span>
+<span class="fc" id="L94">  }</span>
+
+  public long getCreatedAt() {
+<span class="fc" id="L97">    return createdAt;</span>
+  }
+
+  public void setCreatedAt(long createdAt) {
+<span class="fc" id="L101">    this.createdAt = createdAt;</span>
+<span class="fc" id="L102">  }</span>
+
+  public long getUpdatedAt() {
+<span class="fc" id="L105">    return updatedAt;</span>
+  }
+
+  public void setUpdatedAt(long updatedAt) {
+<span class="fc" id="L109">    this.updatedAt = updatedAt;</span>
+<span class="fc" id="L110">  }</span>
+
+  @CheckForNull
+  public String getTemplateRuleKey() {
+<span class="fc" id="L114">    return templateRuleKey;</span>
+  }
+
+  public void setTemplateRuleKey(@Nullable String templateRuleKey) {
+<span class="fc" id="L118">    this.templateRuleKey = templateRuleKey;</span>
+<span class="fc" id="L119">  }</span>
+
+  @CheckForNull
+  public String getInternalKey() {
+<span class="fc" id="L123">    return internalKey;</span>
+  }
+
+  public void setInternalKey(@Nullable String internalKey) {
+<span class="fc" id="L127">    this.internalKey = internalKey;</span>
+<span class="fc" id="L128">  }</span>
+
+  public Set&lt;RuleKey&gt; getDeprecatedKeys() {
+<span class="fc" id="L131">    return deprecatedKeys;</span>
+  }
+
+  public void setDeprecatedKeys(Set&lt;RuleKey&gt; deprecatedKeys) {
+<span class="fc" id="L135">    this.deprecatedKeys = deprecatedKeys;</span>
+<span class="fc" id="L136">  }</span>
+
+  public String getQProfileKey() {
+<span class="fc" id="L139">    return qProfileKey;</span>
+  }
+
+  public void setQProfileKey(String qProfileKey) {
+<span class="fc" id="L143">    this.qProfileKey = qProfileKey;</span>
+<span class="fc" id="L144">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DuplicationMeasures.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.duplication</a> &gt; <span class="el_source">DuplicationMeasures.java</span></div><h1>DuplicationMeasures.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.duplication;
+
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import jakarta.inject.Inject;
+import org.sonar.ce.task.projectanalysis.component.Component;
+import org.sonar.ce.task.projectanalysis.component.PathAwareCrawler;
+import org.sonar.ce.task.projectanalysis.component.TreeRootHolder;
+import org.sonar.ce.task.projectanalysis.formula.Counter;
+import org.sonar.ce.task.projectanalysis.formula.CounterInitializationContext;
+import org.sonar.ce.task.projectanalysis.formula.CreateMeasureContext;
+import org.sonar.ce.task.projectanalysis.formula.Formula;
+import org.sonar.ce.task.projectanalysis.formula.FormulaExecutorComponentVisitor;
+import org.sonar.ce.task.projectanalysis.measure.Measure;
+import org.sonar.ce.task.projectanalysis.measure.MeasureRepository;
+import org.sonar.ce.task.projectanalysis.metric.MetricRepository;
+
+import static com.google.common.collect.Iterables.isEmpty;
+import static java.util.Objects.requireNonNull;
+import static org.sonar.api.measures.CoreMetrics.DUPLICATED_BLOCKS_KEY;
+import static org.sonar.api.measures.CoreMetrics.DUPLICATED_FILES_KEY;
+import static org.sonar.api.measures.CoreMetrics.DUPLICATED_LINES_DENSITY_KEY;
+import static org.sonar.api.measures.CoreMetrics.DUPLICATED_LINES_KEY;
+import static org.sonar.api.measures.CoreMetrics.LINES_KEY;
+
+public class DuplicationMeasures {
+  protected final List&lt;Formula&lt;?&gt;&gt; formulas;
+  protected final TreeRootHolder treeRootHolder;
+  protected final MetricRepository metricRepository;
+  protected final MeasureRepository measureRepository;
+  private final DuplicationRepository duplicationRepository;
+
+  @Inject
+  public DuplicationMeasures(TreeRootHolder treeRootHolder, MetricRepository metricRepository, MeasureRepository measureRepository,
+<span class="fc" id="L59">    @Nullable DuplicationRepository duplicationRepository) {</span>
+<span class="fc" id="L60">    this.treeRootHolder = treeRootHolder;</span>
+<span class="fc" id="L61">    this.metricRepository = metricRepository;</span>
+<span class="fc" id="L62">    this.measureRepository = measureRepository;</span>
+    // will be null for views
+<span class="fc" id="L64">    this.duplicationRepository = duplicationRepository;</span>
+<span class="fc" id="L65">    this.formulas = List.of(new DuplicationFormula());</span>
+<span class="fc" id="L66">  }</span>
+
+  public DuplicationMeasures(TreeRootHolder treeRootHolder, MetricRepository metricRepository, MeasureRepository measureRepository) {
+<span class="fc" id="L69">    this(treeRootHolder, metricRepository, measureRepository, null);</span>
+<span class="fc" id="L70">  }</span>
+
+  public void execute() {
+<span class="fc" id="L73">    new PathAwareCrawler&lt;&gt;(</span>
+<span class="fc" id="L74">      FormulaExecutorComponentVisitor.newBuilder(metricRepository, measureRepository).buildFor(formulas))</span>
+<span class="fc" id="L75">      .visit(treeRootHolder.getReportTreeRoot());</span>
+<span class="fc" id="L76">  }</span>
+
+  protected DuplicationCounter createCounter() {
+<span class="fc" id="L79">    return new DuplicationCounter(duplicationRepository);</span>
+  }
+
+  protected static class DuplicationCounter implements Counter&lt;DuplicationCounter&gt; {
+    @CheckForNull
+    private final DuplicationRepository duplicationRepository;
+<span class="fc" id="L85">    protected int fileCount = 0;</span>
+<span class="fc" id="L86">    protected int blockCount = 0;</span>
+<span class="fc" id="L87">    protected int dupLineCount = 0;</span>
+<span class="fc" id="L88">    protected int lineCount = 0;</span>
+
+<span class="fc" id="L90">    private DuplicationCounter(@Nullable DuplicationRepository duplicationRepository) {</span>
+<span class="fc" id="L91">      this.duplicationRepository = duplicationRepository;</span>
+<span class="fc" id="L92">    }</span>
+
+    @Override
+    public void aggregate(DuplicationCounter counter) {
+<span class="fc" id="L96">      this.fileCount += counter.fileCount;</span>
+<span class="fc" id="L97">      this.blockCount += counter.blockCount;</span>
+<span class="fc" id="L98">      this.dupLineCount += counter.dupLineCount;</span>
+<span class="fc" id="L99">      this.lineCount += counter.lineCount;</span>
+<span class="fc" id="L100">    }</span>
+
+    @Override
+    public void initialize(CounterInitializationContext context) {
+<span class="fc" id="L104">      Component leaf = context.getLeaf();</span>
+<span class="fc bfc" id="L105" title="All 4 branches covered.">      if (leaf.getType() == Component.Type.FILE &amp;&amp; !leaf.getFileAttributes().isUnitTest()) {</span>
+<span class="fc" id="L106">        initializeForFile(leaf);</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">      } else if (leaf.getType() == Component.Type.PROJECT_VIEW) {</span>
+<span class="fc" id="L108">        initializeForProjectView(context);</span>
+      }
+<span class="fc" id="L110">    }</span>
+
+    protected void initializeForFile(Component file) {
+      // don't use measure since it won't be available for some files in the report tree in PRs
+<span class="fc" id="L114">      this.lineCount = file.getFileAttributes().getLines();</span>
+<span class="fc" id="L115">      Iterable&lt;Duplication&gt; duplications = requireNonNull(this.duplicationRepository, &quot;DuplicationRepository missing&quot;)</span>
+<span class="fc" id="L116">        .getDuplications(file);</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">      if (isEmpty(duplications)) {</span>
+<span class="fc" id="L118">        return;</span>
+      }
+
+      // use a set to count lines only once
+<span class="fc" id="L122">      Set&lt;Integer&gt; duplicatedLineNumbers = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L123">      int blocks = 0;</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">      for (Duplication duplication : duplications) {</span>
+<span class="fc" id="L125">        blocks++;</span>
+<span class="fc" id="L126">        addLines(duplication.getOriginal(), duplicatedLineNumbers);</span>
+<span class="fc" id="L127">        InnerDuplicate[] innerDuplicates = Arrays.stream(duplication.getDuplicates())</span>
+<span class="fc" id="L128">          .filter(InnerDuplicate.class::isInstance)</span>
+<span class="fc" id="L129">          .map(InnerDuplicate.class::cast)</span>
+<span class="fc" id="L130">          .toArray(InnerDuplicate[]::new);</span>
+
+<span class="fc bfc" id="L132" title="All 2 branches covered.">        for (InnerDuplicate innerDuplicate : innerDuplicates) {</span>
+<span class="fc" id="L133">          blocks++;</span>
+<span class="fc" id="L134">          addLines(innerDuplicate.getTextBlock(), duplicatedLineNumbers);</span>
+        }
+<span class="fc" id="L136">      }</span>
+
+<span class="fc" id="L138">      this.fileCount += 1;</span>
+<span class="fc" id="L139">      this.blockCount += blocks;</span>
+<span class="fc" id="L140">      this.dupLineCount += duplicatedLineNumbers.size();</span>
+
+<span class="fc" id="L142">    }</span>
+
+    private static void addLines(TextBlock textBlock, Set&lt;Integer&gt; duplicatedLineNumbers) {
+<span class="fc bfc" id="L145" title="All 2 branches covered.">      for (int i = textBlock.getStart(); i &lt;= textBlock.getEnd(); i++) {</span>
+<span class="fc" id="L146">        duplicatedLineNumbers.add(i);</span>
+      }
+<span class="fc" id="L148">    }</span>
+
+    private void initializeForProjectView(CounterInitializationContext context) {
+<span class="fc" id="L151">      fileCount += getMeasure(context, DUPLICATED_FILES_KEY);</span>
+<span class="fc" id="L152">      blockCount += getMeasure(context, DUPLICATED_BLOCKS_KEY);</span>
+<span class="fc" id="L153">      dupLineCount += getMeasure(context, DUPLICATED_LINES_KEY);</span>
+<span class="fc" id="L154">      lineCount += getMeasure(context, LINES_KEY);</span>
+<span class="fc" id="L155">    }</span>
+
+    private static int getMeasure(CounterInitializationContext context, String metricKey) {
+<span class="fc" id="L158">      Optional&lt;Measure&gt; files = context.getMeasure(metricKey);</span>
+<span class="fc" id="L159">      return files.map(Measure::getIntValue).orElse(0);</span>
+    }
+  }
+
+<span class="fc" id="L163">  private final class DuplicationFormula implements Formula&lt;DuplicationCounter&gt; {</span>
+    @Override
+    public DuplicationCounter createNewCounter() {
+<span class="fc" id="L166">      return createCounter();</span>
+    }
+
+    @Override
+    public Optional&lt;Measure&gt; createMeasure(DuplicationCounter counter, CreateMeasureContext context) {
+<span class="pc bpc" id="L171" title="1 of 5 branches missed.">      switch (context.getMetric().getKey()) {</span>
+        case DUPLICATED_FILES_KEY:
+<span class="fc" id="L173">          return Optional.of(Measure.newMeasureBuilder().create(counter.fileCount));</span>
+        case DUPLICATED_LINES_KEY:
+<span class="fc" id="L175">          return Optional.of(Measure.newMeasureBuilder().create(counter.dupLineCount));</span>
+        case DUPLICATED_LINES_DENSITY_KEY:
+<span class="fc" id="L177">          return createDuplicatedLinesDensityMeasure(counter, context);</span>
+        case DUPLICATED_BLOCKS_KEY:
+<span class="fc" id="L179">          return Optional.of(Measure.newMeasureBuilder().create(counter.blockCount));</span>
+        default:
+<span class="nc" id="L181">          throw new IllegalArgumentException(&quot;Unsupported metric &quot; + context.getMetric());</span>
+      }
+    }
+
+    private Optional&lt;Measure&gt; createDuplicatedLinesDensityMeasure(DuplicationCounter counter, CreateMeasureContext context) {
+<span class="fc" id="L186">      int duplicatedLines = counter.dupLineCount;</span>
+<span class="fc" id="L187">      int nbLines = counter.lineCount;</span>
+<span class="fc bfc" id="L188" title="All 2 branches covered.">      if (nbLines &gt; 0) {</span>
+<span class="fc" id="L189">        double density = Math.min(100.0, 100.0 * duplicatedLines / nbLines);</span>
+<span class="fc" id="L190">        return Optional.of(Measure.newMeasureBuilder().create(density, context.getMetric().getDecimalScale()));</span>
+      }
+<span class="fc" id="L192">      return Optional.empty();</span>
+    }
+
+    @Override
+    public String[] getOutputMetricKeys() {
+<span class="fc" id="L197">      return new String[] {DUPLICATED_FILES_KEY, DUPLICATED_LINES_KEY, DUPLICATED_LINES_DENSITY_KEY, DUPLICATED_BLOCKS_KEY};</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

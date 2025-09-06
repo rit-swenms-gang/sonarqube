@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DelegatingDbSession.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db</a> &gt; <span class="el_source">DelegatingDbSession.java</span></div><h1>DelegatingDbSession.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db;
+
+import java.sql.Connection;
+import java.util.List;
+import java.util.Map;
+import org.apache.ibatis.cursor.Cursor;
+import org.apache.ibatis.executor.BatchResult;
+import org.apache.ibatis.session.Configuration;
+import org.apache.ibatis.session.ResultHandler;
+import org.apache.ibatis.session.RowBounds;
+import org.apache.ibatis.session.SqlSession;
+
+/**
+ * A wrapper of a {@link DbSession} instance which does not call the wrapped {@link DbSession}'s
+ * {@link DbSession#close() close} method but throws a {@link UnsupportedOperationException} instead.
+ */
+abstract class DelegatingDbSession implements DbSession {
+  private final DbSession delegate;
+
+<span class="fc" id="L39">  DelegatingDbSession(DbSession delegate) {</span>
+<span class="fc" id="L40">    this.delegate = delegate;</span>
+<span class="fc" id="L41">  }</span>
+
+  public DbSession getDelegate() {
+<span class="fc" id="L44">    return delegate;</span>
+  }
+
+  ///////////////////////
+  // overridden with change of behavior
+  ///////////////////////
+  @Override
+  public void close() {
+<span class="fc" id="L52">    doClose();</span>
+<span class="fc" id="L53">  }</span>
+
+  protected abstract void doClose();
+
+  ///////////////////////
+  // overridden with NO change of behavior
+  ///////////////////////
+
+  @Override
+  public &lt;T&gt; Cursor&lt;T&gt; selectCursor(String statement) {
+<span class="nc" id="L63">    return delegate.selectCursor(statement);</span>
+  }
+
+  @Override
+  public &lt;T&gt; Cursor&lt;T&gt; selectCursor(String statement, Object parameter) {
+<span class="nc" id="L68">    return delegate.selectCursor(statement, parameter);</span>
+  }
+
+  @Override
+  public &lt;T&gt; Cursor&lt;T&gt; selectCursor(String statement, Object parameter, RowBounds rowBounds) {
+<span class="nc" id="L73">    return delegate.selectCursor(statement, parameter, rowBounds);</span>
+  }
+
+  @Override
+  public &lt;T&gt; T selectOne(String statement) {
+<span class="fc" id="L78">    return delegate.selectOne(statement);</span>
+  }
+
+  @Override
+  public &lt;T&gt; T selectOne(String statement, Object parameter) {
+<span class="fc" id="L83">    return delegate.selectOne(statement, parameter);</span>
+  }
+
+  @Override
+  public &lt;E&gt; List&lt;E&gt; selectList(String statement) {
+<span class="fc" id="L88">    return delegate.selectList(statement);</span>
+  }
+
+  @Override
+  public &lt;E&gt; List&lt;E&gt; selectList(String statement, Object parameter) {
+<span class="fc" id="L93">    return delegate.selectList(statement, parameter);</span>
+  }
+
+  @Override
+  public &lt;E&gt; List&lt;E&gt; selectList(String statement, Object parameter, RowBounds rowBounds) {
+<span class="fc" id="L98">    return delegate.selectList(statement, parameter, rowBounds);</span>
+  }
+
+  @Override
+  public &lt;K, V&gt; Map&lt;K, V&gt; selectMap(String statement, String mapKey) {
+<span class="fc" id="L103">    return delegate.selectMap(statement, mapKey);</span>
+  }
+
+  @Override
+  public &lt;K, V&gt; Map&lt;K, V&gt; selectMap(String statement, Object parameter, String mapKey) {
+<span class="fc" id="L108">    return delegate.selectMap(statement, parameter, mapKey);</span>
+  }
+
+  @Override
+  public &lt;K, V&gt; Map&lt;K, V&gt; selectMap(String statement, Object parameter, String mapKey, RowBounds rowBounds) {
+<span class="fc" id="L113">    return delegate.selectMap(statement, parameter, mapKey, rowBounds);</span>
+  }
+
+  @Override
+  public void select(String statement, Object parameter, ResultHandler handler) {
+<span class="fc" id="L118">    delegate.select(statement, parameter, handler);</span>
+<span class="fc" id="L119">  }</span>
+
+  @Override
+  public void select(String statement, ResultHandler handler) {
+<span class="fc" id="L123">    delegate.select(statement, handler);</span>
+<span class="fc" id="L124">  }</span>
+
+  @Override
+  public void select(String statement, Object parameter, RowBounds rowBounds, ResultHandler handler) {
+<span class="fc" id="L128">    delegate.select(statement, parameter, rowBounds, handler);</span>
+<span class="fc" id="L129">  }</span>
+
+  @Override
+  public int insert(String statement) {
+<span class="fc" id="L133">    return delegate.insert(statement);</span>
+  }
+
+  @Override
+  public int insert(String statement, Object parameter) {
+<span class="fc" id="L138">    return delegate.insert(statement, parameter);</span>
+  }
+
+  @Override
+  public int update(String statement) {
+<span class="fc" id="L143">    return delegate.update(statement);</span>
+  }
+
+  @Override
+  public int update(String statement, Object parameter) {
+<span class="fc" id="L148">    return delegate.update(statement, parameter);</span>
+  }
+
+  @Override
+  public int delete(String statement) {
+<span class="fc" id="L153">    return delegate.delete(statement);</span>
+  }
+
+  @Override
+  public int delete(String statement, Object parameter) {
+<span class="fc" id="L158">    return delegate.delete(statement, parameter);</span>
+  }
+
+  @Override
+  public void commit() {
+<span class="fc" id="L163">    delegate.commit();</span>
+<span class="fc" id="L164">  }</span>
+
+  @Override
+  public void commit(boolean force) {
+<span class="fc" id="L168">    delegate.commit(force);</span>
+<span class="fc" id="L169">  }</span>
+
+  @Override
+  public void rollback() {
+<span class="fc" id="L173">    delegate.rollback();</span>
+<span class="fc" id="L174">  }</span>
+
+  @Override
+  public void rollback(boolean force) {
+<span class="fc" id="L178">    delegate.rollback(force);</span>
+<span class="fc" id="L179">  }</span>
+
+  @Override
+  public List&lt;BatchResult&gt; flushStatements() {
+<span class="fc" id="L183">    return delegate.flushStatements();</span>
+  }
+
+  @Override
+  public void clearCache() {
+<span class="fc" id="L188">    delegate.clearCache();</span>
+<span class="fc" id="L189">  }</span>
+
+  @Override
+  public Configuration getConfiguration() {
+<span class="fc" id="L193">    return delegate.getConfiguration();</span>
+  }
+
+  @Override
+  public &lt;T&gt; T getMapper(Class&lt;T&gt; type) {
+<span class="fc" id="L198">    return delegate.getMapper(type);</span>
+  }
+
+  @Override
+  public Connection getConnection() {
+<span class="fc" id="L203">    return delegate.getConnection();</span>
+  }
+
+  @Override
+  public SqlSession getSqlSession() {
+<span class="nc" id="L208">    return delegate.getSqlSession();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

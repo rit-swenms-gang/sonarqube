@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ExportMetricsStep.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectexport.steps</a> &gt; <span class="el_source">ExportMetricsStep.java</span></div><h1>ExportMetricsStep.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectexport.steps;
+
+import com.sonarsource.governance.projectdump.protobuf.ProjectDump;
+import java.util.List;
+import java.util.Map;
+import org.slf4j.LoggerFactory;
+import org.sonar.ce.task.step.ComputationStep;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.metric.MetricDto;
+
+import static java.lang.String.format;
+import static org.apache.commons.lang3.StringUtils.defaultString;
+
+public class ExportMetricsStep implements ComputationStep {
+
+  private final DbClient dbClient;
+  private final MetricRepository metricsHolder;
+  private final DumpWriter dumpWriter;
+
+<span class="fc" id="L40">  public ExportMetricsStep(DbClient dbClient, MetricRepository metricsHolder, DumpWriter dumpWriter) {</span>
+<span class="fc" id="L41">    this.dbClient = dbClient;</span>
+<span class="fc" id="L42">    this.metricsHolder = metricsHolder;</span>
+<span class="fc" id="L43">    this.dumpWriter = dumpWriter;</span>
+<span class="fc" id="L44">  }</span>
+
+  @Override
+  public void execute(Context context) {
+<span class="fc" id="L48">    int count = 0;</span>
+    try (
+<span class="fc" id="L50">      StreamWriter&lt;ProjectDump.Metric&gt; output = dumpWriter.newStreamWriter(DumpElement.METRICS);</span>
+<span class="fc" id="L51">      DbSession dbSession = dbClient.openSession(false)) {</span>
+
+<span class="fc" id="L53">      ProjectDump.Metric.Builder builder = ProjectDump.Metric.newBuilder();</span>
+<span class="fc" id="L54">      Map&lt;String, Integer&gt; refByUuid = metricsHolder.getRefByUuid();</span>
+<span class="fc" id="L55">      List&lt;MetricDto&gt; dtos = dbClient.metricDao().selectByUuids(dbSession, refByUuid.keySet());</span>
+<span class="fc bfc" id="L56" title="All 2 branches covered.">      for (MetricDto dto : dtos) {</span>
+<span class="fc" id="L57">        builder</span>
+<span class="fc" id="L58">          .clear()</span>
+<span class="fc" id="L59">          .setRef(refByUuid.get(dto.getUuid()))</span>
+<span class="fc" id="L60">          .setKey(dto.getKey())</span>
+<span class="fc" id="L61">          .setName(defaultString(dto.getShortName()));</span>
+<span class="fc" id="L62">        output.write(builder.build());</span>
+<span class="fc" id="L63">        count++;</span>
+<span class="fc" id="L64">      }</span>
+<span class="fc" id="L65">      LoggerFactory.getLogger(getClass()).debug(&quot;{} metrics exported&quot;, count);</span>
+<span class="fc" id="L66">    } catch (Exception e) {</span>
+<span class="fc" id="L67">      throw new IllegalStateException(format(&quot;Metric Export failed after processing %d metrics successfully&quot;, count), e);</span>
+<span class="fc" id="L68">    }</span>
+<span class="fc" id="L69">  }</span>
+
+  @Override
+  public String getDescription() {
+<span class="fc" id="L73">    return &quot;Export metrics&quot;;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

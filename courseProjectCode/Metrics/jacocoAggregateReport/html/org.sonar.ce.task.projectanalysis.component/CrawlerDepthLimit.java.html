@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CrawlerDepthLimit.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.component</a> &gt; <span class="el_source">CrawlerDepthLimit.java</span></div><h1>CrawlerDepthLimit.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.component;
+
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
+
+import static com.google.common.base.Preconditions.checkArgument;
+
+/**
+ * Represents the limit down a {@link Component} tree a {@link ComponentCrawler} can go to.
+ *
+ * A limit can be defined for a tree of Report components, a tree of Views components or both.
+ *
+ * Constants are provided for limits specific to a component tree (see {@link #PROJECT}).
+ *
+ * Limits for both trees can be created using the {@link #reportMaxDepth(Component.Type)} static method.
+ */
+@Immutable
+public class CrawlerDepthLimit {
+  private static final String UNSUPPORTED_TYPE_UOE_MSG = &quot;Specified type is neither a report type nor a views type&quot;;
+
+<span class="fc" id="L41">  public static final CrawlerDepthLimit PROJECT = new CrawlerDepthLimit(Component.Type.PROJECT, null);</span>
+<span class="fc" id="L42">  public static final CrawlerDepthLimit DIRECTORY = new CrawlerDepthLimit(Component.Type.DIRECTORY, null);</span>
+<span class="fc" id="L43">  public static final CrawlerDepthLimit FILE = new CrawlerDepthLimit(Component.Type.FILE, null);</span>
+<span class="fc" id="L44">  public static final CrawlerDepthLimit VIEW = new CrawlerDepthLimit(null, Component.Type.VIEW);</span>
+<span class="fc" id="L45">  public static final CrawlerDepthLimit SUBVIEW = new CrawlerDepthLimit(null, Component.Type.SUBVIEW);</span>
+<span class="fc" id="L46">  public static final CrawlerDepthLimit PROJECT_VIEW = new CrawlerDepthLimit(null, Component.Type.PROJECT_VIEW);</span>
+<span class="fc" id="L47">  public static final CrawlerDepthLimit LEAVES = new CrawlerDepthLimit(Component.Type.FILE, Component.Type.PROJECT_VIEW);</span>
+<span class="fc" id="L48">  public static final CrawlerDepthLimit ROOTS = new CrawlerDepthLimit(Component.Type.PROJECT, Component.Type.VIEW);</span>
+
+  @CheckForNull
+  private final Component.Type reportMaxDepth;
+  @CheckForNull
+  private final Component.Type viewsMaxDepth;
+
+<span class="fc" id="L55">  private CrawlerDepthLimit(@Nullable Component.Type reportMaxDepth, @Nullable Component.Type viewsMaxDepth) {</span>
+<span class="pc bpc" id="L56" title="1 of 4 branches missed.">    checkArgument(reportMaxDepth != null || viewsMaxDepth != null,</span>
+        &quot;At least one type must be non null&quot;);
+<span class="pc bpc" id="L58" title="1 of 4 branches missed.">    checkArgument(reportMaxDepth == null || reportMaxDepth.isReportType());</span>
+<span class="pc bpc" id="L59" title="1 of 4 branches missed.">    checkArgument(viewsMaxDepth == null || viewsMaxDepth.isViewsType());</span>
+<span class="fc" id="L60">    this.reportMaxDepth = reportMaxDepth;</span>
+<span class="fc" id="L61">    this.viewsMaxDepth = viewsMaxDepth;</span>
+<span class="fc" id="L62">  }</span>
+
+  public static Builder reportMaxDepth(Component.Type reportMaxDepth) {
+<span class="fc" id="L65">    return new Builder(reportMaxDepth);</span>
+  }
+
+  public static class Builder {
+    private final Component.Type reportMaxDepth;
+
+<span class="fc" id="L71">    public Builder(Component.Type reportMaxDepth) {</span>
+<span class="fc" id="L72">      checkArgument(reportMaxDepth.isReportType(), &quot;A Report max depth must be a report type&quot;);</span>
+<span class="fc" id="L73">      this.reportMaxDepth = reportMaxDepth;</span>
+<span class="fc" id="L74">    }</span>
+
+    public CrawlerDepthLimit withViewsMaxDepth(Component.Type viewsMaxDepth) {
+<span class="fc" id="L77">      checkArgument(viewsMaxDepth.isViewsType(), &quot;A Views max depth must be a views type&quot;);</span>
+<span class="fc" id="L78">      return new CrawlerDepthLimit(reportMaxDepth, viewsMaxDepth);</span>
+    }
+  }
+
+  public boolean isDeeperThan(Component.Type otherType) {
+<span class="fc bfc" id="L83" title="All 2 branches covered.">    if (otherType.isViewsType()) {</span>
+<span class="fc bfc" id="L84" title="All 4 branches covered.">      return this.viewsMaxDepth != null &amp;&amp; this.viewsMaxDepth.isDeeperThan(otherType);</span>
+    }
+<span class="pc bpc" id="L86" title="1 of 2 branches missed.">    if (otherType.isReportType()) {</span>
+<span class="fc bfc" id="L87" title="All 4 branches covered.">      return this.reportMaxDepth != null &amp;&amp; this.reportMaxDepth.isDeeperThan(otherType);</span>
+    }
+<span class="nc" id="L89">    throw new UnsupportedOperationException(UNSUPPORTED_TYPE_UOE_MSG);</span>
+  }
+
+  public boolean isHigherThan(Component.Type otherType) {
+<span class="fc bfc" id="L93" title="All 2 branches covered.">    if (otherType.isViewsType()) {</span>
+<span class="fc bfc" id="L94" title="All 4 branches covered.">      return this.viewsMaxDepth != null &amp;&amp; this.viewsMaxDepth.isHigherThan(otherType);</span>
+    }
+<span class="pc bpc" id="L96" title="1 of 2 branches missed.">    if (otherType.isReportType()) {</span>
+<span class="fc bfc" id="L97" title="All 4 branches covered.">      return this.reportMaxDepth != null &amp;&amp; this.reportMaxDepth.isHigherThan(otherType);</span>
+    }
+<span class="nc" id="L99">    throw new UnsupportedOperationException(UNSUPPORTED_TYPE_UOE_MSG);</span>
+  }
+
+  public boolean isSameAs(Component.Type otherType) {
+<span class="fc bfc" id="L103" title="All 2 branches covered.">    if (otherType.isViewsType()) {</span>
+<span class="fc bfc" id="L104" title="All 2 branches covered.">      return otherType == this.viewsMaxDepth;</span>
+    }
+<span class="pc bpc" id="L106" title="1 of 2 branches missed.">    if (otherType.isReportType()) {</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">      return otherType == this.reportMaxDepth;</span>
+    }
+<span class="nc" id="L109">    throw new UnsupportedOperationException(UNSUPPORTED_TYPE_UOE_MSG);</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

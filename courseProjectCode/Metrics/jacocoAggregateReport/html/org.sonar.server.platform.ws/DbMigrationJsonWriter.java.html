@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DbMigrationJsonWriter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform.ws</a> &gt; <span class="el_source">DbMigrationJsonWriter.java</span></div><h1>DbMigrationJsonWriter.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform.ws;
+
+import java.util.Date;
+import org.sonar.api.utils.text.JsonWriter;
+import org.sonar.server.platform.db.migration.DatabaseMigrationState;
+
+import static org.sonar.server.platform.db.migration.DatabaseMigrationState.Status.FAILED;
+import static org.sonar.server.platform.db.migration.DatabaseMigrationState.Status.MIGRATION_REQUIRED;
+import static org.sonar.server.platform.db.migration.DatabaseMigrationState.Status.RUNNING;
+
+public class DbMigrationJsonWriter {
+  static final String FIELD_STATE = &quot;state&quot;;
+  static final String FIELD_MESSAGE = &quot;message&quot;;
+  static final String FIELD_STARTED_AT = &quot;startedAt&quot;;
+
+
+  private DbMigrationJsonWriter() {
+    // static methods only
+  }
+
+  static void write(JsonWriter json, DatabaseMigrationState databaseMigrationState) {
+<span class="fc" id="L41">    json.beginObject()</span>
+<span class="fc" id="L42">      .prop(FIELD_STATE, databaseMigrationState.getStatus().toString())</span>
+<span class="fc" id="L43">      .prop(FIELD_MESSAGE, writeMessageIncludingError(databaseMigrationState))</span>
+<span class="fc" id="L44">      .propDateTime(FIELD_STARTED_AT, databaseMigrationState.getStartedAt().map(Date::from).orElse(null))</span>
+<span class="fc" id="L45">      .endObject();</span>
+<span class="fc" id="L46">  }</span>
+
+  private static String writeMessageIncludingError(DatabaseMigrationState state) {
+<span class="fc bfc" id="L49" title="All 2 branches covered.">    if (state.getStatus() == FAILED) {</span>
+<span class="fc" id="L50">      Throwable error = state.getError().orElse(null);</span>
+<span class="fc bfc" id="L51" title="All 2 branches covered.">      return String.format(state.getStatus().getMessage(), error != null ? error.getMessage() : &quot;No failure error&quot;);</span>
+    } else {
+<span class="fc" id="L53">      return state.getStatus().getMessage();</span>
+    }
+  }
+
+  static void writeNotSupportedResponse(JsonWriter json) {
+<span class="fc" id="L58">    json.beginObject()</span>
+<span class="fc" id="L59">      .prop(FIELD_STATE, DatabaseMigrationState.Status.STATUS_NOT_SUPPORTED.toString())</span>
+<span class="fc" id="L60">      .prop(FIELD_MESSAGE, DatabaseMigrationState.Status.STATUS_NOT_SUPPORTED.getMessage())</span>
+<span class="fc" id="L61">      .endObject();</span>
+<span class="fc" id="L62">  }</span>
+
+  static void writeJustStartedResponse(JsonWriter json, DatabaseMigrationState databaseMigrationState) {
+<span class="fc" id="L65">    json.beginObject()</span>
+<span class="fc" id="L66">      .prop(FIELD_STATE, RUNNING.toString())</span>
+<span class="fc" id="L67">      .prop(FIELD_MESSAGE, RUNNING.getMessage())</span>
+<span class="fc" id="L68">      .propDateTime(FIELD_STARTED_AT, databaseMigrationState.getStartedAt().map(Date::from).orElse(null))</span>
+<span class="fc" id="L69">      .endObject();</span>
+<span class="fc" id="L70">  }</span>
+
+  static void writeMigrationRequiredResponse(JsonWriter json) {
+<span class="fc" id="L73">    json.beginObject()</span>
+<span class="fc" id="L74">      .prop(FIELD_STATE, MIGRATION_REQUIRED.toString())</span>
+<span class="fc" id="L75">      .prop(FIELD_MESSAGE, MIGRATION_REQUIRED.getMessage())</span>
+<span class="fc" id="L76">      .endObject();</span>
+<span class="fc" id="L77">  }</span>
+
+  static String statusDescription() {
+<span class="fc" id="L80">    return &quot;State values are:&quot; +</span>
+      &quot;&lt;ul&gt;&quot; +
+      &quot;&lt;li&gt;NO_MIGRATION: DB is up to date with current version of SonarQube.&lt;/li&gt;&quot; +
+      &quot;&lt;li&gt;NOT_SUPPORTED: Migration is not supported on embedded databases.&lt;/li&gt;&quot; +
+      &quot;&lt;li&gt;MIGRATION_RUNNING: DB migration is under go.&lt;/li&gt;&quot; +
+      &quot;&lt;li&gt;MIGRATION_SUCCEEDED: DB migration has run and has been successful.&lt;/li&gt;&quot; +
+      &quot;&lt;li&gt;MIGRATION_FAILED: DB migration has run and failed. SonarQube must be restarted in order to retry a &quot; +
+      &quot;DB migration (optionally after DB has been restored from backup).&lt;/li&gt;&quot; +
+      &quot;&lt;li&gt;MIGRATION_REQUIRED: DB migration is required.&lt;/li&gt;&quot; +
+      &quot;&lt;/ul&gt;&quot;;
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

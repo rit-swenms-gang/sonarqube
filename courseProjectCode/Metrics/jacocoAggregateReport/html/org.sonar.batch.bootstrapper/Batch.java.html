@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Batch.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.batch.bootstrapper</a> &gt; <span class="el_source">Batch.java</span></div><h1>Batch.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.batch.bootstrapper;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import javax.annotation.Nullable;
+import org.sonar.api.utils.MessageException;
+import org.sonar.scanner.bootstrap.EnvironmentConfig;
+import org.sonar.scanner.bootstrap.SpringGlobalContainer;
+
+/**
+ * Entry point for SonarQube Scanner API 2.1+.
+ *
+ * @since 2.14
+ */
+public final class Batch {
+
+  private LoggingConfiguration loggingConfig;
+  private List&lt;Object&gt; components;
+<span class="fc" id="L41">  private Map&lt;String, String&gt; globalProperties = new HashMap&lt;&gt;();</span>
+
+<span class="fc" id="L43">  private Batch(Builder builder) {</span>
+<span class="fc" id="L44">    components = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L45">    components.addAll(builder.components);</span>
+<span class="fc bfc" id="L46" title="All 2 branches covered.">    if (builder.environment != null) {</span>
+<span class="fc" id="L47">      components.add(builder.environment);</span>
+    }
+<span class="fc bfc" id="L49" title="All 2 branches covered.">    if (builder.globalProperties != null) {</span>
+<span class="fc" id="L50">      globalProperties.putAll(builder.globalProperties);</span>
+<span class="fc" id="L51">      EnvironmentConfig.processEnvVariables(globalProperties);</span>
+    }
+<span class="fc bfc" id="L53" title="All 2 branches covered.">    if (builder.isEnableLoggingConfiguration()) {</span>
+<span class="fc" id="L54">      loggingConfig = new LoggingConfiguration(builder.environment).setProperties(globalProperties);</span>
+
+<span class="fc bfc" id="L56" title="All 2 branches covered.">      if (builder.logOutput != null) {</span>
+<span class="fc" id="L57">        loggingConfig.setLogOutput(builder.logOutput);</span>
+      }
+    }
+<span class="fc" id="L60">  }</span>
+
+  public LoggingConfiguration getLoggingConfiguration() {
+<span class="fc" id="L63">    return loggingConfig;</span>
+  }
+
+  public synchronized Batch execute() {
+<span class="fc" id="L67">    return doExecute(this.globalProperties, this.components);</span>
+  }
+
+  public synchronized Batch doExecute(Map&lt;String, String&gt; scannerProperties, List&lt;Object&gt; components) {
+<span class="fc" id="L71">    configureLogging();</span>
+    try {
+<span class="fc" id="L73">      SpringGlobalContainer.create(scannerProperties, components).execute();</span>
+<span class="fc" id="L74">    } catch (RuntimeException e) {</span>
+<span class="fc" id="L75">      throw handleException(e);</span>
+<span class="fc" id="L76">    }</span>
+<span class="fc" id="L77">    return this;</span>
+  }
+
+  private RuntimeException handleException(RuntimeException t) {
+<span class="fc bfc" id="L81" title="All 4 branches covered.">    if (loggingConfig != null &amp;&amp; loggingConfig.isVerbose()) {</span>
+<span class="fc" id="L82">      return t;</span>
+    }
+
+<span class="fc" id="L85">    Throwable y = t;</span>
+    do {
+<span class="fc bfc" id="L87" title="All 2 branches covered.">      if (y instanceof MessageException messageException) {</span>
+<span class="fc" id="L88">        return messageException;</span>
+      }
+<span class="fc" id="L90">      y = y.getCause();</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">    } while (y != null);</span>
+
+<span class="fc" id="L93">    return t;</span>
+  }
+
+  private void configureLogging() {
+<span class="fc bfc" id="L97" title="All 2 branches covered.">    if (loggingConfig != null) {</span>
+<span class="fc" id="L98">      loggingConfig.setProperties(globalProperties);</span>
+<span class="fc" id="L99">      LoggingConfigurator.apply(loggingConfig);</span>
+    }
+<span class="fc" id="L101">  }</span>
+
+  public static Builder builder() {
+<span class="fc" id="L104">    return new Builder();</span>
+  }
+
+  public static final class Builder {
+    private Map&lt;String, String&gt; globalProperties;
+    private EnvironmentInformation environment;
+<span class="fc" id="L110">    private List&lt;Object&gt; components = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L111">    private boolean enableLoggingConfiguration = true;</span>
+    private LogOutput logOutput;
+
+<span class="fc" id="L114">    private Builder() {</span>
+<span class="fc" id="L115">    }</span>
+
+    public Builder setEnvironment(EnvironmentInformation env) {
+<span class="fc" id="L118">      this.environment = env;</span>
+<span class="fc" id="L119">      return this;</span>
+    }
+
+    public Builder setComponents(List&lt;Object&gt; l) {
+<span class="fc" id="L123">      this.components = l;</span>
+<span class="fc" id="L124">      return this;</span>
+    }
+
+    public Builder setLogOutput(@Nullable LogOutput logOutput) {
+<span class="fc" id="L128">      this.logOutput = logOutput;</span>
+<span class="fc" id="L129">      return this;</span>
+    }
+
+    public Builder setGlobalProperties(Map&lt;String, String&gt; globalProperties) {
+<span class="fc" id="L133">      this.globalProperties = globalProperties;</span>
+<span class="fc" id="L134">      return this;</span>
+    }
+
+    public Builder addComponents(Object... components) {
+<span class="fc" id="L138">      Collections.addAll(this.components, components);</span>
+<span class="fc" id="L139">      return this;</span>
+    }
+
+    public Builder addComponent(Object component) {
+<span class="fc" id="L143">      this.components.add(component);</span>
+<span class="fc" id="L144">      return this;</span>
+    }
+
+    public boolean isEnableLoggingConfiguration() {
+<span class="fc" id="L148">      return enableLoggingConfiguration;</span>
+    }
+
+    /**
+     * Logback is configured by default. It can be disabled, but n this case the batch bootstrapper must provide its
+     * own implementation of SLF4J.
+     */
+    public Builder setEnableLoggingConfiguration(boolean b) {
+<span class="fc" id="L156">      this.enableLoggingConfiguration = b;</span>
+<span class="fc" id="L157">      return this;</span>
+    }
+
+    public Batch build() {
+<span class="fc bfc" id="L161" title="All 2 branches covered.">      if (components == null) {</span>
+<span class="fc" id="L162">        throw new IllegalStateException(&quot;Batch components are not set&quot;);</span>
+      }
+<span class="fc" id="L164">      return new Batch(this);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

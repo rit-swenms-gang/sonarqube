@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SourceLineReadersFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.source</a> &gt; <span class="el_source">SourceLineReadersFactory.java</span></div><h1>SourceLineReadersFactory.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.source;
+
+import com.google.common.annotations.VisibleForTesting;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.function.Consumer;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.ce.common.scanner.ScannerReportReader;
+import org.sonar.ce.task.projectanalysis.component.Component;
+import org.sonar.ce.task.projectanalysis.duplication.DuplicationRepository;
+import org.sonar.ce.task.projectanalysis.scm.Changeset;
+import org.sonar.ce.task.projectanalysis.scm.ScmInfo;
+import org.sonar.ce.task.projectanalysis.scm.ScmInfoRepository;
+import org.sonar.ce.task.projectanalysis.source.linereader.CoverageLineReader;
+import org.sonar.ce.task.projectanalysis.source.linereader.DuplicationLineReader;
+import org.sonar.ce.task.projectanalysis.source.linereader.HighlightingLineReader;
+import org.sonar.ce.task.projectanalysis.source.linereader.IsNewLineReader;
+import org.sonar.ce.task.projectanalysis.source.linereader.LineReader;
+import org.sonar.ce.task.projectanalysis.source.linereader.RangeOffsetConverter;
+import org.sonar.ce.task.projectanalysis.source.linereader.ScmLineReader;
+import org.sonar.ce.task.projectanalysis.source.linereader.SymbolsLineReader;
+import org.sonar.core.util.CloseableIterator;
+import org.sonar.db.protobuf.DbFileSources;
+import org.sonar.scanner.protocol.output.ScannerReport;
+
+public class SourceLineReadersFactory {
+  private final ScannerReportReader reportReader;
+  private final ScmInfoRepository scmInfoRepository;
+  private final DuplicationRepository duplicationRepository;
+  private final NewLinesRepository newLinesRepository;
+
+  public SourceLineReadersFactory(ScannerReportReader reportReader, ScmInfoRepository scmInfoRepository, DuplicationRepository duplicationRepository,
+<span class="fc" id="L54">    NewLinesRepository newLinesRepository) {</span>
+<span class="fc" id="L55">    this.reportReader = reportReader;</span>
+<span class="fc" id="L56">    this.scmInfoRepository = scmInfoRepository;</span>
+<span class="fc" id="L57">    this.duplicationRepository = duplicationRepository;</span>
+<span class="fc" id="L58">    this.newLinesRepository = newLinesRepository;</span>
+<span class="fc" id="L59">  }</span>
+
+  public LineReaders getLineReaders(Component component) {
+<span class="fc" id="L62">    List&lt;LineReader&gt; readers = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L63">    List&lt;CloseableIterator&lt;?&gt;&gt; closeables = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L64">    ScmLineReader scmLineReader = null;</span>
+
+<span class="fc" id="L66">    int componentRef = component.getReportAttributes().getRef();</span>
+<span class="fc" id="L67">    CloseableIterator&lt;ScannerReport.LineCoverage&gt; coverageIt = reportReader.readComponentCoverage(componentRef);</span>
+<span class="fc" id="L68">    closeables.add(coverageIt);</span>
+<span class="fc" id="L69">    readers.add(new CoverageLineReader(coverageIt));</span>
+
+<span class="fc" id="L71">    Optional&lt;ScmInfo&gt; scmInfoOptional = scmInfoRepository.getScmInfo(component);</span>
+<span class="pc bpc" id="L72" title="1 of 2 branches missed.">    if (scmInfoOptional.isPresent()) {</span>
+<span class="nc" id="L73">      scmLineReader = new ScmLineReader(scmInfoOptional.get());</span>
+<span class="nc" id="L74">      readers.add(scmLineReader);</span>
+    }
+
+<span class="fc" id="L77">    RangeOffsetConverter rangeOffsetConverter = new RangeOffsetConverter();</span>
+<span class="fc" id="L78">    CloseableIterator&lt;ScannerReport.SyntaxHighlightingRule&gt; highlightingIt = reportReader.readComponentSyntaxHighlighting(componentRef);</span>
+<span class="fc" id="L79">    closeables.add(highlightingIt);</span>
+<span class="fc" id="L80">    readers.add(new HighlightingLineReader(component, highlightingIt, rangeOffsetConverter));</span>
+
+<span class="fc" id="L82">    CloseableIterator&lt;ScannerReport.Symbol&gt; symbolsIt = reportReader.readComponentSymbols(componentRef);</span>
+<span class="fc" id="L83">    closeables.add(symbolsIt);</span>
+<span class="fc" id="L84">    readers.add(new SymbolsLineReader(component, symbolsIt, rangeOffsetConverter));</span>
+<span class="fc" id="L85">    readers.add(new DuplicationLineReader(duplicationRepository.getDuplications(component)));</span>
+<span class="fc" id="L86">    readers.add(new IsNewLineReader(newLinesRepository, component));</span>
+
+<span class="fc" id="L88">    return new LineReadersImpl(readers, scmLineReader, closeables);</span>
+  }
+
+  interface LineReaders extends AutoCloseable {
+    void read(DbFileSources.Line.Builder lineBuilder, Consumer&lt;LineReader.ReadError&gt; readErrorConsumer);
+
+    @CheckForNull
+    Changeset getLatestChangeWithRevision();
+
+    @Override
+    void close();
+  }
+
+  @VisibleForTesting
+  static final class LineReadersImpl implements LineReaders {
+    final List&lt;LineReader&gt; readers;
+    @Nullable
+    final ScmLineReader scmLineReader;
+    final List&lt;CloseableIterator&lt;?&gt;&gt; closeables;
+
+<span class="fc" id="L108">    LineReadersImpl(List&lt;LineReader&gt; readers, @Nullable ScmLineReader scmLineReader, List&lt;CloseableIterator&lt;?&gt;&gt; closeables) {</span>
+<span class="fc" id="L109">      this.readers = readers;</span>
+<span class="fc" id="L110">      this.scmLineReader = scmLineReader;</span>
+<span class="fc" id="L111">      this.closeables = closeables;</span>
+<span class="fc" id="L112">    }</span>
+
+    @Override
+    public void close() {
+<span class="fc bfc" id="L116" title="All 2 branches covered.">      for (CloseableIterator&lt;?&gt; reportIterator : closeables) {</span>
+<span class="fc" id="L117">        reportIterator.close();</span>
+<span class="fc" id="L118">      }</span>
+<span class="fc" id="L119">    }</span>
+
+    public void read(DbFileSources.Line.Builder lineBuilder, Consumer&lt;LineReader.ReadError&gt; readErrorConsumer) {
+<span class="fc bfc" id="L122" title="All 2 branches covered.">      for (LineReader r : readers) {</span>
+<span class="fc" id="L123">        r.read(lineBuilder)</span>
+<span class="fc" id="L124">          .ifPresent(readErrorConsumer);</span>
+<span class="fc" id="L125">      }</span>
+<span class="fc" id="L126">    }</span>
+
+    @Override
+    @CheckForNull
+    public Changeset getLatestChangeWithRevision() {
+<span class="fc bfc" id="L131" title="All 2 branches covered.">      return scmLineReader == null ? null : scmLineReader.getLatestChangeWithRevision();</span>
+    }
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

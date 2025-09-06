@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ScmInfoRepositoryImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.scm</a> &gt; <span class="el_source">ScmInfoRepositoryImpl.java</span></div><h1>ScmInfoRepositoryImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.scm;
+
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.ce.task.projectanalysis.analysis.AnalysisMetadataHolder;
+import org.sonar.ce.common.scanner.ScannerReportReader;
+import org.sonar.ce.task.projectanalysis.component.Component;
+import org.sonar.ce.task.projectanalysis.component.FileStatuses;
+import org.sonar.ce.task.projectanalysis.source.SourceLinesDiff;
+import org.sonar.scanner.protocol.output.ScannerReport;
+
+import static java.util.Objects.requireNonNull;
+
+public class ScmInfoRepositoryImpl implements ScmInfoRepository {
+
+<span class="fc" id="L41">  private static final Logger LOGGER = LoggerFactory.getLogger(ScmInfoRepositoryImpl.class);</span>
+
+  private final ScannerReportReader scannerReportReader;
+<span class="fc" id="L44">  private final Map&lt;Component, Optional&lt;ScmInfo&gt;&gt; scmInfoCache = new HashMap&lt;&gt;();</span>
+  private final ScmInfoDbLoader scmInfoDbLoader;
+  private final AnalysisMetadataHolder analysisMetadata;
+  private final SourceLinesDiff sourceLinesDiff;
+  private final FileStatuses fileStatuses;
+
+  public ScmInfoRepositoryImpl(ScannerReportReader scannerReportReader, AnalysisMetadataHolder analysisMetadata, ScmInfoDbLoader scmInfoDbLoader,
+<span class="fc" id="L51">    SourceLinesDiff sourceLinesDiff, FileStatuses fileStatuses) {</span>
+<span class="fc" id="L52">    this.scannerReportReader = scannerReportReader;</span>
+<span class="fc" id="L53">    this.analysisMetadata = analysisMetadata;</span>
+<span class="fc" id="L54">    this.scmInfoDbLoader = scmInfoDbLoader;</span>
+<span class="fc" id="L55">    this.sourceLinesDiff = sourceLinesDiff;</span>
+<span class="fc" id="L56">    this.fileStatuses = fileStatuses;</span>
+<span class="fc" id="L57">  }</span>
+
+  @Override
+  public Optional&lt;ScmInfo&gt; getScmInfo(Component component) {
+<span class="fc" id="L61">    requireNonNull(component, &quot;Component cannot be null&quot;);</span>
+
+<span class="fc bfc" id="L63" title="All 2 branches covered.">    if (component.getType() != Component.Type.FILE) {</span>
+<span class="fc" id="L64">      return Optional.empty();</span>
+    }
+
+<span class="fc" id="L67">    return scmInfoCache.computeIfAbsent(component, this::getScmInfoForComponent);</span>
+  }
+
+  private Optional&lt;ScmInfo&gt; getScmInfoForComponent(Component component) {
+<span class="fc" id="L71">    ScannerReport.Changesets changesets = scannerReportReader.readChangesets(component.getReportAttributes().getRef());</span>
+
+<span class="fc bfc" id="L73" title="All 2 branches covered.">    if (changesets == null) {</span>
+<span class="fc" id="L74">      LOGGER.trace(&quot;No SCM info for file '{}'&quot;, component.getKey());</span>
+      // SCM not available. It might have been available before - copy information for unchanged lines but don't keep author and revision.
+<span class="fc" id="L76">      return generateAndMergeDb(component, false);</span>
+    }
+
+    // will be empty if the flag &quot;copy from previous&quot; is set, or if the file is empty.
+<span class="fc bfc" id="L80" title="All 2 branches covered.">    if (changesets.getChangesetCount() == 0) {</span>
+<span class="fc" id="L81">      return generateAndMergeDb(component, changesets.getCopyFromPrevious());</span>
+    }
+<span class="fc" id="L83">    return getScmInfoFromReport(component, changesets);</span>
+  }
+
+  private static Optional&lt;ScmInfo&gt; getScmInfoFromReport(Component file, ScannerReport.Changesets changesets) {
+<span class="fc" id="L87">    LOGGER.trace(&quot;Reading SCM info from report for file '{}'&quot;, file.getKey());</span>
+<span class="fc" id="L88">    return Optional.of(ReportScmInfo.create(changesets));</span>
+  }
+
+  private Optional&lt;ScmInfo&gt; generateScmInfoForAllFile(Component file) {
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">    if (file.getFileAttributes().getLines() == 0) {</span>
+<span class="nc" id="L93">      return Optional.empty();</span>
+    }
+<span class="fc" id="L95">    return Optional.of(GeneratedScmInfo.create(analysisMetadata.getAnalysisDate(), file.getFileAttributes().getLines()));</span>
+  }
+
+  private static ScmInfo removeAuthorAndRevision(ScmInfo info) {
+<span class="fc" id="L99">    Changeset[] changesets = Arrays.stream(info.getAllChangesets())</span>
+<span class="fc" id="L100">      .map(ScmInfoRepositoryImpl::removeAuthorAndRevision)</span>
+<span class="fc" id="L101">      .toArray(Changeset[]::new);</span>
+<span class="fc" id="L102">    return new ScmInfoImpl(changesets);</span>
+  }
+
+  @CheckForNull
+  private static Changeset removeAuthorAndRevision(@Nullable Changeset changeset) {
+    // some changesets might be null if they are missing in the DB or if they contained no date
+<span class="fc bfc" id="L108" title="All 2 branches covered.">    if (changeset == null) {</span>
+<span class="fc" id="L109">      return null;</span>
+    }
+<span class="fc" id="L111">    return Changeset.newChangesetBuilder().setDate(changeset.getDate()).build();</span>
+  }
+
+  /**
+   * Get SCM information in the DB, if it exists, and use it for lines that didn't change. It optionally removes author and revision
+   * information (only keeping change dates).
+   * If the information is not present in the DB or some lines don't match existing lines in the DB,
+   * we generate change dates based on the analysis date.
+   */
+  private Optional&lt;ScmInfo&gt; generateAndMergeDb(Component file, boolean keepAuthorAndRevision) {
+<span class="fc" id="L121">    Optional&lt;DbScmInfo&gt; dbInfoOpt = scmInfoDbLoader.getScmInfo(file);</span>
+<span class="fc bfc" id="L122" title="All 2 branches covered.">    if (dbInfoOpt.isEmpty()) {</span>
+<span class="fc" id="L123">      return generateScmInfoForAllFile(file);</span>
+    }
+
+<span class="fc bfc" id="L126" title="All 2 branches covered.">    ScmInfo scmInfo = keepAuthorAndRevision ? dbInfoOpt.get() : removeAuthorAndRevision(dbInfoOpt.get());</span>
+<span class="fc bfc" id="L127" title="All 2 branches covered.">    if (fileStatuses.isUnchanged(file)) {</span>
+<span class="fc" id="L128">      return Optional.of(scmInfo);</span>
+    }
+
+    // generate date for new/changed lines
+<span class="fc" id="L132">    int[] matchingLines = sourceLinesDiff.computeMatchingLines(file);</span>
+
+<span class="fc" id="L134">    return Optional.of(GeneratedScmInfo.create(analysisMetadata.getAnalysisDate(), matchingLines, scmInfo));</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

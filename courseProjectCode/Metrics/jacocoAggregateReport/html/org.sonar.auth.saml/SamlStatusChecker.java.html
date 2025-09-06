@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SamlStatusChecker.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.auth.saml</a> &gt; <span class="el_source">SamlStatusChecker.java</span></div><h1>SamlStatusChecker.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.auth.saml;
+
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import javax.annotation.Nullable;
+import org.sonar.api.server.ServerSide;
+import org.springframework.security.saml2.provider.service.authentication.Saml2AuthenticatedPrincipal;
+
+import static org.sonar.auth.saml.SamlSettings.GROUP_NAME_ATTRIBUTE;
+import static org.sonar.auth.saml.SamlSettings.USER_EMAIL_ATTRIBUTE;
+import static org.sonar.auth.saml.SamlSettings.USER_LOGIN_ATTRIBUTE;
+import static org.sonar.auth.saml.SamlSettings.USER_NAME_ATTRIBUTE;
+
+@ServerSide
+final class SamlStatusChecker {
+<span class="fc" id="L44">  private static final Pattern ENCRYPTED_ASSERTION_PATTERN = Pattern.compile(&quot;&lt;saml:EncryptedAssertion|&lt;EncryptedAssertion|&lt;saml2:EncryptedAssertion&quot;);</span>
+
+  private final SamlSettings samlSettings;
+
+<span class="fc" id="L48">  SamlStatusChecker(SamlSettings samlSettings) {</span>
+<span class="fc" id="L49">    this.samlSettings = samlSettings;</span>
+<span class="fc" id="L50">  }</span>
+
+  public SamlAuthenticationStatus getSamlAuthenticationStatus(String samlResponse, Saml2AuthenticatedPrincipal principal) {
+
+<span class="fc" id="L54">    SamlAuthenticationStatus samlAuthenticationStatus = new SamlAuthenticationStatus();</span>
+
+<span class="fc" id="L56">    Map&lt;String, List&lt;String&gt;&gt; attributes = principal.getAttributes().entrySet().stream()</span>
+<span class="fc" id="L57">      .collect(Collectors.toMap(Map.Entry::getKey, e -&gt; e.getValue().stream().map(Objects::toString).toList()));</span>
+
+<span class="pc bpc" id="L59" title="1 of 2 branches missed.">    if (samlAuthenticationStatus.getErrors().isEmpty()) {</span>
+<span class="fc" id="L60">      samlAuthenticationStatus.getErrors().addAll(generateMappingErrors(principal, samlSettings));</span>
+    }
+<span class="fc" id="L62">    samlAuthenticationStatus.setAvailableAttributes(attributes);</span>
+
+<span class="fc" id="L64">    samlAuthenticationStatus.setMappedAttributes(getAttributesMapping(principal, samlSettings));</span>
+
+<span class="fc" id="L66">    samlAuthenticationStatus.setSignatureEnabled(isSignatureEnabled(samlSettings));</span>
+<span class="fc" id="L67">    samlAuthenticationStatus.setEncryptionEnabled(isEncryptionEnabled(samlResponse));</span>
+
+<span class="fc bfc" id="L69" title="All 2 branches covered.">    samlAuthenticationStatus.setWarnings(samlAuthenticationStatus.getErrors().isEmpty() ? generateMappingWarnings(principal, samlSettings) : new ArrayList&lt;&gt;());</span>
+<span class="fc bfc" id="L70" title="All 2 branches covered.">    samlAuthenticationStatus.setStatus(samlAuthenticationStatus.getErrors().isEmpty() ? &quot;success&quot; : &quot;error&quot;);</span>
+
+<span class="fc" id="L72">    return samlAuthenticationStatus;</span>
+
+  }
+
+  public SamlAuthenticationStatus getSamlAuthenticationStatus(String errorMessage) {
+<span class="fc" id="L77">    SamlAuthenticationStatus samlAuthenticationStatus = new SamlAuthenticationStatus();</span>
+<span class="fc" id="L78">    samlAuthenticationStatus.getErrors().add(errorMessage);</span>
+<span class="fc" id="L79">    samlAuthenticationStatus.setStatus(&quot;error&quot;);</span>
+<span class="fc" id="L80">    return samlAuthenticationStatus;</span>
+  }
+
+  private static Map&lt;String, Collection&lt;String&gt;&gt; getAttributesMapping(Saml2AuthenticatedPrincipal saml2AuthenticatedPrincipal, SamlSettings samlSettings) {
+<span class="fc" id="L84">    Map&lt;String, Collection&lt;String&gt;&gt; attributesMapping = new HashMap&lt;&gt;();</span>
+
+<span class="fc" id="L86">    attributesMapping.put(&quot;User login value&quot;, saml2AuthenticatedPrincipal.getAttribute(samlSettings.getUserLogin()));</span>
+<span class="fc" id="L87">    attributesMapping.put(&quot;User name value&quot;, saml2AuthenticatedPrincipal.getAttribute(samlSettings.getUserName()));</span>
+
+<span class="fc" id="L89">    samlSettings.getUserEmail().ifPresent(emailFieldName -&gt; attributesMapping.put(&quot;User email value&quot;, saml2AuthenticatedPrincipal.getAttribute(emailFieldName)));</span>
+
+<span class="fc" id="L91">    samlSettings.getGroupName().ifPresent(groupFieldName -&gt; attributesMapping.put(&quot;Groups value&quot;, saml2AuthenticatedPrincipal.getAttribute(groupFieldName)));</span>
+
+<span class="fc" id="L93">    return attributesMapping;</span>
+  }
+
+  private static List&lt;String&gt; generateMappingWarnings(Saml2AuthenticatedPrincipal principal, SamlSettings samlSettings) {
+<span class="fc" id="L97">    Map&lt;String, String&gt; mappings = Map.of(</span>
+<span class="fc" id="L98">      USER_EMAIL_ATTRIBUTE, samlSettings.getUserEmail().orElse(&quot;&quot;),</span>
+<span class="fc" id="L99">      GROUP_NAME_ATTRIBUTE, samlSettings.getGroupName().orElse(&quot;&quot;));</span>
+
+<span class="fc" id="L101">    return generateMissingMappingMessages(mappings, principal);</span>
+  }
+
+  private static List&lt;String&gt; generateMappingErrors(Saml2AuthenticatedPrincipal principal, SamlSettings samlSettings) {
+<span class="fc" id="L105">    Map&lt;String, String&gt; mappings = Map.of(</span>
+<span class="fc" id="L106">      USER_NAME_ATTRIBUTE, samlSettings.getUserName(),</span>
+<span class="fc" id="L107">      USER_LOGIN_ATTRIBUTE, samlSettings.getUserLogin());</span>
+
+<span class="fc" id="L109">    List&lt;String&gt; mappingErrors = generateMissingMappingMessages(mappings, principal);</span>
+<span class="fc bfc" id="L110" title="All 2 branches covered.">    if (mappingErrors.isEmpty()) {</span>
+<span class="fc" id="L111">      mappingErrors = generateEmptyMappingsMessages(mappings, principal);</span>
+    }
+
+<span class="fc" id="L114">    return mappingErrors;</span>
+  }
+
+  private static List&lt;String&gt; generateMissingMappingMessages(Map&lt;String, String&gt; mappings, Saml2AuthenticatedPrincipal principal) {
+<span class="fc" id="L118">    return mappings.entrySet()</span>
+<span class="fc" id="L119">      .stream()</span>
+<span class="pc bpc" id="L120" title="1 of 6 branches missed.">      .filter(entry -&gt; !entry.getValue().isEmpty() &amp;&amp; (principal.getAttribute(entry.getValue()) == null || principal.getAttribute(entry.getValue()).isEmpty()))</span>
+<span class="fc" id="L121">      .map(entry -&gt; String.format(&quot;Mapping not found for the property %s, the field %s is not available in the SAML response.&quot;, entry.getKey(), entry.getValue()))</span>
+<span class="fc" id="L122">      .toList();</span>
+  }
+
+  private static List&lt;String&gt; generateEmptyMappingsMessages(Map&lt;String, String&gt; mappings, Saml2AuthenticatedPrincipal principal) {
+<span class="fc" id="L126">    return mappings.entrySet()</span>
+<span class="fc" id="L127">      .stream()</span>
+<span class="pc bpc" id="L128" title="1 of 4 branches missed.">      .filter(entry -&gt; (principal.getAttribute(entry.getValue()).size() == 1 &amp;&amp; principal.getAttribute(entry.getValue()).contains(&quot;&quot;)))</span>
+<span class="fc" id="L129">      .map(entry -&gt; String.format(&quot;Mapping found for the property %s, but the field %s is empty in the SAML response.&quot;, entry.getKey(), entry.getValue()))</span>
+<span class="fc" id="L130">      .toList();</span>
+  }
+
+  private static boolean isSignatureEnabled(SamlSettings samlSettings) {
+<span class="fc" id="L134">    return samlSettings.isSignRequestsEnabled();</span>
+  }
+
+  private static boolean isEncryptionEnabled(@Nullable String samlResponse) {
+<span class="fc bfc" id="L138" title="All 2 branches covered.">    if (samlResponse != null) {</span>
+<span class="fc" id="L139">      byte[] decoded = Base64.getDecoder().decode(samlResponse);</span>
+<span class="fc" id="L140">      String decodedResponse = new String(decoded, StandardCharsets.UTF_8);</span>
+<span class="fc" id="L141">      Matcher matcher = ENCRYPTED_ASSERTION_PATTERN.matcher(decodedResponse);</span>
+      //We assume that the presence of an encrypted assertion means that the response is encrypted
+<span class="fc" id="L143">      return matcher.find();</span>
+    }
+<span class="fc" id="L145">    return false;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

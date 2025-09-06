@@ -1,0 +1,300 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SpringComponentContainer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.core.platform</a> &gt; <span class="el_source">SpringComponentContainer.java</span></div><h1>SpringComponentContainer.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.core.platform;
+
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Supplier;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.api.config.PropertyDefinitions;
+import org.sonar.api.utils.System2;
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
+import org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+
+import static java.util.Collections.emptyList;
+import static java.util.Optional.ofNullable;
+
+public class SpringComponentContainer implements StartableContainer {
+  protected final AnnotationConfigApplicationContext context;
+  @Nullable
+  protected final SpringComponentContainer parent;
+<span class="fc" id="L46">  protected final List&lt;SpringComponentContainer&gt; children = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L47">  private final Set&lt;Class&lt;?&gt;&gt; webConfigurationClasses = new HashSet&lt;&gt;();</span>
+
+  private final PropertyDefinitions propertyDefinitions;
+<span class="fc" id="L50">  private final ComponentKeys componentKeys = new ComponentKeys();</span>
+
+  public SpringComponentContainer() {
+<span class="fc" id="L53">    this(null, new PropertyDefinitions(System2.INSTANCE), emptyList(), new LazyUnlessStartableStrategy());</span>
+<span class="fc" id="L54">  }</span>
+
+  protected SpringComponentContainer(List&lt;?&gt; externalExtensions) {
+<span class="fc" id="L57">    this(null, new PropertyDefinitions(System2.INSTANCE), externalExtensions, new LazyUnlessStartableStrategy());</span>
+<span class="fc" id="L58">  }</span>
+
+  protected SpringComponentContainer(SpringComponentContainer parent) {
+<span class="fc" id="L61">    this(parent, parent.propertyDefinitions, emptyList(), new LazyUnlessStartableStrategy());</span>
+<span class="fc" id="L62">  }</span>
+
+  protected SpringComponentContainer(SpringComponentContainer parent, List&lt;?&gt; externalExtensions) {
+<span class="nc" id="L65">    this(parent, parent.propertyDefinitions, externalExtensions, new LazyUnlessStartableStrategy());</span>
+<span class="nc" id="L66">  }</span>
+
+  protected SpringComponentContainer(SpringComponentContainer parent, SpringInitStrategy initStrategy) {
+<span class="fc" id="L69">    this(parent, parent.propertyDefinitions, emptyList(), initStrategy);</span>
+<span class="fc" id="L70">  }</span>
+
+<span class="fc" id="L72">  protected SpringComponentContainer(@Nullable SpringComponentContainer parent, PropertyDefinitions propertyDefs, List&lt;?&gt; externalExtensions, SpringInitStrategy initStrategy) {</span>
+<span class="fc" id="L73">    this.parent = parent;</span>
+<span class="fc" id="L74">    this.propertyDefinitions = propertyDefs;</span>
+<span class="fc" id="L75">    this.context = new AnnotationConfigApplicationContext(new PriorityBeanFactory());</span>
+<span class="fc" id="L76">    this.context.setAllowBeanDefinitionOverriding(false);</span>
+<span class="fc" id="L77">    ((AbstractAutowireCapableBeanFactory) context.getBeanFactory()).setParameterNameDiscoverer(null);</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">    if (parent != null) {</span>
+<span class="fc" id="L79">      context.setParent(parent.context);</span>
+<span class="fc" id="L80">      parent.children.add(this);</span>
+    }
+<span class="fc" id="L82">    add(initStrategy);</span>
+<span class="fc" id="L83">    add(this);</span>
+<span class="fc" id="L84">    add(new StartableBeanPostProcessor());</span>
+<span class="fc" id="L85">    add(externalExtensions);</span>
+<span class="fc" id="L86">    add(propertyDefs);</span>
+<span class="fc" id="L87">  }</span>
+
+  /**
+   * Beans need to have a unique name, otherwise they'll override each other.
+   * The strategy is:
+   * - For classes, use the classloader + fully qualified class name as the name of the bean
+   * - For instances, use the Classloader + FQCN + toString()
+   * - If the object is a collection, iterate through the elements and apply the same strategy for each of them
+   */
+  @Override
+  public Container add(Object... objects) {
+<span class="fc bfc" id="L98" title="All 2 branches covered.">    for (Object o : objects) {</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">      if (o instanceof Class) {</span>
+<span class="fc" id="L100">        Class&lt;?&gt; clazz = (Class&lt;?&gt;) o;</span>
+<span class="fc bfc" id="L101" title="All 2 branches covered.">        if (Module.class.isAssignableFrom(clazz)) {</span>
+<span class="fc" id="L102">          throw new IllegalStateException(&quot;Modules should be added as instances&quot;);</span>
+        }
+<span class="fc" id="L104">        context.registerBean(componentKeys.ofClass(clazz), clazz);</span>
+<span class="fc" id="L105">        declareExtension(&quot;&quot;, o);</span>
+<span class="fc bfc" id="L106" title="All 2 branches covered.">      } else if (o instanceof Module module) {</span>
+<span class="fc" id="L107">        module.configure(this);</span>
+<span class="fc bfc" id="L108" title="All 2 branches covered.">      } else if (o instanceof Iterable) {</span>
+<span class="fc" id="L109">        add(Iterables.toArray((Iterable&lt;?&gt;) o, Object.class));</span>
+      } else {
+<span class="fc" id="L111">        registerInstance(o);</span>
+<span class="fc" id="L112">        declareExtension(&quot;&quot;, o);</span>
+      }
+    }
+<span class="fc" id="L115">    return this;</span>
+  }
+
+  @Override
+  public void addWebApiV2ConfigurationClass(Class&lt;?&gt; clazz) {
+<span class="fc" id="L120">    webConfigurationClasses.add(clazz);</span>
+<span class="fc" id="L121">  }</span>
+
+  @Override
+  public Set&lt;Class&lt;?&gt;&gt; getWebApiV2ConfigurationClasses() {
+<span class="fc" id="L125">    return Set.copyOf(webConfigurationClasses);</span>
+  }
+
+  @Override
+  public &lt;T&gt; T getParentComponentByType(Class&lt;T&gt; type) {
+<span class="pc bpc" id="L130" title="1 of 2 branches missed.">    if (parent == null) {</span>
+<span class="nc" id="L131">      throw new IllegalStateException(&quot;No parent container&quot;);</span>
+    } else {
+<span class="fc" id="L133">      return parent.getComponentByType(type);</span>
+    }
+  }
+
+  @Override
+  public &lt;T&gt; List&lt;T&gt; getParentComponentsByType(Class&lt;T&gt; type) {
+<span class="nc bnc" id="L139" title="All 2 branches missed.">    if (parent == null) {</span>
+<span class="nc" id="L140">      throw new IllegalStateException(&quot;No parent container&quot;);</span>
+    } else {
+<span class="nc" id="L142">      return parent.getComponentsByType(type);</span>
+    }
+  }
+
+  private &lt;T&gt; void registerInstance(T instance) {
+<span class="fc" id="L147">    Supplier&lt;T&gt; supplier = () -&gt; instance;</span>
+<span class="fc" id="L148">    Class&lt;T&gt; clazz = (Class&lt;T&gt;) instance.getClass();</span>
+<span class="fc" id="L149">    context.registerBean(componentKeys.ofInstance(instance), clazz, supplier);</span>
+<span class="fc" id="L150">  }</span>
+
+  /**
+   * Extensions are usually added by plugins and we assume they don't support any injection-related annotations.
+   * Spring contexts supporting annotations will fail if multiple constructors are present without any annotations indicating which one to use for injection.
+   * For that reason, we need to create the beans ourselves, using ClassDerivedBeanDefinition, which will declare that all constructors can be used for injection.
+   */
+  private Container addExtension(Object o) {
+<span class="fc bfc" id="L158" title="All 2 branches covered.">    if (o instanceof Class) {</span>
+<span class="fc" id="L159">      Class&lt;?&gt; clazz = (Class&lt;?&gt;) o;</span>
+<span class="fc" id="L160">      ClassDerivedBeanDefinition bd = new ClassDerivedBeanDefinition(clazz);</span>
+<span class="fc" id="L161">      context.registerBeanDefinition(componentKeys.ofClass(clazz), bd);</span>
+<span class="fc bfc" id="L162" title="All 2 branches covered.">    } else if (o instanceof Iterable) {</span>
+<span class="fc" id="L163">      ((Iterable&lt;?&gt;) o).forEach(this::addExtension);</span>
+    } else {
+<span class="fc" id="L165">      registerInstance(o);</span>
+    }
+<span class="fc" id="L167">    return this;</span>
+  }
+
+  @Override
+  public &lt;T&gt; T getComponentByType(Class&lt;T&gt; type) {
+    try {
+<span class="fc" id="L173">      return context.getBean(type);</span>
+<span class="fc" id="L174">    } catch (Exception t) {</span>
+<span class="fc" id="L175">      throw new IllegalStateException(&quot;Unable to load component &quot; + type, t);</span>
+    }
+  }
+
+  @Override public &lt;T&gt; Optional&lt;T&gt; getOptionalComponentByType(Class&lt;T&gt; type) {
+    try {
+<span class="fc" id="L181">      return Optional.of(context.getBean(type));</span>
+<span class="fc" id="L182">    } catch (NoSuchBeanDefinitionException t) {</span>
+<span class="fc" id="L183">      return Optional.empty();</span>
+    }
+  }
+
+  /**
+   * Lookup all beans of a given type but only in this container, not in its parents.
+   */
+  @Override
+  public &lt;T&gt; List&lt;T&gt; getComponentsByType(Class&lt;T&gt; type) {
+    try {
+<span class="fc" id="L193">      return new ArrayList&lt;&gt;(context.getBeansOfType(type).values());</span>
+<span class="nc" id="L194">    } catch (Exception t) {</span>
+<span class="nc" id="L195">      throw new IllegalStateException(&quot;Unable to load components &quot; + type, t);</span>
+    }
+  }
+
+  public AnnotationConfigApplicationContext context() {
+<span class="fc" id="L200">    return context;</span>
+  }
+
+  public void execute() {
+<span class="fc" id="L204">    RuntimeException r = null;</span>
+    try {
+<span class="fc" id="L206">      startComponents();</span>
+<span class="fc" id="L207">    } catch (RuntimeException e) {</span>
+<span class="fc" id="L208">      r = e;</span>
+    } finally {
+      try {
+<span class="fc" id="L211">        stopComponents();</span>
+<span class="nc" id="L212">      } catch (RuntimeException e) {</span>
+<span class="nc bnc" id="L213" title="All 2 branches missed.">        if (r == null) {</span>
+<span class="nc" id="L214">          r = e;</span>
+        }
+<span class="fc" id="L216">      }</span>
+    }
+<span class="fc bfc" id="L218" title="All 2 branches covered.">    if (r != null) {</span>
+<span class="fc" id="L219">      throw r;</span>
+    }
+<span class="fc" id="L221">  }</span>
+
+  @Override
+  public SpringComponentContainer startComponents() {
+<span class="fc" id="L225">    doBeforeStart();</span>
+<span class="fc" id="L226">    context.refresh();</span>
+<span class="fc" id="L227">    doAfterStart();</span>
+<span class="fc" id="L228">    return this;</span>
+  }
+
+  public SpringComponentContainer stopComponents() {
+    try {
+<span class="fc" id="L233">      stopChildren();</span>
+<span class="fc bfc" id="L234" title="All 2 branches covered.">      if (context.isActive()) {</span>
+<span class="fc" id="L235">        context.close();</span>
+      }
+    } finally {
+<span class="fc bfc" id="L238" title="All 2 branches covered.">      if (parent != null) {</span>
+<span class="fc" id="L239">        parent.children.remove(this);</span>
+      }
+    }
+<span class="fc" id="L242">    return this;</span>
+  }
+
+  private void stopChildren() {
+    // loop over a copy of list of children in reverse order
+<span class="fc" id="L247">    Lists.reverse(new ArrayList&lt;&gt;(this.children)).stream().filter(Objects::nonNull).forEach(SpringComponentContainer::stopComponents);</span>
+<span class="fc" id="L248">  }</span>
+
+  public SpringComponentContainer createChild() {
+<span class="fc" id="L251">    return new SpringComponentContainer(this);</span>
+  }
+
+  @Override
+  @CheckForNull
+  public SpringComponentContainer getParent() {
+<span class="fc" id="L257">    return parent;</span>
+  }
+
+  @Override
+  public SpringComponentContainer addExtension(@Nullable PluginInfo pluginInfo, Object extension) {
+<span class="fc" id="L262">    addExtension(extension);</span>
+<span class="fc" id="L263">    declareExtension(pluginInfo, extension);</span>
+<span class="fc" id="L264">    return this;</span>
+  }
+
+  @Override
+  public SpringComponentContainer addExtension(@Nullable String defaultCategory, Object extension) {
+<span class="fc" id="L269">    addExtension(extension);</span>
+<span class="fc" id="L270">    declareExtension(defaultCategory, extension);</span>
+<span class="fc" id="L271">    return this;</span>
+  }
+
+  @Override
+  public SpringComponentContainer declareExtension(@Nullable PluginInfo pluginInfo, Object extension) {
+<span class="fc bfc" id="L276" title="All 2 branches covered.">    declareExtension(pluginInfo != null ? pluginInfo.getName() : &quot;&quot;, extension);</span>
+<span class="fc" id="L277">    return this;</span>
+  }
+
+  @Override
+  public SpringComponentContainer declareExtension(@Nullable String defaultCategory, Object extension) {
+<span class="fc" id="L282">    this.propertyDefinitions.addComponent(extension, ofNullable(defaultCategory).orElse(&quot;&quot;));</span>
+<span class="fc" id="L283">    return this;</span>
+  }
+
+  /**
+   * This method aims to be overridden
+   */
+  protected void doBeforeStart() {
+    // nothing
+<span class="fc" id="L291">  }</span>
+
+  /**
+   * This method aims to be overridden
+   */
+  protected void doAfterStart() {
+    // nothing
+<span class="fc" id="L298">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

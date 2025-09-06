@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JresHandlerImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.v2.api.analysis.service</a> &gt; <span class="el_source">JresHandlerImpl.java</span></div><h1>JresHandlerImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.v2.api.analysis.service;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.annotations.VisibleForTesting;
+import jakarta.annotation.PostConstruct;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.Predicate;
+import javax.annotation.Nullable;
+import org.sonar.server.exceptions.NotFoundException;
+import org.sonar.server.v2.api.analysis.response.JreInfoRestResponse;
+import org.sonar.server.v2.common.model.Arch;
+import org.sonar.server.v2.common.model.OS;
+
+import static org.apache.commons.lang.StringUtils.isBlank;
+
+public class JresHandlerImpl implements JresHandler {
+
+  private static final String JRES_METADATA_FILENAME = &quot;jres-metadata.json&quot;;
+
+  private final String jresMetadataFilename;
+<span class="fc" id="L48">  private final Map&lt;String, JreInfoRestResponse&gt; metadata = new HashMap&lt;&gt;();</span>
+
+  public JresHandlerImpl() {
+<span class="nc" id="L51">    this(JRES_METADATA_FILENAME);</span>
+<span class="nc" id="L52">  }</span>
+
+  @VisibleForTesting
+<span class="fc" id="L55">  public JresHandlerImpl(String jresMetadataFilename) {</span>
+<span class="fc" id="L56">    this.jresMetadataFilename = jresMetadataFilename;</span>
+<span class="fc" id="L57">  }</span>
+
+  @PostConstruct
+  void initMetadata() {
+<span class="fc" id="L61">    metadata.clear();</span>
+<span class="fc" id="L62">    readJresMetadata().forEach(jre -&gt; metadata.put(jre.id(), jre));</span>
+<span class="fc" id="L63">  }</span>
+
+  private List&lt;JreInfoRestResponse&gt; readJresMetadata() {
+<span class="fc" id="L66">    ObjectMapper objectMapper = new ObjectMapper();</span>
+<span class="fc" id="L67">    try (InputStream is = getClass().getClassLoader().getResourceAsStream(jresMetadataFilename)) {</span>
+<span class="fc" id="L68">      return objectMapper.readValue(is, objectMapper.getTypeFactory().constructCollectionType(List.class, JreInfoRestResponse.class));</span>
+<span class="nc" id="L69">    } catch (IOException ioException) {</span>
+<span class="nc" id="L70">      throw new UncheckedIOException(ioException);</span>
+    }
+  }
+
+  @Override
+  public List&lt;JreInfoRestResponse&gt; getJresMetadata(@Nullable String os, @Nullable String arch) {
+<span class="fc bfc" id="L76" title="All 4 branches covered.">    Predicate&lt;JreInfoRestResponse&gt; osFilter = isBlank(os) ? jre -&gt; true : (jre -&gt; OS.from(jre.os()) == OS.from(os));</span>
+<span class="fc bfc" id="L77" title="All 4 branches covered.">    Predicate&lt;JreInfoRestResponse&gt; archFilter = isBlank(arch) ? jre -&gt; true : (jre -&gt; Arch.from(jre.arch()) == Arch.from(arch));</span>
+<span class="fc" id="L78">    return metadata.values().stream()</span>
+<span class="fc" id="L79">      .filter(osFilter)</span>
+<span class="fc" id="L80">      .filter(archFilter)</span>
+<span class="fc" id="L81">      .toList();</span>
+  }
+
+  @Override
+  public JreInfoRestResponse getJreMetadata(String id) {
+<span class="fc" id="L86">    return Optional.ofNullable(metadata.get(id))</span>
+<span class="fc" id="L87">      .orElseThrow(() -&gt; new NotFoundException(&quot;JRE not found for id: &quot; + id));</span>
+  }
+
+  @Override
+  public InputStream getJreBinary(String jreFilename) {
+    try {
+<span class="nc" id="L93">      return new FileInputStream(&quot;jres/&quot; + jreFilename);</span>
+<span class="fc" id="L94">    } catch (FileNotFoundException fileNotFoundException) {</span>
+<span class="fc" id="L95">      throw new NotFoundException(String.format(&quot;Unable to find JRE '%s'&quot;, jreFilename));</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

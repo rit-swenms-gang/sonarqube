@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CeQueueDao.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.ce</a> &gt; <span class="el_source">CeQueueDao.java</span></div><h1>CeQueueDao.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.ce;
+
+import com.google.common.collect.ImmutableMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import javax.annotation.Nullable;
+import org.sonar.api.utils.System2;
+import org.sonar.db.Dao;
+import org.sonar.db.DbSession;
+import org.sonar.db.Pagination;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
+import static org.sonar.db.DatabaseUtils.executeLargeUpdates;
+import static org.sonar.db.ce.CeQueueDto.Status.IN_PROGRESS;
+import static org.sonar.db.ce.CeQueueDto.Status.PENDING;
+
+public class CeQueueDao implements Dao {
+
+<span class="fc" id="L41">  private static final Pagination ONE_RESULT_PAGINATION = Pagination.forPage(1).andSize(1);</span>
+
+  private final System2 system2;
+
+<span class="fc" id="L45">  public CeQueueDao(System2 system2) {</span>
+<span class="fc" id="L46">    this.system2 = system2;</span>
+<span class="fc" id="L47">  }</span>
+
+  /**
+   * Ordered by ascending id: oldest to newest
+   */
+  public List&lt;CeQueueDto&gt; selectAllInAscOrder(DbSession session) {
+<span class="fc" id="L53">    return mapper(session).selectAllInAscOrder();</span>
+  }
+
+  public List&lt;CeQueueDto&gt; selectByQueryInDescOrder(DbSession dbSession, CeTaskQuery query, int pageSize) {
+<span class="fc" id="L57">    return selectByQueryInDescOrder(dbSession, query, 1, pageSize);</span>
+  }
+
+  public List&lt;CeQueueDto&gt; selectByQueryInDescOrder(DbSession dbSession, CeTaskQuery query, int page, int pageSize) {
+<span class="fc bfc" id="L61" title="All 2 branches covered.">    if (query.isShortCircuitedByEntityUuids()</span>
+<span class="fc bfc" id="L62" title="All 2 branches covered.">      || query.isOnlyCurrents()</span>
+<span class="fc bfc" id="L63" title="All 2 branches covered.">      || query.getMaxExecutedAt() != null) {</span>
+<span class="fc" id="L64">      return emptyList();</span>
+    }
+
+<span class="fc" id="L67">    return mapper(dbSession).selectByQueryInDescOrder(query, Pagination.forPage(page).andSize(pageSize));</span>
+  }
+
+  public int countByQuery(DbSession dbSession, CeTaskQuery query) {
+<span class="fc bfc" id="L71" title="All 2 branches covered.">    if (query.isShortCircuitedByEntityUuids()</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">      || query.isOnlyCurrents()</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">      || query.getMaxExecutedAt() != null) {</span>
+<span class="fc" id="L74">      return 0;</span>
+    }
+
+<span class="fc" id="L77">    return mapper(dbSession).countByQuery(query);</span>
+  }
+
+  /**
+   * Ordered by ascending id: oldest to newest
+   */
+  public List&lt;CeQueueDto&gt; selectByEntityUuid(DbSession session, String projectUuid) {
+<span class="fc" id="L84">    return mapper(session).selectByEntityUuid(projectUuid);</span>
+  }
+
+  public Optional&lt;CeQueueDto&gt; selectByUuid(DbSession session, String uuid) {
+<span class="fc" id="L88">    return Optional.ofNullable(mapper(session).selectByUuid(uuid));</span>
+  }
+
+  public List&lt;CeQueueDto&gt; selectPending(DbSession dbSession) {
+<span class="fc" id="L92">    return mapper(dbSession).selectPending();</span>
+  }
+
+  public List&lt;CeQueueDto&gt; selectWornout(DbSession dbSession) {
+<span class="fc" id="L96">    return mapper(dbSession).selectWornout();</span>
+  }
+
+  public List&lt;CeQueueDto&gt; selectInProgressStartedBefore(DbSession dbSession, long date) {
+<span class="fc" id="L100">    return mapper(dbSession).selectInProgressStartedBefore(date);</span>
+  }
+
+  public void resetTasksWithUnknownWorkerUUIDs(DbSession dbSession, Set&lt;String&gt; knownWorkerUUIDs) {
+<span class="fc bfc" id="L104" title="All 2 branches covered.">    if (knownWorkerUUIDs.isEmpty()) {</span>
+<span class="fc" id="L105">      mapper(dbSession).resetAllInProgressTasks(system2.now());</span>
+    } else {
+      // executeLargeUpdates won't call the SQL command if knownWorkerUUIDs is empty
+<span class="fc" id="L108">      executeLargeUpdates(knownWorkerUUIDs,</span>
+<span class="fc" id="L109">        uuids -&gt; mapper(dbSession).resetTasksWithUnknownWorkerUUIDs(uuids, system2.now()));</span>
+    }
+<span class="fc" id="L111">  }</span>
+
+  public CeQueueDto insert(DbSession session, CeQueueDto dto) {
+<span class="fc bfc" id="L114" title="All 4 branches covered.">    if (dto.getCreatedAt() == 0L || dto.getUpdatedAt() == 0L) {</span>
+<span class="fc" id="L115">      long now = system2.now();</span>
+<span class="fc" id="L116">      dto.setCreatedAt(now);</span>
+<span class="fc" id="L117">      dto.setUpdatedAt(now);</span>
+    }
+
+<span class="fc" id="L120">    mapper(session).insert(dto);</span>
+<span class="fc" id="L121">    return dto;</span>
+  }
+
+  public int deleteByUuid(DbSession session, String uuid) {
+<span class="fc" id="L125">    return deleteByUuid(session, uuid, null);</span>
+  }
+
+  public int deleteByUuid(DbSession session, String uuid, @Nullable DeleteIf deleteIf) {
+<span class="fc" id="L129">    return mapper(session).deleteByUuid(uuid, deleteIf);</span>
+  }
+
+  public void resetToPendingByUuid(DbSession session, String uuid) {
+<span class="fc" id="L133">    mapper(session).resetToPendingByUuid(uuid, system2.now());</span>
+<span class="fc" id="L134">  }</span>
+
+  public List&lt;CeQueueDto&gt; selectNotPendingForWorker(DbSession session, String uuid) {
+<span class="fc" id="L137">    return mapper(session).selectNotPendingForWorker(uuid);</span>
+  }
+
+  public int countByStatus(DbSession dbSession, CeQueueDto.Status status) {
+<span class="fc" id="L141">    return mapper(dbSession).countByStatusAndEntityUuid(status, null);</span>
+  }
+
+  public int countByStatusAndEntityUuid(DbSession dbSession, CeQueueDto.Status status, @Nullable String entityUuid) {
+<span class="fc" id="L145">    return mapper(dbSession).countByStatusAndEntityUuid(status, entityUuid);</span>
+  }
+
+  public Optional&lt;Long&gt; selectCreationDateOfOldestPendingByEntityUuid(DbSession dbSession, @Nullable String entityUuid) {
+<span class="fc" id="L149">    return Optional.ofNullable(mapper(dbSession).selectCreationDateOfOldestPendingByEntityUuid(entityUuid));</span>
+  }
+
+  /**
+   * Counts entries in the queue with the specified status for each specified entity uuid.
+   * The returned map doesn't contain any entry for entity uuids for which there is no entry in the queue (ie.
+   * all entries have a value &gt;= 0).
+   */
+  public Map&lt;String, Integer&gt; countByStatusAndEntityUuids(DbSession dbSession, CeQueueDto.Status status, Set&lt;String&gt; projectUuids) {
+<span class="fc bfc" id="L158" title="All 2 branches covered.">    if (projectUuids.isEmpty()) {</span>
+<span class="fc" id="L159">      return emptyMap();</span>
+    }
+
+<span class="fc" id="L162">    ImmutableMap.Builder&lt;String, Integer&gt; builder = ImmutableMap.builder();</span>
+<span class="fc" id="L163">    executeLargeUpdates(</span>
+      projectUuids,
+      partitionOfProjectUuids -&gt; {
+<span class="fc" id="L166">        List&lt;QueueCount&gt; i = mapper(dbSession).countByStatusAndEntityUuids(status, partitionOfProjectUuids);</span>
+<span class="fc" id="L167">        i.forEach(o -&gt; builder.put(o.getEntityUuid(), o.getTotal()));</span>
+<span class="fc" id="L168">      });</span>
+<span class="fc" id="L169">    return builder.build();</span>
+  }
+
+  public Optional&lt;CeQueueDto&gt; tryToPeek(DbSession session, String eligibleTaskUuid, String workerUuid) {
+<span class="fc" id="L173">    long now = system2.now();</span>
+<span class="fc" id="L174">    int touchedRows = mapper(session).updateIf(eligibleTaskUuid,</span>
+      new UpdateIf.NewProperties(IN_PROGRESS, workerUuid, now, now),
+      new UpdateIf.OldProperties(PENDING));
+<span class="pc bpc" id="L177" title="1 of 2 branches missed.">    if (touchedRows != 1) {</span>
+<span class="nc" id="L178">      return Optional.empty();</span>
+    }
+
+<span class="fc" id="L181">    CeQueueDto result = mapper(session).selectByUuid(eligibleTaskUuid);</span>
+<span class="fc" id="L182">    session.commit();</span>
+<span class="fc" id="L183">    return Optional.ofNullable(result);</span>
+  }
+
+  public boolean hasAnyIssueSyncTaskPendingOrInProgress(DbSession dbSession) {
+<span class="fc" id="L187">    return mapper(dbSession).hasAnyIssueSyncTaskPendingOrInProgress();</span>
+  }
+
+  private static CeQueueMapper mapper(DbSession session) {
+<span class="fc" id="L191">    return session.getMapper(CeQueueMapper.class);</span>
+  }
+
+  /**
+   * Only returns tasks for projects that currently have no other tasks running
+   */
+  public Optional&lt;CeTaskDtoLight&gt; selectEligibleForPeek(DbSession session, boolean excludeIndexationJob, boolean excludeView) {
+<span class="fc" id="L198">    return mapper(session).selectEligibleForPeek(ONE_RESULT_PAGINATION, excludeIndexationJob, excludeView);</span>
+  }
+
+  public List&lt;PrOrBranchTask&gt; selectOldestPendingPrOrBranch(DbSession session) {
+<span class="fc" id="L202">    return mapper(session).selectOldestPendingPrOrBranch();</span>
+  }
+
+  public List&lt;PrOrBranchTask&gt; selectInProgressWithCharacteristics(DbSession session) {
+<span class="fc" id="L206">    return mapper(session).selectInProgressWithCharacteristics();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

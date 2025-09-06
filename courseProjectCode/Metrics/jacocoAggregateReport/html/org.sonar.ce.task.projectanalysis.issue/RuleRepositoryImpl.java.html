@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RuleRepositoryImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.issue</a> &gt; <span class="el_source">RuleRepositoryImpl.java</span></div><h1>RuleRepositoryImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.issue;
+
+import com.google.common.collect.Multimap;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Supplier;
+import javax.annotation.CheckForNull;
+import org.sonar.api.issue.impact.Severity;
+import org.sonar.api.issue.impact.SoftwareQuality;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.api.rule.RuleStatus;
+import org.sonar.api.rules.CleanCodeAttribute;
+import org.sonar.core.rule.RuleType;
+import org.sonar.api.server.debt.DebtRemediationFunction;
+import org.sonar.core.util.stream.MoreCollectors;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.rule.DeprecatedRuleKeyDto;
+import org.sonar.db.rule.RuleDto;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.util.Objects.requireNonNull;
+
+public class RuleRepositoryImpl implements RuleRepository {
+
+  @CheckForNull
+  private Map&lt;RuleKey, Rule&gt; rulesByKey;
+  @CheckForNull
+  private Map&lt;String, Rule&gt; rulesByUuid;
+
+  private final AdHocRuleCreator creator;
+  private final DbClient dbClient;
+
+<span class="fc" id="L56">  private Map&lt;RuleKey, NewAdHocRule&gt; adHocRulesPersist = new HashMap&lt;&gt;();</span>
+
+<span class="fc" id="L58">  public RuleRepositoryImpl(AdHocRuleCreator creator, DbClient dbClient) {</span>
+<span class="fc" id="L59">    this.creator = creator;</span>
+<span class="fc" id="L60">    this.dbClient = dbClient;</span>
+<span class="fc" id="L61">  }</span>
+
+  public void addOrUpdateAddHocRuleIfNeeded(RuleKey ruleKey, Supplier&lt;NewAdHocRule&gt; ruleSupplier) {
+<span class="fc" id="L64">    ensureInitialized();</span>
+
+<span class="fc" id="L66">    Rule existingRule = rulesByKey.get(ruleKey);</span>
+<span class="pc bpc" id="L67" title="3 of 6 branches missed.">    if (existingRule == null || (existingRule.isAdHoc() &amp;&amp; !adHocRulesPersist.containsKey(ruleKey))) {</span>
+<span class="fc" id="L68">      NewAdHocRule newAdHocRule = ruleSupplier.get();</span>
+<span class="fc" id="L69">      adHocRulesPersist.put(ruleKey, newAdHocRule);</span>
+<span class="fc" id="L70">      rulesByKey.put(ruleKey, new AdHocRuleWrapper(newAdHocRule));</span>
+    }
+<span class="fc" id="L72">  }</span>
+
+  @Override
+  public void saveOrUpdateAddHocRules(DbSession dbSession) {
+<span class="fc" id="L76">    ensureInitialized();</span>
+
+<span class="fc" id="L78">    adHocRulesPersist.values().forEach(r -&gt; persistAndIndex(dbSession, r));</span>
+<span class="fc" id="L79">  }</span>
+
+  private void persistAndIndex(DbSession dbSession, NewAdHocRule adHocRule) {
+<span class="fc" id="L82">    Rule rule = new RuleImpl(creator.persistAndIndex(dbSession, adHocRule));</span>
+<span class="fc" id="L83">    rulesByUuid.put(rule.getUuid(), rule);</span>
+<span class="fc" id="L84">    rulesByKey.put(adHocRule.getKey(), rule);</span>
+<span class="fc" id="L85">  }</span>
+
+  @Override
+  public Rule getByKey(RuleKey key) {
+<span class="fc" id="L89">    verifyKeyArgument(key);</span>
+
+<span class="fc" id="L91">    ensureInitialized();</span>
+
+<span class="fc" id="L93">    Rule rule = rulesByKey.get(key);</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">    checkArgument(rule != null, &quot;Can not find rule for key %s. This rule does not exist in DB&quot;, key);</span>
+<span class="fc" id="L95">    return rule;</span>
+  }
+
+  @Override
+  public Optional&lt;Rule&gt; findByKey(RuleKey key) {
+<span class="fc" id="L100">    verifyKeyArgument(key);</span>
+
+<span class="fc" id="L102">    ensureInitialized();</span>
+
+<span class="fc" id="L104">    return Optional.ofNullable(rulesByKey.get(key));</span>
+  }
+
+  @Override
+  public Rule getByUuid(String uuid) {
+<span class="fc" id="L109">    ensureInitialized();</span>
+
+<span class="fc" id="L111">    Rule rule = rulesByUuid.get(uuid);</span>
+<span class="fc bfc" id="L112" title="All 2 branches covered.">    checkArgument(rule != null, &quot;Can not find rule for uuid %s. This rule does not exist in DB&quot;, uuid);</span>
+<span class="fc" id="L113">    return rule;</span>
+  }
+
+  @Override
+  public Optional&lt;Rule&gt; findByUuid(String uuid) {
+<span class="fc" id="L118">    ensureInitialized();</span>
+
+<span class="fc" id="L120">    return Optional.ofNullable(rulesByUuid.get(uuid));</span>
+  }
+
+  private static void verifyKeyArgument(RuleKey key) {
+<span class="fc" id="L124">    requireNonNull(key, &quot;RuleKey can not be null&quot;);</span>
+<span class="fc" id="L125">  }</span>
+
+  private void ensureInitialized() {
+<span class="fc bfc" id="L128" title="All 2 branches covered.">    if (rulesByKey == null) {</span>
+<span class="fc" id="L129">      try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L130">        loadRulesFromDb(dbSession);</span>
+      }
+    }
+<span class="fc" id="L133">  }</span>
+
+  private void loadRulesFromDb(DbSession dbSession) {
+<span class="fc" id="L136">    this.rulesByKey = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L137">    this.rulesByUuid = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L138">    Multimap&lt;String, DeprecatedRuleKeyDto&gt; deprecatedRuleKeysByRuleUuid = dbClient.ruleDao().selectAllDeprecatedRuleKeys(dbSession).stream()</span>
+<span class="fc" id="L139">      .collect(MoreCollectors.index(DeprecatedRuleKeyDto::getRuleUuid));</span>
+<span class="fc bfc" id="L140" title="All 2 branches covered.">    for (RuleDto ruleDto : dbClient.ruleDao().selectAll(dbSession)) {</span>
+<span class="fc" id="L141">      Rule rule = new RuleImpl(ruleDto);</span>
+<span class="fc" id="L142">      rulesByKey.put(ruleDto.getKey(), rule);</span>
+<span class="fc" id="L143">      rulesByUuid.put(ruleDto.getUuid(), rule);</span>
+<span class="fc" id="L144">      deprecatedRuleKeysByRuleUuid.get(ruleDto.getUuid()).forEach(t -&gt; rulesByKey.put(RuleKey.of(t.getOldRepositoryKey(), t.getOldRuleKey()), rule));</span>
+<span class="fc" id="L145">    }</span>
+<span class="fc" id="L146">  }</span>
+
+  private static class AdHocRuleWrapper implements Rule {
+    private final NewAdHocRule addHocRule;
+
+<span class="fc" id="L151">    private AdHocRuleWrapper(NewAdHocRule addHocRule) {</span>
+<span class="fc" id="L152">      this.addHocRule = addHocRule;</span>
+<span class="fc" id="L153">    }</span>
+
+    public NewAdHocRule getDelegate() {
+<span class="nc" id="L156">      return addHocRule;</span>
+    }
+
+    @Override
+    public String getUuid() {
+<span class="nc" id="L161">      throw new UnsupportedOperationException(&quot;Rule is not persisted, can't know the uuid&quot;);</span>
+    }
+
+    @Override
+    public RuleKey getKey() {
+<span class="nc" id="L166">      return addHocRule.getKey();</span>
+    }
+
+    @Override
+    public String getName() {
+<span class="nc" id="L171">      return addHocRule.getName();</span>
+    }
+
+    @Override
+    @CheckForNull
+    public String getLanguage() {
+<span class="nc" id="L177">      return null;</span>
+    }
+
+    @Override
+    public RuleStatus getStatus() {
+<span class="nc" id="L182">      return RuleStatus.defaultStatus();</span>
+    }
+
+    @Override
+    @CheckForNull
+    public RuleType getType() {
+<span class="fc" id="L188">      return addHocRule.getRuleType();</span>
+    }
+
+    @Override
+    public boolean isExternal() {
+<span class="nc" id="L193">      return true;</span>
+    }
+
+    @Override
+    public boolean isAdHoc() {
+<span class="nc" id="L198">      return true;</span>
+    }
+
+    @Override
+    public Set&lt;String&gt; getTags() {
+<span class="nc" id="L203">      return Collections.emptySet();</span>
+    }
+
+    @CheckForNull
+    @Override
+    public DebtRemediationFunction getRemediationFunction() {
+<span class="nc" id="L209">      return null;</span>
+    }
+
+    @CheckForNull
+    @Override
+    public String getPluginKey() {
+<span class="nc" id="L215">      return null;</span>
+    }
+
+    @Override
+    public String getDefaultRuleDescription() {
+<span class="nc" id="L220">      return addHocRule.getDescription();</span>
+    }
+
+    @Override
+    public String getSeverity() {
+<span class="nc" id="L225">      return addHocRule.getSeverity();</span>
+    }
+
+    @Override
+    public Set&lt;String&gt; getSecurityStandards() {
+<span class="nc" id="L230">      return Collections.emptySet();</span>
+    }
+
+    @Override
+    public Map&lt;SoftwareQuality, Severity&gt; getDefaultImpacts() {
+<span class="nc" id="L235">      return addHocRule.getDefaultImpacts();</span>
+    }
+
+    @CheckForNull
+    @Override
+    public CleanCodeAttribute cleanCodeAttribute() {
+<span class="nc" id="L241">      return addHocRule.getCleanCodeAttribute();</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

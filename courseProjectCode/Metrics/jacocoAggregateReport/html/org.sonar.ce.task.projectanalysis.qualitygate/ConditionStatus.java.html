@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ConditionStatus.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.qualitygate</a> &gt; <span class="el_source">ConditionStatus.java</span></div><h1>ConditionStatus.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.qualitygate;
+
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.util.Objects.requireNonNull;
+
+@Immutable
+public class ConditionStatus {
+<span class="fc" id="L31">  public static final ConditionStatus NO_VALUE_STATUS = new ConditionStatus(EvaluationStatus.NO_VALUE, null);</span>
+
+  private final EvaluationStatus status;
+  @CheckForNull
+  private final String value;
+
+<span class="fc" id="L37">  private ConditionStatus(EvaluationStatus status, @Nullable String value) {</span>
+<span class="fc" id="L38">    this.status = requireNonNull(status, &quot;status can not be null&quot;);</span>
+<span class="fc" id="L39">    this.value = value;</span>
+<span class="fc" id="L40">  }</span>
+
+  public static ConditionStatus create(EvaluationStatus status, String value) {
+<span class="fc" id="L43">    requireNonNull(status, &quot;status can not be null&quot;);</span>
+<span class="fc bfc" id="L44" title="All 2 branches covered.">    checkArgument(status != EvaluationStatus.NO_VALUE, &quot;EvaluationStatus 'NO_VALUE' can not be used with this method, use constant ConditionStatus.NO_VALUE_STATUS instead.&quot;);</span>
+<span class="fc" id="L45">    requireNonNull(value, &quot;value can not be null&quot;);</span>
+<span class="fc" id="L46">    return new ConditionStatus(status, value);</span>
+  }
+
+  public EvaluationStatus getStatus() {
+<span class="fc" id="L50">    return status;</span>
+  }
+
+  /**
+   * @return {@code null} when {@link #getStatus()} is {@link EvaluationStatus#NO_VALUE}, otherwise non {@code null}
+   */
+  @CheckForNull
+  public String getValue() {
+<span class="fc" id="L58">    return value;</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="fc" id="L63">    return &quot;ConditionStatus{&quot; +</span>
+      &quot;status=&quot; + status +
+      &quot;, value='&quot; + value + '\'' +
+      '}';
+  }
+
+<span class="fc" id="L69">  public enum EvaluationStatus {</span>
+<span class="fc" id="L70">    NO_VALUE, OK, ERROR</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

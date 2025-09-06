@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultActiveRules.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.api.batch.rule.internal</a> &gt; <span class="el_source">DefaultActiveRules.java</span></div><h1>DefaultActiveRules.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.api.batch.rule.internal;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import javax.annotation.concurrent.Immutable;
+import org.sonar.api.batch.rule.ActiveRule;
+import org.sonar.api.batch.rule.ActiveRules;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.api.utils.WildcardPattern;
+
+import static java.util.Collections.emptySet;
+
+@Immutable
+public class DefaultActiveRules implements ActiveRules {
+<span class="fc" id="L41">  private final Map&lt;RuleKey, Set&lt;String&gt;&gt; deprecatedRuleKeysByRuleKey = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L42">  private final Map&lt;String, List&lt;ActiveRule&gt;&gt; activeRulesByRepository = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L43">  private final Map&lt;String, Map&lt;String, ActiveRule&gt;&gt; activeRulesByRepositoryAndKey = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L44">  private final Map&lt;String, Map&lt;String, ActiveRule&gt;&gt; activeRulesByRepositoryAndInternalKey = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L45">  private final Map&lt;String, List&lt;ActiveRule&gt;&gt; activeRulesByLanguage = new HashMap&lt;&gt;();</span>
+
+<span class="fc" id="L47">  public DefaultActiveRules(Collection&lt;NewActiveRule&gt; newActiveRules) {</span>
+<span class="fc bfc" id="L48" title="All 2 branches covered.">    for (NewActiveRule newAR : newActiveRules) {</span>
+<span class="fc" id="L49">      DefaultActiveRule ar = new DefaultActiveRule(newAR);</span>
+<span class="fc" id="L50">      String repo = ar.ruleKey().repository();</span>
+<span class="fc" id="L51">      activeRulesByRepository.computeIfAbsent(repo, x -&gt; new ArrayList&lt;&gt;()).add(ar);</span>
+<span class="fc bfc" id="L52" title="All 2 branches covered.">      if (ar.language() != null) {</span>
+<span class="fc" id="L53">        activeRulesByLanguage.computeIfAbsent(ar.language(), x -&gt; new ArrayList&lt;&gt;()).add(ar);</span>
+      }
+
+<span class="fc" id="L56">      activeRulesByRepositoryAndKey.computeIfAbsent(repo, r -&gt; new HashMap&lt;&gt;()).put(ar.ruleKey().rule(), ar);</span>
+<span class="fc" id="L57">      String internalKey = ar.internalKey();</span>
+<span class="fc bfc" id="L58" title="All 2 branches covered.">      if (internalKey != null) {</span>
+<span class="fc" id="L59">        activeRulesByRepositoryAndInternalKey.computeIfAbsent(repo, r -&gt; new HashMap&lt;&gt;()).put(internalKey, ar);</span>
+      }
+
+<span class="fc" id="L62">      deprecatedRuleKeysByRuleKey.put(ar.ruleKey(), ar.getDeprecatedKeys().stream().map(RuleKey::toString).collect(Collectors.toSet()));</span>
+<span class="fc" id="L63">    }</span>
+<span class="fc" id="L64">  }</span>
+
+  public Set&lt;String&gt; getDeprecatedRuleKeys(RuleKey ruleKey) {
+<span class="fc" id="L67">    return deprecatedRuleKeysByRuleKey.getOrDefault(ruleKey, emptySet());</span>
+  }
+
+  public boolean matchesDeprecatedKeys(RuleKey ruleKey, WildcardPattern rulePattern) {
+<span class="fc" id="L71">    return getDeprecatedRuleKeys(ruleKey).contains(rulePattern.toString());</span>
+  }
+
+  @Override
+  public ActiveRule find(RuleKey ruleKey) {
+<span class="fc" id="L76">    return activeRulesByRepositoryAndKey.getOrDefault(ruleKey.repository(), Collections.emptyMap())</span>
+<span class="fc" id="L77">      .get(ruleKey.rule());</span>
+  }
+
+  @Override
+  public Collection&lt;ActiveRule&gt; findAll() {
+<span class="fc" id="L82">    return activeRulesByRepository.entrySet().stream().flatMap(x -&gt; x.getValue().stream()).toList();</span>
+  }
+
+  @Override
+  public Collection&lt;ActiveRule&gt; findByRepository(String repository) {
+<span class="fc" id="L87">    return activeRulesByRepository.getOrDefault(repository, Collections.emptyList());</span>
+  }
+
+  @Override
+  public Collection&lt;ActiveRule&gt; findByLanguage(String language) {
+<span class="nc" id="L92">    return activeRulesByLanguage.getOrDefault(language, Collections.emptyList());</span>
+  }
+
+  @Override
+  public ActiveRule findByInternalKey(String repository, String internalKey) {
+<span class="fc bfc" id="L97" title="All 2 branches covered.">    return activeRulesByRepositoryAndInternalKey.containsKey(repository) ? activeRulesByRepositoryAndInternalKey.get(repository).get(internalKey) : null;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

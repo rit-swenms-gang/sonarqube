@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UpdateEmailConfigurationRequest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.common.email.config</a> &gt; <span class="el_source">UpdateEmailConfigurationRequest.java</span></div><h1>UpdateEmailConfigurationRequest.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.common.email.config;
+
+import org.sonar.server.common.NonNullUpdatedValue;
+
+<span class="fc" id="L24">public record UpdateEmailConfigurationRequest(</span>
+  String emailConfigurationId,
+  NonNullUpdatedValue&lt;String&gt; host,
+  NonNullUpdatedValue&lt;String&gt; port,
+  NonNullUpdatedValue&lt;EmailConfigurationSecurityProtocol&gt; securityProtocol,
+  NonNullUpdatedValue&lt;String&gt; fromAddress,
+  NonNullUpdatedValue&lt;String&gt; fromName,
+  NonNullUpdatedValue&lt;String&gt; subjectPrefix,
+  NonNullUpdatedValue&lt;EmailConfigurationAuthMethod&gt; authMethod,
+  NonNullUpdatedValue&lt;String&gt; username,
+  NonNullUpdatedValue&lt;String&gt; basicPassword,
+  NonNullUpdatedValue&lt;String&gt; oauthAuthenticationHost,
+  NonNullUpdatedValue&lt;String&gt; oauthClientId,
+  NonNullUpdatedValue&lt;String&gt; oauthClientSecret,
+  NonNullUpdatedValue&lt;String&gt; oauthTenant
+) {
+
+  public static Builder builder() {
+<span class="fc" id="L42">    return new Builder();</span>
+  }
+
+  public static final class Builder {
+    private String emailConfigurationId;
+    private NonNullUpdatedValue&lt;String&gt; host;
+    private NonNullUpdatedValue&lt;String&gt; port;
+    private NonNullUpdatedValue&lt;EmailConfigurationSecurityProtocol&gt; securityProtocol;
+    private NonNullUpdatedValue&lt;String&gt; fromAddress;
+    private NonNullUpdatedValue&lt;String&gt; fromName;
+    private NonNullUpdatedValue&lt;String&gt; subjectPrefix;
+    private NonNullUpdatedValue&lt;EmailConfigurationAuthMethod&gt; authMethod;
+    private NonNullUpdatedValue&lt;String&gt; username;
+    private NonNullUpdatedValue&lt;String&gt; basicPassword;
+    private NonNullUpdatedValue&lt;String&gt; oauthAuthenticationHost;
+    private NonNullUpdatedValue&lt;String&gt; oauthClientId;
+    private NonNullUpdatedValue&lt;String&gt; oauthClientSecret;
+    private NonNullUpdatedValue&lt;String&gt; oauthTenant;
+
+    private Builder() {
+    }
+
+    public Builder emailConfigurationId(String emailConfigurationId) {
+<span class="fc" id="L65">      this.emailConfigurationId = emailConfigurationId;</span>
+<span class="fc" id="L66">      return this;</span>
+    }
+
+    public Builder host(NonNullUpdatedValue&lt;String&gt; host) {
+<span class="fc" id="L70">      this.host = host;</span>
+<span class="fc" id="L71">      return this;</span>
+    }
+
+    public Builder port(NonNullUpdatedValue&lt;String&gt; port) {
+<span class="fc" id="L75">      this.port = port;</span>
+<span class="fc" id="L76">      return this;</span>
+    }
+
+    public Builder securityProtocol(NonNullUpdatedValue&lt;EmailConfigurationSecurityProtocol&gt; securityProtocol) {
+<span class="fc" id="L80">      this.securityProtocol = securityProtocol;</span>
+<span class="fc" id="L81">      return this;</span>
+    }
+
+    public Builder fromAddress(NonNullUpdatedValue&lt;String&gt; fromAddress) {
+<span class="fc" id="L85">      this.fromAddress = fromAddress;</span>
+<span class="fc" id="L86">      return this;</span>
+    }
+
+    public Builder fromName(NonNullUpdatedValue&lt;String&gt; fromName) {
+<span class="fc" id="L90">      this.fromName = fromName;</span>
+<span class="fc" id="L91">      return this;</span>
+    }
+
+    public Builder subjectPrefix(NonNullUpdatedValue&lt;String&gt; subjectPrefix) {
+<span class="fc" id="L95">      this.subjectPrefix = subjectPrefix;</span>
+<span class="fc" id="L96">      return this;</span>
+    }
+
+    public Builder authMethod(NonNullUpdatedValue&lt;EmailConfigurationAuthMethod&gt; authMethod) {
+<span class="fc" id="L100">      this.authMethod = authMethod;</span>
+<span class="fc" id="L101">      return this;</span>
+    }
+
+    public Builder username(NonNullUpdatedValue&lt;String&gt; username) {
+<span class="fc" id="L105">      this.username = username;</span>
+<span class="fc" id="L106">      return this;</span>
+    }
+
+    public Builder basicPassword(NonNullUpdatedValue&lt;String&gt; basicPassword) {
+<span class="fc" id="L110">      this.basicPassword = basicPassword;</span>
+<span class="fc" id="L111">      return this;</span>
+    }
+
+    public Builder oauthAuthenticationHost(NonNullUpdatedValue&lt;String&gt; oauthAuthenticationHost) {
+<span class="fc" id="L115">      this.oauthAuthenticationHost = oauthAuthenticationHost;</span>
+<span class="fc" id="L116">      return this;</span>
+    }
+
+    public Builder oauthClientId(NonNullUpdatedValue&lt;String&gt; oauthClientId) {
+<span class="fc" id="L120">      this.oauthClientId = oauthClientId;</span>
+<span class="fc" id="L121">      return this;</span>
+    }
+
+    public Builder oauthClientSecret(NonNullUpdatedValue&lt;String&gt; oauthClientSecret) {
+<span class="fc" id="L125">      this.oauthClientSecret = oauthClientSecret;</span>
+<span class="fc" id="L126">      return this;</span>
+    }
+
+    public Builder oauthTenant(NonNullUpdatedValue&lt;String&gt; oauthTenant) {
+<span class="fc" id="L130">      this.oauthTenant = oauthTenant;</span>
+<span class="fc" id="L131">      return this;</span>
+    }
+
+    public UpdateEmailConfigurationRequest build() {
+<span class="fc" id="L135">      return new UpdateEmailConfigurationRequest(emailConfigurationId, host, port, securityProtocol, fromAddress, fromName, subjectPrefix, authMethod, username,</span>
+        basicPassword, oauthAuthenticationHost, oauthClientId, oauthClientSecret, oauthTenant);
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

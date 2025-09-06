@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NestedFieldTopAggregationDefinition.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.es.searchrequest</a> &gt; <span class="el_source">NestedFieldTopAggregationDefinition.java</span></div><h1>NestedFieldTopAggregationDefinition.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.es.searchrequest;
+
+import java.util.Arrays;
+import java.util.Objects;
+import javax.annotation.concurrent.Immutable;
+import org.apache.commons.lang3.StringUtils;
+import org.sonar.server.es.searchrequest.TopAggregationDefinition.NestedFieldFilterScope;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.util.Objects.requireNonNull;
+
+@Immutable
+public class NestedFieldTopAggregationDefinition&lt;T&gt; implements TopAggregationDefinition&lt;NestedFieldFilterScope&lt;T&gt;&gt; {
+  private final NestedFieldFilterScope&lt;T&gt; filterScope;
+  private final boolean sticky;
+
+<span class="fc" id="L36">  public NestedFieldTopAggregationDefinition(String nestedFieldPath, T value, boolean sticky) {</span>
+<span class="fc" id="L37">    requireNonNull(nestedFieldPath, &quot;nestedFieldPath can't be null&quot;);</span>
+<span class="fc" id="L38">    requireNonNull(value, &quot;value can't be null&quot;);</span>
+<span class="fc bfc" id="L39" title="All 2 branches covered.">    checkArgument(StringUtils.countMatches(nestedFieldPath, &quot;.&quot;) == 1,</span>
+      &quot;Field path should have only one dot: %s&quot;, nestedFieldPath);
+<span class="fc" id="L41">    String[] fullPath = Arrays.stream(StringUtils.split(nestedFieldPath, '.'))</span>
+<span class="fc" id="L42">      .filter(Objects::nonNull)</span>
+<span class="fc" id="L43">      .map(String::trim)</span>
+<span class="fc bfc" id="L44" title="All 2 branches covered.">      .filter(t -&gt; !t.isEmpty())</span>
+<span class="fc" id="L45">      .toArray(String[]::new);</span>
+<span class="fc bfc" id="L46" title="All 2 branches covered.">    checkArgument(fullPath.length == 2,</span>
+<span class="fc" id="L47">      &quot;field path \&quot;%s\&quot; should have exactly 2 non empty field names, got: %s&quot;, nestedFieldPath, Arrays.asList(fullPath));</span>
+<span class="fc" id="L48">    this.filterScope = new NestedFieldFilterScope&lt;&gt;(fullPath[0], fullPath[1], value);</span>
+<span class="fc" id="L49">    this.sticky = sticky;</span>
+<span class="fc" id="L50">  }</span>
+
+  @Override
+  public NestedFieldFilterScope&lt;T&gt; getFilterScope() {
+<span class="fc" id="L54">    return filterScope;</span>
+  }
+
+  @Override
+  public boolean isSticky() {
+<span class="fc" id="L59">    return sticky;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

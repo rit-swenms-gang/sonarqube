@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ListAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.newcodeperiod.ws</a> &gt; <span class="el_source">ListAction.java</span></div><h1>ListAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.newcodeperiod.ws;
+
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import javax.annotation.Nullable;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.api.utils.DateUtils;
+import org.sonar.db.permission.ProjectPermission;
+import org.sonar.core.documentation.DocumentationLinkGenerator;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.BranchDto;
+import org.sonar.db.component.BranchType;
+import org.sonar.db.component.SnapshotDto;
+import org.sonar.db.newcodeperiod.NewCodePeriodDao;
+import org.sonar.db.newcodeperiod.NewCodePeriodDto;
+import org.sonar.db.newcodeperiod.NewCodePeriodType;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.server.component.ComponentFinder;
+import org.sonar.server.user.UserSession;
+import org.sonarqube.ws.NewCodePeriods;
+import org.sonarqube.ws.NewCodePeriods.ListWSResponse;
+
+import static org.sonar.server.newcodeperiod.ws.NewCodePeriodsWsUtils.createNewCodePeriodHtmlLink;
+import static org.sonar.server.ws.WsUtils.writeProtobuf;
+import static org.sonarqube.ws.NewCodePeriods.ShowWSResponse.newBuilder;
+
+public class ListAction implements NewCodePeriodsWsAction {
+  private static final String PARAM_PROJECT = &quot;project&quot;;
+
+  private final DbClient dbClient;
+  private final UserSession userSession;
+  private final ComponentFinder componentFinder;
+  private final NewCodePeriodDao newCodePeriodDao;
+  private final DocumentationLinkGenerator documentationLinkGenerator;
+
+  public ListAction(DbClient dbClient, UserSession userSession, ComponentFinder componentFinder, NewCodePeriodDao newCodePeriodDao,
+<span class="fc" id="L64">    DocumentationLinkGenerator documentationLinkGenerator) {</span>
+<span class="fc" id="L65">    this.dbClient = dbClient;</span>
+<span class="fc" id="L66">    this.userSession = userSession;</span>
+<span class="fc" id="L67">    this.componentFinder = componentFinder;</span>
+<span class="fc" id="L68">    this.newCodePeriodDao = newCodePeriodDao;</span>
+<span class="fc" id="L69">    this.documentationLinkGenerator = documentationLinkGenerator;</span>
+<span class="fc" id="L70">  }</span>
+
+  @Override
+  public void define(WebService.NewController context) {
+<span class="fc" id="L74">    WebService.NewAction action = context.createAction(&quot;list&quot;)</span>
+<span class="fc" id="L75">      .setDescription(&quot;Lists the &quot; + createNewCodePeriodHtmlLink(documentationLinkGenerator) +</span>
+        &quot; for all branches in a project.&lt;br&gt;&quot; +
+        &quot;Requires the permission to browse the project&quot;)
+<span class="fc" id="L78">      .setSince(&quot;8.0&quot;)</span>
+<span class="fc" id="L79">      .setResponseExample(getClass().getResource(&quot;list-example.json&quot;))</span>
+<span class="fc" id="L80">      .setHandler(this);</span>
+
+<span class="fc" id="L82">    action.createParam(PARAM_PROJECT)</span>
+<span class="fc" id="L83">      .setRequired(true)</span>
+<span class="fc" id="L84">      .setDescription(&quot;Project key&quot;);</span>
+<span class="fc" id="L85">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L89">    String projectKey = request.mandatoryParam(PARAM_PROJECT);</span>
+
+<span class="fc" id="L91">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L92">      ProjectDto project = componentFinder.getProjectByKey(dbSession, projectKey);</span>
+<span class="fc" id="L93">      userSession.checkEntityPermission(ProjectPermission.USER, project);</span>
+<span class="fc" id="L94">      Collection&lt;BranchDto&gt; branches = dbClient.branchDao().selectByProject(dbSession, project).stream()</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">        .filter(b -&gt; b.getBranchType() == BranchType.BRANCH)</span>
+<span class="fc" id="L96">        .sorted(Comparator.comparing(BranchDto::getKey))</span>
+<span class="fc" id="L97">        .toList();</span>
+
+<span class="fc" id="L99">      List&lt;NewCodePeriodDto&gt; newCodePeriods = newCodePeriodDao.selectAllByProject(dbSession, project.getUuid());</span>
+
+<span class="fc" id="L101">      Map&lt;String, NewCodePeriodDto&gt; newCodePeriodByBranchUuid = newCodePeriods</span>
+<span class="fc" id="L102">        .stream()</span>
+<span class="fc" id="L103">        .collect(Collectors.toMap(NewCodePeriodDto::getBranchUuid, Function.identity()));</span>
+
+<span class="fc" id="L105">      NewCodePeriodDto projectDefault = newCodePeriodByBranchUuid.getOrDefault(null, getGlobalOrDefault(dbSession));</span>
+
+<span class="fc" id="L107">      Map&lt;String, String&gt; analysis = newCodePeriods.stream()</span>
+<span class="fc" id="L108">        .filter(newCodePeriodDto -&gt; newCodePeriodDto.getType().equals(NewCodePeriodType.SPECIFIC_ANALYSIS))</span>
+<span class="fc" id="L109">        .collect(Collectors.toMap(NewCodePeriodDto::getUuid, NewCodePeriodDto::getValue));</span>
+
+<span class="fc" id="L111">      Map&lt;String, Long&gt; analysisUuidDateMap = dbClient.snapshotDao().selectByUuids(dbSession, new HashSet&lt;&gt;(analysis.values()))</span>
+<span class="fc" id="L112">        .stream()</span>
+<span class="fc" id="L113">        .collect(Collectors.toMap(SnapshotDto::getUuid, SnapshotDto::getCreatedAt));</span>
+
+<span class="fc" id="L115">      ListWSResponse.Builder builder = ListWSResponse.newBuilder();</span>
+<span class="fc bfc" id="L116" title="All 2 branches covered.">      for (BranchDto branch : branches) {</span>
+<span class="fc" id="L117">        NewCodePeriodDto newCodePeriod = newCodePeriodByBranchUuid.getOrDefault(branch.getUuid(), projectDefault);</span>
+
+<span class="fc" id="L119">        String effectiveValue = null;</span>
+
+        //handles specific analysis only
+<span class="fc" id="L122">        Long analysisDate = analysisUuidDateMap.get(analysis.get(newCodePeriod.getUuid()));</span>
+<span class="fc bfc" id="L123" title="All 2 branches covered.">        if (analysisDate != null) {</span>
+<span class="fc" id="L124">          effectiveValue = DateUtils.formatDateTime(analysisDate);</span>
+        }
+
+<span class="fc" id="L127">        builder.addNewCodePeriods(</span>
+<span class="fc" id="L128">          build(projectKey, branch.getKey(), newCodePeriod, effectiveValue));</span>
+<span class="fc" id="L129">      }</span>
+
+<span class="fc" id="L131">      writeProtobuf(builder.build(), request, response);</span>
+    }
+<span class="fc" id="L133">  }</span>
+
+  private NewCodePeriodDto getGlobalOrDefault(DbSession dbSession) {
+<span class="fc" id="L136">    return newCodePeriodDao.selectGlobal(dbSession).orElse(NewCodePeriodDto.defaultInstance());</span>
+  }
+
+  private static NewCodePeriods.ShowWSResponse build(String projectKey, String branchKey, NewCodePeriodDto ncd, @Nullable String effectiveValue) {
+<span class="fc bfc" id="L140" title="All 2 branches covered.">    boolean inherited = ncd.getBranchUuid() == null;</span>
+<span class="fc" id="L141">    NewCodePeriods.ShowWSResponse.Builder builder = newBuilder()</span>
+<span class="fc" id="L142">      .setType(convertType(ncd.getType()))</span>
+<span class="fc" id="L143">      .setInherited(inherited)</span>
+<span class="fc" id="L144">      .setBranchKey(branchKey)</span>
+<span class="fc" id="L145">      .setProjectKey(projectKey)</span>
+<span class="fc" id="L146">      .setUpdatedAt(ncd.getUpdatedAt());</span>
+
+<span class="fc bfc" id="L148" title="All 2 branches covered.">    if (effectiveValue != null) {</span>
+<span class="fc" id="L149">      builder.setEffectiveValue(effectiveValue);</span>
+    }
+
+<span class="fc bfc" id="L152" title="All 2 branches covered.">    if (ncd.getValue() != null) {</span>
+<span class="fc" id="L153">      builder.setValue(ncd.getValue());</span>
+    }
+
+<span class="fc bfc" id="L156" title="All 4 branches covered.">    if (!inherited &amp;&amp; ncd.getPreviousNonCompliantValue() != null) {</span>
+<span class="fc" id="L157">      builder.setPreviousNonCompliantValue(ncd.getPreviousNonCompliantValue());</span>
+    }
+
+<span class="fc" id="L160">    return builder.build();</span>
+  }
+
+  private static NewCodePeriods.NewCodePeriodType convertType(NewCodePeriodType type) {
+<span class="pc bpc" id="L164" title="2 of 5 branches missed.">    switch (type) {</span>
+      case NUMBER_OF_DAYS:
+<span class="fc" id="L166">        return NewCodePeriods.NewCodePeriodType.NUMBER_OF_DAYS;</span>
+      case PREVIOUS_VERSION:
+<span class="fc" id="L168">        return NewCodePeriods.NewCodePeriodType.PREVIOUS_VERSION;</span>
+      case SPECIFIC_ANALYSIS:
+<span class="fc" id="L170">        return NewCodePeriods.NewCodePeriodType.SPECIFIC_ANALYSIS;</span>
+      case REFERENCE_BRANCH:
+<span class="nc" id="L172">        return NewCodePeriods.NewCodePeriodType.REFERENCE_BRANCH;</span>
+      default:
+<span class="nc" id="L174">        throw new IllegalStateException(&quot;Unexpected type: &quot; + type);</span>
+    }
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IssueCreationDateCalculator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.issue</a> &gt; <span class="el_source">IssueCreationDateCalculator.java</span></div><h1>IssueCreationDateCalculator.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.issue;
+
+import java.util.Comparator;
+import java.util.Date;
+import java.util.Optional;
+import java.util.function.Supplier;
+import javax.annotation.Nullable;
+import org.sonar.api.utils.DateUtils;
+import org.sonar.ce.task.projectanalysis.analysis.Analysis;
+import org.sonar.ce.task.projectanalysis.analysis.AnalysisMetadataHolder;
+import org.sonar.ce.task.projectanalysis.analysis.ScannerPlugin;
+import org.sonar.ce.task.projectanalysis.component.Component;
+import org.sonar.ce.task.projectanalysis.filemove.AddedFileRepository;
+import org.sonar.ce.task.projectanalysis.qualityprofile.ActiveRule;
+import org.sonar.ce.task.projectanalysis.qualityprofile.ActiveRulesHolder;
+import org.sonar.ce.task.projectanalysis.qualityprofile.QProfileStatusRepository;
+import org.sonar.ce.task.projectanalysis.scm.Changeset;
+import org.sonar.ce.task.projectanalysis.scm.ScmInfo;
+import org.sonar.ce.task.projectanalysis.scm.ScmInfoRepository;
+import org.sonar.core.issue.DefaultIssue;
+import org.sonar.core.issue.IssueChangeContext;
+import org.sonar.server.issue.IssueFieldsSetter;
+
+import static org.sonar.ce.task.projectanalysis.qualityprofile.QProfileStatusRepository.Status.UNCHANGED;
+import static org.sonar.core.issue.IssueChangeContext.issueChangeContextByScanBuilder;
+
+/**
+ * Calculates the creation date of an issue. Takes into account, that the issue
+ * might be raised by adding a rule to a quality profile.
+ */
+public class IssueCreationDateCalculator extends IssueVisitor {
+
+  private final ScmInfoRepository scmInfoRepository;
+  private final IssueFieldsSetter issueUpdater;
+  private final AnalysisMetadataHolder analysisMetadataHolder;
+  private final IssueChangeContext changeContext;
+  private final ActiveRulesHolder activeRulesHolder;
+  private final RuleRepository ruleRepository;
+  private final AddedFileRepository addedFileRepository;
+  private QProfileStatusRepository qProfileStatusRepository;
+
+  public IssueCreationDateCalculator(AnalysisMetadataHolder analysisMetadataHolder, ScmInfoRepository scmInfoRepository,
+    IssueFieldsSetter issueUpdater, ActiveRulesHolder activeRulesHolder, RuleRepository ruleRepository,
+<span class="fc" id="L63">    AddedFileRepository addedFileRepository, QProfileStatusRepository qProfileStatusRepository) {</span>
+<span class="fc" id="L64">    this.scmInfoRepository = scmInfoRepository;</span>
+<span class="fc" id="L65">    this.issueUpdater = issueUpdater;</span>
+<span class="fc" id="L66">    this.analysisMetadataHolder = analysisMetadataHolder;</span>
+<span class="fc" id="L67">    this.ruleRepository = ruleRepository;</span>
+<span class="fc" id="L68">    this.changeContext = issueChangeContextByScanBuilder(new Date(analysisMetadataHolder.getAnalysisDate())).build();</span>
+<span class="fc" id="L69">    this.activeRulesHolder = activeRulesHolder;</span>
+<span class="fc" id="L70">    this.addedFileRepository = addedFileRepository;</span>
+<span class="fc" id="L71">    this.qProfileStatusRepository = qProfileStatusRepository;</span>
+<span class="fc" id="L72">  }</span>
+
+  @Override
+  public void onIssue(Component component, DefaultIssue issue) {
+<span class="fc bfc" id="L76" title="All 2 branches covered.">    if (!issue.isNew()) {</span>
+<span class="fc" id="L77">      return;</span>
+    }
+
+<span class="fc" id="L80">    Optional&lt;Long&gt; lastAnalysisOptional = lastAnalysis();</span>
+<span class="fc" id="L81">    boolean firstAnalysis = lastAnalysisOptional.isEmpty();</span>
+<span class="fc bfc" id="L82" title="All 4 branches covered.">    if (firstAnalysis || isNewFile(component)) {</span>
+<span class="fc" id="L83">      backdateIssue(component, issue);</span>
+<span class="fc" id="L84">      return;</span>
+    }
+
+<span class="fc" id="L87">    Rule rule = ruleRepository.findByKey(issue.getRuleKey())</span>
+<span class="fc" id="L88">      .orElseThrow(illegalStateException(&quot;The rule with key '%s' raised an issue, but no rule with that key was found&quot;, issue.getRuleKey()));</span>
+<span class="pc bpc" id="L89" title="1 of 2 branches missed.">    if (rule.isExternal()) {</span>
+<span class="nc" id="L90">      backdateIssue(component, issue);</span>
+    } else {
+      // Rule can't be inactive (see contract of IssueVisitor)
+<span class="fc" id="L93">      ActiveRule activeRule = activeRulesHolder.get(issue.getRuleKey()).get();</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">      if (activeRuleIsNewOrChanged(activeRule, lastAnalysisOptional.get())</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">        || ruleImplementationChanged(activeRule.getPluginKey(), lastAnalysisOptional.get())</span>
+<span class="fc bfc" id="L96" title="All 2 branches covered.">        || qualityProfileChanged(activeRule.getQProfileKey())) {</span>
+<span class="fc" id="L97">        backdateIssue(component, issue);</span>
+      }
+    }
+<span class="fc" id="L100">  }</span>
+
+  private boolean qualityProfileChanged(String qpKey) {
+<span class="fc bfc" id="L103" title="All 2 branches covered.">    return qProfileStatusRepository.get(qpKey).filter(s -&gt; !s.equals(UNCHANGED)).isPresent();</span>
+  }
+
+  private boolean isNewFile(Component component) {
+<span class="pc bpc" id="L107" title="1 of 4 branches missed.">    return component.getType() == Component.Type.FILE &amp;&amp; addedFileRepository.isAdded(component);</span>
+  }
+
+  private void backdateIssue(Component component, DefaultIssue issue) {
+<span class="fc" id="L111">    getDateOfLatestChange(component, issue).ifPresent(changeDate -&gt; updateDate(issue, changeDate));</span>
+<span class="fc" id="L112">  }</span>
+
+  private boolean ruleImplementationChanged(@Nullable String pluginKey, long lastAnalysisDate) {
+<span class="fc bfc" id="L115" title="All 2 branches covered.">    if (pluginKey == null) {</span>
+<span class="fc" id="L116">      return false;</span>
+    }
+
+<span class="fc" id="L119">    ScannerPlugin scannerPlugin = analysisMetadataHolder.getScannerPluginsByKey().get(pluginKey);</span>
+<span class="fc bfc" id="L120" title="All 2 branches covered.">    return scannerPlugin == null</span>
+<span class="fc bfc" id="L121" title="All 2 branches covered.">      || pluginIsNew(scannerPlugin, lastAnalysisDate)</span>
+<span class="fc bfc" id="L122" title="All 2 branches covered.">      || basePluginIsNew(scannerPlugin, lastAnalysisDate);</span>
+  }
+
+  private boolean basePluginIsNew(ScannerPlugin scannerPlugin, long lastAnalysisDate) {
+<span class="fc" id="L126">    String basePluginKey = scannerPlugin.getBasePluginKey();</span>
+<span class="fc bfc" id="L127" title="All 2 branches covered.">    if (basePluginKey == null) {</span>
+<span class="fc" id="L128">      return false;</span>
+    }
+<span class="fc" id="L130">    ScannerPlugin basePlugin = analysisMetadataHolder.getScannerPluginsByKey().get(basePluginKey);</span>
+<span class="fc bfc" id="L131" title="All 2 branches covered.">    return lastAnalysisDate &lt; basePlugin.getUpdatedAt();</span>
+  }
+
+  private static boolean pluginIsNew(ScannerPlugin scannerPlugin, long lastAnalysisDate) {
+<span class="fc bfc" id="L135" title="All 2 branches covered.">    return lastAnalysisDate &lt; scannerPlugin.getUpdatedAt();</span>
+  }
+
+  private static boolean activeRuleIsNewOrChanged(ActiveRule activeRule, Long lastAnalysisDate) {
+<span class="fc bfc" id="L139" title="All 2 branches covered.">    return lastAnalysisDate &lt; activeRule.getUpdatedAt();</span>
+  }
+
+  private Optional&lt;Date&gt; getDateOfLatestChange(Component component, DefaultIssue issue) {
+<span class="fc" id="L143">    return getScmInfo(component)</span>
+<span class="fc" id="L144">      .flatMap(scmInfo -&gt; getLatestChangeset(component, scmInfo, issue))</span>
+<span class="fc" id="L145">      .map(IssueCreationDateCalculator::getChangeDate);</span>
+  }
+
+  private Optional&lt;Long&gt; lastAnalysis() {
+<span class="fc" id="L149">    return Optional.ofNullable(analysisMetadataHolder.getBaseAnalysis()).map(Analysis::getCreatedAt);</span>
+  }
+
+  private Optional&lt;ScmInfo&gt; getScmInfo(Component component) {
+<span class="fc" id="L153">    return scmInfoRepository.getScmInfo(component);</span>
+  }
+
+  private static Optional&lt;Changeset&gt; getLatestChangeset(Component component, ScmInfo scmInfo, DefaultIssue issue) {
+<span class="fc" id="L157">    Optional&lt;Changeset&gt; mostRecentChangeset = IssueLocations.allLinesFor(issue, component.getUuid())</span>
+<span class="fc" id="L158">      .filter(scmInfo::hasChangesetForLine)</span>
+<span class="fc" id="L159">      .mapToObj(scmInfo::getChangesetForLine)</span>
+<span class="fc" id="L160">      .max(Comparator.comparingLong(Changeset::getDate));</span>
+<span class="fc bfc" id="L161" title="All 2 branches covered.">    if (mostRecentChangeset.isPresent()) {</span>
+<span class="fc" id="L162">      return mostRecentChangeset;</span>
+    }
+<span class="fc" id="L164">    return Optional.of(scmInfo.getLatestChangeset());</span>
+  }
+
+  private static Date getChangeDate(Changeset changesetForLine) {
+<span class="fc" id="L168">    return DateUtils.longToDate(changesetForLine.getDate());</span>
+  }
+
+  private void updateDate(DefaultIssue issue, Date scmDate) {
+<span class="fc" id="L172">    issueUpdater.setCreationDate(issue, scmDate, changeContext);</span>
+<span class="fc" id="L173">  }</span>
+
+  private static Supplier&lt;? extends IllegalStateException&gt; illegalStateException(String str, Object... args) {
+<span class="fc" id="L176">    return () -&gt; new IllegalStateException(String.format(str, args));</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

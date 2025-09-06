@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DataUtils.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.duplications.index</a> &gt; <span class="el_source">DataUtils.java</span></div><h1>DataUtils.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.duplications.index;
+
+public final class DataUtils {
+
+  public interface Sortable {
+
+    /**
+     * @return the number of elements.
+     */
+    int size();
+
+    /**
+     * Swaps elements in positions i and j.
+     */
+    void swap(int i, int j);
+
+    /**
+     * @return true if element in position i less than in position j.
+     */
+    boolean isLess(int i, int j);
+
+  }
+
+  /**
+   * Value for search must be stored in position {@link Sortable#size() size}.
+   */
+  public static int binarySearch(Sortable data) {
+<span class="fc" id="L47">    int value = data.size();</span>
+<span class="fc" id="L48">    int lower = 0;</span>
+<span class="fc" id="L49">    int upper = data.size();</span>
+<span class="fc bfc" id="L50" title="All 2 branches covered.">    while (lower &lt; upper) {</span>
+<span class="fc" id="L51">      int mid = (lower + upper) &gt;&gt; 1;</span>
+<span class="fc bfc" id="L52" title="All 2 branches covered.">      if (data.isLess(mid, value)) {</span>
+<span class="fc" id="L53">        lower = mid + 1;</span>
+      } else {
+<span class="fc" id="L55">        upper = mid;</span>
+      }
+<span class="fc" id="L57">    }</span>
+<span class="fc" id="L58">    return lower;</span>
+  }
+
+  public static void sort(Sortable data) {
+<span class="fc" id="L62">    quickSort(data, 0, data.size() - 1);</span>
+<span class="fc" id="L63">  }</span>
+
+  private static void bubbleSort(Sortable data, int left, int right) {
+<span class="fc bfc" id="L66" title="All 2 branches covered.">    for (int i = right; i &gt; left; i--) {</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">      for (int j = left; j &lt; i; j++) {</span>
+<span class="fc bfc" id="L68" title="All 2 branches covered.">        if (data.isLess(j + 1, j)) {</span>
+<span class="fc" id="L69">          data.swap(j, j + 1);</span>
+        }
+      }
+    }
+<span class="fc" id="L73">  }</span>
+
+  private static int partition(Sortable data, int i, int j) {
+    // can be selected randomly
+<span class="fc" id="L77">    int pivot = i + (j - i) / 2;</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">    while (i &lt;= j) {</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">      while (data.isLess(i, pivot)) {</span>
+<span class="fc" id="L80">        i++;</span>
+      }
+<span class="fc bfc" id="L82" title="All 2 branches covered.">      while (data.isLess(pivot, j)) {</span>
+<span class="fc" id="L83">        j--;</span>
+      }
+<span class="fc bfc" id="L85" title="All 2 branches covered.">      if (i &lt;= j) {</span>
+<span class="fc" id="L86">        data.swap(i, j);</span>
+<span class="fc bfc" id="L87" title="All 2 branches covered.">        if (i == pivot) {</span>
+<span class="fc" id="L88">          pivot = j;</span>
+<span class="fc bfc" id="L89" title="All 2 branches covered.">        } else if (j == pivot) {</span>
+<span class="fc" id="L90">          pivot = i;</span>
+        }
+<span class="fc" id="L92">        i++;</span>
+<span class="fc" id="L93">        j--;</span>
+      }
+    }
+<span class="fc" id="L96">    return i;</span>
+  }
+
+  private static void quickSort(Sortable data, int low, int high) {
+<span class="fc bfc" id="L100" title="All 2 branches covered.">    if (high - low &lt; 5) {</span>
+<span class="fc" id="L101">      bubbleSort(data, low, high);</span>
+<span class="fc" id="L102">      return;</span>
+    }
+<span class="fc" id="L104">    int i = partition(data, low, high);</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">    if (low &lt; i - 1) {</span>
+<span class="fc" id="L106">      quickSort(data, low, i - 1);</span>
+    }
+<span class="fc bfc" id="L108" title="All 2 branches covered.">    if (i &lt; high) {</span>
+<span class="fc" id="L109">      quickSort(data, i, high);</span>
+    }
+<span class="fc" id="L111">  }</span>
+
+  private DataUtils() {
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

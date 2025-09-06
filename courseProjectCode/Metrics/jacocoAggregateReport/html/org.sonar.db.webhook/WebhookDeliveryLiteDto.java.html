@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WebhookDeliveryLiteDto.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.webhook</a> &gt; <span class="el_source">WebhookDeliveryLiteDto.java</span></div><h1>WebhookDeliveryLiteDto.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.webhook;
+
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+
+<span class="fc" id="L26">public class WebhookDeliveryLiteDto&lt;T extends WebhookDeliveryLiteDto&gt; {</span>
+  /** Technical unique identifier, can't be null */
+  protected String uuid;
+  /** Technical unique identifier, can be null for migration */
+  protected String webhookUuid;
+  /** Project UUID, can't be null */
+  protected String projectUuid;
+  /** Compute Engine task UUID, can be null */
+  protected String ceTaskUuid;
+  /** analysis UUID, can be null */
+  protected String analysisUuid;
+  /** Name, can't be null */
+  protected String name;
+  protected boolean success;
+  /** HTTP response status. Null if HTTP request cannot be sent */
+  protected Integer httpStatus;
+  /** Duration in ms. Null if HTTP request cannot be sent */
+  protected Integer durationMs;
+  /** URL, cannot be null */
+  protected String url;
+  /** Time of delivery */
+  protected long createdAt;
+
+  public String getUuid() {
+<span class="fc" id="L50">    return uuid;</span>
+  }
+
+  public T setUuid(String s) {
+<span class="fc" id="L54">    this.uuid = s;</span>
+<span class="fc" id="L55">    return (T) this;</span>
+  }
+
+  public String getWebhookUuid() {
+<span class="fc" id="L59">    return webhookUuid;</span>
+  }
+
+  public T setWebhookUuid(String webhookUuid) {
+<span class="fc" id="L63">    this.webhookUuid = webhookUuid;</span>
+<span class="fc" id="L64">    return (T) this;</span>
+  }
+
+  public String getProjectUuid() {
+<span class="fc" id="L68">    return projectUuid;</span>
+  }
+
+  public T setProjectUuid(String s) {
+<span class="fc" id="L72">    this.projectUuid = s;</span>
+<span class="fc" id="L73">    return (T) this;</span>
+  }
+
+  @CheckForNull
+  public String getCeTaskUuid() {
+<span class="fc" id="L78">    return ceTaskUuid;</span>
+  }
+
+  public T setCeTaskUuid(@Nullable String s) {
+<span class="fc" id="L82">    this.ceTaskUuid = s;</span>
+<span class="fc" id="L83">    return (T) this;</span>
+  }
+
+  @CheckForNull
+  public String getAnalysisUuid() {
+<span class="fc" id="L88">    return analysisUuid;</span>
+  }
+
+  public T setAnalysisUuid(@Nullable String s) {
+<span class="fc" id="L92">    this.analysisUuid = s;</span>
+<span class="fc" id="L93">    return (T) this;</span>
+  }
+
+  public String getName() {
+<span class="fc" id="L97">    return name;</span>
+  }
+
+  public T setName(String s) {
+<span class="fc" id="L101">    this.name = s;</span>
+<span class="fc" id="L102">    return (T) this;</span>
+  }
+
+  public boolean isSuccess() {
+<span class="fc" id="L106">    return success;</span>
+  }
+
+  public T setSuccess(boolean b) {
+<span class="fc" id="L110">    this.success = b;</span>
+<span class="fc" id="L111">    return (T) this;</span>
+  }
+
+  @CheckForNull
+  public Integer getHttpStatus() {
+<span class="fc" id="L116">    return httpStatus;</span>
+  }
+
+  public T setHttpStatus(@Nullable Integer i) {
+<span class="fc" id="L120">    this.httpStatus = i;</span>
+<span class="fc" id="L121">    return (T) this;</span>
+  }
+
+  @CheckForNull
+  public Integer getDurationMs() {
+<span class="fc" id="L126">    return durationMs;</span>
+  }
+
+  public T setDurationMs(@Nullable Integer i) {
+<span class="fc" id="L130">    this.durationMs = i;</span>
+<span class="fc" id="L131">    return (T) this;</span>
+  }
+
+  public String getUrl() {
+<span class="fc" id="L135">    return url;</span>
+  }
+
+  public T setUrl(String s) {
+<span class="fc" id="L139">    this.url = s;</span>
+<span class="fc" id="L140">    return (T) this;</span>
+  }
+
+  public long getCreatedAt() {
+<span class="fc" id="L144">    return createdAt;</span>
+  }
+
+  public T setCreatedAt(long l) {
+<span class="fc" id="L148">    this.createdAt = l;</span>
+<span class="fc" id="L149">    return (T) this;</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="nc" id="L154">    return new ToStringBuilder(this)</span>
+<span class="nc" id="L155">      .append(&quot;uuid&quot;, uuid)</span>
+<span class="nc" id="L156">      .append(&quot;componentUuid&quot;, projectUuid)</span>
+<span class="nc" id="L157">      .append(&quot;ceTaskUuid&quot;, ceTaskUuid)</span>
+<span class="nc" id="L158">      .append(&quot;name&quot;, name)</span>
+<span class="nc" id="L159">      .append(&quot;success&quot;, success)</span>
+<span class="nc" id="L160">      .append(&quot;httpStatus&quot;, httpStatus)</span>
+<span class="nc" id="L161">      .append(&quot;durationMs&quot;, durationMs)</span>
+<span class="nc" id="L162">      .append(&quot;url&quot;, url)</span>
+<span class="nc" id="L163">      .append(&quot;createdAt&quot;, createdAt)</span>
+<span class="nc" id="L164">      .toString();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

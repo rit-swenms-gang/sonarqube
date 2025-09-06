@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SearchResponseData.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.issue.ws</a> &gt; <span class="el_source">SearchResponseData.java</span></div><h1>SearchResponseData.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.issue.ws;
+
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.ListMultimap;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.db.component.BranchDto;
+import org.sonar.db.component.ComponentDto;
+import org.sonar.db.issue.IssueChangeDto;
+import org.sonar.db.issue.IssueDto;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.db.rule.RuleDto;
+import org.sonar.db.user.UserDto;
+
+import static com.google.common.base.Preconditions.checkNotNull;
+
+/**
+ * All the data required to write response of api/issues/search
+ */
+public class SearchResponseData {
+  private final List&lt;IssueDto&gt; issues;
+
+<span class="fc" id="L49">  private Long effortTotal = null;</span>
+<span class="fc" id="L50">  private final Map&lt;String, UserDto&gt; usersByUuid = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L51">  private final List&lt;RuleDto&gt; rules = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L52">  private final Map&lt;String, ComponentDto&gt; componentsByUuid = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L53">  private final ListMultimap&lt;String, IssueChangeDto&gt; commentsByIssueKey = ArrayListMultimap.create();</span>
+<span class="fc" id="L54">  private final ListMultimap&lt;String, String&gt; actionsByIssueKey = ArrayListMultimap.create();</span>
+<span class="fc" id="L55">  private final ListMultimap&lt;String, String&gt; transitionsByIssueKey = ArrayListMultimap.create();</span>
+<span class="fc" id="L56">  private final Set&lt;String&gt; updatableComments = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L57">  private final Map&lt;String, BranchDto&gt; branchesByUuid = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L58">  private final Map&lt;String, ProjectDto&gt; projectsByUuid = new HashMap&lt;&gt;();</span>
+
+<span class="fc" id="L60">  public SearchResponseData() {</span>
+<span class="fc" id="L61">    this.issues = List.of();</span>
+<span class="fc" id="L62">  }</span>
+
+<span class="fc" id="L64">  public SearchResponseData(IssueDto issue) {</span>
+<span class="fc" id="L65">    checkNotNull(issue);</span>
+<span class="fc" id="L66">    this.issues = List.of(issue);</span>
+<span class="fc" id="L67">  }</span>
+
+<span class="fc" id="L69">  public SearchResponseData(List&lt;IssueDto&gt; issues) {</span>
+<span class="fc" id="L70">    checkNotNull(issues);</span>
+<span class="fc" id="L71">    this.issues = issues;</span>
+<span class="fc" id="L72">  }</span>
+
+  public List&lt;IssueDto&gt; getIssues() {
+<span class="fc" id="L75">    return issues;</span>
+  }
+
+  public Collection&lt;ComponentDto&gt; getComponents() {
+<span class="fc" id="L79">    return componentsByUuid.values();</span>
+  }
+
+  @CheckForNull
+  ComponentDto getComponentByUuid(String uuid) {
+<span class="fc" id="L84">    return componentsByUuid.get(uuid);</span>
+  }
+
+  public Map&lt;String, ComponentDto&gt; getComponentsByUuid() {
+<span class="fc" id="L88">    return componentsByUuid;</span>
+  }
+
+  public List&lt;UserDto&gt; getUsers() {
+<span class="fc" id="L92">    return new ArrayList&lt;&gt;(usersByUuid.values());</span>
+  }
+
+  public List&lt;RuleDto&gt; getRules() {
+<span class="fc" id="L96">    return rules;</span>
+  }
+
+  @CheckForNull
+  List&lt;IssueChangeDto&gt; getCommentsForIssueKey(String issueKey) {
+<span class="fc bfc" id="L101" title="All 2 branches covered.">    if (commentsByIssueKey.containsKey(issueKey)) {</span>
+<span class="fc" id="L102">      return commentsByIssueKey.get(issueKey);</span>
+    }
+<span class="fc" id="L104">    return null;</span>
+  }
+
+  @CheckForNull
+  List&lt;String&gt; getActionsForIssueKey(String issueKey) {
+<span class="fc bfc" id="L109" title="All 2 branches covered.">    if (actionsByIssueKey.containsKey(issueKey)) {</span>
+<span class="fc" id="L110">      return actionsByIssueKey.get(issueKey);</span>
+    }
+<span class="fc" id="L112">    return null;</span>
+  }
+
+  @CheckForNull
+  List&lt;String&gt; getTransitionsForIssueKey(String issueKey) {
+<span class="fc bfc" id="L117" title="All 2 branches covered.">    if (transitionsByIssueKey.containsKey(issueKey)) {</span>
+<span class="fc" id="L118">      return transitionsByIssueKey.get(issueKey);</span>
+    }
+<span class="fc" id="L120">    return null;</span>
+  }
+
+  void addUsers(@Nullable List&lt;UserDto&gt; users) {
+<span class="pc bpc" id="L124" title="1 of 2 branches missed.">    if (users != null) {</span>
+<span class="fc" id="L125">      users.forEach(u -&gt; usersByUuid.put(u.getUuid(), u));</span>
+    }
+<span class="fc" id="L127">  }</span>
+
+  public void addRules(@Nullable List&lt;RuleDto&gt; rules) {
+<span class="pc bpc" id="L130" title="1 of 2 branches missed.">    if (rules != null) {</span>
+<span class="fc" id="L131">      this.rules.addAll(rules);</span>
+    }
+<span class="fc" id="L133">  }</span>
+
+  public void setComments(List&lt;IssueChangeDto&gt; comments) {
+<span class="fc bfc" id="L136" title="All 2 branches covered.">    for (IssueChangeDto comment : comments) {</span>
+<span class="fc" id="L137">      commentsByIssueKey.put(comment.getIssueKey(), comment);</span>
+<span class="fc" id="L138">    }</span>
+<span class="fc" id="L139">  }</span>
+
+  public void addComponents(@Nullable Collection&lt;ComponentDto&gt; dtos) {
+<span class="pc bpc" id="L142" title="1 of 2 branches missed.">    if (dtos != null) {</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">      for (ComponentDto dto : dtos) {</span>
+<span class="fc" id="L144">        componentsByUuid.put(dto.uuid(), dto);</span>
+<span class="fc" id="L145">      }</span>
+    }
+<span class="fc" id="L147">  }</span>
+
+  public void addBranches(List&lt;BranchDto&gt; branchDtos) {
+<span class="fc bfc" id="L150" title="All 2 branches covered.">    for (BranchDto branch : branchDtos) {</span>
+<span class="fc" id="L151">      branchesByUuid.put(branch.getUuid(), branch);</span>
+<span class="fc" id="L152">    }</span>
+<span class="fc" id="L153">  }</span>
+
+  public BranchDto getBranch(String branchUuid) {
+<span class="fc" id="L156">    return branchesByUuid.get(branchUuid);</span>
+  }
+
+  public void addProjects(List&lt;ProjectDto&gt; projectDtos) {
+<span class="fc bfc" id="L160" title="All 2 branches covered.">    for (ProjectDto projectDto : projectDtos) {</span>
+<span class="fc" id="L161">      projectsByUuid.put(projectDto.getUuid(), projectDto);</span>
+<span class="fc" id="L162">    }</span>
+<span class="fc" id="L163">  }</span>
+
+  public ProjectDto getProject(String projectUuid) {
+<span class="fc" id="L166">    return projectsByUuid.get(projectUuid);</span>
+  }
+
+  void addActions(String issueKey, Iterable&lt;String&gt; actions) {
+<span class="fc" id="L170">    actionsByIssueKey.putAll(issueKey, actions);</span>
+<span class="fc" id="L171">  }</span>
+
+  void addTransitions(String issueKey, List&lt;String&gt; transitions) {
+<span class="fc" id="L174">    transitionsByIssueKey.putAll(issueKey, transitions);</span>
+<span class="fc" id="L175">  }</span>
+
+  void addUpdatableComment(String commentKey) {
+<span class="fc" id="L178">    updatableComments.add(commentKey);</span>
+<span class="fc" id="L179">  }</span>
+
+  boolean isUpdatableComment(String commentKey) {
+<span class="fc" id="L182">    return updatableComments.contains(commentKey);</span>
+  }
+
+  @CheckForNull
+  Long getEffortTotal() {
+<span class="fc" id="L187">    return effortTotal;</span>
+  }
+
+  void setEffortTotal(@Nullable Long effortTotal) {
+<span class="fc" id="L191">    this.effortTotal = effortTotal;</span>
+<span class="fc" id="L192">  }</span>
+
+  @CheckForNull
+  UserDto getUserByUuid(@Nullable String userUuid) {
+<span class="fc" id="L196">    return usersByUuid.get(userUuid);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

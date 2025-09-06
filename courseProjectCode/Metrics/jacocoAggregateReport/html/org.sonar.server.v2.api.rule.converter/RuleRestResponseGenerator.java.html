@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RuleRestResponseGenerator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.v2.api.rule.converter</a> &gt; <span class="el_source">RuleRestResponseGenerator.java</span></div><h1>RuleRestResponseGenerator.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.v2.api.rule.converter;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.Set;
+import javax.annotation.CheckForNull;
+import org.jetbrains.annotations.Nullable;
+import org.sonar.api.resources.Language;
+import org.sonar.api.resources.Languages;
+import org.sonar.api.rules.CleanCodeAttribute;
+import org.sonar.core.rule.RuleType;
+import org.sonar.api.server.debt.DebtRemediationFunction;
+import org.sonar.api.server.debt.internal.DefaultDebtRemediationFunction;
+import org.sonar.api.utils.DateUtils;
+import org.sonar.db.issue.ImpactDto;
+import org.sonar.db.rule.RuleDescriptionSectionDto;
+import org.sonar.db.rule.RuleDto;
+import org.sonar.db.rule.RuleParamDto;
+import org.sonar.markdown.Markdown;
+import org.sonar.server.common.rule.service.RuleInformation;
+import org.sonar.server.common.text.MacroInterpreter;
+import org.sonar.server.rule.RuleDescriptionFormatter;
+import org.sonar.server.v2.api.rule.enums.CleanCodeAttributeCategoryRestEnum;
+import org.sonar.server.v2.api.rule.enums.CleanCodeAttributeRestEnum;
+import org.sonar.server.v2.api.rule.enums.ImpactSeverityRestEnum;
+import org.sonar.server.v2.api.rule.enums.RuleStatusRestEnum;
+import org.sonar.server.v2.api.rule.enums.RuleTypeRestEnum;
+import org.sonar.server.v2.api.rule.enums.SoftwareQualityRestEnum;
+import org.sonar.server.v2.api.rule.resource.Impact;
+import org.sonar.server.v2.api.rule.resource.Parameter;
+import org.sonar.server.v2.api.rule.response.RuleDescriptionSectionContextRestResponse;
+import org.sonar.server.v2.api.rule.response.RuleDescriptionSectionRestResponse;
+import org.sonar.server.v2.api.rule.response.RuleRestResponse;
+
+import static java.util.Optional.ofNullable;
+import static org.sonar.db.rule.RuleDto.Format.MARKDOWN;
+
+public class RuleRestResponseGenerator {
+
+  private final Languages languages;
+  private final MacroInterpreter macroInterpreter;
+  private final RuleDescriptionFormatter ruleDescriptionFormatter;
+
+<span class="fc" id="L65">  public RuleRestResponseGenerator(Languages languages, MacroInterpreter macroInterpreter, RuleDescriptionFormatter ruleDescriptionFormatter) {</span>
+
+<span class="fc" id="L67">    this.languages = languages;</span>
+<span class="fc" id="L68">    this.macroInterpreter = macroInterpreter;</span>
+<span class="fc" id="L69">    this.ruleDescriptionFormatter = ruleDescriptionFormatter;</span>
+<span class="fc" id="L70">  }</span>
+
+  public RuleRestResponse toRuleRestResponse(RuleInformation ruleInformation) {
+
+<span class="fc" id="L74">    RuleRestResponse.Builder builder = RuleRestResponse.Builder.builder();</span>
+<span class="fc" id="L75">    RuleDto ruleDto = ruleInformation.ruleDto();</span>
+<span class="fc" id="L76">    builder</span>
+<span class="fc" id="L77">      .setId(ruleDto.getUuid())</span>
+<span class="fc" id="L78">      .setKey(ruleDto.getKey().toString())</span>
+<span class="fc" id="L79">      .setRepositoryKey(ruleDto.getRepositoryKey())</span>
+<span class="fc" id="L80">      .setName(ruleDto.getName())</span>
+<span class="fc" id="L81">      .setSeverity(ruleDto.getSeverityString())</span>
+<span class="fc" id="L82">      .setType(RuleTypeRestEnum.from(RuleType.fromDbConstant(ruleDto.getType())))</span>
+<span class="fc" id="L83">      .setImpacts(toImpactRestResponse(ruleDto.getDefaultImpacts()))</span>
+<span class="fc" id="L84">      .setCleanCodeAttribute(CleanCodeAttributeRestEnum.from(ruleDto.getCleanCodeAttribute()))</span>
+<span class="fc" id="L85">      .setCleanCodeAttributeCategory(ofNullable(ruleDto.getCleanCodeAttribute())</span>
+<span class="fc" id="L86">        .map(CleanCodeAttribute::getAttributeCategory)</span>
+<span class="fc" id="L87">        .map(CleanCodeAttributeCategoryRestEnum::from)</span>
+<span class="fc" id="L88">        .orElse(null))</span>
+<span class="fc" id="L89">      .setStatus(RuleStatusRestEnum.from(ruleDto.getStatus()))</span>
+<span class="fc" id="L90">      .setExternal(ruleDto.isExternal())</span>
+<span class="fc" id="L91">      .setCreatedAt(toDateTime(ruleDto.getCreatedAt()))</span>
+<span class="fc" id="L92">      .setGapDescription(ruleDto.getGapDescription())</span>
+<span class="fc" id="L93">      .setHtmlNote(ofNullable(ruleDto.getNoteData()).map(n -&gt; macroInterpreter.interpret(Markdown.convertToHtml(n))).orElse(null))</span>
+<span class="fc" id="L94">      .setMarkdownNote(ruleDto.getNoteData())</span>
+<span class="fc" id="L95">      .setEducationPrinciples(new ArrayList&lt;&gt;(ruleDto.getEducationPrinciples()))</span>
+<span class="fc" id="L96">      .setTemplate(ruleDto.isTemplate())</span>
+<span class="fc" id="L97">      .setTemplateId(ruleDto.getTemplateUuid())</span>
+<span class="fc" id="L98">      .setTags(new ArrayList&lt;&gt;(ruleDto.getTags()))</span>
+<span class="fc" id="L99">      .setSystemTags(new ArrayList&lt;&gt;(ruleDto.getSystemTags()))</span>
+<span class="fc" id="L100">      .setLanguageKey(ruleDto.getLanguage())</span>
+<span class="fc" id="L101">      .setLanguageName(getLanguageName(ruleDto.getLanguage()))</span>
+<span class="fc" id="L102">      .setParameters(toRuleParameterResponse(ruleInformation.params()));</span>
+
+<span class="fc" id="L104">    setDescriptionFields(builder, ruleDto);</span>
+<span class="fc" id="L105">    setRemediationFunctionFields(builder, ruleDto);</span>
+
+<span class="fc bfc" id="L107" title="All 2 branches covered.">    if (ruleDto.isAdHoc()) {</span>
+<span class="fc" id="L108">      ofNullable(ruleDto.getAdHocName()).ifPresent(builder::setName);</span>
+<span class="fc" id="L109">      ofNullable(ruleDto.getAdHocDescription())</span>
+<span class="fc" id="L110">        .map(this::toDescriptionSectionResponse)</span>
+<span class="fc" id="L111">        .ifPresent(section -&gt; builder.setDescriptionSections(List.of(section)));</span>
+<span class="fc" id="L112">      ofNullable(ruleDto.getAdHocSeverity()).ifPresent(builder::setSeverity);</span>
+<span class="fc" id="L113">      ofNullable(ruleDto.getAdHocType()).ifPresent(type -&gt; builder.setType(RuleTypeRestEnum.from(RuleType.fromDbConstant(type))));</span>
+    }
+<span class="fc" id="L115">    return builder.build();</span>
+  }
+
+  private static void setRemediationFunctionFields(RuleRestResponse.Builder builder, RuleDto ruleDto) {
+<span class="fc" id="L119">    ofNullable(debtRemediationFunction(ruleDto))</span>
+<span class="fc" id="L120">      .ifPresent(function -&gt; {</span>
+<span class="fc" id="L121">        builder.setRemediationFunctionBaseEffort(function.baseEffort());</span>
+<span class="fc" id="L122">        builder.setRemediationFunctionGapMultiplier(function.gapMultiplier());</span>
+<span class="fc" id="L123">        ofNullable(function.type()).map(Enum::name).ifPresent(builder::setRemediationFunctionType);</span>
+<span class="fc" id="L124">      });</span>
+<span class="fc" id="L125">  }</span>
+
+  private static List&lt;Parameter&gt; toRuleParameterResponse(List&lt;RuleParamDto&gt; ruleParamDtos) {
+<span class="fc" id="L128">    return ruleParamDtos.stream()</span>
+<span class="fc" id="L129">      .map(p -&gt; new Parameter(p.getName(), Markdown.convertToHtml(p.getDescription()), p.getDefaultValue(), p.getType()))</span>
+<span class="fc" id="L130">      .toList();</span>
+  }
+
+  @CheckForNull
+  private String getLanguageName(@Nullable String languageKey) {
+<span class="fc bfc" id="L135" title="All 2 branches covered.">    if (languageKey == null) {</span>
+<span class="fc" id="L136">      return null;</span>
+    }
+<span class="fc" id="L138">    Language language = languages.get(languageKey);</span>
+<span class="fc bfc" id="L139" title="All 2 branches covered.">    return language == null ? languageKey : language.getName();</span>
+  }
+
+  private void setDescriptionFields(RuleRestResponse.Builder builder, RuleDto ruleDto) {
+<span class="fc" id="L143">    builder.setDescriptionSections(ruleDto.getRuleDescriptionSectionDtos().stream()</span>
+<span class="fc" id="L144">      .map(sectionDto -&gt; toDescriptionSectionResponse(ruleDto, sectionDto))</span>
+<span class="fc" id="L145">      .toList());</span>
+
+<span class="pc bpc" id="L147" title="1 of 2 branches missed.">    if (MARKDOWN.equals(ruleDto.getDescriptionFormat())) {</span>
+<span class="nc" id="L148">      Optional.ofNullable(ruleDto.getDefaultRuleDescriptionSection())</span>
+<span class="nc" id="L149">        .map(RuleDescriptionSectionDto::getContent)</span>
+<span class="nc" id="L150">        .ifPresent(builder::setMarkdownDescription);</span>
+    }
+<span class="fc" id="L152">  }</span>
+
+  private RuleDescriptionSectionRestResponse toDescriptionSectionResponse(RuleDto ruleDto, RuleDescriptionSectionDto section) {
+<span class="fc" id="L155">    String htmlContent = ruleDescriptionFormatter.toHtml(ruleDto.getDescriptionFormat(), section);</span>
+<span class="fc" id="L156">    String interpretedHtmlContent = macroInterpreter.interpret(htmlContent);</span>
+<span class="fc" id="L157">    return new RuleDescriptionSectionRestResponse(section.getKey(), interpretedHtmlContent,</span>
+<span class="fc" id="L158">      ofNullable(section.getContext())</span>
+<span class="pc" id="L159">        .map(c -&gt; new RuleDescriptionSectionContextRestResponse(c.getKey(), c.getDisplayName()))</span>
+<span class="fc" id="L160">        .orElse(null));</span>
+  }
+
+  private RuleDescriptionSectionRestResponse toDescriptionSectionResponse(String description) {
+<span class="fc" id="L164">    return new RuleDescriptionSectionRestResponse(RuleDescriptionSectionDto.DEFAULT_KEY, macroInterpreter.interpret(description), null);</span>
+  }
+
+  private static List&lt;Impact&gt; toImpactRestResponse(Set&lt;ImpactDto&gt; defaultImpacts) {
+<span class="fc" id="L168">    return defaultImpacts.stream()</span>
+<span class="fc" id="L169">      .map(i -&gt; new Impact(SoftwareQualityRestEnum.from(i.getSoftwareQuality()), ImpactSeverityRestEnum.from(i.getSeverity())))</span>
+<span class="fc" id="L170">      .toList();</span>
+  }
+
+  @CheckForNull
+  private static DebtRemediationFunction defaultDebtRemediationFunction(final RuleDto ruleDto) {
+<span class="fc" id="L175">    final String function = ruleDto.getDefRemediationFunction();</span>
+<span class="pc bpc" id="L176" title="3 of 4 branches missed.">    if (function == null || function.isEmpty()) {</span>
+<span class="fc" id="L177">      return null;</span>
+    } else {
+<span class="nc" id="L179">      return new DefaultDebtRemediationFunction(</span>
+<span class="nc" id="L180">        DebtRemediationFunction.Type.valueOf(function.toUpperCase(Locale.ENGLISH)),</span>
+<span class="nc" id="L181">        ruleDto.getDefRemediationGapMultiplier(),</span>
+<span class="nc" id="L182">        ruleDto.getDefRemediationBaseEffort());</span>
+    }
+  }
+
+  @CheckForNull
+  private static DebtRemediationFunction debtRemediationFunction(RuleDto ruleDto) {
+<span class="fc" id="L188">    final String function = ruleDto.getRemediationFunction();</span>
+<span class="pc bpc" id="L189" title="1 of 4 branches missed.">    if (function == null || function.isEmpty()) {</span>
+<span class="fc" id="L190">      return defaultDebtRemediationFunction(ruleDto);</span>
+    } else {
+<span class="fc" id="L192">      return new DefaultDebtRemediationFunction(</span>
+<span class="fc" id="L193">        DebtRemediationFunction.Type.valueOf(function.toUpperCase(Locale.ENGLISH)),</span>
+<span class="fc" id="L194">        ruleDto.getRemediationGapMultiplier(),</span>
+<span class="fc" id="L195">        ruleDto.getRemediationBaseEffort());</span>
+    }
+  }
+
+  private static String toDateTime(@Nullable Long dateTimeMs) {
+<span class="fc" id="L200">    return Optional.ofNullable(dateTimeMs).map(DateUtils::formatDateTime).orElse(null);</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

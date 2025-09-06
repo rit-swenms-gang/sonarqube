@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SubmitAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.ce.ws</a> &gt; <span class="el_source">SubmitAction.java</span></div><h1>SubmitAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.ce.ws;
+
+import java.io.BufferedInputStream;
+import java.io.InputStream;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.ce.task.CeTask;
+import org.sonar.db.ce.CeTaskCharacteristicDto;
+import org.sonar.server.ce.queue.ReportSubmitter;
+import org.sonar.server.exceptions.ServerException;
+import org.sonar.server.ws.WsUtils;
+import org.sonarqube.ws.Ce;
+
+import static java.net.HttpURLConnection.HTTP_INTERNAL_ERROR;
+import static org.apache.commons.lang3.StringUtils.abbreviate;
+import static org.apache.commons.lang3.StringUtils.defaultIfBlank;
+import static org.sonar.core.component.ComponentKeys.MAX_COMPONENT_KEY_LENGTH;
+import static org.sonar.db.component.ComponentValidator.MAX_COMPONENT_NAME_LENGTH;
+import static org.sonar.server.exceptions.BadRequestException.checkRequest;
+
+public class SubmitAction implements CeWsAction {
+
+<span class="fc" id="L48">  private static final Logger LOGGER = LoggerFactory.getLogger(SubmitAction.class);</span>
+
+  private static final String PARAM_PROJECT_KEY = &quot;projectKey&quot;;
+  private static final String PARAM_PROJECT_NAME = &quot;projectName&quot;;
+  private static final String PARAM_REPORT_DATA = &quot;report&quot;;
+  private static final String PARAM_ANALYSIS_CHARACTERISTIC = &quot;characteristic&quot;;
+
+  private final ReportSubmitter reportSubmitter;
+
+<span class="fc" id="L57">  public SubmitAction(ReportSubmitter reportSubmitter) {</span>
+<span class="fc" id="L58">    this.reportSubmitter = reportSubmitter;</span>
+<span class="fc" id="L59">  }</span>
+
+  @Override
+  public void define(WebService.NewController controller) {
+<span class="fc" id="L63">    WebService.NewAction action = controller.createAction(&quot;submit&quot;)</span>
+<span class="fc" id="L64">      .setDescription(&quot;Submits a scanner report to the queue. Report is processed asynchronously. Requires analysis permission. &quot; +</span>
+        &quot;If the project does not exist, then the provisioning permission is also required.&quot;)
+<span class="fc" id="L66">      .setPost(true)</span>
+<span class="fc" id="L67">      .setInternal(true)</span>
+<span class="fc" id="L68">      .setSince(&quot;5.2&quot;)</span>
+<span class="fc" id="L69">      .setHandler(this)</span>
+<span class="fc" id="L70">      .setResponseExample(getClass().getResource(&quot;submit-example.json&quot;));</span>
+
+<span class="fc" id="L72">    action</span>
+<span class="fc" id="L73">      .createParam(PARAM_PROJECT_KEY)</span>
+<span class="fc" id="L74">      .setRequired(true)</span>
+<span class="fc" id="L75">      .setMaximumLength(MAX_COMPONENT_KEY_LENGTH)</span>
+<span class="fc" id="L76">      .setDescription(&quot;Key of project&quot;)</span>
+<span class="fc" id="L77">      .setExampleValue(&quot;my_project&quot;);</span>
+
+<span class="fc" id="L79">    action</span>
+<span class="fc" id="L80">      .createParam(PARAM_PROJECT_NAME)</span>
+<span class="fc" id="L81">      .setRequired(false)</span>
+<span class="fc" id="L82">      .setDescription(&quot;Optional name of the project, used only if the project does not exist yet. If name is longer than %d, it is abbreviated.&quot;, MAX_COMPONENT_NAME_LENGTH)</span>
+<span class="fc" id="L83">      .setExampleValue(&quot;My Project&quot;);</span>
+
+<span class="fc" id="L85">    action</span>
+<span class="fc" id="L86">      .createParam(PARAM_REPORT_DATA)</span>
+<span class="fc" id="L87">      .setRequired(true)</span>
+<span class="fc" id="L88">      .setDescription(&quot;Report file. Format is not an API, it changes among SonarQube versions.&quot;);</span>
+
+<span class="fc" id="L90">    action</span>
+<span class="fc" id="L91">      .createParam(PARAM_ANALYSIS_CHARACTERISTIC)</span>
+<span class="fc" id="L92">      .setRequired(false)</span>
+<span class="fc" id="L93">      .setDescription(&quot;Optional characteristic of the analysis. Can be repeated to define multiple characteristics.&quot;)</span>
+<span class="fc" id="L94">      .setExampleValue(&quot;branchType=long&quot;)</span>
+<span class="fc" id="L95">      .setSince(&quot;6.6&quot;);</span>
+<span class="fc" id="L96">  }</span>
+
+  @Override
+  public void handle(Request wsRequest, Response wsResponse) throws Exception {
+<span class="fc" id="L100">    String projectKey = wsRequest.mandatoryParam(PARAM_PROJECT_KEY);</span>
+<span class="fc" id="L101">    String projectName = abbreviate(defaultIfBlank(wsRequest.param(PARAM_PROJECT_NAME), projectKey), MAX_COMPONENT_NAME_LENGTH);</span>
+
+<span class="fc" id="L103">    Map&lt;String, String&gt; characteristics = parseTaskCharacteristics(wsRequest);</span>
+
+<span class="fc" id="L105">    try (InputStream report = new BufferedInputStream(wsRequest.mandatoryParamAsPart(PARAM_REPORT_DATA).getInputStream())) {</span>
+<span class="fc" id="L106">      CeTask task = reportSubmitter.submit(projectKey, projectName, characteristics, report);</span>
+<span class="fc" id="L107">      Ce.SubmitResponse submitResponse = Ce.SubmitResponse.newBuilder()</span>
+<span class="fc" id="L108">        .setTaskId(task.getUuid())</span>
+<span class="fc" id="L109">        .setProjectId(task.getComponent().get().getUuid())</span>
+<span class="fc" id="L110">        .build();</span>
+<span class="fc" id="L111">      WsUtils.writeProtobuf(submitResponse, wsRequest, wsResponse);</span>
+<span class="fc" id="L112">    } catch (IllegalStateException e) {</span>
+<span class="fc" id="L113">      LOGGER.debug(e.getMessage(), e);</span>
+<span class="fc" id="L114">      throw new ServerException(HTTP_INTERNAL_ERROR, e.getMessage());</span>
+<span class="fc" id="L115">    }</span>
+<span class="fc" id="L116">  }</span>
+
+  private static Map&lt;String, String&gt; parseTaskCharacteristics(Request wsRequest) {
+<span class="fc" id="L119">    Map&lt;String, String&gt; characteristics = new LinkedHashMap&lt;&gt;();</span>
+
+<span class="fc bfc" id="L121" title="All 2 branches covered.">    for (String param : wsRequest.multiParam(PARAM_ANALYSIS_CHARACTERISTIC)) {</span>
+<span class="fc" id="L122">      String[] pair = StringUtils.split(param, &quot;=&quot;, 2);</span>
+<span class="pc bpc" id="L123" title="1 of 2 branches missed.">      checkRequest(pair.length == 2, &quot;Parameter '%s' must be a key-value pair with the format 'key=value'.&quot;, PARAM_ANALYSIS_CHARACTERISTIC);</span>
+<span class="pc bpc" id="L124" title="1 of 2 branches missed.">      checkRequest(!characteristics.containsKey(pair[0]), &quot;Key '%s' was provided twice with parameters '%s'&quot;, pair[0], PARAM_ANALYSIS_CHARACTERISTIC);</span>
+<span class="fc bfc" id="L125" title="All 2 branches covered.">      if (CeTaskCharacteristicDto.SUPPORTED_KEYS.contains(pair[0])) {</span>
+<span class="fc" id="L126">        characteristics.put(pair[0], pair[1]);</span>
+      }
+<span class="fc" id="L128">    }</span>
+<span class="fc" id="L129">    return characteristics;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

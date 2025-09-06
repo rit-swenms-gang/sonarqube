@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>QualityGateCaycChecker.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.qualitygate</a> &gt; <span class="el_source">QualityGateCaycChecker.java</span></div><h1>QualityGateCaycChecker.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.qualitygate;
+
+import java.io.Serializable;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.sonar.api.measures.Metric;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.metric.MetricDto;
+import org.sonar.db.qualitygate.QualityGateConditionDto;
+
+import static java.util.stream.Collectors.toMap;
+import static org.sonar.api.measures.CoreMetrics.NEW_COVERAGE;
+import static org.sonar.api.measures.CoreMetrics.NEW_COVERAGE_KEY;
+import static org.sonar.api.measures.CoreMetrics.NEW_DUPLICATED_LINES_DENSITY;
+import static org.sonar.api.measures.CoreMetrics.NEW_DUPLICATED_LINES_DENSITY_KEY;
+import static org.sonar.api.measures.CoreMetrics.NEW_MAINTAINABILITY_RATING;
+import static org.sonar.api.measures.CoreMetrics.NEW_RELIABILITY_RATING;
+import static org.sonar.api.measures.CoreMetrics.NEW_SECURITY_HOTSPOTS_REVIEWED;
+import static org.sonar.api.measures.CoreMetrics.NEW_SECURITY_RATING;
+import static org.sonar.api.measures.CoreMetrics.NEW_VIOLATIONS;
+import static org.sonar.server.qualitygate.QualityGateCaycStatus.COMPLIANT;
+import static org.sonar.server.qualitygate.QualityGateCaycStatus.NON_COMPLIANT;
+import static org.sonar.server.qualitygate.QualityGateCaycStatus.OVER_COMPLIANT;
+
+public class QualityGateCaycChecker {
+
+<span class="fc" id="L53">  static final Map&lt;String, Double&gt; BEST_VALUE_REQUIREMENTS = Stream.of(</span>
+    NEW_VIOLATIONS,
+<span class="fc" id="L55">    NEW_SECURITY_HOTSPOTS_REVIEWED).collect(toMap(Metric::getKey, Metric::getBestValue));</span>
+
+<span class="fc" id="L57">  static final Set&lt;String&gt; EXISTENCY_REQUIREMENTS = Set.of(</span>
+    NEW_DUPLICATED_LINES_DENSITY_KEY,
+    NEW_COVERAGE_KEY);
+<span class="fc" id="L60">  public static final Set&lt;Metric&lt;? extends Serializable&gt;&gt; CAYC_METRICS = Set.of(</span>
+    NEW_VIOLATIONS,
+    NEW_SECURITY_HOTSPOTS_REVIEWED,
+    NEW_DUPLICATED_LINES_DENSITY,
+    NEW_COVERAGE);
+
+  // To be removed after transition
+<span class="fc" id="L67">  static final Map&lt;String, Double&gt; LEGACY_BEST_VALUE_REQUIREMENTS = Stream.of(</span>
+    NEW_MAINTAINABILITY_RATING,
+    NEW_RELIABILITY_RATING,
+    NEW_SECURITY_HOTSPOTS_REVIEWED,
+<span class="fc" id="L71">    NEW_SECURITY_RATING).collect(toMap(Metric::getKey, Metric::getBestValue));</span>
+<span class="fc" id="L72">  static final Set&lt;Metric&lt;? extends Serializable&gt;&gt; LEGACY_CAYC_METRICS = Set.of(</span>
+    NEW_MAINTAINABILITY_RATING,
+    NEW_RELIABILITY_RATING,
+    NEW_SECURITY_HOTSPOTS_REVIEWED,
+    NEW_SECURITY_RATING,
+    NEW_DUPLICATED_LINES_DENSITY,
+    NEW_COVERAGE);
+
+  private final DbClient dbClient;
+
+<span class="fc" id="L82">  public QualityGateCaycChecker(DbClient dbClient) {</span>
+<span class="fc" id="L83">    this.dbClient = dbClient;</span>
+<span class="fc" id="L84">  }</span>
+
+  public QualityGateCaycStatus checkCaycCompliant(DbSession dbSession, String qualityGateUuid) {
+<span class="fc" id="L87">    Collection&lt;QualityGateConditionDto&gt; conditions = dbClient.gateConditionDao().selectForQualityGate(dbSession, qualityGateUuid);</span>
+<span class="fc" id="L88">    var metrics = dbClient.metricDao().selectByUuids(dbSession, conditions.stream().map(QualityGateConditionDto::getMetricUuid).collect(Collectors.toSet()))</span>
+<span class="fc" id="L89">      .stream()</span>
+<span class="fc" id="L90">      .filter(MetricDto::isEnabled)</span>
+<span class="fc" id="L91">      .toList();</span>
+
+<span class="fc" id="L93">    return checkCaycCompliant(conditions, metrics);</span>
+  }
+
+  public QualityGateCaycStatus checkCaycCompliant(Collection&lt;QualityGateConditionDto&gt; conditions, List&lt;MetricDto&gt; metrics) {
+<span class="fc" id="L97">    var conditionsByMetricId = conditions</span>
+<span class="fc" id="L98">      .stream()</span>
+<span class="fc" id="L99">      .collect(Collectors.toMap(QualityGateConditionDto::getMetricUuid, Function.identity(), (existing, replacement) -&gt; existing));</span>
+
+<span class="fc bfc" id="L101" title="All 2 branches covered.">    if (conditionsByMetricId.size() &lt; CAYC_METRICS.size()) {</span>
+<span class="fc" id="L102">      return NON_COMPLIANT;</span>
+    }
+
+<span class="fc" id="L105">    var caycStatus = checkCaycConditions(metrics, conditionsByMetricId, false);</span>
+<span class="fc bfc" id="L106" title="All 2 branches covered.">    if (caycStatus == NON_COMPLIANT) {</span>
+<span class="fc" id="L107">      caycStatus = checkCaycConditions(metrics, conditionsByMetricId, true);</span>
+    }
+<span class="fc" id="L109">    return caycStatus;</span>
+  }
+
+  private static QualityGateCaycStatus checkCaycConditions(List&lt;MetricDto&gt; metrics, Map&lt;String, QualityGateConditionDto&gt; conditionsByMetricId, boolean legacy) {
+<span class="fc bfc" id="L113" title="All 2 branches covered.">    var caycMetrics = legacy ? LEGACY_CAYC_METRICS : CAYC_METRICS;</span>
+
+<span class="fc" id="L115">    long count = metrics.stream()</span>
+<span class="fc" id="L116">      .filter(metric -&gt; checkMetricCaycCompliant(conditionsByMetricId.get(metric.getUuid()), metric, legacy))</span>
+<span class="fc" id="L117">      .count();</span>
+<span class="pc bpc" id="L118" title="1 of 4 branches missed.">    if (metrics.size() == count &amp;&amp; count == caycMetrics.size()) {</span>
+<span class="fc" id="L119">      return COMPLIANT;</span>
+<span class="pc bpc" id="L120" title="1 of 4 branches missed.">    } else if (metrics.size() &gt; count &amp;&amp; count == caycMetrics.size()) {</span>
+<span class="fc" id="L121">      return OVER_COMPLIANT;</span>
+    }
+<span class="fc" id="L123">    return NON_COMPLIANT;</span>
+  }
+
+  public QualityGateCaycStatus checkCaycCompliantFromProject(DbSession dbSession, String projectUuid) {
+<span class="nc" id="L127">    return Optional.ofNullable(dbClient.qualityGateDao().selectByProjectUuid(dbSession, projectUuid))</span>
+<span class="nc" id="L128">      .or(() -&gt; Optional.ofNullable(dbClient.qualityGateDao().selectDefault(dbSession)))</span>
+<span class="nc" id="L129">      .map(qualityGate -&gt; checkCaycCompliant(dbSession, qualityGate.getUuid()))</span>
+<span class="nc" id="L130">      .orElse(NON_COMPLIANT);</span>
+  }
+
+  public boolean isCaycCondition(MetricDto metric) {
+<span class="fc" id="L134">    return Stream.concat(CAYC_METRICS.stream(), LEGACY_CAYC_METRICS.stream())</span>
+<span class="fc" id="L135">      .map(Metric::getKey).anyMatch(metric.getKey()::equals);</span>
+  }
+
+  private static boolean checkMetricCaycCompliant(QualityGateConditionDto condition, MetricDto metric, boolean legacy) {
+<span class="fc bfc" id="L139" title="All 2 branches covered.">    var bestValueRequirements = legacy ? LEGACY_BEST_VALUE_REQUIREMENTS : BEST_VALUE_REQUIREMENTS;</span>
+<span class="fc bfc" id="L140" title="All 2 branches covered.">    if (EXISTENCY_REQUIREMENTS.contains(metric.getKey())) {</span>
+<span class="fc" id="L141">      return true;</span>
+<span class="fc bfc" id="L142" title="All 2 branches covered.">    } else if (bestValueRequirements.containsKey(metric.getKey())) {</span>
+<span class="fc" id="L143">      Double errorThreshold = Double.valueOf(condition.getErrorThreshold());</span>
+<span class="fc" id="L144">      Double caycRequiredThreshold = bestValueRequirements.get(metric.getKey());</span>
+<span class="fc bfc" id="L145" title="All 2 branches covered.">      return caycRequiredThreshold.compareTo(errorThreshold) == 0;</span>
+    } else {
+<span class="fc" id="L147">      return false;</span>
+    }
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

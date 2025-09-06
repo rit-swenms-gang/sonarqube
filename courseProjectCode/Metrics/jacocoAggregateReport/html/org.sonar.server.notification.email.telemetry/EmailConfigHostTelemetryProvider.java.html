@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EmailConfigHostTelemetryProvider.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.notification.email.telemetry</a> &gt; <span class="el_source">EmailConfigHostTelemetryProvider.java</span></div><h1>EmailConfigHostTelemetryProvider.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.notification.email.telemetry;
+
+import com.google.common.net.InternetDomainName;
+import java.util.Optional;
+import org.apache.commons.lang3.StringUtils;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.telemetry.core.AbstractTelemetryDataProvider;
+import org.sonar.telemetry.core.Dimension;
+import org.sonar.telemetry.core.Granularity;
+import org.sonar.telemetry.core.TelemetryDataType;
+
+import static org.sonar.server.email.EmailSmtpConfiguration.EMAIL_CONFIG_SMTP_HOST;
+
+public class EmailConfigHostTelemetryProvider extends AbstractTelemetryDataProvider&lt;String&gt; {
+  private final DbClient dbClient;
+
+  public EmailConfigHostTelemetryProvider(DbClient dbClient) {
+<span class="fc" id="L38">    super(&quot;email_conf_host&quot;, Dimension.INSTALLATION, Granularity.WEEKLY, TelemetryDataType.STRING);</span>
+<span class="fc" id="L39">    this.dbClient = dbClient;</span>
+<span class="fc" id="L40">  }</span>
+
+  @Override
+  public Optional&lt;String&gt; getValue() {
+<span class="fc" id="L44">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L45">      return Optional.of(dbClient.internalPropertiesDao()</span>
+<span class="fc" id="L46">        .selectByKey(dbSession, EMAIL_CONFIG_SMTP_HOST)</span>
+<span class="fc" id="L47">        .map(EmailConfigHostTelemetryProvider::extractDomain)</span>
+<span class="fc" id="L48">        .orElse(&quot;NOT_SET&quot;));</span>
+    }
+  }
+
+  private static String extractDomain(String host) {
+<span class="fc bfc" id="L53" title="All 2 branches covered.">    if (StringUtils.isEmpty(host)) {</span>
+<span class="fc" id="L54">      return &quot;EMPTY_DOMAIN&quot;;</span>
+    }
+    try {
+<span class="fc bfc" id="L57" title="All 2 branches covered.">      host = host.contains(&quot;://&quot;) ? StringUtils.substringBefore(StringUtils.substringAfter(host, &quot;://&quot;), &quot;/&quot;) : StringUtils.substringBefore(host, &quot;/&quot;);</span>
+<span class="fc" id="L58">      return InternetDomainName.from(host).topPrivateDomain().toString();</span>
+<span class="fc" id="L59">    } catch (RuntimeException e) {</span>
+<span class="pc bpc" id="L60" title="1 of 3 branches missed.">      return switch (StringUtils.substringBefore(e.getMessage(), &quot;:&quot;)) {</span>
+<span class="fc" id="L61">        case &quot;Not a valid domain name&quot; -&gt; &quot;NOT_VALID_DOMAIN_NAME&quot;;</span>
+<span class="fc" id="L62">        case &quot;Not under a public suffix&quot; -&gt; &quot;DOMAIN_NOT_UNDER_PUBLIC_SUFFIX&quot;;</span>
+<span class="nc" id="L63">        default -&gt; &quot;NOT_VALID_DOMAIN&quot;;</span>
+      };
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

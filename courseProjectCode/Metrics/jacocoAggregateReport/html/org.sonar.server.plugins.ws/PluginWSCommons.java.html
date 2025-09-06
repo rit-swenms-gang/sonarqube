@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PluginWSCommons.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.plugins.ws</a> &gt; <span class="el_source">PluginWSCommons.java</span></div><h1>PluginWSCommons.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.plugins.ws;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Ordering;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Optional;
+import javax.annotation.Nullable;
+import org.sonar.core.platform.PluginInfo;
+import org.sonar.db.plugin.PluginDto;
+import org.sonar.server.plugins.ServerPlugin;
+import org.sonar.server.plugins.UpdateCenterMatrixFactory;
+import org.sonar.updatecenter.common.Artifact;
+import org.sonar.updatecenter.common.Plugin;
+import org.sonar.updatecenter.common.PluginUpdate;
+import org.sonar.updatecenter.common.UpdateCenter;
+import org.sonarqube.ws.Plugins.PluginDetails;
+import org.sonarqube.ws.Plugins.Release;
+import org.sonarqube.ws.Plugins.Require;
+import org.sonarqube.ws.Plugins.UpdateStatus;
+
+import static java.lang.String.CASE_INSENSITIVE_ORDER;
+import static java.util.Optional.ofNullable;
+import static org.apache.commons.lang3.StringUtils.isNotBlank;
+import static org.sonar.api.utils.DateUtils.formatDate;
+import static org.sonar.server.plugins.edition.EditionBundledPlugins.isEditionBundled;
+import static org.sonarqube.ws.Plugins.UpdateStatus.COMPATIBLE;
+import static org.sonarqube.ws.Plugins.UpdateStatus.DEPS_REQUIRE_SYSTEM_UPGRADE;
+import static org.sonarqube.ws.Plugins.UpdateStatus.INCOMPATIBLE;
+import static org.sonarqube.ws.Plugins.UpdateStatus.REQUIRES_SYSTEM_UPGRADE;
+
+public class PluginWSCommons {
+
+<span class="fc" id="L55">  public static final Ordering&lt;PluginInfo&gt; NAME_KEY_PLUGIN_METADATA_COMPARATOR = Ordering.natural()</span>
+<span class="fc" id="L56">    .onResultOf(PluginInfo::getName)</span>
+<span class="fc" id="L57">    .compound(Ordering.natural().onResultOf(PluginInfo::getKey));</span>
+<span class="fc" id="L58">  public static final Comparator&lt;ServerPlugin&gt; NAME_KEY_COMPARATOR = Comparator</span>
+<span class="fc" id="L59">    .comparing((java.util.function.Function&lt;ServerPlugin, String&gt;) installedPluginFile -&gt; installedPluginFile.getPluginInfo().getName())</span>
+<span class="fc" id="L60">    .thenComparing(f -&gt; f.getPluginInfo().getKey());</span>
+<span class="fc" id="L61">  public static final Comparator&lt;Plugin&gt; NAME_KEY_PLUGIN_ORDERING = Ordering.from(CASE_INSENSITIVE_ORDER)</span>
+<span class="fc" id="L62">    .onResultOf(Plugin::getName)</span>
+<span class="fc" id="L63">    .compound(</span>
+<span class="fc" id="L64">      Ordering.from(CASE_INSENSITIVE_ORDER).onResultOf(Artifact::getKey));</span>
+<span class="fc" id="L65">  public static final Comparator&lt;PluginUpdate&gt; NAME_KEY_PLUGIN_UPDATE_ORDERING = Ordering.from(NAME_KEY_PLUGIN_ORDERING)</span>
+<span class="fc" id="L66">    .onResultOf(PluginUpdate::getPlugin);</span>
+
+  private PluginWSCommons() {
+    // prevent instantiation
+  }
+
+  public static PluginDetails buildPluginDetails(@Nullable ServerPlugin installedPlugin, PluginInfo pluginInfo,
+    @Nullable PluginDto pluginDto, @Nullable Plugin updateCenterPlugin) {
+<span class="fc" id="L74">    PluginDetails.Builder builder = PluginDetails.newBuilder()</span>
+<span class="fc" id="L75">      .setKey(pluginInfo.getKey())</span>
+<span class="fc" id="L76">      .setName(pluginInfo.getName())</span>
+<span class="fc" id="L77">      .setEditionBundled(isEditionBundled(pluginInfo))</span>
+<span class="fc" id="L78">      .setSonarLintSupported(pluginInfo.isSonarLintSupported());</span>
+
+<span class="fc" id="L80">    ofNullable(installedPlugin).ifPresent(serverPlugin -&gt; {</span>
+<span class="fc" id="L81">      builder.setFilename(installedPlugin.getJar().getFile().getName());</span>
+<span class="fc" id="L82">      builder.setHash(installedPlugin.getJar().getMd5());</span>
+<span class="fc" id="L83">      builder.setType(installedPlugin.getType().name());</span>
+<span class="fc" id="L84">    });</span>
+
+<span class="pc bpc" id="L86" title="1 of 2 branches missed.">    ofNullable(pluginInfo.getVersion()).ifPresent(v -&gt; builder.setVersion(isNotBlank(pluginInfo.getDisplayVersion()) ? pluginInfo.getDisplayVersion() : v.getName()));</span>
+<span class="fc" id="L87">    ofNullable(updateCenterPlugin).flatMap(p -&gt; ofNullable(p.getCategory())).ifPresent(builder::setCategory);</span>
+<span class="fc" id="L88">    ofNullable(pluginDto).ifPresent(p -&gt; builder.setUpdatedAt(p.getUpdatedAt()));</span>
+<span class="fc" id="L89">    ofNullable(pluginInfo.getDescription()).ifPresent(builder::setDescription);</span>
+<span class="fc" id="L90">    ofNullable(pluginInfo.getLicense()).ifPresent(builder::setLicense);</span>
+<span class="fc" id="L91">    ofNullable(pluginInfo.getOrganizationName()).ifPresent(builder::setOrganizationName);</span>
+<span class="fc" id="L92">    ofNullable(pluginInfo.getOrganizationUrl()).ifPresent(builder::setOrganizationUrl);</span>
+<span class="fc" id="L93">    ofNullable(pluginInfo.getHomepageUrl()).ifPresent(builder::setHomepageUrl);</span>
+<span class="fc" id="L94">    ofNullable(pluginInfo.getIssueTrackerUrl()).ifPresent(builder::setIssueTrackerUrl);</span>
+<span class="fc" id="L95">    ofNullable(pluginInfo.getImplementationBuild()).ifPresent(builder::setImplementationBuild);</span>
+<span class="fc" id="L96">    ofNullable(pluginInfo.getDocumentationPath()).ifPresent(builder::setDocumentationPath);</span>
+<span class="fc" id="L97">    builder.addAllRequiredForLanguages(pluginInfo.getRequiredForLanguages());</span>
+
+<span class="fc" id="L99">    return builder.build();</span>
+  }
+
+  static Release buildRelease(org.sonar.updatecenter.common.Release release) {
+<span class="pc bpc" id="L103" title="1 of 2 branches missed.">    String version = isNotBlank(release.getDisplayVersion()) ? release.getDisplayVersion() : release.getVersion().toString();</span>
+<span class="fc" id="L104">    Release.Builder releaseBuilder = Release.newBuilder().setVersion(version);</span>
+<span class="fc" id="L105">    ofNullable(release.getDate()).ifPresent(date -&gt; releaseBuilder.setDate(formatDate(date)));</span>
+<span class="fc" id="L106">    ofNullable(release.getChangelogUrl()).ifPresent(releaseBuilder::setChangeLogUrl);</span>
+<span class="fc" id="L107">    ofNullable(release.getDescription()).ifPresent(releaseBuilder::setDescription);</span>
+<span class="fc" id="L108">    return releaseBuilder.build();</span>
+  }
+
+  static List&lt;Require&gt; buildRequires(PluginUpdate pluginUpdate) {
+<span class="fc" id="L112">    return pluginUpdate.getRelease().getOutgoingDependencies().stream().map(</span>
+        org.sonar.updatecenter.common.Release::getArtifact)
+<span class="fc" id="L114">      .filter(Plugin.class::isInstance)</span>
+<span class="fc" id="L115">      .map(Plugin.class::cast)</span>
+<span class="fc" id="L116">      .map(artifact -&gt; {</span>
+<span class="fc" id="L117">        Require.Builder builder = Require.newBuilder()</span>
+<span class="fc" id="L118">          .setKey(artifact.getKey());</span>
+<span class="fc" id="L119">        ofNullable(artifact.getName()).ifPresent(builder::setName);</span>
+<span class="fc" id="L120">        ofNullable(artifact.getDescription()).ifPresent(builder::setDescription);</span>
+<span class="fc" id="L121">        return builder.build();</span>
+      })
+<span class="fc" id="L123">      .toList();</span>
+  }
+
+  static UpdateStatus convertUpdateCenterStatus(PluginUpdate.Status status) {
+<span class="pc bpc" id="L127" title="1 of 5 branches missed.">    switch (status) {</span>
+      case COMPATIBLE:
+<span class="fc" id="L129">        return COMPATIBLE;</span>
+      case INCOMPATIBLE:
+<span class="fc" id="L131">        return INCOMPATIBLE;</span>
+      case REQUIRE_SONAR_UPGRADE:
+<span class="fc" id="L133">        return REQUIRES_SYSTEM_UPGRADE;</span>
+      case DEPENDENCIES_REQUIRE_SONAR_UPGRADE:
+<span class="fc" id="L135">        return DEPS_REQUIRE_SYSTEM_UPGRADE;</span>
+      default:
+<span class="nc" id="L137">        throw new IllegalArgumentException(&quot;Unsupported value of PluginUpdate.Status &quot; + status);</span>
+    }
+  }
+
+  private static List&lt;Plugin&gt; compatiblePlugins(UpdateCenterMatrixFactory updateCenterMatrixFactory) {
+<span class="fc" id="L142">    Optional&lt;UpdateCenter&gt; updateCenter = updateCenterMatrixFactory.getUpdateCenter(false);</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">    return updateCenter.isPresent() ? updateCenter.get().findAllCompatiblePlugins() : Collections.emptyList();</span>
+  }
+
+  static ImmutableMap&lt;String, Plugin&gt; compatiblePluginsByKey(UpdateCenterMatrixFactory updateCenterMatrixFactory) {
+<span class="fc" id="L147">    List&lt;Plugin&gt; compatiblePlugins = compatiblePlugins(updateCenterMatrixFactory);</span>
+<span class="fc" id="L148">    return Maps.uniqueIndex(compatiblePlugins, Artifact::getKey);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

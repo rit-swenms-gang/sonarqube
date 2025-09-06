@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WebhookPayloadFactoryImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.webhook</a> &gt; <span class="el_source">WebhookPayloadFactoryImpl.java</span></div><h1>WebhookPayloadFactoryImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.webhook;
+
+import java.io.StringWriter;
+import java.io.UnsupportedEncodingException;
+import java.io.Writer;
+import java.net.URLEncoder;
+import java.util.Date;
+import java.util.Map;
+import java.util.Optional;
+import org.sonar.api.ce.ComputeEngineSide;
+import org.sonar.api.platform.Server;
+import org.sonar.api.server.ServerSide;
+import org.sonar.api.utils.System2;
+import org.sonar.api.utils.text.JsonWriter;
+import org.sonar.server.qualitygate.Condition;
+import org.sonar.server.qualitygate.EvaluatedCondition;
+import org.sonar.server.qualitygate.EvaluatedQualityGate;
+
+import static java.lang.String.format;
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.sonar.core.config.CorePropertyDefinitions.SONAR_ANALYSIS;
+
+@ServerSide
+@ComputeEngineSide
+public class WebhookPayloadFactoryImpl implements WebhookPayloadFactory {
+
+  private static final String PROPERTY_STATUS = &quot;status&quot;;
+  private final Server server;
+  private final System2 system2;
+
+<span class="fc" id="L50">  public WebhookPayloadFactoryImpl(Server server, System2 system2) {</span>
+<span class="fc" id="L51">    this.server = server;</span>
+<span class="fc" id="L52">    this.system2 = system2;</span>
+<span class="fc" id="L53">  }</span>
+
+  @Override
+  public WebhookPayload create(ProjectAnalysis analysis) {
+<span class="fc" id="L57">    Writer string = new StringWriter();</span>
+<span class="fc" id="L58">    try (JsonWriter writer = JsonWriter.of(string)) {</span>
+<span class="fc" id="L59">      writer.beginObject();</span>
+<span class="fc" id="L60">      writeServer(writer);</span>
+<span class="fc" id="L61">      writeTask(writer, analysis.getCeTask());</span>
+<span class="fc" id="L62">      writeAnalysis(writer, analysis, system2);</span>
+<span class="fc" id="L63">      writeProject(analysis, writer, analysis.getProject());</span>
+<span class="fc" id="L64">      analysis.getBranch().ifPresent(b -&gt; writeBranch(writer, analysis.getProject(), b));</span>
+<span class="fc" id="L65">      analysis.getQualityGate().ifPresent(qualityGate -&gt; writeQualityGate(writer, qualityGate));</span>
+<span class="fc" id="L66">      writeAnalysisProperties(writer, analysis.getProperties());</span>
+<span class="fc" id="L67">      writer.endObject().close();</span>
+<span class="fc" id="L68">      return new WebhookPayload(analysis.getProject().getKey(), string.toString());</span>
+    }
+  }
+
+  private void writeServer(JsonWriter writer) {
+<span class="fc" id="L73">    writer.prop(&quot;serverUrl&quot;, server.getPublicRootUrl());</span>
+<span class="fc" id="L74">  }</span>
+
+  private static void writeAnalysis(JsonWriter writer, ProjectAnalysis analysis, System2 system2) {
+<span class="fc" id="L77">    analysis.getAnalysis().ifPresent(a -&gt; {</span>
+<span class="fc" id="L78">      writer.propDateTime(&quot;analysedAt&quot;, new Date(a.getDate()));</span>
+<span class="fc" id="L79">      a.getRevision().ifPresent(rev -&gt; writer.prop(&quot;revision&quot;, rev));</span>
+<span class="fc" id="L80">    });</span>
+<span class="fc" id="L81">    writer.propDateTime(&quot;changedAt&quot;, new Date(analysis.getUpdatedAt().orElse(system2.now())));</span>
+<span class="fc" id="L82">  }</span>
+
+  private void writeProject(ProjectAnalysis analysis, JsonWriter writer, Project project) {
+<span class="fc" id="L85">    writer</span>
+<span class="fc" id="L86">      .name(&quot;project&quot;)</span>
+<span class="fc" id="L87">      .beginObject()</span>
+<span class="fc" id="L88">      .prop(&quot;key&quot;, project.getKey())</span>
+<span class="fc" id="L89">      .prop(&quot;name&quot;, analysis.getProject().getName())</span>
+<span class="fc" id="L90">      .prop(&quot;url&quot;, projectUrlOf(project))</span>
+<span class="fc" id="L91">      .endObject();</span>
+<span class="fc" id="L92">  }</span>
+
+  private static void writeAnalysisProperties(JsonWriter writer, Map&lt;String, String&gt; properties) {
+<span class="fc" id="L95">    writer</span>
+<span class="fc" id="L96">      .name(&quot;properties&quot;)</span>
+<span class="fc" id="L97">      .beginObject();</span>
+<span class="fc" id="L98">    properties.entrySet()</span>
+<span class="fc" id="L99">      .stream()</span>
+<span class="fc" id="L100">      .filter(prop -&gt; prop.getKey().startsWith(SONAR_ANALYSIS))</span>
+<span class="fc" id="L101">      .forEach(prop -&gt; writer.prop(prop.getKey(), prop.getValue()));</span>
+<span class="fc" id="L102">    writer.endObject();</span>
+<span class="fc" id="L103">  }</span>
+
+  private static void writeTask(JsonWriter writer, Optional&lt;CeTask&gt; ceTask) {
+<span class="fc" id="L106">    ceTask.ifPresent(ceTask1 -&gt; writer.prop(&quot;taskId&quot;, ceTask1.id()));</span>
+<span class="fc" id="L107">    writer.prop(PROPERTY_STATUS, ceTask.map(CeTask::status).orElse(CeTask.Status.SUCCESS).toString());</span>
+<span class="fc" id="L108">  }</span>
+
+  private void writeBranch(JsonWriter writer, Project project, Branch branch) {
+<span class="fc" id="L111">    writer</span>
+<span class="fc" id="L112">      .name(&quot;branch&quot;)</span>
+<span class="fc" id="L113">      .beginObject()</span>
+<span class="fc" id="L114">      .prop(&quot;name&quot;, branch.getName().orElse(null))</span>
+<span class="fc" id="L115">      .prop(&quot;type&quot;, branch.getType().name())</span>
+<span class="fc" id="L116">      .prop(&quot;isMain&quot;, branch.isMain())</span>
+<span class="fc" id="L117">      .prop(&quot;url&quot;, branchUrlOf(project, branch))</span>
+<span class="fc" id="L118">      .endObject();</span>
+<span class="fc" id="L119">  }</span>
+
+  private String projectUrlOf(Project project) {
+<span class="fc" id="L122">    return format(&quot;%s/dashboard?id=%s&quot;, server.getPublicRootUrl(), encode(project.getKey()));</span>
+  }
+
+  private String branchUrlOf(Project project, Branch branch) {
+<span class="fc" id="L126">    Branch.Type branchType = branch.getType();</span>
+<span class="fc bfc" id="L127" title="All 2 branches covered.">    if (branchType == Branch.Type.BRANCH) {</span>
+<span class="fc bfc" id="L128" title="All 2 branches covered.">      if (branch.isMain()) {</span>
+<span class="fc" id="L129">        return projectUrlOf(project);</span>
+      }
+<span class="fc" id="L131">      return format(&quot;%s/dashboard?id=%s&amp;branch=%s&quot;,</span>
+<span class="fc" id="L132">        server.getPublicRootUrl(), encode(project.getKey()), encode(branch.getName().orElse(&quot;&quot;)));</span>
+    }
+<span class="pc bpc" id="L134" title="1 of 2 branches missed.">    if (branchType == Branch.Type.PULL_REQUEST) {</span>
+<span class="fc" id="L135">      return format(&quot;%s/dashboard?id=%s&amp;pullRequest=%s&quot;,</span>
+<span class="fc" id="L136">        server.getPublicRootUrl(), encode(project.getKey()), encode(branch.getName().orElse(&quot;&quot;)));</span>
+    }
+<span class="nc" id="L138">    return projectUrlOf(project);</span>
+  }
+
+  private static void writeQualityGate(JsonWriter writer, EvaluatedQualityGate gate) {
+<span class="fc" id="L142">    writer</span>
+<span class="fc" id="L143">      .name(&quot;qualityGate&quot;)</span>
+<span class="fc" id="L144">      .beginObject()</span>
+<span class="fc" id="L145">      .prop(&quot;name&quot;, gate.getQualityGate().getName())</span>
+<span class="fc" id="L146">      .prop(PROPERTY_STATUS, gate.getStatus().toString())</span>
+<span class="fc" id="L147">      .name(&quot;conditions&quot;)</span>
+<span class="fc" id="L148">      .beginArray();</span>
+<span class="fc bfc" id="L149" title="All 2 branches covered.">    for (EvaluatedCondition evaluatedCondition : gate.getEvaluatedConditions()) {</span>
+<span class="fc" id="L150">      Condition condition = evaluatedCondition.getCondition();</span>
+<span class="fc" id="L151">      writer</span>
+<span class="fc" id="L152">        .beginObject()</span>
+<span class="fc" id="L153">        .prop(&quot;metric&quot;, condition.getMetricKey())</span>
+<span class="fc" id="L154">        .prop(&quot;operator&quot;, condition.getOperator().name());</span>
+<span class="fc" id="L155">      evaluatedCondition.getValue().ifPresent(t -&gt; writer.prop(&quot;value&quot;, t));</span>
+<span class="fc" id="L156">      writer</span>
+<span class="fc" id="L157">        .prop(PROPERTY_STATUS, evaluatedCondition.getStatus().name())</span>
+<span class="fc" id="L158">        .prop(&quot;errorThreshold&quot;, condition.getErrorThreshold())</span>
+<span class="fc" id="L159">        .endObject();</span>
+<span class="fc" id="L160">    }</span>
+<span class="fc" id="L161">    writer</span>
+<span class="fc" id="L162">      .endArray()</span>
+<span class="fc" id="L163">      .endObject();</span>
+<span class="fc" id="L164">  }</span>
+
+  private static String encode(String toEncode) {
+    try {
+<span class="fc" id="L168">      return URLEncoder.encode(toEncode, UTF_8.name());</span>
+<span class="nc" id="L169">    } catch (UnsupportedEncodingException e) {</span>
+<span class="nc" id="L170">      throw new IllegalStateException(&quot;Encoding not supported&quot;, e);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

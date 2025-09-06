@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ListDefinitionsAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.setting.ws</a> &gt; <span class="el_source">ListDefinitionsAction.java</span></div><h1>ListDefinitionsAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.setting.ws;
+
+import java.util.List;
+import java.util.Optional;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.api.config.PropertyDefinition;
+import org.sonar.api.config.PropertyDefinitions;
+import org.sonar.api.config.PropertyFieldDefinition;
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.entity.EntityDto;
+import org.sonar.server.exceptions.NotFoundException;
+import org.sonar.server.user.UserSession;
+import org.sonarqube.ws.Settings;
+import org.sonarqube.ws.Settings.ListDefinitionsWsResponse;
+
+import static com.google.common.base.Strings.emptyToNull;
+import static java.lang.String.format;
+import static java.util.Comparator.comparing;
+import static java.util.Optional.ofNullable;
+import static org.sonar.db.permission.ProjectPermission.USER;
+import static org.sonar.server.setting.ws.SettingsWsParameters.PARAM_COMPONENT;
+import static org.sonar.server.ws.KeyExamples.KEY_PROJECT_EXAMPLE_001;
+import static org.sonar.server.ws.WsUtils.writeProtobuf;
+
+public class ListDefinitionsAction implements SettingsWsAction {
+
+  private final DbClient dbClient;
+  private final UserSession userSession;
+  private final PropertyDefinitions propertyDefinitions;
+  private final SettingsWsSupport settingsWsSupport;
+
+<span class="fc" id="L57">  public ListDefinitionsAction(DbClient dbClient, UserSession userSession, PropertyDefinitions propertyDefinitions, SettingsWsSupport settingsWsSupport) {</span>
+<span class="fc" id="L58">    this.dbClient = dbClient;</span>
+<span class="fc" id="L59">    this.userSession = userSession;</span>
+<span class="fc" id="L60">    this.propertyDefinitions = propertyDefinitions;</span>
+<span class="fc" id="L61">    this.settingsWsSupport = settingsWsSupport;</span>
+<span class="fc" id="L62">  }</span>
+
+  @Override
+  public void define(WebService.NewController context) {
+<span class="fc" id="L66">    WebService.NewAction action = context.createAction(&quot;list_definitions&quot;)</span>
+<span class="fc" id="L67">      .setDescription(&quot;List settings definitions.&lt;br&gt;&quot; +</span>
+        &quot;Requires 'Browse' permission when a component is specified&lt;br/&gt;&quot; +
+        &quot;To access licensed settings, authentication is required&lt;br/&gt;&quot; +
+        &quot;To access secured settings, one of the following permissions is required: &quot; +
+        &quot;&lt;ul&gt;&quot; +
+        &quot;&lt;li&gt;'Execute Analysis'&lt;/li&gt;&quot; +
+        &quot;&lt;li&gt;'Administer System'&lt;/li&gt;&quot; +
+        &quot;&lt;li&gt;'Administer' rights on the specified component&lt;/li&gt;&quot; +
+        &quot;&lt;/ul&gt;&quot;)
+<span class="fc" id="L76">      .setResponseExample(getClass().getResource(&quot;list_definitions-example.json&quot;))</span>
+<span class="fc" id="L77">      .setSince(&quot;6.3&quot;)</span>
+<span class="fc" id="L78">      .setChangelog(</span>
+<span class="fc" id="L79">        new Change(&quot;10.1&quot;, String.format(&quot;The use of module keys in parameter '%s' is removed&quot;, PARAM_COMPONENT)),</span>
+<span class="fc" id="L80">        new Change(&quot;7.6&quot;, String.format(&quot;The use of module keys in parameter '%s' is deprecated&quot;, PARAM_COMPONENT)))</span>
+<span class="fc" id="L81">      .setHandler(this);</span>
+<span class="fc" id="L82">    action.createParam(PARAM_COMPONENT)</span>
+<span class="fc" id="L83">      .setDescription(&quot;Component key&quot;)</span>
+<span class="fc" id="L84">      .setExampleValue(KEY_PROJECT_EXAMPLE_001);</span>
+<span class="fc" id="L85">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L89">    writeProtobuf(doHandle(request), request, response);</span>
+<span class="fc" id="L90">  }</span>
+
+  private ListDefinitionsWsResponse doHandle(Request request) {
+<span class="fc" id="L93">    ListDefinitionsRequest wsRequest = toWsRequest(request);</span>
+<span class="fc" id="L94">    Optional&lt;EntityDto&gt; component = loadComponent(wsRequest);</span>
+<span class="fc" id="L95">    Optional&lt;String&gt; qualifier = component.map(EntityDto::getQualifier);</span>
+<span class="fc" id="L96">    ListDefinitionsWsResponse.Builder wsResponse = ListDefinitionsWsResponse.newBuilder();</span>
+<span class="fc" id="L97">    propertyDefinitions.getAll().stream()</span>
+<span class="fc" id="L98">      .filter(definition -&gt; qualifier.map(s -&gt; definition.qualifiers().contains(s)).orElseGet(definition::global))</span>
+<span class="fc" id="L99">      .filter(definition -&gt; settingsWsSupport.isVisible(definition.key(), component))</span>
+<span class="fc" id="L100">      .sorted(comparing(PropertyDefinition::category, String::compareToIgnoreCase)</span>
+<span class="fc" id="L101">        .thenComparingInt(PropertyDefinition::index)</span>
+<span class="fc" id="L102">        .thenComparing(PropertyDefinition::name, String::compareToIgnoreCase))</span>
+<span class="fc" id="L103">      .forEach(definition -&gt; addDefinition(definition, wsResponse));</span>
+<span class="fc" id="L104">    return wsResponse.build();</span>
+  }
+
+  private static ListDefinitionsRequest toWsRequest(Request request) {
+<span class="fc" id="L108">    return new ListDefinitionsRequest()</span>
+<span class="fc" id="L109">      .setComponent(request.param(PARAM_COMPONENT));</span>
+  }
+
+  private Optional&lt;EntityDto&gt; loadComponent(ListDefinitionsRequest request) {
+<span class="fc" id="L113">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L114">      String entityKey = request.getComponent();</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">      if (entityKey == null) {</span>
+<span class="fc" id="L116">        return Optional.empty();</span>
+      }
+<span class="fc" id="L118">      EntityDto entity = dbClient.entityDao().selectByKey(dbSession, entityKey)</span>
+<span class="fc" id="L119">        .orElseThrow(() -&gt; new NotFoundException(format(&quot;Component key '%s' not found&quot;, entityKey)));</span>
+<span class="fc" id="L120">      userSession.checkEntityPermission(USER, entity);</span>
+<span class="fc" id="L121">      return Optional.of(entity);</span>
+<span class="pc bpc" id="L122" title="1 of 2 branches missed.">    }</span>
+  }
+
+  private void addDefinition(PropertyDefinition definition, ListDefinitionsWsResponse.Builder wsResponse) {
+<span class="fc" id="L126">    String key = definition.key();</span>
+<span class="fc" id="L127">    Settings.Definition.Builder builder = wsResponse.addDefinitionsBuilder()</span>
+<span class="fc" id="L128">      .setKey(key)</span>
+<span class="fc" id="L129">      .setType(Settings.Type.valueOf(definition.type().name()))</span>
+<span class="fc" id="L130">      .setMultiValues(definition.multiValues());</span>
+<span class="fc" id="L131">    ofNullable(emptyToNull(definition.deprecatedKey())).ifPresent(builder::setDeprecatedKey);</span>
+<span class="fc" id="L132">    ofNullable(emptyToNull(definition.name())).ifPresent(builder::setName);</span>
+<span class="fc" id="L133">    ofNullable(emptyToNull(definition.description())).ifPresent(builder::setDescription);</span>
+<span class="fc" id="L134">    String category = propertyDefinitions.getCategory(key);</span>
+<span class="fc" id="L135">    ofNullable(emptyToNull(category)).ifPresent(builder::setCategory);</span>
+<span class="fc" id="L136">    String subCategory = propertyDefinitions.getSubCategory(key);</span>
+<span class="fc" id="L137">    ofNullable(emptyToNull(subCategory)).ifPresent(builder::setSubCategory);</span>
+<span class="fc" id="L138">    ofNullable(emptyToNull(definition.defaultValue())).ifPresent(builder::setDefaultValue);</span>
+<span class="fc" id="L139">    List&lt;String&gt; options = definition.options();</span>
+<span class="fc bfc" id="L140" title="All 2 branches covered.">    if (!options.isEmpty()) {</span>
+<span class="fc" id="L141">      builder.addAllOptions(options);</span>
+    }
+<span class="fc" id="L143">    List&lt;PropertyFieldDefinition&gt; fields = definition.fields();</span>
+<span class="fc bfc" id="L144" title="All 2 branches covered.">    if (!fields.isEmpty()) {</span>
+<span class="fc" id="L145">      fields.forEach(fieldDefinition -&gt; addField(fieldDefinition, builder));</span>
+    }
+<span class="fc" id="L147">  }</span>
+
+  private static void addField(PropertyFieldDefinition fieldDefinition, Settings.Definition.Builder builder) {
+<span class="fc" id="L150">    builder.addFieldsBuilder()</span>
+<span class="fc" id="L151">      .setKey(fieldDefinition.key())</span>
+<span class="fc" id="L152">      .setName(fieldDefinition.name())</span>
+<span class="fc" id="L153">      .setDescription(fieldDefinition.description())</span>
+<span class="fc" id="L154">      .setType(Settings.Type.valueOf(fieldDefinition.type().name()))</span>
+<span class="fc" id="L155">      .addAllOptions(fieldDefinition.options())</span>
+<span class="fc" id="L156">      .build();</span>
+<span class="fc" id="L157">  }</span>
+
+  private static class ListDefinitionsRequest {
+    private String component;
+
+    public ListDefinitionsRequest setComponent(@Nullable String component) {
+<span class="fc" id="L163">      this.component = component;</span>
+<span class="fc" id="L164">      return this;</span>
+    }
+
+    @CheckForNull
+    public String getComponent() {
+<span class="fc" id="L169">      return component;</span>
+    }
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

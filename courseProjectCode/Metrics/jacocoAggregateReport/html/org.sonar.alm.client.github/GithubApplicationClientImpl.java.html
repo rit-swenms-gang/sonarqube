@@ -1,0 +1,419 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GithubApplicationClientImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.alm.client.github</a> &gt; <span class="el_source">GithubApplicationClientImpl.java</span></div><h1>GithubApplicationClientImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.alm.client.github;
+
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+import java.io.IOException;
+import java.net.URI;
+import java.time.Clock;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import javax.annotation.Nullable;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.alm.client.ApplicationHttpClient;
+import org.sonar.alm.client.ApplicationHttpClient.GetResponse;
+import org.sonar.alm.client.github.security.AppToken;
+import org.sonar.alm.client.github.security.GithubAppSecurity;
+import org.sonar.alm.client.gitlab.GsonApp;
+import org.sonar.auth.github.ExpiringAppInstallationToken;
+import org.sonar.auth.github.GitHubSettings;
+import org.sonar.auth.github.GithubAppConfiguration;
+import org.sonar.auth.github.GithubAppInstallation;
+import org.sonar.auth.github.GithubApplicationClient;
+import org.sonar.auth.github.GithubBinding;
+import org.sonar.auth.github.GithubBinding.GsonGithubRepository;
+import org.sonar.auth.github.GithubBinding.GsonInstallations;
+import org.sonar.auth.github.GithubBinding.GsonRepositorySearch;
+import org.sonar.auth.github.GsonRepositoryCollaborator;
+import org.sonar.auth.github.GsonRepositoryTeam;
+import org.sonar.auth.github.security.AccessToken;
+import org.sonar.auth.github.security.UserAccessToken;
+import org.sonar.server.exceptions.ServerException;
+import org.sonarqube.ws.client.HttpException;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.lang.String.format;
+import static java.net.HttpURLConnection.HTTP_FORBIDDEN;
+import static java.net.HttpURLConnection.HTTP_INTERNAL_ERROR;
+import static java.net.HttpURLConnection.HTTP_OK;
+import static java.net.HttpURLConnection.HTTP_UNAUTHORIZED;
+
+public class GithubApplicationClientImpl implements GithubApplicationClient {
+<span class="fc" id="L70">  private static final Logger LOG = LoggerFactory.getLogger(GithubApplicationClientImpl.class);</span>
+<span class="fc" id="L71">  protected static final Gson GSON = new Gson();</span>
+
+  protected static final String WRITE_PERMISSION_NAME = &quot;write&quot;;
+  protected static final String READ_PERMISSION_NAME = &quot;read&quot;;
+  protected static final String FAILED_TO_REQUEST_BEGIN_MSG = &quot;Failed to request &quot;;
+<span class="fc" id="L76">  private static final TypeToken&lt;List&lt;GsonRepositoryTeam&gt;&gt; REPOSITORY_TEAM_LIST_TYPE = new TypeToken&lt;&gt;() {</span>
+  };
+<span class="fc" id="L78">  private static final TypeToken&lt;List&lt;GsonRepositoryCollaborator&gt;&gt; REPOSITORY_COLLABORATORS_LIST_TYPE = new TypeToken&lt;&gt;() {</span>
+  };
+<span class="fc" id="L80">  private static final TypeToken&lt;List&lt;GithubBinding.GsonInstallation&gt;&gt; ORGANIZATION_LIST_TYPE = new TypeToken&lt;&gt;() {</span>
+  };
+  private final Clock clock;
+  protected final GithubApplicationHttpClient githubApplicationHttpClient;
+  protected final GithubAppSecurity appSecurity;
+  private final GitHubSettings gitHubSettings;
+  private final GithubPaginatedHttpClient githubPaginatedHttpClient;
+
+  public GithubApplicationClientImpl(Clock clock, GithubApplicationHttpClient githubApplicationHttpClient, GithubAppSecurity appSecurity, GitHubSettings gitHubSettings,
+<span class="fc" id="L89">    GithubPaginatedHttpClient githubPaginatedHttpClient) {</span>
+<span class="fc" id="L90">    this.clock = clock;</span>
+<span class="fc" id="L91">    this.githubApplicationHttpClient = githubApplicationHttpClient;</span>
+<span class="fc" id="L92">    this.appSecurity = appSecurity;</span>
+<span class="fc" id="L93">    this.gitHubSettings = gitHubSettings;</span>
+<span class="fc" id="L94">    this.githubPaginatedHttpClient = githubPaginatedHttpClient;</span>
+<span class="fc" id="L95">  }</span>
+
+  private static void checkPageArgs(int page, int pageSize) {
+<span class="fc bfc" id="L98" title="All 2 branches covered.">    checkArgument(page &gt; 0, &quot;'page' must be larger than 0.&quot;);</span>
+<span class="fc bfc" id="L99" title="All 4 branches covered.">    checkArgument(pageSize &gt; 0 &amp;&amp; pageSize &lt;= 100, &quot;'pageSize' must be a value larger than 0 and smaller or equal to 100.&quot;);</span>
+<span class="fc" id="L100">  }</span>
+
+  @Override
+  public Optional&lt;ExpiringAppInstallationToken&gt; createAppInstallationToken(GithubAppConfiguration githubAppConfiguration, long installationId) {
+<span class="fc" id="L104">    AppToken appToken = appSecurity.createAppToken(githubAppConfiguration.getId(), githubAppConfiguration.getPrivateKey());</span>
+<span class="fc" id="L105">    String endPoint = &quot;/app/installations/&quot; + installationId + &quot;/access_tokens&quot;;</span>
+<span class="fc" id="L106">    return post(githubAppConfiguration.getApiEndpoint(), appToken, endPoint, GithubBinding.GsonInstallationToken.class)</span>
+<span class="pc bpc" id="L107" title="1 of 2 branches missed.">      .filter(token -&gt; token.getToken() != null)</span>
+<span class="fc" id="L108">      .map(appInstallToken -&gt; new ExpiringAppInstallationToken(clock, appInstallToken.getToken(), appInstallToken.getExpiresAt()));</span>
+  }
+
+  private &lt;T&gt; Optional&lt;T&gt; post(String baseUrl, AccessToken token, String endPoint, Class&lt;T&gt; gsonClass) {
+    try {
+<span class="fc" id="L113">      ApplicationHttpClient.Response response = githubApplicationHttpClient.post(baseUrl, token, endPoint);</span>
+<span class="fc" id="L114">      return handleResponse(response, endPoint, gsonClass);</span>
+<span class="fc" id="L115">    } catch (Exception e) {</span>
+<span class="fc" id="L116">      LOG.warn(FAILED_TO_REQUEST_BEGIN_MSG + endPoint, e);</span>
+<span class="fc" id="L117">      return Optional.empty();</span>
+    }
+  }
+
+  @Override
+  public void checkApiEndpoint(GithubAppConfiguration githubAppConfiguration) {
+<span class="fc bfc" id="L123" title="All 2 branches covered.">    if (StringUtils.isBlank(githubAppConfiguration.getApiEndpoint())) {</span>
+<span class="fc" id="L124">      throw new IllegalArgumentException(&quot;Missing URL&quot;);</span>
+    }
+
+    URI apiEndpoint;
+    try {
+<span class="fc" id="L129">      apiEndpoint = URI.create(githubAppConfiguration.getApiEndpoint());</span>
+<span class="nc" id="L130">    } catch (IllegalArgumentException e) {</span>
+<span class="nc" id="L131">      throw new IllegalArgumentException(&quot;Invalid URL, &quot; + e.getMessage());</span>
+<span class="fc" id="L132">    }</span>
+
+<span class="fc bfc" id="L134" title="All 4 branches covered.">    if (!&quot;http&quot;.equalsIgnoreCase(apiEndpoint.getScheme()) &amp;&amp; !&quot;https&quot;.equalsIgnoreCase(apiEndpoint.getScheme())) {</span>
+<span class="fc" id="L135">      throw new IllegalArgumentException(&quot;Only http and https schemes are supported&quot;);</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">    } else if (!isValidGitHubUrl(apiEndpoint)) {</span>
+<span class="fc" id="L137">      throw new IllegalArgumentException(&quot;Invalid GitHub URL&quot;);</span>
+    }
+<span class="fc" id="L139">  }</span>
+
+  private static boolean isValidGitHubUrl(URI apiEndpoint) {
+<span class="fc" id="L142">    String host = apiEndpoint.getHost();</span>
+<span class="fc" id="L143">    String path = apiEndpoint.getPath();</span>
+<span class="pc bpc" id="L144" title="1 of 2 branches missed.">    if (host == null) {</span>
+<span class="nc" id="L145">      return false;</span>
+    }
+    
+<span class="fc" id="L148">    String lowerCaseHost = host.toLowerCase(Locale.ENGLISH);</span>
+    // GitHub.com (official public GitHub)
+<span class="fc bfc" id="L150" title="All 2 branches covered.">    if (&quot;api.github.com&quot;.equals(lowerCaseHost)) {</span>
+<span class="fc" id="L151">      return true;</span>
+    }
+    
+    // GitHub Enterprise Server - standard format: https://github.company.com/api/v3/
+<span class="pc bpc" id="L155" title="1 of 4 branches missed.">    if (path != null &amp;&amp; path.toLowerCase(Locale.ENGLISH).startsWith(&quot;/api/v3&quot;)) {</span>
+<span class="fc" id="L156">      return true;</span>
+    }
+    
+    // GitHub Enterprise Cloud with data residency - official format: https://api.company.ghe.com
+<span class="fc bfc" id="L160" title="All 4 branches covered.">    return lowerCaseHost.startsWith(&quot;api.&quot;) &amp;&amp; lowerCaseHost.endsWith(&quot;.ghe.com&quot;);</span>
+	}
+
+  @Override
+  public void checkAppPermissions(GithubAppConfiguration githubAppConfiguration) {
+<span class="fc" id="L165">    AppToken appToken = appSecurity.createAppToken(githubAppConfiguration.getId(), githubAppConfiguration.getPrivateKey());</span>
+
+<span class="fc" id="L167">    Map&lt;String, String&gt; permissions = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L168">    permissions.put(&quot;checks&quot;, WRITE_PERMISSION_NAME);</span>
+<span class="fc" id="L169">    permissions.put(&quot;pull_requests&quot;, WRITE_PERMISSION_NAME);</span>
+<span class="fc" id="L170">    permissions.put(&quot;metadata&quot;, READ_PERMISSION_NAME);</span>
+
+<span class="fc" id="L172">    String endPoint = &quot;/app&quot;;</span>
+    GetResponse response;
+    try {
+<span class="fc" id="L175">      response = githubApplicationHttpClient.get(githubAppConfiguration.getApiEndpoint(), appToken, endPoint);</span>
+<span class="fc" id="L176">    } catch (IOException e) {</span>
+<span class="fc" id="L177">      LOG.warn(FAILED_TO_REQUEST_BEGIN_MSG + githubAppConfiguration.getApiEndpoint() + endPoint, e);</span>
+<span class="fc" id="L178">      throw new IllegalArgumentException(&quot;Failed to validate configuration, check URL and Private Key&quot;);</span>
+<span class="fc" id="L179">    }</span>
+<span class="fc bfc" id="L180" title="All 2 branches covered.">    if (response.getCode() == HTTP_OK) {</span>
+<span class="fc" id="L181">      Map&lt;String, String&gt; perms = handleResponse(response, endPoint, GsonApp.class)</span>
+<span class="fc" id="L182">        .map(GsonApp::getPermissions)</span>
+<span class="fc" id="L183">        .orElseThrow(() -&gt; new IllegalArgumentException(&quot;Failed to get app permissions, unexpected response body&quot;));</span>
+<span class="fc" id="L184">      List&lt;String&gt; missingPermissions = permissions.entrySet().stream()</span>
+<span class="fc bfc" id="L185" title="All 2 branches covered.">        .filter(permission -&gt; !Objects.equals(permission.getValue(), perms.get(permission.getKey())))</span>
+<span class="fc" id="L186">        .map(Map.Entry::getKey)</span>
+<span class="fc" id="L187">        .toList();</span>
+
+<span class="fc bfc" id="L189" title="All 2 branches covered.">      if (!missingPermissions.isEmpty()) {</span>
+<span class="fc" id="L190">        String message = missingPermissions.stream()</span>
+<span class="fc" id="L191">          .map(perm -&gt; perm + &quot; is '&quot; + perms.get(perm) + &quot;', should be '&quot; + permissions.get(perm) + &quot;'&quot;)</span>
+<span class="fc" id="L192">          .collect(Collectors.joining(&quot;, &quot;));</span>
+
+<span class="fc" id="L194">        throw new IllegalArgumentException(&quot;Missing permissions; permission granted on &quot; + message);</span>
+      }
+<span class="fc bfc" id="L196" title="All 4 branches covered.">    } else if (response.getCode() == HTTP_UNAUTHORIZED || response.getCode() == HTTP_FORBIDDEN) {</span>
+<span class="fc" id="L197">      throw new IllegalArgumentException(&quot;Authentication failed, verify the Client Id, Client Secret and Private Key fields&quot;);</span>
+    } else {
+<span class="fc" id="L199">      throw new IllegalArgumentException(&quot;Failed to check permissions with Github, check the configuration&quot;);</span>
+    }
+<span class="fc" id="L201">  }</span>
+
+  @Override
+  public Optional&lt;Long&gt; getInstallationId(GithubAppConfiguration githubAppConfiguration, String repositorySlug) {
+<span class="fc" id="L205">    AppToken appToken = appSecurity.createAppToken(githubAppConfiguration.getId(), githubAppConfiguration.getPrivateKey());</span>
+<span class="fc" id="L206">    String endpoint = String.format(&quot;/repos/%s/installation&quot;, repositorySlug);</span>
+<span class="fc" id="L207">    return get(githubAppConfiguration.getApiEndpoint(), appToken, endpoint, GithubBinding.GsonInstallation.class)</span>
+<span class="fc" id="L208">      .map(GithubBinding.GsonInstallation::getId)</span>
+<span class="pc bpc" id="L209" title="1 of 2 branches missed.">      .filter(installationId -&gt; installationId != 0L);</span>
+  }
+
+  @Override
+  public Organizations listOrganizations(String appUrl, AccessToken accessToken, int page, int pageSize) {
+<span class="fc" id="L214">    checkPageArgs(page, pageSize);</span>
+
+    try {
+<span class="fc" id="L217">      Organizations organizations = new Organizations();</span>
+<span class="fc" id="L218">      GetResponse response = githubApplicationHttpClient.get(appUrl, accessToken, String.format(&quot;/user/installations?page=%s&amp;per_page=%s&quot;, page, pageSize));</span>
+<span class="fc" id="L219">      Optional&lt;GsonInstallations&gt; gsonInstallations = response.getContent().map(content -&gt; GSON.fromJson(content, GsonInstallations.class));</span>
+
+<span class="pc bpc" id="L221" title="1 of 2 branches missed.">      if (!gsonInstallations.isPresent()) {</span>
+<span class="nc" id="L222">        return organizations;</span>
+      }
+
+<span class="fc" id="L225">      organizations.setTotal(gsonInstallations.get().getTotalCount());</span>
+<span class="fc bfc" id="L226" title="All 2 branches covered.">      if (gsonInstallations.get().getInstallations() != null) {</span>
+<span class="fc" id="L227">        organizations.setOrganizations(gsonInstallations.get().getInstallations().stream()</span>
+<span class="fc" id="L228">          .map(gsonInstallation -&gt; new Organization(gsonInstallation.getAccount().getId(), gsonInstallation.getAccount().getLogin(), null, null, null, null, null,</span>
+<span class="fc" id="L229">            gsonInstallation.getTargetType()))</span>
+<span class="fc" id="L230">          .toList());</span>
+      }
+
+<span class="fc" id="L233">      return organizations;</span>
+<span class="fc" id="L234">    } catch (IOException e) {</span>
+<span class="fc" id="L235">      throw new IllegalStateException(format(&quot;Failed to list all organizations accessible by user access token on %s&quot;, appUrl), e);</span>
+    }
+  }
+
+  @Override
+  public List&lt;GithubAppInstallation&gt; getWhitelistedGithubAppInstallations(GithubAppConfiguration githubAppConfiguration) {
+<span class="fc" id="L241">    List&lt;GithubBinding.GsonInstallation&gt; gsonAppInstallations = fetchAppInstallationsFromGithub(githubAppConfiguration);</span>
+<span class="fc" id="L242">    Set&lt;String&gt; allowedOrganizations = gitHubSettings.getOrganizations();</span>
+<span class="fc" id="L243">    return convertToGithubAppInstallationAndFilterWhitelisted(gsonAppInstallations, allowedOrganizations);</span>
+  }
+
+  private static List&lt;GithubAppInstallation&gt; convertToGithubAppInstallationAndFilterWhitelisted(List&lt;GithubBinding.GsonInstallation&gt; gsonAppInstallations,
+    Set&lt;String&gt; allowedOrganizations) {
+<span class="fc" id="L248">    return gsonAppInstallations.stream()</span>
+<span class="fc" id="L249">      .filter(appInstallation -&gt; appInstallation.getAccount().getType().equalsIgnoreCase(&quot;Organization&quot;))</span>
+<span class="fc" id="L250">      .map(GithubApplicationClientImpl::toGithubAppInstallation)</span>
+<span class="fc" id="L251">      .filter(appInstallation -&gt; isOrganizationWhiteListed(allowedOrganizations, appInstallation.organizationName()))</span>
+<span class="fc" id="L252">      .toList();</span>
+  }
+
+  private static GithubAppInstallation toGithubAppInstallation(GithubBinding.GsonInstallation gsonInstallation) {
+<span class="fc" id="L256">    return new GithubAppInstallation(</span>
+<span class="fc" id="L257">      Long.toString(gsonInstallation.getId()),</span>
+<span class="fc" id="L258">      gsonInstallation.getAccount().getLogin(),</span>
+<span class="fc" id="L259">      gsonInstallation.getPermissions(),</span>
+<span class="fc" id="L260">      StringUtils.isNotEmpty(gsonInstallation.getSuspendedAt()));</span>
+  }
+
+  private static boolean isOrganizationWhiteListed(Set&lt;String&gt; allowedOrganizations, String organizationName) {
+<span class="fc bfc" id="L264" title="All 4 branches covered.">    return allowedOrganizations.isEmpty() || allowedOrganizations.contains(organizationName);</span>
+  }
+
+  private List&lt;GithubBinding.GsonInstallation&gt; fetchAppInstallationsFromGithub(GithubAppConfiguration githubAppConfiguration) {
+<span class="fc" id="L268">    AppToken appToken = appSecurity.createAppToken(githubAppConfiguration.getId(), githubAppConfiguration.getPrivateKey());</span>
+<span class="fc" id="L269">    String endpoint = &quot;/app/installations&quot;;</span>
+
+<span class="fc" id="L271">    return executePaginatedQuery(githubAppConfiguration.getApiEndpoint(), appToken, endpoint, resp -&gt; GSON.fromJson(resp, ORGANIZATION_LIST_TYPE));</span>
+  }
+
+  protected &lt;T&gt; Optional&lt;T&gt; get(String baseUrl, AccessToken token, String endPoint, Class&lt;T&gt; gsonClass) {
+    try {
+<span class="fc" id="L276">      GetResponse response = githubApplicationHttpClient.get(baseUrl, token, endPoint);</span>
+<span class="fc" id="L277">      return handleResponse(response, endPoint, gsonClass);</span>
+<span class="nc" id="L278">    } catch (Exception e) {</span>
+<span class="nc" id="L279">      LOG.warn(FAILED_TO_REQUEST_BEGIN_MSG + endPoint, e);</span>
+<span class="nc" id="L280">      return Optional.empty();</span>
+    }
+  }
+
+  @Override
+  public Repositories listRepositories(String appUrl, AccessToken accessToken, String organization, @Nullable String query, int page, int pageSize) {
+<span class="fc" id="L286">    checkPageArgs(page, pageSize);</span>
+<span class="fc" id="L287">    String searchQuery = &quot;fork:true+org:&quot; + organization;</span>
+<span class="fc bfc" id="L288" title="All 2 branches covered.">    if (query != null) {</span>
+<span class="fc" id="L289">      searchQuery = query.replace(&quot; &quot;, &quot;+&quot;) + &quot;+&quot; + searchQuery;</span>
+    }
+    try {
+<span class="fc" id="L292">      Repositories repositories = new Repositories();</span>
+<span class="fc" id="L293">      GetResponse response = githubApplicationHttpClient.get(appUrl, accessToken, String.format(&quot;/search/repositories?q=%s&amp;page=%s&amp;per_page=%s&quot;, searchQuery, page, pageSize));</span>
+<span class="fc" id="L294">      Optional&lt;GsonRepositorySearch&gt; gsonRepositories = response.getContent().map(content -&gt; GSON.fromJson(content, GsonRepositorySearch.class));</span>
+<span class="pc bpc" id="L295" title="1 of 2 branches missed.">      if (!gsonRepositories.isPresent()) {</span>
+<span class="nc" id="L296">        return repositories;</span>
+      }
+
+<span class="fc" id="L299">      repositories.setTotal(gsonRepositories.get().getTotalCount());</span>
+
+<span class="fc bfc" id="L301" title="All 2 branches covered.">      if (gsonRepositories.get().getItems() != null) {</span>
+<span class="fc" id="L302">        repositories.setRepositories(gsonRepositories.get().getItems().stream()</span>
+<span class="fc" id="L303">          .map(GsonGithubRepository::toRepository)</span>
+<span class="fc" id="L304">          .toList());</span>
+      }
+
+<span class="fc" id="L307">      return repositories;</span>
+<span class="fc" id="L308">    } catch (Exception e) {</span>
+<span class="fc" id="L309">      throw new IllegalStateException(format(&quot;Failed to list all repositories of '%s' accessible by user access token on '%s' using query '%s'&quot;, organization, appUrl, searchQuery),</span>
+        e);
+    }
+  }
+
+  @Override
+  public Optional&lt;Repository&gt; getRepository(String appUrl, AccessToken accessToken, String organizationAndRepository) {
+    try {
+<span class="fc" id="L317">      GetResponse response = githubApplicationHttpClient.get(appUrl, accessToken, String.format(&quot;/repos/%s&quot;, organizationAndRepository));</span>
+<span class="fc" id="L318">      return Optional.of(response)</span>
+<span class="fc bfc" id="L319" title="All 2 branches covered.">        .filter(r -&gt; r.getCode() == HTTP_OK)</span>
+<span class="fc" id="L320">        .flatMap(ApplicationHttpClient.Response::getContent)</span>
+<span class="fc" id="L321">        .map(content -&gt; GSON.fromJson(content, GsonGithubRepository.class))</span>
+<span class="fc" id="L322">        .map(GsonGithubRepository::toRepository);</span>
+<span class="fc" id="L323">    } catch (Exception e) {</span>
+<span class="fc" id="L324">      throw new IllegalStateException(format(&quot;Failed to get repository '%s' on '%s' (this might be related to the GitHub App installation scope)&quot;,</span>
+        organizationAndRepository, appUrl), e);
+    }
+  }
+
+  @Override
+  public UserAccessToken createUserAccessToken(String appUrl, String clientId, String clientSecret, String code) {
+    try {
+<span class="fc" id="L332">      String endpoint = &quot;/login/oauth/access_token?client_id=&quot; + clientId + &quot;&amp;client_secret=&quot; + clientSecret + &quot;&amp;code=&quot; + code;</span>
+
+      String baseAppUrl;
+<span class="fc" id="L335">      int apiIndex = appUrl.indexOf(&quot;/api/v3&quot;);</span>
+<span class="fc bfc" id="L336" title="All 2 branches covered.">      if (apiIndex &gt; 0) {</span>
+<span class="fc" id="L337">        baseAppUrl = appUrl.substring(0, apiIndex);</span>
+<span class="fc bfc" id="L338" title="All 2 branches covered.">      } else if (appUrl.startsWith(&quot;https://api.github.com&quot;)) {</span>
+<span class="fc" id="L339">        baseAppUrl = &quot;https://github.com&quot;;</span>
+      } else {
+<span class="fc" id="L341">        baseAppUrl = appUrl;</span>
+      }
+
+<span class="fc" id="L344">      ApplicationHttpClient.Response response = githubApplicationHttpClient.post(baseAppUrl, null, endpoint);</span>
+
+<span class="fc bfc" id="L346" title="All 2 branches covered.">      if (response.getCode() != HTTP_OK) {</span>
+<span class="fc" id="L347">        throw new IllegalStateException(&quot;Failed to create GitHub's user access token. GitHub returned code &quot; + code + &quot;. &quot; + response.getContent().orElse(&quot;&quot;));</span>
+      }
+
+<span class="fc" id="L350">      Optional&lt;String&gt; content = response.getContent();</span>
+<span class="fc" id="L351">      Optional&lt;UserAccessToken&gt; accessToken = content.flatMap(c -&gt; Arrays.stream(c.split(&quot;&amp;&quot;))</span>
+<span class="fc" id="L352">        .filter(t -&gt; t.startsWith(&quot;access_token=&quot;))</span>
+<span class="fc" id="L353">        .map(t -&gt; t.split(&quot;=&quot;)[1])</span>
+<span class="fc" id="L354">        .findAny())</span>
+<span class="fc" id="L355">        .map(UserAccessToken::new);</span>
+
+<span class="fc bfc" id="L357" title="All 2 branches covered.">      if (accessToken.isPresent()) {</span>
+<span class="fc" id="L358">        return accessToken.get();</span>
+      }
+
+      // If token is not in the 200's body, it's because the client ID or client secret are incorrect
+<span class="fc" id="L362">      LOG.error(&quot;Failed to create GitHub's user access token. GitHub's response: {}&quot;, content);</span>
+<span class="fc" id="L363">      throw new IllegalArgumentException();</span>
+<span class="fc" id="L364">    } catch (IOException e) {</span>
+<span class="fc" id="L365">      throw new IllegalStateException(&quot;Failed to create GitHub's user access token&quot;, e);</span>
+    }
+  }
+
+  @Override
+  public GithubBinding.GsonApp getApp(GithubAppConfiguration githubAppConfiguration) {
+<span class="fc" id="L371">    AppToken appToken = appSecurity.createAppToken(githubAppConfiguration.getId(), githubAppConfiguration.getPrivateKey());</span>
+<span class="fc" id="L372">    String endpoint = &quot;/app&quot;;</span>
+<span class="fc" id="L373">    return getOrThrowIfNotHttpOk(githubAppConfiguration.getApiEndpoint(), appToken, endpoint, GithubBinding.GsonApp.class);</span>
+  }
+
+  private &lt;T&gt; T getOrThrowIfNotHttpOk(String baseUrl, AccessToken token, String endPoint, Class&lt;T&gt; gsonClass) {
+    try {
+<span class="fc" id="L378">      GetResponse response = githubApplicationHttpClient.get(baseUrl, token, endPoint);</span>
+<span class="fc bfc" id="L379" title="All 2 branches covered.">      if (response.getCode() != HTTP_OK) {</span>
+<span class="fc" id="L380">        throw new HttpException(baseUrl + endPoint, response.getCode(), response.getContent().orElse(&quot;&quot;));</span>
+      }
+<span class="pc" id="L382">      return handleResponse(response, endPoint, gsonClass).orElseThrow(() -&gt; new ServerException(HTTP_INTERNAL_ERROR, &quot;Http response withuot content&quot;));</span>
+<span class="nc" id="L383">    } catch (IOException e) {</span>
+<span class="nc" id="L384">      throw new ServerException(HTTP_INTERNAL_ERROR, e.getMessage());</span>
+    }
+  }
+
+  protected static &lt;T&gt; Optional&lt;T&gt; handleResponse(ApplicationHttpClient.Response response, String endPoint, Class&lt;T&gt; gsonClass) {
+    try {
+<span class="fc" id="L390">      return response.getContent().map(c -&gt; GSON.fromJson(c, gsonClass));</span>
+<span class="fc" id="L391">    } catch (Exception e) {</span>
+<span class="fc" id="L392">      LOG.warn(FAILED_TO_REQUEST_BEGIN_MSG + endPoint, e);</span>
+<span class="fc" id="L393">      return Optional.empty();</span>
+    }
+  }
+
+  @Override
+  public Set&lt;GsonRepositoryTeam&gt; getRepositoryTeams(String appUrl, AccessToken accessToken, String orgName, String repoName) {
+<span class="fc" id="L399">    return Set</span>
+<span class="fc" id="L400">      .copyOf(executePaginatedQuery(appUrl, accessToken, format(&quot;/repos/%s/%s/teams&quot;, orgName, repoName), resp -&gt; GSON.fromJson(resp, REPOSITORY_TEAM_LIST_TYPE)));</span>
+  }
+
+  @Override
+  public Set&lt;GsonRepositoryCollaborator&gt; getRepositoryCollaborators(String appUrl, AccessToken accessToken, String orgName, String repoName) {
+<span class="fc" id="L405">    return Set</span>
+<span class="fc" id="L406">      .copyOf(</span>
+<span class="fc" id="L407">        executePaginatedQuery(</span>
+          appUrl,
+          accessToken,
+<span class="fc" id="L410">          format(&quot;/repos/%s/%s/collaborators?affiliation=direct&quot;, orgName, repoName),</span>
+<span class="fc" id="L411">          resp -&gt; GSON.fromJson(resp, REPOSITORY_COLLABORATORS_LIST_TYPE)));</span>
+  }
+
+  protected &lt;E&gt; List&lt;E&gt; executePaginatedQuery(String appUrl, AccessToken token, String query, Function&lt;String, List&lt;E&gt;&gt; responseDeserializer) {
+<span class="fc" id="L415">    return githubPaginatedHttpClient.get(appUrl, token, query, responseDeserializer);</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

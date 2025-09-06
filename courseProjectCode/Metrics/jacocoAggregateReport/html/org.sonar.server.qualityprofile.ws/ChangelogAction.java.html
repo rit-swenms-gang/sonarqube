@@ -1,0 +1,282 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ChangelogAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.qualityprofile.ws</a> &gt; <span class="el_source">ChangelogAction.java</span></div><h1>ChangelogAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.qualityprofile.ws;
+
+import com.google.common.collect.Lists;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import javax.annotation.Nullable;
+import org.sonar.api.resources.Languages;
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService.NewAction;
+import org.sonar.api.server.ws.WebService.NewController;
+import org.sonar.api.server.ws.WebService.Param;
+import org.sonar.api.utils.DateUtils;
+import org.sonar.api.utils.text.JsonWriter;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.issue.ImpactDto;
+import org.sonar.db.qualityprofile.QProfileChangeDto;
+import org.sonar.db.qualityprofile.QProfileChangeQuery;
+import org.sonar.db.qualityprofile.QProfileDto;
+import org.sonar.db.rule.RuleChangeDto;
+import org.sonar.db.rule.RuleDto;
+import org.sonar.db.rule.RuleImpactChangeDto;
+import org.sonar.db.user.UserDto;
+
+import static java.lang.String.format;
+import static org.sonar.api.issue.impact.Severity.BLOCKER;
+import static org.sonar.api.issue.impact.Severity.INFO;
+import static org.sonar.api.utils.DateUtils.parseEndingDateOrDateTime;
+import static org.sonar.api.utils.DateUtils.parseStartingDateOrDateTime;
+import static org.sonar.server.es.SearchOptions.MAX_PAGE_SIZE;
+import static org.sonar.server.qualityprofile.ws.QProfileChangelogFilterMode.MQR;
+import static org.sonar.server.qualityprofile.ws.QProfileChangelogFilterMode.STANDARD;
+import static org.sonarqube.ws.client.qualityprofile.QualityProfileWsParameters.PARAM_FILTER_MODE;
+import static org.sonarqube.ws.client.qualityprofile.QualityProfileWsParameters.PARAM_SINCE;
+import static org.sonarqube.ws.client.qualityprofile.QualityProfileWsParameters.PARAM_TO;
+
+public class ChangelogAction implements QProfileWsAction {
+
+  private final QProfileWsSupport wsSupport;
+  private final Languages languages;
+  private final DbClient dbClient;
+
+<span class="fc" id="L69">  public ChangelogAction(QProfileWsSupport wsSupport, Languages languages, DbClient dbClient) {</span>
+<span class="fc" id="L70">    this.wsSupport = wsSupport;</span>
+<span class="fc" id="L71">    this.languages = languages;</span>
+<span class="fc" id="L72">    this.dbClient = dbClient;</span>
+<span class="fc" id="L73">  }</span>
+
+  @Override
+  public void define(NewController context) {
+<span class="fc" id="L77">    NewAction wsAction = context.createAction(&quot;changelog&quot;)</span>
+<span class="fc" id="L78">      .setSince(&quot;5.2&quot;)</span>
+<span class="fc" id="L79">      .setDescription(&quot;Get the history of changes on a quality profile: rule activation/deactivation, change in &quot; +</span>
+        &quot;parameters/severity/impacts. &quot; +
+        &quot;Events are ordered by date in descending order (most recent first).&quot;)
+<span class="fc" id="L82">      .setChangelog(</span>
+        new Change(&quot;9.8&quot;, &quot;response fields 'total', 's', 'ps' have been deprecated, please use 'paging' object instead&quot;),
+        new Change(&quot;9.8&quot;, &quot;The field 'paging' has been added to the response&quot;),
+        new Change(&quot;10.3&quot;, &quot;Added fields 'cleanCodeAttributeCategory', 'impacts' to response&quot;),
+        new Change(&quot;10.3&quot;, &quot;Added fields 'oldCleanCodeAttribute', 'newCleanCodeAttribute', 'oldCleanCodeAttributeCategory', &quot; +
+          &quot;'newCleanCodeAttributeCategory' and 'impactChanges' to 'params' section of response&quot;),
+        new Change(&quot;10.3&quot;, &quot;Added field 'sonarQubeVersion' to 'params' section of response&quot;),
+<span class="fc" id="L89">        new Change(&quot;10.8&quot;, format(&quot;Added parameter '%s'&quot;, PARAM_FILTER_MODE)),</span>
+<span class="fc" id="L90">        new Change(&quot;10.8&quot;, format(&quot;Possible values '%s' and '%s' for response field 'severity' of 'impacts' have been added&quot;, INFO.name()</span>
+<span class="fc" id="L91">          , BLOCKER.name())),</span>
+        new Change(&quot;2025.1&quot;, &quot;Added field 'prioritizedRule' to 'params' section of response&quot;))
+<span class="fc" id="L93">      .setHandler(this)</span>
+<span class="fc" id="L94">      .setResponseExample(getClass().getResource(&quot;changelog-example.json&quot;));</span>
+
+<span class="fc" id="L96">    QProfileReference.defineParams(wsAction, languages);</span>
+
+<span class="fc" id="L98">    wsAction.addPagingParams(50, MAX_PAGE_SIZE);</span>
+
+<span class="fc" id="L100">    wsAction.createParam(PARAM_FILTER_MODE)</span>
+<span class="fc" id="L101">      .setDescription(format(&quot;If specified, will return changelog events related to %s or %s mode. &quot; +</span>
+        &quot;If not specified, all the events are returned&quot;, MQR, STANDARD))
+<span class="fc" id="L103">      .setRequired(false)</span>
+<span class="fc" id="L104">      .setPossibleValues(QProfileChangelogFilterMode.values())</span>
+<span class="fc" id="L105">      .setSince(&quot;10.8&quot;)</span>
+<span class="fc" id="L106">      .setExampleValue(MQR);</span>
+
+<span class="fc" id="L108">    wsAction.createParam(PARAM_SINCE)</span>
+<span class="fc" id="L109">      .setDescription(&quot;Start date for the changelog (inclusive). &lt;br&gt;&quot; +</span>
+        &quot;Either a date (server timezone) or datetime can be provided.&quot;)
+<span class="fc" id="L111">      .setExampleValue(&quot;2017-10-19 or 2017-10-19T13:00:00+0200&quot;);</span>
+
+<span class="fc" id="L113">    wsAction.createParam(PARAM_TO)</span>
+<span class="fc" id="L114">      .setDescription(&quot;End date for the changelog (exclusive, strictly before). &lt;br&gt;&quot; +</span>
+        &quot;Either a date (server timezone) or datetime can be provided.&quot;)
+<span class="fc" id="L116">      .setExampleValue(&quot;2017-10-19 or 2017-10-19T13:00:00+0200&quot;);</span>
+<span class="fc" id="L117">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L121">    QProfileReference reference = QProfileReference.fromName(request);</span>
+<span class="fc" id="L122">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L123">      QProfileDto profile = wsSupport.getProfile(dbSession, reference);</span>
+
+<span class="fc" id="L125">      QProfileChangeQuery query = new QProfileChangeQuery(profile.getKee());</span>
+<span class="fc" id="L126">      Date since = parseStartingDateOrDateTime(request.param(PARAM_SINCE));</span>
+<span class="fc bfc" id="L127" title="All 2 branches covered.">      if (since != null) {</span>
+<span class="fc" id="L128">        query.setFromIncluded(since.getTime());</span>
+      }
+<span class="fc" id="L130">      Date to = parseEndingDateOrDateTime(request.param(PARAM_TO));</span>
+<span class="pc bpc" id="L131" title="1 of 2 branches missed.">      if (to != null) {</span>
+<span class="nc" id="L132">        query.setToExcluded(to.getTime());</span>
+      }
+<span class="fc" id="L134">      int page = request.mandatoryParamAsInt(Param.PAGE);</span>
+<span class="fc" id="L135">      int pageSize = request.mandatoryParamAsInt(Param.PAGE_SIZE);</span>
+<span class="fc" id="L136">      query.setPage(page, pageSize);</span>
+
+<span class="fc" id="L138">      query.setFilterMode(request.param(PARAM_FILTER_MODE));</span>
+<span class="fc" id="L139">      int total = dbClient.qProfileChangeDao().countByQuery(dbSession, query);</span>
+
+<span class="fc" id="L141">      List&lt;QProfileChangeDto&gt; changelogs = load(dbSession, query);</span>
+<span class="fc" id="L142">      Map&lt;String, UserDto&gt; usersByUuid = getUsersByUserUuid(dbSession, changelogs);</span>
+<span class="fc" id="L143">      Map&lt;String, RuleDto&gt; rulesByRuleIds = getRulesByRuleUuids(dbSession, changelogs);</span>
+<span class="fc" id="L144">      writeResponse(response.newJsonWriter(), total, page, pageSize, changelogs, usersByUuid, rulesByRuleIds);</span>
+    }
+<span class="fc" id="L146">  }</span>
+
+  private Map&lt;String, UserDto&gt; getUsersByUserUuid(DbSession dbSession, List&lt;QProfileChangeDto&gt; changes) {
+<span class="fc" id="L149">    Set&lt;String&gt; userUuids = changes.stream()</span>
+<span class="fc" id="L150">      .map(QProfileChangeDto::getUserUuid)</span>
+<span class="fc" id="L151">      .filter(Objects::nonNull)</span>
+<span class="fc" id="L152">      .collect(Collectors.toSet());</span>
+<span class="fc" id="L153">    return dbClient.userDao()</span>
+<span class="fc" id="L154">      .selectByUuids(dbSession, userUuids)</span>
+<span class="fc" id="L155">      .stream()</span>
+<span class="fc" id="L156">      .collect(Collectors.toMap(UserDto::getUuid, Function.identity()));</span>
+  }
+
+  private Map&lt;String, RuleDto&gt; getRulesByRuleUuids(DbSession dbSession, List&lt;QProfileChangeDto&gt; changes) {
+<span class="fc" id="L160">    Set&lt;String&gt; ruleUuids = changes.stream()</span>
+<span class="fc" id="L161">      .map(ChangelogAction::extractRuleUuid)</span>
+<span class="fc" id="L162">      .filter(Objects::nonNull)</span>
+<span class="fc" id="L163">      .collect(Collectors.toSet());</span>
+<span class="fc" id="L164">    return dbClient.ruleDao()</span>
+<span class="fc" id="L165">      .selectByUuids(dbSession, Lists.newArrayList(ruleUuids))</span>
+<span class="fc" id="L166">      .stream()</span>
+<span class="fc" id="L167">      .collect(Collectors.toMap(RuleDto::getUuid, Function.identity()));</span>
+  }
+
+  private static String extractRuleUuid(QProfileChangeDto change) {
+<span class="fc bfc" id="L171" title="All 2 branches covered.">    if (change.getRuleChange() != null) {</span>
+<span class="fc" id="L172">      return change.getRuleChange().getRuleUuid();</span>
+    }
+<span class="fc" id="L174">    return change.getDataAsMap().get(&quot;ruleUuid&quot;);</span>
+  }
+
+  private static void writeResponse(JsonWriter json, int total, int page, int pageSize, List&lt;QProfileChangeDto&gt; changelogs,
+    Map&lt;String, UserDto&gt; usersByUuid, Map&lt;String, RuleDto&gt; rulesByRuleUuids) {
+<span class="fc" id="L179">    json.beginObject();</span>
+<span class="fc" id="L180">    writePaging(json, total, page, pageSize);</span>
+<span class="fc" id="L181">    json.name(&quot;paging&quot;).beginObject()</span>
+<span class="fc" id="L182">      .prop(&quot;pageIndex&quot;, page)</span>
+<span class="fc" id="L183">      .prop(&quot;pageSize&quot;, pageSize)</span>
+<span class="fc" id="L184">      .prop(&quot;total&quot;, total)</span>
+<span class="fc" id="L185">      .endObject();</span>
+<span class="fc" id="L186">    json.name(&quot;events&quot;).beginArray();</span>
+<span class="fc" id="L187">    changelogs.forEach(change -&gt; {</span>
+<span class="fc" id="L188">      JsonWriter changeWriter = json.beginObject();</span>
+<span class="fc" id="L189">      changeWriter</span>
+<span class="fc" id="L190">        .prop(&quot;date&quot;, DateUtils.formatDateTime(change.getCreatedAt()))</span>
+<span class="fc" id="L191">        .prop(&quot;sonarQubeVersion&quot;, change.getSqVersion())</span>
+<span class="fc" id="L192">        .prop(&quot;action&quot;, change.getChangeType());</span>
+<span class="fc" id="L193">      UserDto user = usersByUuid.get(change.getUserUuid());</span>
+<span class="fc bfc" id="L194" title="All 2 branches covered.">      if (user != null) {</span>
+<span class="fc" id="L195">        changeWriter</span>
+<span class="fc" id="L196">          .prop(&quot;authorLogin&quot;, user.getLogin())</span>
+<span class="fc" id="L197">          .prop(&quot;authorName&quot;, user.getName());</span>
+      }
+<span class="fc" id="L199">      RuleDto rule = rulesByRuleUuids.get(extractRuleUuid(change));</span>
+<span class="fc bfc" id="L200" title="All 2 branches covered.">      if (rule != null) {</span>
+<span class="fc" id="L201">        changeWriter</span>
+<span class="fc" id="L202">          .prop(&quot;ruleKey&quot;, rule.getKey().toString())</span>
+<span class="fc" id="L203">          .prop(&quot;ruleName&quot;, rule.getName());</span>
+
+<span class="pc bpc" id="L205" title="1 of 2 branches missed.">        if (rule.getCleanCodeAttribute() != null) {</span>
+<span class="fc" id="L206">          changeWriter</span>
+<span class="fc" id="L207">            .prop(&quot;cleanCodeAttributeCategory&quot;, rule.getCleanCodeAttribute().getAttributeCategory().toString());</span>
+        }
+<span class="fc" id="L209">        changeWriter</span>
+<span class="fc" id="L210">          .name(&quot;impacts&quot;)</span>
+<span class="fc" id="L211">          .beginArray();</span>
+<span class="fc bfc" id="L212" title="All 2 branches covered.">        for (ImpactDto impact : rule.getDefaultImpacts()) {</span>
+<span class="fc" id="L213">          changeWriter</span>
+<span class="fc" id="L214">            .beginObject()</span>
+<span class="fc" id="L215">            .prop(&quot;softwareQuality&quot;, impact.getSoftwareQuality().toString())</span>
+<span class="fc" id="L216">            .prop(&quot;severity&quot;, impact.getSeverity().toString())</span>
+<span class="fc" id="L217">            .endObject();</span>
+<span class="fc" id="L218">        }</span>
+
+<span class="fc" id="L220">        changeWriter.endArray();</span>
+      }
+<span class="fc" id="L222">      writeChanges(json, change);</span>
+<span class="fc" id="L223">      json.endObject();</span>
+<span class="fc" id="L224">    });</span>
+<span class="fc" id="L225">    json.endArray();</span>
+<span class="fc" id="L226">    json.endObject().close();</span>
+<span class="fc" id="L227">  }</span>
+
+  private static void writeChanges(JsonWriter json, QProfileChangeDto change) {
+<span class="fc" id="L230">    json.name(&quot;params&quot;).beginObject()</span>
+<span class="fc" id="L231">      .prop(&quot;severity&quot;, change.getDataAsMap().get(&quot;severity&quot;));</span>
+<span class="fc" id="L232">    json.prop(&quot;prioritizedRule&quot;, change.getDataAsMap().get(&quot;prioritizedRule&quot;));</span>
+<span class="fc" id="L233">    change.getDataAsMap().entrySet().stream()</span>
+<span class="fc" id="L234">      .filter(entry -&gt; entry.getKey().startsWith(&quot;param_&quot;))</span>
+<span class="fc" id="L235">      .forEach(param -&gt; json.prop(param.getKey().replace(&quot;param_&quot;, &quot;&quot;), param.getValue()));</span>
+
+<span class="fc" id="L237">    RuleChangeDto ruleChange = change.getRuleChange();</span>
+<span class="fc bfc" id="L238" title="All 2 branches covered.">    if (ruleChange != null) {</span>
+<span class="fc" id="L239">      json</span>
+<span class="fc" id="L240">        .prop(&quot;oldCleanCodeAttribute&quot;, nameOrNull(ruleChange.getOldCleanCodeAttribute()))</span>
+<span class="fc" id="L241">        .prop(&quot;newCleanCodeAttribute&quot;, nameOrNull(ruleChange.getNewCleanCodeAttribute()))</span>
+<span class="pc bpc" id="L242" title="1 of 2 branches missed.">        .prop(&quot;oldCleanCodeAttributeCategory&quot;, ruleChange.getOldCleanCodeAttribute() == null ? null : nameOrNull(ruleChange.getOldCleanCodeAttribute().getAttributeCategory()))</span>
+<span class="pc bpc" id="L243" title="1 of 2 branches missed.">        .prop(&quot;newCleanCodeAttributeCategory&quot;, ruleChange.getNewCleanCodeAttribute() == null ? null : nameOrNull(ruleChange.getNewCleanCodeAttribute().getAttributeCategory()));</span>
+
+<span class="pc bpc" id="L245" title="1 of 2 branches missed.">      if (ruleChange.getRuleImpactChanges() != null) {</span>
+<span class="fc" id="L246">        json.name(&quot;impactChanges&quot;).beginArray();</span>
+<span class="fc bfc" id="L247" title="All 2 branches covered.">        for (RuleImpactChangeDto impact : ruleChange.getRuleImpactChanges()) {</span>
+<span class="fc" id="L248">          json.beginObject()</span>
+<span class="fc" id="L249">            .prop(&quot;oldSoftwareQuality&quot;, nameOrNull(impact.getOldSoftwareQuality()))</span>
+<span class="fc" id="L250">            .prop(&quot;newSoftwareQuality&quot;, nameOrNull(impact.getNewSoftwareQuality()))</span>
+<span class="fc" id="L251">            .prop(&quot;oldSeverity&quot;, nameOrNull(impact.getOldSeverity()))</span>
+<span class="fc" id="L252">            .prop(&quot;newSeverity&quot;, nameOrNull(impact.getNewSeverity()))</span>
+<span class="fc" id="L253">            .endObject();</span>
+<span class="fc" id="L254">        }</span>
+<span class="fc" id="L255">        json.endArray();</span>
+      }
+    }
+<span class="fc" id="L258">    json.endObject();</span>
+<span class="fc" id="L259">  }</span>
+
+  private static String nameOrNull(@Nullable Enum&lt;?&gt; enumValue) {
+<span class="fc bfc" id="L262" title="All 2 branches covered.">    return enumValue == null ? null : enumValue.name();</span>
+  }
+
+  /**
+   * @deprecated since 9.8 - replaced by 'paging' object structure.
+   */
+  @Deprecated(since = &quot;9.8&quot;)
+  private static void writePaging(JsonWriter json, int total, int page, int pageSize) {
+<span class="fc" id="L270">    json.prop(&quot;total&quot;, total);</span>
+<span class="fc" id="L271">    json.prop(Param.PAGE, page);</span>
+<span class="fc" id="L272">    json.prop(Param.PAGE_SIZE, pageSize);</span>
+<span class="fc" id="L273">  }</span>
+
+  /**
+   * @return non-null list of changes, by descending order of date
+   */
+  public List&lt;QProfileChangeDto&gt; load(DbSession dbSession, QProfileChangeQuery query) {
+<span class="fc" id="L279">    return dbClient.qProfileChangeDao().selectByQuery(dbSession, query);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

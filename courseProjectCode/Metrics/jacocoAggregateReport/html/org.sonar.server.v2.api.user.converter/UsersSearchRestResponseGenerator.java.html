@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UsersSearchRestResponseGenerator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.v2.api.user.converter</a> &gt; <span class="el_source">UsersSearchRestResponseGenerator.java</span></div><h1>UsersSearchRestResponseGenerator.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.v2.api.user.converter;
+
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import org.jetbrains.annotations.Nullable;
+import org.sonar.api.utils.DateUtils;
+import org.sonar.db.user.UserDto;
+import org.sonar.server.common.PaginationInformation;
+import org.sonar.server.common.user.UsersSearchResponseGenerator;
+import org.sonar.server.common.user.service.UserInformation;
+import org.sonar.server.user.UserSession;
+import org.sonar.server.v2.api.response.PageRestResponse;
+import org.sonar.server.v2.api.user.response.UserRestResponse;
+import org.sonar.server.v2.api.user.response.UserRestResponseForAdmins;
+import org.sonar.server.v2.api.user.response.UserRestResponseForAnonymousUsers;
+import org.sonar.server.v2.api.user.response.UserRestResponseForLoggedInUsers;
+import org.sonar.server.v2.api.user.response.UsersSearchRestResponse;
+
+public class UsersSearchRestResponseGenerator implements UsersSearchResponseGenerator&lt;UsersSearchRestResponse&gt; {
+
+  private final UserSession userSession;
+
+<span class="fc" id="L43">  public UsersSearchRestResponseGenerator(UserSession userSession) {</span>
+<span class="fc" id="L44">    this.userSession = userSession;</span>
+<span class="fc" id="L45">  }</span>
+
+  @Override
+  public UsersSearchRestResponse toUsersForResponse(List&lt;UserInformation&gt; userInformations, PaginationInformation paginationInformation) {
+<span class="fc" id="L49">    List&lt;UserRestResponse&gt; usersForResponse = toUsersForResponse(userInformations);</span>
+<span class="fc" id="L50">    PageRestResponse pageRestResponse = new PageRestResponse(paginationInformation.pageIndex(), paginationInformation.pageSize(), paginationInformation.total());</span>
+<span class="fc" id="L51">    return new UsersSearchRestResponse(usersForResponse, pageRestResponse);</span>
+  }
+
+  private List&lt;UserRestResponse&gt; toUsersForResponse(List&lt;UserInformation&gt; userInformations) {
+<span class="fc" id="L55">    return userInformations.stream()</span>
+<span class="fc" id="L56">      .map(this::toRestUser)</span>
+<span class="fc" id="L57">      .toList();</span>
+  }
+
+  public UserRestResponse toRestUser(UserInformation userInformation) {
+<span class="fc" id="L61">    UserDto userDto = userInformation.userDto();</span>
+
+<span class="fc" id="L63">    String id = userDto.getUuid();</span>
+<span class="fc" id="L64">    String login = userDto.getLogin();</span>
+<span class="fc" id="L65">    String name = userDto.getName();</span>
+<span class="fc bfc" id="L66" title="All 2 branches covered.">    if (!userSession.isLoggedIn()) {</span>
+<span class="fc" id="L67">      return new UserRestResponseForAnonymousUsers(login, name);</span>
+    }
+
+<span class="fc" id="L70">    String avatar = userInformation.avatar().orElse(null);</span>
+<span class="fc" id="L71">    Boolean active = userDto.isActive();</span>
+<span class="fc" id="L72">    Boolean local = userDto.isLocal();</span>
+<span class="fc" id="L73">    String email = userDto.getEmail();</span>
+<span class="fc" id="L74">    String externalIdentityProvider = userDto.getExternalIdentityProvider();</span>
+<span class="pc bpc" id="L75" title="1 of 4 branches missed.">    if (userSession.isSystemAdministrator() || Objects.equals(userSession.getUuid(), userDto.getUuid())) {</span>
+<span class="fc" id="L76">      Boolean managed = userInformation.managed();</span>
+<span class="fc" id="L77">      String externalLogin = userDto.getExternalLogin();</span>
+<span class="fc" id="L78">      String externalId = userDto.getExternalId();</span>
+<span class="fc" id="L79">      String sqLastConnectionDate = toDateTime(userDto.getLastConnectionDate());</span>
+<span class="fc" id="L80">      String slLastConnectionDate = toDateTime(userDto.getLastSonarlintConnectionDate());</span>
+<span class="fc" id="L81">      List&lt;String&gt; scmAccounts = userInformation.userDto().getSortedScmAccounts();</span>
+<span class="fc" id="L82">      return new UserRestResponseForAdmins(</span>
+        id,
+        login,
+        name,
+        email,
+        active,
+        local,
+        managed,
+        externalLogin,
+        externalIdentityProvider,
+        externalId,
+        avatar,
+        sqLastConnectionDate,
+        slLastConnectionDate,
+        scmAccounts);
+    }
+<span class="fc" id="L98">    return new UserRestResponseForLoggedInUsers(login, name, active, avatar);</span>
+  }
+
+  private static String toDateTime(@Nullable Long dateTimeMs) {
+<span class="fc" id="L102">    return Optional.ofNullable(dateTimeMs).map(DateUtils::formatDateTime).orElse(null);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ProjectStatusAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.qualitygate.ws</a> &gt; <span class="el_source">ProjectStatusAction.java</span></div><h1>ProjectStatusAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.qualitygate.ws;
+
+import java.util.Arrays;
+import java.util.Optional;
+import java.util.stream.Collectors;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
+import org.sonar.api.measures.CoreMetrics;
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.db.permission.ProjectPermission;
+import org.sonar.core.util.Uuids;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.BranchDto;
+import org.sonar.db.component.SnapshotDto;
+import org.sonar.db.measure.ProjectMeasureDto;
+import org.sonar.db.permission.GlobalPermission;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.server.component.ComponentFinder;
+import org.sonar.server.exceptions.BadRequestException;
+import org.sonar.server.qualitygate.QualityGateCaycChecker;
+import org.sonar.server.qualitygate.QualityGateCaycStatus;
+import org.sonar.server.user.UserSession;
+import org.sonar.server.ws.KeyExamples;
+import org.sonarqube.ws.Qualitygates.ProjectStatusResponse;
+
+import static com.google.common.base.Strings.isNullOrEmpty;
+import static org.sonar.server.exceptions.BadRequestException.checkRequest;
+import static org.sonar.server.exceptions.NotFoundException.checkFoundWithOptional;
+import static org.sonar.server.qualitygate.ws.QualityGatesWsParameters.ACTION_PROJECT_STATUS;
+import static org.sonar.server.qualitygate.ws.QualityGatesWsParameters.PARAM_ANALYSIS_ID;
+import static org.sonar.server.qualitygate.ws.QualityGatesWsParameters.PARAM_BRANCH;
+import static org.sonar.server.qualitygate.ws.QualityGatesWsParameters.PARAM_PROJECT_ID;
+import static org.sonar.server.qualitygate.ws.QualityGatesWsParameters.PARAM_PROJECT_KEY;
+import static org.sonar.server.qualitygate.ws.QualityGatesWsParameters.PARAM_PULL_REQUEST;
+import static org.sonar.server.user.AbstractUserSession.insufficientPrivilegesException;
+import static org.sonar.server.ws.WsUtils.writeProtobuf;
+
+public class ProjectStatusAction implements QualityGatesWsAction {
+<span class="fc" id="L62">  private static final String QG_STATUSES_ONE_LINE = Arrays.stream(ProjectStatusResponse.Status.values())</span>
+<span class="fc" id="L63">    .map(Enum::toString)</span>
+<span class="fc" id="L64">    .collect(Collectors.joining(&quot;, &quot;));</span>
+<span class="fc" id="L65">  private static final String MSG_ONE_PROJECT_PARAMETER_ONLY = String.format(&quot;Either '%s', '%s' or '%s' must be provided&quot;, PARAM_ANALYSIS_ID, PARAM_PROJECT_ID, PARAM_PROJECT_KEY);</span>
+<span class="fc" id="L66">  private static final String MSG_ONE_BRANCH_PARAMETER_ONLY = String.format(&quot;Either '%s' or '%s' can be provided, not both&quot;, PARAM_BRANCH, PARAM_PULL_REQUEST);</span>
+
+  private final DbClient dbClient;
+  private final ComponentFinder componentFinder;
+  private final UserSession userSession;
+  private final QualityGateCaycChecker qualityGateCaycChecker;
+
+<span class="fc" id="L73">  public ProjectStatusAction(DbClient dbClient, ComponentFinder componentFinder, UserSession userSession, QualityGateCaycChecker qualityGateCaycChecker) {</span>
+<span class="fc" id="L74">    this.dbClient = dbClient;</span>
+<span class="fc" id="L75">    this.componentFinder = componentFinder;</span>
+<span class="fc" id="L76">    this.userSession = userSession;</span>
+<span class="fc" id="L77">    this.qualityGateCaycChecker = qualityGateCaycChecker;</span>
+<span class="fc" id="L78">  }</span>
+
+  @Override
+  public void define(WebService.NewController controller) {
+<span class="fc" id="L82">    WebService.NewAction action = controller.createAction(ACTION_PROJECT_STATUS)</span>
+<span class="fc" id="L83">      .setDescription(String.format(&quot;Get the quality gate status of a project or a Compute Engine task.&lt;br /&gt;&quot; +</span>
+        &quot;%s &lt;br /&gt;&quot; +
+        &quot;The different statuses returned are: %s. The %s status is returned when there is no quality gate associated with the analysis.&lt;br /&gt;&quot; +
+        &quot;Returns an HTTP code 404 if the analysis associated with the task is not found or does not exist.&lt;br /&gt;&quot; +
+        &quot;Requires one of the following permissions:&quot; +
+        &quot;&lt;ul&gt;&quot; +
+        &quot;&lt;li&gt;'Administer System'&lt;/li&gt;&quot; +
+        &quot;&lt;li&gt;'Administer' rights on the specified project&lt;/li&gt;&quot; +
+        &quot;&lt;li&gt;'Browse' on the specified project&lt;/li&gt;&quot; +
+        &quot;&lt;li&gt;'Execute Analysis' on the specified project&lt;/li&gt;&quot; +
+        &quot;&lt;/ul&gt;&quot;, MSG_ONE_PROJECT_PARAMETER_ONLY, QG_STATUSES_ONE_LINE, ProjectStatusResponse.Status.NONE))
+<span class="fc" id="L94">      .setResponseExample(getClass().getResource(&quot;project_status-example.json&quot;))</span>
+<span class="fc" id="L95">      .setSince(&quot;5.3&quot;)</span>
+<span class="fc" id="L96">      .setHandler(this)</span>
+<span class="fc" id="L97">      .setChangelog(</span>
+        new Change(&quot;10.0&quot;, &quot;The fields 'periods' and 'periodIndex' in the response are removed&quot;),
+        new Change(&quot;9.9&quot;, &quot;'caycStatus' field is added to the response&quot;),
+        new Change(&quot;9.5&quot;, &quot;The 'Execute Analysis' permission also allows to access the endpoint&quot;),
+        new Change(&quot;8.5&quot;, &quot;The field 'periods' in the response is deprecated. Use 'period' instead&quot;),
+        new Change(&quot;7.7&quot;, &quot;The parameters 'branch' and 'pullRequest' were added&quot;),
+        new Change(&quot;7.6&quot;, &quot;The field 'warning' in the response is deprecated&quot;),
+        new Change(&quot;6.4&quot;, &quot;The field 'ignoredConditions' is added to the response&quot;));
+
+<span class="fc" id="L106">    action.createParam(PARAM_ANALYSIS_ID)</span>
+<span class="fc" id="L107">      .setDescription(&quot;Analysis id&quot;)</span>
+<span class="fc" id="L108">      .setExampleValue(Uuids.UUID_EXAMPLE_04);</span>
+
+<span class="fc" id="L110">    action.createParam(PARAM_PROJECT_ID)</span>
+<span class="fc" id="L111">      .setSince(&quot;5.4&quot;)</span>
+<span class="fc" id="L112">      .setDescription(&quot;Project UUID. Doesn't work with branches or pull requests&quot;)</span>
+<span class="fc" id="L113">      .setExampleValue(Uuids.UUID_EXAMPLE_01);</span>
+
+<span class="fc" id="L115">    action.createParam(PARAM_PROJECT_KEY)</span>
+<span class="fc" id="L116">      .setSince(&quot;5.4&quot;)</span>
+<span class="fc" id="L117">      .setDescription(&quot;Project key&quot;)</span>
+<span class="fc" id="L118">      .setExampleValue(KeyExamples.KEY_PROJECT_EXAMPLE_001);</span>
+
+<span class="fc" id="L120">    action.createParam(PARAM_BRANCH)</span>
+<span class="fc" id="L121">      .setSince(&quot;7.7&quot;)</span>
+<span class="fc" id="L122">      .setDescription(&quot;Branch key&quot;)</span>
+<span class="fc" id="L123">      .setExampleValue(KeyExamples.KEY_BRANCH_EXAMPLE_001);</span>
+
+<span class="fc" id="L125">    action.createParam(PARAM_PULL_REQUEST)</span>
+<span class="fc" id="L126">      .setSince(&quot;7.7&quot;)</span>
+<span class="fc" id="L127">      .setDescription(&quot;Pull request id&quot;)</span>
+<span class="fc" id="L128">      .setExampleValue(KeyExamples.KEY_PULL_REQUEST_EXAMPLE_001);</span>
+<span class="fc" id="L129">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L133">    String analysisId = request.param(PARAM_ANALYSIS_ID);</span>
+<span class="fc" id="L134">    String projectId = request.param(PARAM_PROJECT_ID);</span>
+<span class="fc" id="L135">    String projectKey = request.param(PARAM_PROJECT_KEY);</span>
+<span class="fc" id="L136">    String branchKey = request.param(PARAM_BRANCH);</span>
+<span class="fc" id="L137">    String pullRequestId = request.param(PARAM_PULL_REQUEST);</span>
+<span class="fc" id="L138">    checkRequest(</span>
+<span class="fc bfc" id="L139" title="All 2 branches covered.">      !isNullOrEmpty(analysisId)</span>
+<span class="fc bfc" id="L140" title="All 2 branches covered.">        ^ !isNullOrEmpty(projectId)</span>
+<span class="fc bfc" id="L141" title="All 2 branches covered.">        ^ !isNullOrEmpty(projectKey),</span>
+      MSG_ONE_PROJECT_PARAMETER_ONLY);
+<span class="fc bfc" id="L143" title="All 4 branches covered.">    checkRequest(isNullOrEmpty(branchKey) || isNullOrEmpty(pullRequestId), MSG_ONE_BRANCH_PARAMETER_ONLY);</span>
+
+<span class="fc" id="L145">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L146">      ProjectStatusResponse projectStatusResponse = doHandle(dbSession, analysisId, projectId, projectKey, branchKey, pullRequestId);</span>
+<span class="fc" id="L147">      writeProtobuf(projectStatusResponse, request, response);</span>
+    }
+<span class="fc" id="L149">  }</span>
+
+  private ProjectStatusResponse doHandle(DbSession dbSession, @Nullable String analysisId, @Nullable String projectUuid,
+    @Nullable String projectKey, @Nullable String branchKey, @Nullable String pullRequestId) {
+<span class="fc" id="L153">    ProjectAndSnapshot projectAndSnapshot = getProjectAndSnapshot(dbSession, analysisId, projectUuid, projectKey, branchKey, pullRequestId);</span>
+<span class="fc" id="L154">    checkPermission(projectAndSnapshot.project);</span>
+<span class="fc bfc" id="L155" title="All 2 branches covered.">    Optional&lt;String&gt; measureData = loadQualityGateDetails(dbSession, projectAndSnapshot, analysisId != null);</span>
+<span class="fc" id="L156">    QualityGateCaycStatus caycStatus = qualityGateCaycChecker.checkCaycCompliantFromProject(dbSession, projectAndSnapshot.project.getUuid());</span>
+
+<span class="fc" id="L158">    return ProjectStatusResponse.newBuilder()</span>
+<span class="fc" id="L159">      .setProjectStatus(new QualityGateDetailsFormatter(measureData.orElse(null), projectAndSnapshot.snapshotDto.orElse(null), caycStatus).format())</span>
+<span class="fc" id="L160">      .build();</span>
+  }
+
+  private ProjectAndSnapshot getProjectAndSnapshot(DbSession dbSession, @Nullable String analysisId, @Nullable String projectUuid,
+    @Nullable String projectKey, @Nullable String branchKey, @Nullable String pullRequestId) {
+<span class="fc bfc" id="L165" title="All 2 branches covered.">    if (!isNullOrEmpty(analysisId)) {</span>
+<span class="fc" id="L166">      return getSnapshotThenProject(dbSession, analysisId);</span>
+    }
+<span class="pc bpc" id="L168" title="1 of 6 branches missed.">    if (!isNullOrEmpty(projectUuid) ^ !isNullOrEmpty(projectKey)) {</span>
+<span class="fc" id="L169">      return getProjectThenSnapshot(dbSession, projectUuid, projectKey, branchKey, pullRequestId);</span>
+    }
+
+<span class="nc" id="L172">    throw BadRequestException.create(MSG_ONE_PROJECT_PARAMETER_ONLY);</span>
+  }
+
+  private ProjectAndSnapshot getProjectThenSnapshot(DbSession dbSession, @Nullable String projectUuid, @Nullable String projectKey,
+    @Nullable String branchKey, @Nullable String pullRequestId) {
+    ProjectDto projectDto;
+    BranchDto branchDto;
+
+<span class="fc bfc" id="L180" title="All 2 branches covered.">    if (projectUuid != null) {</span>
+<span class="fc" id="L181">      projectDto = componentFinder.getProjectByUuid(dbSession, projectUuid);</span>
+<span class="fc" id="L182">      branchDto = componentFinder.getMainBranch(dbSession, projectDto);</span>
+    } else {
+<span class="fc" id="L184">      projectDto = componentFinder.getProjectByKey(dbSession, projectKey);</span>
+<span class="fc" id="L185">      branchDto = componentFinder.getBranchOrPullRequest(dbSession, projectDto, branchKey, pullRequestId);</span>
+    }
+<span class="fc" id="L187">    Optional&lt;SnapshotDto&gt; snapshot = dbClient.snapshotDao().selectLastAnalysisByRootComponentUuid(dbSession, branchDto.getUuid());</span>
+<span class="fc" id="L188">    return new ProjectAndSnapshot(projectDto, branchDto, snapshot.orElse(null));</span>
+  }
+
+  private ProjectAndSnapshot getSnapshotThenProject(DbSession dbSession, String analysisUuid) {
+<span class="fc" id="L192">    SnapshotDto snapshotDto = getSnapshot(dbSession, analysisUuid);</span>
+<span class="fc" id="L193">    BranchDto branchDto = dbClient.branchDao().selectByUuid(dbSession, snapshotDto.getRootComponentUuid())</span>
+<span class="pc" id="L194">      .orElseThrow(() -&gt; new IllegalStateException(String.format(&quot;Branch '%s' not found&quot;, snapshotDto.getUuid())));</span>
+<span class="fc" id="L195">    ProjectDto projectDto = dbClient.projectDao().selectByUuid(dbSession, branchDto.getProjectUuid())</span>
+<span class="pc" id="L196">      .orElseThrow(() -&gt; new IllegalStateException(String.format(&quot;Project '%s' not found&quot;, branchDto.getProjectUuid())));</span>
+
+<span class="fc" id="L198">    return new ProjectAndSnapshot(projectDto, branchDto, snapshotDto);</span>
+  }
+
+  private SnapshotDto getSnapshot(DbSession dbSession, String analysisUuid) {
+<span class="fc" id="L202">    Optional&lt;SnapshotDto&gt; snapshotDto = dbClient.snapshotDao().selectByUuid(dbSession, analysisUuid);</span>
+<span class="fc" id="L203">    return checkFoundWithOptional(snapshotDto, &quot;Analysis with id '%s' is not found&quot;, analysisUuid);</span>
+  }
+
+  private Optional&lt;String&gt; loadQualityGateDetails(DbSession dbSession, ProjectAndSnapshot projectAndSnapshot, boolean onAnalysis) {
+<span class="fc bfc" id="L207" title="All 2 branches covered.">    if (onAnalysis) {</span>
+<span class="pc bpc" id="L208" title="1 of 2 branches missed.">      if (!projectAndSnapshot.snapshotDto.isPresent()) {</span>
+<span class="nc" id="L209">        return Optional.empty();</span>
+      }
+      // get the gate status as it was computed during the specified analysis
+<span class="fc" id="L212">      String analysisUuid = projectAndSnapshot.snapshotDto.get().getUuid();</span>
+<span class="fc" id="L213">      return dbClient.projectMeasureDao().selectMeasure(dbSession, analysisUuid, projectAndSnapshot.branch.getUuid(), CoreMetrics.QUALITY_GATE_DETAILS_KEY)</span>
+<span class="fc" id="L214">        .map(ProjectMeasureDto::getData);</span>
+    }
+
+    // do not restrict to a specified analysis, use the live measure
+<span class="fc" id="L218">    return dbClient.measureDao().selectByComponentUuid(dbSession, projectAndSnapshot.branch.getUuid())</span>
+<span class="fc" id="L219">      .map(m -&gt; m.getString(CoreMetrics.QUALITY_GATE_DETAILS_KEY));</span>
+  }
+
+  private void checkPermission(ProjectDto project) {
+<span class="fc bfc" id="L223" title="All 2 branches covered.">    if (!userSession.hasEntityPermission(ProjectPermission.ADMIN, project) &amp;&amp;</span>
+<span class="fc bfc" id="L224" title="All 2 branches covered.">        !userSession.hasEntityPermission(ProjectPermission.USER, project) &amp;&amp;</span>
+<span class="fc bfc" id="L225" title="All 2 branches covered.">        !userSession.hasEntityPermission(ProjectPermission.SCAN, project) &amp;&amp;</span>
+<span class="fc bfc" id="L226" title="All 2 branches covered.">        !userSession.hasPermission(GlobalPermission.SCAN)) {</span>
+<span class="fc" id="L227">      throw insufficientPrivilegesException();</span>
+    }
+<span class="fc" id="L229">  }</span>
+
+  @Immutable
+  private static class ProjectAndSnapshot {
+    private final BranchDto branch;
+    private final Optional&lt;SnapshotDto&gt; snapshotDto;
+    private final ProjectDto project;
+
+<span class="fc" id="L237">    private ProjectAndSnapshot(ProjectDto project, BranchDto branch, @Nullable SnapshotDto snapshotDto) {</span>
+<span class="fc" id="L238">      this.project = project;</span>
+<span class="fc" id="L239">      this.branch = branch;</span>
+<span class="fc" id="L240">      this.snapshotDto = Optional.ofNullable(snapshotDto);</span>
+<span class="fc" id="L241">    }</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

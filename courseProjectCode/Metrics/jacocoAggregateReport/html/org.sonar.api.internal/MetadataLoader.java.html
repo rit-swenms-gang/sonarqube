@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MetadataLoader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.api.internal</a> &gt; <span class="el_source">MetadataLoader.java</span></div><h1>MetadataLoader.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.api.internal;
+
+import java.io.IOException;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.Locale;
+import java.util.Scanner;
+import org.sonar.api.SonarEdition;
+import org.sonar.api.utils.System2;
+import org.sonar.api.utils.Version;
+
+import static java.lang.String.format;
+import static org.apache.commons.lang3.StringUtils.trimToEmpty;
+
+/**
+ * For internal use
+ *
+ * @since 7.8
+ */
+public class MetadataLoader {
+
+  private static final String SQ_VERSION_FILE_PATH = &quot;/sq-version.txt&quot;;
+  private static final String SONAR_API_VERSION_FILE_PATH = &quot;/sonar-api-version.txt&quot;;
+  private static final String EDITION_FILE_PATH = &quot;/sonar-edition.txt&quot;;
+  private static final String SQ_VERSION_EOL_FILE_PATH = &quot;/sq-version-eol.txt&quot;;
+  public static final String CAN_NOT_LOAD_FROM_CLASSPATH = &quot;Can not load %s from classpath&quot;;
+
+  private MetadataLoader() {
+    // only static methods
+  }
+
+  public static Version loadApiVersion(System2 system) {
+<span class="fc" id="L52">    return getVersion(system, SONAR_API_VERSION_FILE_PATH);</span>
+  }
+
+  public static Version loadSQVersion(System2 system) {
+<span class="fc" id="L56">    return getVersion(system, SQ_VERSION_FILE_PATH);</span>
+  }
+
+  public static String loadSqVersionEol(System2 system) {
+<span class="fc" id="L60">    return getParamFromFile(system, SQ_VERSION_EOL_FILE_PATH);</span>
+  }
+
+  private static Version getVersion(System2 system, String versionFilePath) {
+<span class="fc" id="L64">    return Version.parse(getParamFromFile(system, versionFilePath));</span>
+  }
+
+  private static String getParamFromFile(System2 system, String filePath) {
+<span class="fc" id="L68">    URL url = system.getResource(filePath);</span>
+<span class="fc" id="L69">    try (Scanner scanner = new Scanner(url.openStream(), StandardCharsets.UTF_8)) {</span>
+<span class="fc" id="L70">      return scanner.nextLine();</span>
+<span class="fc" id="L71">    } catch (IOException e) {</span>
+<span class="fc" id="L72">      throw new IllegalStateException(format(CAN_NOT_LOAD_FROM_CLASSPATH, filePath), e);</span>
+    }
+  }
+
+  public static SonarEdition loadEdition(System2 system) {
+<span class="fc" id="L77">    URL url = system.getResource(EDITION_FILE_PATH);</span>
+<span class="pc bpc" id="L78" title="1 of 2 branches missed.">    if (url == null) {</span>
+<span class="fc" id="L79">      return SonarEdition.COMMUNITY;</span>
+    }
+<span class="nc" id="L81">    try (Scanner scanner = new Scanner(url.openStream(), StandardCharsets.UTF_8)) {</span>
+<span class="nc" id="L82">      String editionInFile = scanner.nextLine();</span>
+<span class="nc" id="L83">      return parseEdition(editionInFile);</span>
+<span class="nc" id="L84">    } catch (IOException e) {</span>
+<span class="nc" id="L85">      throw new IllegalStateException(format(CAN_NOT_LOAD_FROM_CLASSPATH, EDITION_FILE_PATH), e);</span>
+    }
+  }
+
+  static SonarEdition parseEdition(String edition) {
+<span class="fc" id="L90">    String str = trimToEmpty(edition.toUpperCase(Locale.ENGLISH));</span>
+    try {
+<span class="nc" id="L92">      return SonarEdition.valueOf(str);</span>
+<span class="fc" id="L93">    } catch (IllegalArgumentException e) {</span>
+<span class="fc" id="L94">      throw new IllegalStateException(format(&quot;Invalid edition found in '%s': '%s'&quot;, EDITION_FILE_PATH, str));</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

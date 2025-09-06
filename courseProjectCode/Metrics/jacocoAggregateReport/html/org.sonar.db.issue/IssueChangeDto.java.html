@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IssueChangeDto.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.issue</a> &gt; <span class="el_source">IssueChangeDto.java</span></div><h1>IssueChangeDto.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.issue;
+
+import java.io.Serializable;
+import java.util.Date;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
+import org.sonar.api.utils.System2;
+import org.sonar.core.issue.DefaultIssueComment;
+import org.sonar.core.issue.FieldDiffs;
+
+import static com.google.common.base.Preconditions.checkNotNull;
+import static java.util.Objects.requireNonNull;
+
+/**
+ * @since 3.6
+ */
+public final class IssueChangeDto implements Serializable {
+
+  public static final String TYPE_FIELD_CHANGE = &quot;diff&quot;;
+  public static final String TYPE_COMMENT = &quot;comment&quot;;
+
+  private String uuid;
+  private String kee;
+  private String issueKey;
+  private String projectUuid;
+
+
+  /**
+   * The column USER_LOGIN hasn't been renamed to USER_UUID because we don't know yet the cost of renaming a column on a table that can contain huge number of data
+   */
+  private String userUuid;
+  private String changeType;
+  private String changeData;
+
+  // technical dates
+  private Long createdAt;
+  private Long updatedAt;
+
+  // functional date
+  @Nullable
+  private Long issueChangeCreationDate;
+
+<span class="fc" id="L64">  public IssueChangeDto() {</span>
+    // nothing to do
+<span class="fc" id="L66">  }</span>
+
+  public static IssueChangeDto of(DefaultIssueComment comment, String projectUuid) {
+<span class="fc" id="L69">    IssueChangeDto dto = newDto(comment.issueKey());</span>
+<span class="fc" id="L70">    dto.setKey(comment.key());</span>
+<span class="fc" id="L71">    dto.setChangeType(IssueChangeDto.TYPE_COMMENT);</span>
+<span class="fc" id="L72">    dto.setChangeData(comment.markdownText());</span>
+<span class="fc" id="L73">    dto.setUserUuid(comment.userUuid());</span>
+<span class="fc" id="L74">    Date createdAt = requireNonNull(comment.createdAt(), &quot;Comment created at must not be null&quot;);</span>
+<span class="fc" id="L75">    dto.setIssueChangeCreationDate(createdAt.getTime());</span>
+<span class="fc" id="L76">    dto.setProjectUuid(projectUuid);</span>
+<span class="fc" id="L77">    return dto;</span>
+  }
+
+  public static IssueChangeDto of(String issueKey, FieldDiffs diffs, String projectUuid) {
+<span class="fc" id="L81">    IssueChangeDto dto = newDto(issueKey);</span>
+<span class="fc" id="L82">    dto.setChangeType(IssueChangeDto.TYPE_FIELD_CHANGE);</span>
+<span class="fc" id="L83">    dto.setChangeData(diffs.toEncodedString());</span>
+<span class="fc" id="L84">    dto.setUserUuid(diffs.userUuid().orElse(null));</span>
+<span class="fc" id="L85">    Date createdAt = requireNonNull(diffs.creationDate(), &quot;Diffs created at must not be null&quot;);</span>
+<span class="fc" id="L86">    dto.setIssueChangeCreationDate(createdAt.getTime());</span>
+<span class="fc" id="L87">    dto.setProjectUuid(projectUuid);</span>
+<span class="fc" id="L88">    return dto;</span>
+  }
+
+  private static IssueChangeDto newDto(String issueKey) {
+<span class="fc" id="L92">    IssueChangeDto dto = new IssueChangeDto();</span>
+<span class="fc" id="L93">    dto.setIssueKey(issueKey);</span>
+
+    // technical dates - do not use the context date
+<span class="fc" id="L96">    dto.setCreatedAt(System2.INSTANCE.now());</span>
+<span class="fc" id="L97">    dto.setUpdatedAt(System2.INSTANCE.now());</span>
+<span class="fc" id="L98">    return dto;</span>
+  }
+
+  public String getUuid() {
+<span class="fc" id="L102">    return uuid;</span>
+  }
+
+  public IssueChangeDto setUuid(String uuid) {
+<span class="fc" id="L106">    this.uuid = uuid;</span>
+<span class="fc" id="L107">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getKey() {
+<span class="fc" id="L112">    return kee;</span>
+  }
+
+  public IssueChangeDto setKey(@Nullable String key) {
+<span class="fc" id="L116">    this.kee = key;</span>
+<span class="fc" id="L117">    return this;</span>
+  }
+
+  public String getIssueKey() {
+<span class="fc" id="L121">    return issueKey;</span>
+  }
+
+  public IssueChangeDto setIssueKey(String s) {
+<span class="fc" id="L125">    this.issueKey = s;</span>
+<span class="fc" id="L126">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getUserUuid() {
+<span class="fc" id="L131">    return userUuid;</span>
+  }
+
+  public IssueChangeDto setUserUuid(@Nullable String userUuid) {
+<span class="fc" id="L135">    this.userUuid = userUuid;</span>
+<span class="fc" id="L136">    return this;</span>
+  }
+
+  public String getChangeType() {
+<span class="fc" id="L140">    return changeType;</span>
+  }
+
+  public IssueChangeDto setChangeType(String changeType) {
+<span class="fc" id="L144">    this.changeType = changeType;</span>
+<span class="fc" id="L145">    return this;</span>
+  }
+
+  public String getChangeData() {
+<span class="fc" id="L149">    return changeData;</span>
+  }
+
+  public IssueChangeDto setChangeData(String changeData) {
+<span class="fc" id="L153">    this.changeData = changeData;</span>
+<span class="fc" id="L154">    return this;</span>
+  }
+
+  public Long getCreatedAt() {
+<span class="fc" id="L158">    return createdAt;</span>
+  }
+
+  public IssueChangeDto setCreatedAt(Long createdAt) {
+<span class="fc" id="L162">    this.createdAt = checkNotNull(createdAt);</span>
+<span class="fc" id="L163">    return this;</span>
+  }
+
+  public Long getUpdatedAt() {
+<span class="fc" id="L167">    return updatedAt;</span>
+  }
+
+  public IssueChangeDto setUpdatedAt(@Nullable Long updatedAt) {
+<span class="fc" id="L171">    this.updatedAt = updatedAt;</span>
+<span class="fc" id="L172">    return this;</span>
+  }
+
+  public Long getIssueChangeCreationDate() {
+    // Old comments do not have functional creation date as this column has been added later
+<span class="fc bfc" id="L177" title="All 2 branches covered.">    return issueChangeCreationDate == null ? createdAt : issueChangeCreationDate;</span>
+  }
+
+  public IssueChangeDto setIssueChangeCreationDate(long issueChangeCreationDate) {
+<span class="fc" id="L181">    this.issueChangeCreationDate = issueChangeCreationDate;</span>
+<span class="fc" id="L182">    return this;</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="fc" id="L187">    return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);</span>
+  }
+
+  public DefaultIssueComment toComment() {
+<span class="fc" id="L191">    return new DefaultIssueComment()</span>
+<span class="fc" id="L192">      .setMarkdownText(changeData)</span>
+<span class="fc" id="L193">      .setKey(kee)</span>
+<span class="fc" id="L194">      .setCreatedAt(new Date(getIssueChangeCreationDate()))</span>
+<span class="pc bpc" id="L195" title="1 of 2 branches missed.">      .setUpdatedAt(updatedAt == null ? null : new Date(updatedAt))</span>
+<span class="fc" id="L196">      .setUserUuid(userUuid)</span>
+<span class="fc" id="L197">      .setIssueKey(issueKey)</span>
+<span class="fc" id="L198">      .setNew(false);</span>
+  }
+
+  public FieldDiffs toFieldDiffs() {
+<span class="fc" id="L202">    return FieldDiffs.parse(changeData)</span>
+<span class="fc" id="L203">      .setUserUuid(userUuid)</span>
+<span class="fc" id="L204">      .setCreationDate(new Date(getIssueChangeCreationDate()))</span>
+<span class="fc" id="L205">      .setIssueKey(issueKey);</span>
+  }
+
+  public String getProjectUuid() {
+<span class="fc" id="L209">    return projectUuid;</span>
+  }
+
+  public IssueChangeDto setProjectUuid(String projectUuid) {
+<span class="fc" id="L213">    this.projectUuid = projectUuid;</span>
+<span class="fc" id="L214">    return this;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

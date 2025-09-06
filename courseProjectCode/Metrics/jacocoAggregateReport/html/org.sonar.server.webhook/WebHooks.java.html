@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WebHooks.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.webhook</a> &gt; <span class="el_source">WebHooks.java</span></div><h1>WebHooks.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.webhook;
+
+import java.util.function.Supplier;
+import javax.annotation.Nullable;
+import org.sonar.api.ce.posttask.PostProjectAnalysisTask;
+import org.sonar.api.config.Configuration;
+import org.sonar.db.project.ProjectDto;
+
+import static java.util.Objects.requireNonNull;
+
+public interface WebHooks {
+
+  /**
+   * Tells whether any webHook is configured for the specified {@link Configuration}.
+   *
+   * &lt;p&gt;
+   * This can be used to not do consuming operations before calling
+   * {@link #sendProjectAnalysisUpdate(Analysis, Supplier, PostProjectAnalysisTask.LogStatistics)}
+   */
+  boolean isEnabled(ProjectDto projectDto);
+
+  /**
+   * Calls all WebHooks configured in the specified {@link Configuration} for the specified analysis with the
+   * {@link WebhookPayload} provided by the specified Supplier.
+   */
+  void sendProjectAnalysisUpdate(Analysis analysis, Supplier&lt;WebhookPayload&gt; payloadSupplier);
+
+  /**
+   * Override to be called from a {@link PostProjectAnalysisTask} implementation.
+   */
+  void sendProjectAnalysisUpdate(Analysis analysis, Supplier&lt;WebhookPayload&gt; payloadSupplier, PostProjectAnalysisTask.LogStatistics taskLogStatistics);
+
+  record Analysis(String projectUuid, String analysisUuid, String ceTaskUuid) {
+<span class="fc" id="L53">    public Analysis(String projectUuid, @Nullable String analysisUuid, @Nullable String ceTaskUuid) {</span>
+<span class="fc" id="L54">      this.projectUuid = requireNonNull(projectUuid, &quot;projectUuid can't be null&quot;);</span>
+<span class="fc" id="L55">      this.analysisUuid = analysisUuid;</span>
+<span class="fc" id="L56">      this.ceTaskUuid = ceTaskUuid;</span>
+<span class="fc" id="L57">    }</span>
+
+    @Override
+    public String toString() {
+<span class="nc" id="L61">      return &quot;Analysis{&quot; +</span>
+        &quot;projectUuid='&quot; + projectUuid + '\'' +
+        &quot;, ceTaskUuid='&quot; + ceTaskUuid + '\'' +
+        '}';
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MinimumViableSystem.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.process</a> &gt; <span class="el_source">MinimumViableSystem.java</span></div><h1>MinimumViableSystem.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.process;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.Map;
+import org.apache.commons.lang3.StringUtils;
+
+import static java.lang.String.format;
+import static org.sonar.process.FileUtils2.deleteQuietly;
+
+<span class="fc" id="L30">public class MinimumViableSystem {</span>
+
+  /**
+   * Verify that temp directory is writable
+   */
+  public MinimumViableSystem checkWritableTempDir() {
+<span class="nc" id="L36">    checkWritableDir(System.getProperty(&quot;java.io.tmpdir&quot;));</span>
+<span class="nc" id="L37">    return this;</span>
+  }
+
+  // Visible for testing
+  void checkWritableDir(String tempPath) {
+    try {
+<span class="fc" id="L43">      File tempFile = File.createTempFile(&quot;check&quot;, &quot;tmp&quot;, new File(tempPath));</span>
+<span class="fc" id="L44">      deleteQuietly(tempFile);</span>
+<span class="fc" id="L45">    } catch (IOException e) {</span>
+<span class="fc" id="L46">      throw new IllegalStateException(format(&quot;Temp directory is not writable: %s&quot;, tempPath), e);</span>
+<span class="fc" id="L47">    }</span>
+<span class="fc" id="L48">  }</span>
+
+  public MinimumViableSystem checkRequiredJavaOptions(Map&lt;String, String&gt; requiredJavaOptions) {
+<span class="fc bfc" id="L51" title="All 2 branches covered.">    for (Map.Entry&lt;String, String&gt; entry : requiredJavaOptions.entrySet()) {</span>
+<span class="fc" id="L52">      String value = System.getProperty(entry.getKey());</span>
+<span class="fc bfc" id="L53" title="All 2 branches covered.">      if (!StringUtils.equals(value, entry.getValue())) {</span>
+<span class="fc" id="L54">        throw new MessageException(format(</span>
+<span class="fc" id="L55">          &quot;JVM option '%s' must be set to '%s'. Got '%s'&quot;, entry.getKey(), entry.getValue(), StringUtils.defaultString(value)));</span>
+      }
+<span class="fc" id="L57">    }</span>
+<span class="fc" id="L58">    return this;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

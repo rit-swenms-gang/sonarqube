@@ -1,0 +1,681 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ScannerReportViewerApp.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.protocol.viewer</a> &gt; <span class="el_source">ScannerReportViewerApp.java</span></div><h1>ScannerReportViewerApp.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.protocol.viewer;
+
+import java.awt.BorderLayout;
+import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.EventQueue;
+import java.io.File;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.nio.charset.StandardCharsets;
+import java.sql.Date;
+import java.text.SimpleDateFormat;
+import java.util.List;
+import java.util.Map;
+import java.util.Scanner;
+import javax.annotation.CheckForNull;
+import javax.swing.JEditorPane;
+import javax.swing.JFileChooser;
+import javax.swing.JFrame;
+import javax.swing.JOptionPane;
+import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
+import javax.swing.JTabbedPane;
+import javax.swing.JTree;
+import javax.swing.UIManager;
+import javax.swing.UIManager.LookAndFeelInfo;
+import javax.swing.event.TreeSelectionEvent;
+import javax.swing.event.TreeSelectionListener;
+import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.DefaultTreeModel;
+import javax.swing.tree.TreeSelectionModel;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.sonar.core.util.CloseableIterator;
+import org.sonar.scanner.protocol.output.FileStructure;
+import org.sonar.scanner.protocol.output.FileStructure.Domain;
+import org.sonar.scanner.protocol.output.ScannerReport;
+import org.sonar.scanner.protocol.output.ScannerReport.Changesets;
+import org.sonar.scanner.protocol.output.ScannerReport.Changesets.Changeset;
+import org.sonar.scanner.protocol.output.ScannerReport.Component;
+import org.sonar.scanner.protocol.output.ScannerReport.Issue;
+import org.sonar.scanner.protocol.output.ScannerReport.Metadata;
+import org.sonar.scanner.protocol.output.ScannerReport.Metadata.Plugin;
+import org.sonar.scanner.protocol.output.ScannerReport.Metadata.QProfile;
+import org.sonar.scanner.protocol.output.ScannerReportReader;
+
+public class ScannerReportViewerApp {
+
+  private JFrame frame;
+  private ScannerReportReader reader;
+  private Metadata metadata;
+<span class="nc" id="L72">  private SimpleDateFormat sdf = new SimpleDateFormat(&quot;dd/MM/yyyy HH:mm:ss&quot;);</span>
+  private JTree componentTree;
+  private JSplitPane splitPane;
+  private JTabbedPane tabbedPane;
+  private JScrollPane treeScrollPane;
+  private JScrollPane componentDetailsTab;
+  private JScrollPane highlightingTab;
+  private JScrollPane symbolTab;
+  private JEditorPane componentEditor;
+  private JEditorPane highlightingEditor;
+  private JEditorPane symbolEditor;
+  private JScrollPane sourceTab;
+  private JEditorPane sourceEditor;
+  private JScrollPane coverageTab;
+  private JEditorPane coverageEditor;
+  private JScrollPane testsTab;
+  private JEditorPane testsEditor;
+  private TextLineNumber textLineNumber;
+  private JScrollPane duplicationTab;
+  private JEditorPane duplicationEditor;
+  private JScrollPane issuesTab;
+  private JEditorPane issuesEditor;
+  private JScrollPane externalIssuesTab;
+  private JEditorPane externalIssuesEditor;
+  private JScrollPane measuresTab;
+  private JEditorPane measuresEditor;
+  private JScrollPane scmTab;
+  private JEditorPane scmEditor;
+  private JScrollPane activeRuleTab;
+  private JEditorPane activeRuleEditor;
+  private JScrollPane adHocRuleTab;
+  private JEditorPane adHocRuleEditor;
+  private JScrollPane qualityProfileTab;
+  private JEditorPane qualityProfileEditor;
+  private JScrollPane pluginTab;
+  private JEditorPane pluginEditor;
+  private JScrollPane cpdTextBlocksTab;
+  private JEditorPane cpdTextBlocksEditor;
+  private JScrollPane significantCodeTab;
+  private JEditorPane significantCodeEditor;
+  private JScrollPane metadataTab;
+  private JEditorPane metadataEditor;
+
+  /**
+   * Create the application.
+   */
+<span class="nc" id="L118">  public ScannerReportViewerApp() {</span>
+<span class="nc" id="L119">    initialize();</span>
+<span class="nc" id="L120">  }</span>
+
+  /**
+   * Launch the application.
+   */
+  public static void main(String[] args) {
+<span class="nc" id="L126">    EventQueue.invokeLater(() -&gt; {</span>
+      try {
+<span class="nc" id="L128">        ScannerReportViewerApp window = new ScannerReportViewerApp();</span>
+<span class="nc" id="L129">        window.frame.setVisible(true);</span>
+
+<span class="nc" id="L131">        window.loadReport();</span>
+<span class="nc" id="L132">      } catch (Exception e) {</span>
+<span class="nc" id="L133">        e.printStackTrace();</span>
+<span class="nc" id="L134">      }</span>
+<span class="nc" id="L135">    });</span>
+<span class="nc" id="L136">  }</span>
+
+  private void loadReport() {
+<span class="nc" id="L139">    final JFileChooser fc = new JFileChooser();</span>
+<span class="nc" id="L140">    fc.setDialogTitle(&quot;Choose scanner report directory&quot;);</span>
+<span class="nc" id="L141">    File lastReport = getLastUsedReport();</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">    if (lastReport != null) {</span>
+<span class="nc" id="L143">      fc.setCurrentDirectory(lastReport);</span>
+    }
+<span class="nc" id="L145">    fc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);</span>
+<span class="nc" id="L146">    fc.setFileHidingEnabled(false);</span>
+<span class="nc" id="L147">    fc.setApproveButtonText(&quot;Open scanner report&quot;);</span>
+<span class="nc" id="L148">    int returnVal = fc.showOpenDialog(frame);</span>
+<span class="nc bnc" id="L149" title="All 2 branches missed.">    if (returnVal == JFileChooser.APPROVE_OPTION) {</span>
+<span class="nc" id="L150">      File file = fc.getSelectedFile();</span>
+      try {
+<span class="nc" id="L152">        setLastUsedReport(file);</span>
+<span class="nc" id="L153">        loadReport(file);</span>
+<span class="nc" id="L154">      } catch (Exception e) {</span>
+<span class="nc" id="L155">        JOptionPane.showMessageDialog(frame, e.getMessage(), &quot;Error&quot;, JOptionPane.ERROR_MESSAGE);</span>
+<span class="nc" id="L156">        exit();</span>
+<span class="nc" id="L157">      }</span>
+<span class="nc" id="L158">    } else {</span>
+<span class="nc" id="L159">      exit();</span>
+    }
+
+<span class="nc" id="L162">  }</span>
+
+  @CheckForNull
+  private File getLastUsedReport() {
+<span class="nc" id="L166">    File f = new File(System.getProperty(&quot;java.io.tmpdir&quot;), &quot;.last_batch_report_dir&quot;);</span>
+<span class="nc bnc" id="L167" title="All 2 branches missed.">    if (f.exists()) {</span>
+      String path;
+      try {
+<span class="nc" id="L170">        path = FileUtils.readFileToString(f, StandardCharsets.UTF_8);</span>
+<span class="nc" id="L171">      } catch (IOException e) {</span>
+<span class="nc" id="L172">        return null;</span>
+<span class="nc" id="L173">      }</span>
+<span class="nc" id="L174">      File lastReport = new File(path);</span>
+<span class="nc bnc" id="L175" title="All 4 branches missed.">      if (lastReport.exists() &amp;&amp; lastReport.isDirectory()) {</span>
+<span class="nc" id="L176">        return lastReport;</span>
+      }
+    }
+<span class="nc" id="L179">    return null;</span>
+  }
+
+  private void setLastUsedReport(File lastReport) throws IOException {
+
+<span class="nc" id="L184">    File f = new File(System.getProperty(&quot;java.io.tmpdir&quot;), &quot;.last_batch_report_dir&quot;);</span>
+<span class="nc" id="L185">    String fullPath = lastReport.getAbsolutePath();</span>
+<span class="nc" id="L186">    FileUtils.write(f, fullPath, StandardCharsets.UTF_8);</span>
+<span class="nc" id="L187">  }</span>
+
+  private void exit() {
+<span class="nc" id="L190">    frame.setVisible(false);</span>
+<span class="nc" id="L191">    frame.dispose();</span>
+<span class="nc" id="L192">  }</span>
+
+  private void loadReport(File file) {
+<span class="nc" id="L195">    FileStructure fileStructure = new FileStructure(file);</span>
+<span class="nc" id="L196">    reader = new ScannerReportReader(fileStructure);</span>
+<span class="nc" id="L197">    metadata = reader.readMetadata();</span>
+<span class="nc" id="L198">    updateTitle();</span>
+<span class="nc" id="L199">    loadComponents();</span>
+<span class="nc" id="L200">    updateActiveRules();</span>
+<span class="nc" id="L201">    updateAdHocRules();</span>
+<span class="nc" id="L202">    updateQualityProfiles();</span>
+<span class="nc" id="L203">    updatePlugins();</span>
+<span class="nc" id="L204">    updateMetadata();</span>
+<span class="nc" id="L205">  }</span>
+
+  private void loadComponents() {
+<span class="nc" id="L208">    int rootComponentRef = metadata.getRootComponentRef();</span>
+<span class="nc" id="L209">    Component component = reader.readComponent(rootComponentRef);</span>
+<span class="nc" id="L210">    DefaultMutableTreeNode project = createNode(component);</span>
+<span class="nc" id="L211">    loadChildren(component, project);</span>
+<span class="nc" id="L212">    getComponentTree().setModel(new DefaultTreeModel(project));</span>
+<span class="nc" id="L213">  }</span>
+
+  private static DefaultMutableTreeNode createNode(Component component) {
+<span class="nc" id="L216">    return new DefaultMutableTreeNode(component) {</span>
+      @Override
+      public String toString() {
+<span class="nc" id="L219">        return getNodeName((Component) getUserObject());</span>
+      }
+    };
+  }
+
+  private static String getNodeName(Component component) {
+<span class="nc bnc" id="L225" title="All 3 branches missed.">    switch (component.getType()) {</span>
+      case PROJECT:
+      case MODULE:
+<span class="nc" id="L228">        return component.getName();</span>
+      case DIRECTORY:
+      case FILE:
+<span class="nc" id="L231">        return component.getProjectRelativePath();</span>
+      default:
+<span class="nc" id="L233">        throw new IllegalArgumentException(&quot;Unknow component type: &quot; + component.getType());</span>
+    }
+  }
+
+  private void loadChildren(Component parentComponent, DefaultMutableTreeNode parentNode) {
+<span class="nc bnc" id="L238" title="All 2 branches missed.">    for (int ref : parentComponent.getChildRefList()) {</span>
+<span class="nc" id="L239">      Component child = reader.readComponent(ref);</span>
+<span class="nc" id="L240">      DefaultMutableTreeNode childNode = createNode(child);</span>
+<span class="nc" id="L241">      parentNode.add(childNode);</span>
+<span class="nc" id="L242">      loadChildren(child, childNode);</span>
+<span class="nc" id="L243">    }</span>
+
+<span class="nc" id="L245">  }</span>
+
+  private void updateTitle() {
+<span class="nc bnc" id="L248" title="All 2 branches missed.">    frame.setTitle(metadata.getProjectKey() + (StringUtils.isNotEmpty(metadata.getBranchName()) ? (&quot; (&quot; + metadata.getBranchName() + &quot;)&quot;) : &quot;&quot;) + &quot; &quot;</span>
+<span class="nc" id="L249">      + sdf.format(new Date(metadata.getAnalysisDate())));</span>
+<span class="nc" id="L250">  }</span>
+
+  private void updateDetails(Component component) {
+<span class="nc" id="L253">    componentEditor.setText(component.toString());</span>
+<span class="nc" id="L254">    updateHighlighting(component);</span>
+<span class="nc" id="L255">    updateSymbols(component);</span>
+<span class="nc" id="L256">    updateSource(component);</span>
+<span class="nc" id="L257">    updateCoverage(component);</span>
+<span class="nc" id="L258">    updateDuplications(component);</span>
+<span class="nc" id="L259">    updateIssues(component);</span>
+<span class="nc" id="L260">    updateExternalIssues(component);</span>
+<span class="nc" id="L261">    updateMeasures(component);</span>
+<span class="nc" id="L262">    updateScm(component);</span>
+<span class="nc" id="L263">    updateCpdTextBlocks(component);</span>
+<span class="nc" id="L264">    updateSignificantCode(component);</span>
+<span class="nc" id="L265">  }</span>
+
+  private void updateCpdTextBlocks(Component component) {
+<span class="nc" id="L268">    cpdTextBlocksEditor.setText(&quot;&quot;);</span>
+<span class="nc bnc" id="L269" title="All 2 branches missed.">    if (reader.hasCoverage(component.getRef())) {</span>
+<span class="nc" id="L270">      try (CloseableIterator&lt;ScannerReport.CpdTextBlock&gt; it = reader.readCpdTextBlocks(component.getRef())) {</span>
+<span class="nc bnc" id="L271" title="All 2 branches missed.">        while (it.hasNext()) {</span>
+<span class="nc" id="L272">          ScannerReport.CpdTextBlock textBlock = it.next();</span>
+<span class="nc" id="L273">          cpdTextBlocksEditor.getDocument().insertString(cpdTextBlocksEditor.getDocument().getLength(), textBlock + &quot;\n&quot;, null);</span>
+<span class="nc" id="L274">        }</span>
+<span class="nc" id="L275">      } catch (Exception e) {</span>
+<span class="nc" id="L276">        throw new IllegalStateException(&quot;Can't read CPD text blocks for &quot; + getNodeName(component), e);</span>
+<span class="nc" id="L277">      }</span>
+    }
+<span class="nc" id="L279">  }</span>
+
+  private void updateSignificantCode(Component component) {
+<span class="nc" id="L282">    significantCodeEditor.setText(&quot;&quot;);</span>
+<span class="nc bnc" id="L283" title="All 2 branches missed.">    if (reader.hasCoverage(component.getRef())) {</span>
+<span class="nc" id="L284">      try (CloseableIterator&lt;ScannerReport.LineSgnificantCode&gt; it = reader.readComponentSignificantCode(component.getRef())) {</span>
+<span class="nc bnc" id="L285" title="All 2 branches missed.">        if (it != null) {</span>
+<span class="nc bnc" id="L286" title="All 2 branches missed.">          while (it.hasNext()) {</span>
+<span class="nc" id="L287">            ScannerReport.LineSgnificantCode textBlock = it.next();</span>
+<span class="nc" id="L288">            significantCodeEditor.getDocument().insertString(significantCodeEditor.getDocument().getLength(), textBlock + &quot;\n&quot;, null);</span>
+<span class="nc" id="L289">          }</span>
+        }
+<span class="nc" id="L291">      } catch (Exception e) {</span>
+<span class="nc" id="L292">        throw new IllegalStateException(&quot;Can't read significant code for &quot; + getNodeName(component), e);</span>
+<span class="nc" id="L293">      }</span>
+    }
+<span class="nc" id="L295">  }</span>
+
+  private void updateDuplications(Component component) {
+<span class="nc" id="L298">    duplicationEditor.setText(&quot;&quot;);</span>
+<span class="nc bnc" id="L299" title="All 2 branches missed.">    if (reader.hasCoverage(component.getRef())) {</span>
+<span class="nc" id="L300">      try (CloseableIterator&lt;ScannerReport.Duplication&gt; it = reader.readComponentDuplications(component.getRef())) {</span>
+<span class="nc bnc" id="L301" title="All 2 branches missed.">        while (it.hasNext()) {</span>
+<span class="nc" id="L302">          ScannerReport.Duplication dup = it.next();</span>
+<span class="nc" id="L303">          duplicationEditor.getDocument().insertString(duplicationEditor.getDocument().getLength(), dup + &quot;\n&quot;, null);</span>
+<span class="nc" id="L304">        }</span>
+<span class="nc" id="L305">      } catch (Exception e) {</span>
+<span class="nc" id="L306">        throw new IllegalStateException(&quot;Can't read duplications for &quot; + getNodeName(component), e);</span>
+<span class="nc" id="L307">      }</span>
+    }
+<span class="nc" id="L309">  }</span>
+
+  private void updateIssues(Component component) {
+<span class="nc" id="L312">    issuesEditor.setText(&quot;&quot;);</span>
+<span class="nc" id="L313">    try (CloseableIterator&lt;Issue&gt; it = reader.readComponentIssues(component.getRef())) {</span>
+<span class="nc bnc" id="L314" title="All 2 branches missed.">      while (it.hasNext()) {</span>
+<span class="nc" id="L315">        Issue issue = it.next();</span>
+<span class="nc" id="L316">        int offset = issuesEditor.getDocument().getLength();</span>
+<span class="nc" id="L317">        issuesEditor.getDocument().insertString(offset, issue.toString(), null);</span>
+<span class="nc" id="L318">      }</span>
+<span class="nc" id="L319">    } catch (Exception e) {</span>
+<span class="nc" id="L320">      throw new IllegalStateException(&quot;Can't read issues for &quot; + getNodeName(component), e);</span>
+<span class="nc" id="L321">    }</span>
+<span class="nc" id="L322">  }</span>
+
+  private void updateExternalIssues(Component component) {
+<span class="nc" id="L325">    externalIssuesEditor.setText(&quot;&quot;);</span>
+<span class="nc" id="L326">    try (CloseableIterator&lt;ScannerReport.ExternalIssue&gt; it = reader.readComponentExternalIssues(component.getRef())) {</span>
+<span class="nc bnc" id="L327" title="All 2 branches missed.">      while (it.hasNext()) {</span>
+<span class="nc" id="L328">        ScannerReport.ExternalIssue issue = it.next();</span>
+<span class="nc" id="L329">        int offset = externalIssuesEditor.getDocument().getLength();</span>
+<span class="nc" id="L330">        externalIssuesEditor.getDocument().insertString(offset, issue.toString(), null);</span>
+<span class="nc" id="L331">      }</span>
+<span class="nc" id="L332">    } catch (Exception e) {</span>
+<span class="nc" id="L333">      throw new IllegalStateException(&quot;Can't read external issues for &quot; + getNodeName(component), e);</span>
+<span class="nc" id="L334">    }</span>
+<span class="nc" id="L335">  }</span>
+
+  private void updateCoverage(Component component) {
+<span class="nc" id="L338">    coverageEditor.setText(&quot;&quot;);</span>
+<span class="nc" id="L339">    try (CloseableIterator&lt;ScannerReport.LineCoverage&gt; it = reader.readComponentCoverage(component.getRef())) {</span>
+<span class="nc bnc" id="L340" title="All 2 branches missed.">      while (it.hasNext()) {</span>
+<span class="nc" id="L341">        ScannerReport.LineCoverage coverage = it.next();</span>
+<span class="nc" id="L342">        coverageEditor.getDocument().insertString(coverageEditor.getDocument().getLength(), coverage + &quot;\n&quot;, null);</span>
+<span class="nc" id="L343">      }</span>
+<span class="nc" id="L344">    } catch (Exception e) {</span>
+<span class="nc" id="L345">      throw new IllegalStateException(&quot;Can't read code coverage for &quot; + getNodeName(component), e);</span>
+<span class="nc" id="L346">    }</span>
+<span class="nc" id="L347">  }</span>
+
+  private void updateSource(Component component) {
+<span class="nc" id="L350">    File sourceFile = reader.getFileStructure().fileFor(Domain.SOURCE, component.getRef());</span>
+<span class="nc" id="L351">    sourceEditor.setText(&quot;&quot;);</span>
+
+<span class="nc bnc" id="L353" title="All 2 branches missed.">    if (sourceFile.exists()) {</span>
+<span class="nc" id="L354">      try (Scanner s = new Scanner(sourceFile, StandardCharsets.UTF_8.name()).useDelimiter(&quot;\\Z&quot;)) {</span>
+<span class="nc bnc" id="L355" title="All 2 branches missed.">        if (s.hasNext()) {</span>
+<span class="nc" id="L356">          sourceEditor.setText(s.next());</span>
+        }
+<span class="nc" id="L358">      } catch (IOException ex) {</span>
+<span class="nc" id="L359">        StringWriter errors = new StringWriter();</span>
+<span class="nc" id="L360">        ex.printStackTrace(new PrintWriter(errors));</span>
+<span class="nc" id="L361">        sourceEditor.setText(errors.toString());</span>
+<span class="nc" id="L362">      }</span>
+    }
+<span class="nc" id="L364">  }</span>
+
+  private void updateMetadata() {
+<span class="nc" id="L367">    metadataEditor.setText(&quot;&quot;);</span>
+
+<span class="nc" id="L369">    StringBuilder builder = new StringBuilder();</span>
+<span class="nc" id="L370">    Metadata data = reader.readMetadata();</span>
+<span class="nc" id="L371">    builder.append(&quot;Project key: &quot;).append(data.getProjectKey()).append(&quot;\n&quot;);</span>
+<span class="nc" id="L372">    builder.append(&quot;Project version: &quot;).append(data.getProjectVersion()).append(&quot;\n&quot;);</span>
+<span class="nc" id="L373">    builder.append(&quot;Scm revision ID: &quot;).append(data.getScmRevisionId()).append(&quot;\n&quot;);</span>
+<span class="nc bnc" id="L374" title="All 2 branches missed.">    if (data.getNotAnalyzedFilesByLanguageCount() &gt; 0) {</span>
+<span class="nc" id="L375">      builder.append(&quot;Not analyzed files in project:&quot;).append(&quot;\n&quot;);</span>
+<span class="nc" id="L376">      data.getNotAnalyzedFilesByLanguageMap().forEach((key, value) -&gt; builder.append(&quot;   &quot;).append(key).append(&quot;: &quot;).append(value).append(&quot;\n&quot;));</span>
+    }
+<span class="nc" id="L378">    metadataEditor.setText(builder.toString());</span>
+<span class="nc" id="L379">  }</span>
+
+  private void updateActiveRules() {
+<span class="nc" id="L382">    activeRuleEditor.setText(&quot;&quot;);</span>
+
+<span class="nc" id="L384">    StringBuilder builder = new StringBuilder();</span>
+<span class="nc" id="L385">    try (CloseableIterator&lt;ScannerReport.ActiveRule&gt; activeRuleCloseableIterator = reader.readActiveRules()) {</span>
+<span class="nc bnc" id="L386" title="All 2 branches missed.">      while (activeRuleCloseableIterator.hasNext()) {</span>
+<span class="nc" id="L387">        builder.append(activeRuleCloseableIterator.next().toString()).append(&quot;\n&quot;);</span>
+      }
+<span class="nc" id="L389">      activeRuleEditor.setText(builder.toString());</span>
+    }
+<span class="nc" id="L391">  }</span>
+
+  private void updateAdHocRules() {
+<span class="nc" id="L394">    adHocRuleEditor.setText(&quot;&quot;);</span>
+
+<span class="nc" id="L396">    StringBuilder builder = new StringBuilder();</span>
+<span class="nc" id="L397">    try (CloseableIterator&lt;ScannerReport.AdHocRule&gt; adHocRuleCloseableIterator = reader.readAdHocRules()) {</span>
+<span class="nc bnc" id="L398" title="All 2 branches missed.">      while (adHocRuleCloseableIterator.hasNext()) {</span>
+<span class="nc" id="L399">        builder.append(adHocRuleCloseableIterator.next().toString()).append(&quot;\n&quot;);</span>
+      }
+<span class="nc" id="L401">      adHocRuleEditor.setText(builder.toString());</span>
+    }
+<span class="nc" id="L403">  }</span>
+
+  private void updateQualityProfiles() {
+<span class="nc" id="L406">    qualityProfileEditor.setText(&quot;&quot;);</span>
+
+<span class="nc" id="L408">    StringBuilder builder = new StringBuilder();</span>
+<span class="nc bnc" id="L409" title="All 2 branches missed.">    for (Map.Entry&lt;String, QProfile&gt; qp : metadata.getQprofilesPerLanguage().entrySet()) {</span>
+<span class="nc" id="L410">      builder.append(qp.getKey()).append(&quot;:\n&quot;).append(qp.getValue()).append(&quot;\n\n&quot;);</span>
+
+<span class="nc" id="L412">    }</span>
+<span class="nc" id="L413">    qualityProfileEditor.setText(builder.toString());</span>
+<span class="nc" id="L414">  }</span>
+
+  private void updatePlugins() {
+<span class="nc" id="L417">    pluginEditor.setText(&quot;&quot;);</span>
+
+<span class="nc" id="L419">    StringBuilder builder = new StringBuilder();</span>
+<span class="nc bnc" id="L420" title="All 2 branches missed.">    for (Map.Entry&lt;String, Plugin&gt; p : metadata.getPluginsByKey().entrySet()) {</span>
+<span class="nc" id="L421">      builder.append(p.getKey()).append(&quot;:\n&quot;).append(p.getValue()).append(&quot;\n\n&quot;);</span>
+
+<span class="nc" id="L423">    }</span>
+<span class="nc" id="L424">    pluginEditor.setText(builder.toString());</span>
+<span class="nc" id="L425">  }</span>
+
+  private void updateHighlighting(Component component) {
+<span class="nc" id="L428">    highlightingEditor.setText(&quot;&quot;);</span>
+<span class="nc" id="L429">    try (CloseableIterator&lt;ScannerReport.SyntaxHighlightingRule&gt; it = reader.readComponentSyntaxHighlighting(component.getRef())) {</span>
+<span class="nc bnc" id="L430" title="All 2 branches missed.">      while (it.hasNext()) {</span>
+<span class="nc" id="L431">        ScannerReport.SyntaxHighlightingRule rule = it.next();</span>
+<span class="nc" id="L432">        int offset = highlightingEditor.getDocument().getLength();</span>
+<span class="nc" id="L433">        highlightingEditor.getDocument().insertString(offset, rule + &quot;\n&quot;, null);</span>
+<span class="nc" id="L434">      }</span>
+<span class="nc" id="L435">    } catch (Exception e) {</span>
+<span class="nc" id="L436">      throw new IllegalStateException(&quot;Can't read syntax highlighting for &quot; + getNodeName(component), e);</span>
+<span class="nc" id="L437">    }</span>
+<span class="nc" id="L438">  }</span>
+
+  private void updateMeasures(Component component) {
+<span class="nc" id="L441">    measuresEditor.setText(&quot;&quot;);</span>
+<span class="nc" id="L442">    try (CloseableIterator&lt;ScannerReport.Measure&gt; it = reader.readComponentMeasures(component.getRef())) {</span>
+<span class="nc bnc" id="L443" title="All 2 branches missed.">      while (it.hasNext()) {</span>
+<span class="nc" id="L444">        ScannerReport.Measure measure = it.next();</span>
+<span class="nc" id="L445">        measuresEditor.getDocument().insertString(measuresEditor.getDocument().getLength(), measure + &quot;\n&quot;, null);</span>
+<span class="nc" id="L446">      }</span>
+<span class="nc" id="L447">    } catch (Exception e) {</span>
+<span class="nc" id="L448">      throw new IllegalStateException(&quot;Can't read measures for &quot; + getNodeName(component), e);</span>
+<span class="nc" id="L449">    }</span>
+<span class="nc" id="L450">  }</span>
+
+  private void updateScm(Component component) {
+<span class="nc" id="L453">    scmEditor.setText(&quot;&quot;);</span>
+<span class="nc" id="L454">    Changesets changesets = reader.readChangesets(component.getRef());</span>
+<span class="nc bnc" id="L455" title="All 2 branches missed.">    if (changesets == null) {</span>
+<span class="nc" id="L456">      return;</span>
+    }
+<span class="nc" id="L458">    List&lt;Integer&gt; changesetIndexByLine = changesets.getChangesetIndexByLineList();</span>
+    try {
+<span class="nc" id="L460">      int index = 0;</span>
+<span class="nc bnc" id="L461" title="All 2 branches missed.">      for (Changeset changeset : changesets.getChangesetList()) {</span>
+<span class="nc" id="L462">        scmEditor.getDocument().insertString(scmEditor.getDocument().getLength(), index + &quot;\n&quot;, null);</span>
+<span class="nc" id="L463">        scmEditor.getDocument().insertString(scmEditor.getDocument().getLength(), changeset + &quot;\n&quot;, null);</span>
+<span class="nc" id="L464">        index++;</span>
+<span class="nc" id="L465">      }</span>
+
+<span class="nc" id="L467">      scmEditor.getDocument().insertString(scmEditor.getDocument().getLength(), &quot;\n&quot;, null);</span>
+<span class="nc" id="L468">      int line = 1;</span>
+<span class="nc bnc" id="L469" title="All 2 branches missed.">      for (Integer idx : changesetIndexByLine) {</span>
+<span class="nc" id="L470">        scmEditor.getDocument().insertString(scmEditor.getDocument().getLength(), line + &quot;: &quot; + idx + &quot;\n&quot;, null);</span>
+<span class="nc" id="L471">        line++;</span>
+<span class="nc" id="L472">      }</span>
+
+<span class="nc" id="L474">    } catch (Exception e) {</span>
+<span class="nc" id="L475">      throw new IllegalStateException(&quot;Can't read SCM for &quot; + getNodeName(component), e);</span>
+<span class="nc" id="L476">    }</span>
+<span class="nc" id="L477">  }</span>
+
+  private void updateSymbols(Component component) {
+<span class="nc" id="L480">    symbolEditor.setText(&quot;&quot;);</span>
+<span class="nc" id="L481">    try (CloseableIterator&lt;ScannerReport.Symbol&gt; it = reader.readComponentSymbols(component.getRef())) {</span>
+<span class="nc bnc" id="L482" title="All 2 branches missed.">      while (it.hasNext()) {</span>
+<span class="nc" id="L483">        ScannerReport.Symbol symbol = it.next();</span>
+<span class="nc" id="L484">        symbolEditor.getDocument().insertString(symbolEditor.getDocument().getLength(), symbol + &quot;\n&quot;, null);</span>
+<span class="nc" id="L485">      }</span>
+<span class="nc" id="L486">    } catch (Exception e) {</span>
+<span class="nc" id="L487">      throw new IllegalStateException(&quot;Can't read symbol references for &quot; + getNodeName(component), e);</span>
+<span class="nc" id="L488">    }</span>
+<span class="nc" id="L489">  }</span>
+
+  /**
+   * Initialize the contents of the frame.
+   */
+  private void initialize() {
+    try {
+<span class="nc bnc" id="L496" title="All 2 branches missed.">      for (LookAndFeelInfo info : UIManager.getInstalledLookAndFeels()) {</span>
+<span class="nc bnc" id="L497" title="All 2 branches missed.">        if (&quot;Nimbus&quot;.equals(info.getName())) {</span>
+<span class="nc" id="L498">          UIManager.setLookAndFeel(info.getClassName());</span>
+<span class="nc" id="L499">          break;</span>
+        }
+      }
+<span class="nc" id="L502">    } catch (Exception e) {</span>
+      // If Nimbus is not available, you can set the GUI to another look and feel.
+<span class="nc" id="L504">    }</span>
+<span class="nc" id="L505">    frame = new JFrame();</span>
+<span class="nc" id="L506">    frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);</span>
+
+<span class="nc" id="L508">    splitPane = new JSplitPane();</span>
+<span class="nc" id="L509">    frame.getContentPane().add(splitPane, BorderLayout.CENTER);</span>
+
+<span class="nc" id="L511">    tabbedPane = new JTabbedPane(JTabbedPane.TOP);</span>
+<span class="nc" id="L512">    tabbedPane.setPreferredSize(new Dimension(500, 7));</span>
+<span class="nc" id="L513">    splitPane.setRightComponent(tabbedPane);</span>
+
+<span class="nc" id="L515">    componentDetailsTab = new JScrollPane();</span>
+<span class="nc" id="L516">    tabbedPane.addTab(&quot;Component details&quot;, null, componentDetailsTab, null);</span>
+
+<span class="nc" id="L518">    componentEditor = new JEditorPane();</span>
+<span class="nc" id="L519">    componentDetailsTab.setViewportView(componentEditor);</span>
+
+<span class="nc" id="L521">    sourceTab = new JScrollPane();</span>
+<span class="nc" id="L522">    tabbedPane.addTab(&quot;Source&quot;, null, sourceTab, null);</span>
+
+<span class="nc" id="L524">    sourceEditor = createSourceEditor();</span>
+<span class="nc" id="L525">    sourceEditor.setEditable(false);</span>
+<span class="nc" id="L526">    sourceTab.setViewportView(sourceEditor);</span>
+
+<span class="nc" id="L528">    textLineNumber = createTextLineNumber();</span>
+<span class="nc" id="L529">    sourceTab.setRowHeaderView(textLineNumber);</span>
+
+<span class="nc" id="L531">    highlightingTab = new JScrollPane();</span>
+<span class="nc" id="L532">    tabbedPane.addTab(&quot;Highlighting&quot;, null, highlightingTab, null);</span>
+
+<span class="nc" id="L534">    highlightingEditor = new JEditorPane();</span>
+<span class="nc" id="L535">    highlightingTab.setViewportView(highlightingEditor);</span>
+
+<span class="nc" id="L537">    symbolTab = new JScrollPane();</span>
+<span class="nc" id="L538">    tabbedPane.addTab(&quot;Symbol references&quot;, null, symbolTab, null);</span>
+
+<span class="nc" id="L540">    symbolEditor = new JEditorPane();</span>
+<span class="nc" id="L541">    symbolTab.setViewportView(symbolEditor);</span>
+
+<span class="nc" id="L543">    coverageTab = new JScrollPane();</span>
+<span class="nc" id="L544">    tabbedPane.addTab(&quot;Coverage&quot;, null, coverageTab, null);</span>
+
+<span class="nc" id="L546">    coverageEditor = new JEditorPane();</span>
+<span class="nc" id="L547">    coverageTab.setViewportView(coverageEditor);</span>
+
+<span class="nc" id="L549">    duplicationTab = new JScrollPane();</span>
+<span class="nc" id="L550">    tabbedPane.addTab(&quot;Duplications&quot;, null, duplicationTab, null);</span>
+
+<span class="nc" id="L552">    duplicationEditor = new JEditorPane();</span>
+<span class="nc" id="L553">    duplicationTab.setViewportView(duplicationEditor);</span>
+
+<span class="nc" id="L555">    testsTab = new JScrollPane();</span>
+<span class="nc" id="L556">    tabbedPane.addTab(&quot;Tests&quot;, null, testsTab, null);</span>
+
+<span class="nc" id="L558">    testsEditor = new JEditorPane();</span>
+<span class="nc" id="L559">    testsTab.setViewportView(testsEditor);</span>
+
+<span class="nc" id="L561">    issuesTab = new JScrollPane();</span>
+<span class="nc" id="L562">    tabbedPane.addTab(&quot;Issues&quot;, null, issuesTab, null);</span>
+
+<span class="nc" id="L564">    issuesEditor = new JEditorPane();</span>
+<span class="nc" id="L565">    issuesTab.setViewportView(issuesEditor);</span>
+
+<span class="nc" id="L567">    externalIssuesTab = new JScrollPane();</span>
+<span class="nc" id="L568">    tabbedPane.addTab(&quot;External Issues&quot;, null, externalIssuesTab, null);</span>
+
+<span class="nc" id="L570">    externalIssuesEditor = new JEditorPane();</span>
+<span class="nc" id="L571">    externalIssuesTab.setViewportView(externalIssuesEditor);</span>
+
+<span class="nc" id="L573">    measuresTab = new JScrollPane();</span>
+<span class="nc" id="L574">    tabbedPane.addTab(&quot;Measures&quot;, null, measuresTab, null);</span>
+
+<span class="nc" id="L576">    measuresEditor = new JEditorPane();</span>
+<span class="nc" id="L577">    measuresTab.setViewportView(measuresEditor);</span>
+
+<span class="nc" id="L579">    scmTab = new JScrollPane();</span>
+<span class="nc" id="L580">    tabbedPane.addTab(&quot;SCM&quot;, null, scmTab, null);</span>
+
+<span class="nc" id="L582">    scmEditor = new JEditorPane();</span>
+<span class="nc" id="L583">    scmTab.setViewportView(scmEditor);</span>
+
+<span class="nc" id="L585">    activeRuleTab = new JScrollPane();</span>
+<span class="nc" id="L586">    tabbedPane.addTab(&quot;Active Rules&quot;, null, activeRuleTab, null);</span>
+
+<span class="nc" id="L588">    activeRuleEditor = new JEditorPane();</span>
+<span class="nc" id="L589">    activeRuleTab.setViewportView(activeRuleEditor);</span>
+
+<span class="nc" id="L591">    adHocRuleTab = new JScrollPane();</span>
+<span class="nc" id="L592">    tabbedPane.addTab(&quot;Add Hoc Rules&quot;, null, adHocRuleTab, null);</span>
+
+<span class="nc" id="L594">    adHocRuleEditor = new JEditorPane();</span>
+<span class="nc" id="L595">    adHocRuleTab.setViewportView(adHocRuleEditor);</span>
+
+<span class="nc" id="L597">    qualityProfileTab = new JScrollPane();</span>
+<span class="nc" id="L598">    tabbedPane.addTab(&quot;Quality Profiles&quot;, null, qualityProfileTab, null);</span>
+
+<span class="nc" id="L600">    qualityProfileEditor = new JEditorPane();</span>
+<span class="nc" id="L601">    qualityProfileTab.setViewportView(qualityProfileEditor);</span>
+
+<span class="nc" id="L603">    pluginTab = new JScrollPane();</span>
+<span class="nc" id="L604">    tabbedPane.addTab(&quot;Plugins&quot;, null, pluginTab, null);</span>
+
+<span class="nc" id="L606">    pluginEditor = new JEditorPane();</span>
+<span class="nc" id="L607">    pluginTab.setViewportView(pluginEditor);</span>
+
+<span class="nc" id="L609">    cpdTextBlocksTab = new JScrollPane();</span>
+<span class="nc" id="L610">    tabbedPane.addTab(&quot;CPD Text Blocks&quot;, null, cpdTextBlocksTab, null);</span>
+
+<span class="nc" id="L612">    cpdTextBlocksEditor = new JEditorPane();</span>
+<span class="nc" id="L613">    cpdTextBlocksTab.setViewportView(cpdTextBlocksEditor);</span>
+
+<span class="nc" id="L615">    significantCodeTab = new JScrollPane();</span>
+<span class="nc" id="L616">    tabbedPane.addTab(&quot;Significant Code Ranges&quot;, null, significantCodeTab, null);</span>
+
+<span class="nc" id="L618">    significantCodeEditor = new JEditorPane();</span>
+<span class="nc" id="L619">    significantCodeTab.setViewportView(significantCodeEditor);</span>
+
+<span class="nc" id="L621">    metadataTab = new JScrollPane();</span>
+<span class="nc" id="L622">    tabbedPane.addTab(&quot;Metadata&quot;, null, metadataTab, null);</span>
+
+<span class="nc" id="L624">    metadataEditor = new JEditorPane();</span>
+<span class="nc" id="L625">    metadataTab.setViewportView(metadataEditor);</span>
+
+<span class="nc" id="L627">    treeScrollPane = new JScrollPane();</span>
+<span class="nc" id="L628">    treeScrollPane.setPreferredSize(new Dimension(200, 400));</span>
+<span class="nc" id="L629">    splitPane.setLeftComponent(treeScrollPane);</span>
+
+<span class="nc" id="L631">    componentTree = new JTree();</span>
+<span class="nc" id="L632">    componentTree.setModel(new DefaultTreeModel(</span>
+<span class="nc" id="L633">      new DefaultMutableTreeNode(&quot;empty&quot;) {</span>
+        {
+<span class="nc" id="L635">        }</span>
+      }));
+<span class="nc" id="L637">    treeScrollPane.setViewportView(componentTree);</span>
+<span class="nc" id="L638">    componentTree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);</span>
+<span class="nc" id="L639">    componentTree.addTreeSelectionListener(new TreeSelectionListener() {</span>
+      @Override
+      public void valueChanged(TreeSelectionEvent e) {
+<span class="nc" id="L642">        DefaultMutableTreeNode node = (DefaultMutableTreeNode) componentTree.getLastSelectedPathComponent();</span>
+
+<span class="nc bnc" id="L644" title="All 2 branches missed.">        if (node == null) {</span>
+          // Nothing is selected.
+<span class="nc" id="L646">          return;</span>
+        }
+
+<span class="nc" id="L649">        frame.setCursor(new Cursor(Cursor.WAIT_CURSOR));</span>
+<span class="nc" id="L650">        updateDetails((Component) node.getUserObject());</span>
+<span class="nc" id="L651">        frame.setCursor(new Cursor(Cursor.DEFAULT_CURSOR));</span>
+
+<span class="nc" id="L653">      }</span>
+
+    });
+<span class="nc" id="L656">    frame.pack();</span>
+<span class="nc" id="L657">  }</span>
+
+  public JTree getComponentTree() {
+<span class="nc" id="L660">    return componentTree;</span>
+  }
+
+  protected JEditorPane getComponentEditor() {
+<span class="nc" id="L664">    return componentEditor;</span>
+  }
+
+  /**
+   * @wbp.factory
+   */
+  public static JEditorPane createSourceEditor() {
+<span class="nc" id="L671">    return new JEditorPane();</span>
+  }
+
+  /**
+   * @wbp.factory
+   */
+  public TextLineNumber createTextLineNumber() {
+<span class="nc" id="L678">    return new TextLineNumber(sourceEditor);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,252 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AnalysisMetadataHolderImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.analysis</a> &gt; <span class="el_source">AnalysisMetadataHolderImpl.java</span></div><h1>AnalysisMetadataHolderImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.analysis;
+
+import com.google.common.collect.ImmutableMap;
+import java.util.Map;
+import java.util.Optional;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.ce.task.util.InitializedProperty;
+import org.sonar.core.platform.EditionProvider;
+import org.sonar.core.platform.PlatformEditionProvider;
+import org.sonar.db.component.BranchType;
+import org.sonar.server.project.Project;
+import org.sonar.server.qualityprofile.QualityProfile;
+
+import static com.google.common.base.Preconditions.checkState;
+import static java.util.Objects.requireNonNull;
+import static org.apache.commons.lang3.StringUtils.defaultIfBlank;
+
+public class AnalysisMetadataHolderImpl implements MutableAnalysisMetadataHolder {
+  private static final String BRANCH_NOT_SET = &quot;Branch has not been set&quot;;
+<span class="fc" id="L40">  private final InitializedProperty&lt;String&gt; uuid = new InitializedProperty&lt;&gt;();</span>
+<span class="fc" id="L41">  private final InitializedProperty&lt;Long&gt; analysisDate = new InitializedProperty&lt;&gt;();</span>
+<span class="fc" id="L42">  private final InitializedProperty&lt;Analysis&gt; baseProjectSnapshot = new InitializedProperty&lt;&gt;();</span>
+<span class="fc" id="L43">  private final InitializedProperty&lt;Boolean&gt; crossProjectDuplicationEnabled = new InitializedProperty&lt;&gt;();</span>
+<span class="fc" id="L44">  private final InitializedProperty&lt;Branch&gt; branch = new InitializedProperty&lt;&gt;();</span>
+<span class="fc" id="L45">  private final InitializedProperty&lt;String&gt; pullRequestKey = new InitializedProperty&lt;&gt;();</span>
+<span class="fc" id="L46">  private final InitializedProperty&lt;Project&gt; project = new InitializedProperty&lt;&gt;();</span>
+<span class="fc" id="L47">  private final InitializedProperty&lt;Integer&gt; rootComponentRef = new InitializedProperty&lt;&gt;();</span>
+<span class="fc" id="L48">  private final InitializedProperty&lt;Map&lt;String, QualityProfile&gt;&gt; qProfilesPerLanguage = new InitializedProperty&lt;&gt;();</span>
+<span class="fc" id="L49">  private final InitializedProperty&lt;Map&lt;String, ScannerPlugin&gt;&gt; pluginsByKey = new InitializedProperty&lt;&gt;();</span>
+<span class="fc" id="L50">  private final InitializedProperty&lt;String&gt; scmRevision = new InitializedProperty&lt;&gt;();</span>
+<span class="fc" id="L51">  private final InitializedProperty&lt;String&gt; newCodeReferenceBranch = new InitializedProperty&lt;&gt;();</span>
+
+  private final PlatformEditionProvider editionProvider;
+
+<span class="fc" id="L55">  public AnalysisMetadataHolderImpl(PlatformEditionProvider editionProvider) {</span>
+<span class="fc" id="L56">    this.editionProvider = editionProvider;</span>
+<span class="fc" id="L57">  }</span>
+
+  @Override
+  public MutableAnalysisMetadataHolder setUuid(String s) {
+<span class="fc bfc" id="L61" title="All 2 branches covered.">    checkState(!uuid.isInitialized(), &quot;Analysis uuid has already been set&quot;);</span>
+<span class="fc" id="L62">    requireNonNull(s, &quot;Analysis uuid can't be null&quot;);</span>
+<span class="fc" id="L63">    this.uuid.setProperty(s);</span>
+<span class="fc" id="L64">    return this;</span>
+  }
+
+  @Override
+  public String getUuid() {
+<span class="fc" id="L69">    checkState(uuid.isInitialized(), &quot;Analysis uuid has not been set&quot;);</span>
+<span class="fc" id="L70">    return this.uuid.getProperty();</span>
+  }
+
+  @Override
+  public MutableAnalysisMetadataHolder setAnalysisDate(long date) {
+<span class="fc bfc" id="L75" title="All 2 branches covered.">    checkState(!analysisDate.isInitialized(), &quot;Analysis date has already been set&quot;);</span>
+<span class="fc" id="L76">    this.analysisDate.setProperty(date);</span>
+<span class="fc" id="L77">    return this;</span>
+  }
+
+  @Override
+  public long getAnalysisDate() {
+<span class="fc" id="L82">    checkState(analysisDate.isInitialized(), &quot;Analysis date has not been set&quot;);</span>
+<span class="fc" id="L83">    return this.analysisDate.getProperty();</span>
+  }
+
+  @Override
+  public boolean hasAnalysisDateBeenSet() {
+<span class="fc" id="L88">    return analysisDate.isInitialized();</span>
+  }
+
+  @Override
+  public boolean isFirstAnalysis() {
+<span class="fc bfc" id="L93" title="All 2 branches covered.">    return getBaseAnalysis() == null;</span>
+  }
+
+  @Override
+  public MutableAnalysisMetadataHolder setBaseAnalysis(@Nullable Analysis baseAnalysis) {
+<span class="fc bfc" id="L98" title="All 2 branches covered.">    checkState(!this.baseProjectSnapshot.isInitialized(), &quot;Base project snapshot has already been set&quot;);</span>
+<span class="fc" id="L99">    this.baseProjectSnapshot.setProperty(baseAnalysis);</span>
+<span class="fc" id="L100">    return this;</span>
+  }
+
+  @Override
+  @CheckForNull
+  public Analysis getBaseAnalysis() {
+<span class="fc" id="L106">    checkState(baseProjectSnapshot.isInitialized(), &quot;Base project snapshot has not been set&quot;);</span>
+<span class="fc" id="L107">    return baseProjectSnapshot.getProperty();</span>
+  }
+
+  @Override
+  public MutableAnalysisMetadataHolder setCrossProjectDuplicationEnabled(boolean isCrossProjectDuplicationEnabled) {
+<span class="fc bfc" id="L112" title="All 2 branches covered.">    checkState(!this.crossProjectDuplicationEnabled.isInitialized(), &quot;Cross project duplication flag has already been set&quot;);</span>
+<span class="fc" id="L113">    this.crossProjectDuplicationEnabled.setProperty(isCrossProjectDuplicationEnabled);</span>
+<span class="fc" id="L114">    return this;</span>
+  }
+
+  @Override
+  public boolean isCrossProjectDuplicationEnabled() {
+<span class="fc" id="L119">    checkState(crossProjectDuplicationEnabled.isInitialized(), &quot;Cross project duplication flag has not been set&quot;);</span>
+<span class="fc" id="L120">    return crossProjectDuplicationEnabled.getProperty();</span>
+  }
+
+  @Override
+  public MutableAnalysisMetadataHolder setBranch(Branch branch) {
+<span class="fc bfc" id="L125" title="All 2 branches covered.">    checkState(!this.branch.isInitialized(), &quot;Branch has already been set&quot;);</span>
+<span class="fc bfc" id="L126" title="All 2 branches covered.">    boolean isCommunityEdition = editionProvider.get().filter(t -&gt; t == EditionProvider.Edition.COMMUNITY).isPresent();</span>
+<span class="fc bfc" id="L127" title="All 2 branches covered.">    checkState(</span>
+<span class="fc bfc" id="L128" title="All 2 branches covered.">      !isCommunityEdition || branch.isMain(),</span>
+      &quot;Branches and Pull Requests are not supported in Community Edition&quot;);
+<span class="fc" id="L130">    this.branch.setProperty(branch);</span>
+<span class="fc" id="L131">    return this;</span>
+  }
+
+  @Override
+  public Branch getBranch() {
+<span class="fc" id="L136">    checkState(branch.isInitialized(), BRANCH_NOT_SET);</span>
+<span class="fc" id="L137">    return branch.getProperty();</span>
+  }
+
+  @Override
+  public MutableAnalysisMetadataHolder setPullRequestKey(String pullRequestKey) {
+<span class="fc bfc" id="L142" title="All 2 branches covered.">    checkState(!this.pullRequestKey.isInitialized(), &quot;Pull request key has already been set&quot;);</span>
+<span class="fc" id="L143">    this.pullRequestKey.setProperty(pullRequestKey);</span>
+<span class="fc" id="L144">    return this;</span>
+  }
+
+  @Override
+  public String getPullRequestKey() {
+<span class="fc" id="L149">    checkState(pullRequestKey.isInitialized(), &quot;Pull request key has not been set&quot;);</span>
+<span class="fc" id="L150">    return pullRequestKey.getProperty();</span>
+  }
+
+  @Override
+  public MutableAnalysisMetadataHolder setProject(Project project) {
+<span class="fc bfc" id="L155" title="All 2 branches covered.">    checkState(!this.project.isInitialized(), &quot;Project has already been set&quot;);</span>
+<span class="fc" id="L156">    this.project.setProperty(project);</span>
+<span class="fc" id="L157">    return this;</span>
+  }
+
+  @Override
+  public Project getProject() {
+<span class="fc" id="L162">    checkState(project.isInitialized(), &quot;Project has not been set&quot;);</span>
+<span class="fc" id="L163">    return project.getProperty();</span>
+  }
+
+  @Override
+  public MutableAnalysisMetadataHolder setRootComponentRef(int rootComponentRef) {
+
+<span class="fc bfc" id="L169" title="All 2 branches covered.">    checkState(!this.rootComponentRef.isInitialized(), &quot;Root component ref has already been set&quot;);</span>
+<span class="fc" id="L170">    this.rootComponentRef.setProperty(rootComponentRef);</span>
+<span class="fc" id="L171">    return this;</span>
+  }
+
+  @Override
+  public int getRootComponentRef() {
+<span class="fc" id="L176">    checkState(rootComponentRef.isInitialized(), &quot;Root component ref has not been set&quot;);</span>
+<span class="fc" id="L177">    return rootComponentRef.getProperty();</span>
+  }
+
+  @Override
+  public MutableAnalysisMetadataHolder setQProfilesByLanguage(Map&lt;String, QualityProfile&gt; qprofilesByLanguage) {
+<span class="pc bpc" id="L182" title="1 of 2 branches missed.">    checkState(!this.qProfilesPerLanguage.isInitialized(), &quot;QProfiles by language has already been set&quot;);</span>
+<span class="fc" id="L183">    this.qProfilesPerLanguage.setProperty(ImmutableMap.copyOf(qprofilesByLanguage));</span>
+<span class="fc" id="L184">    return this;</span>
+  }
+
+  @Override
+  public Map&lt;String, QualityProfile&gt; getQProfilesByLanguage() {
+<span class="nc" id="L189">    checkState(qProfilesPerLanguage.isInitialized(), &quot;QProfiles by language has not been set&quot;);</span>
+<span class="nc" id="L190">    return qProfilesPerLanguage.getProperty();</span>
+  }
+
+  @Override
+  public MutableAnalysisMetadataHolder setScannerPluginsByKey(Map&lt;String, ScannerPlugin&gt; pluginsByKey) {
+<span class="pc bpc" id="L195" title="1 of 2 branches missed.">    checkState(!this.pluginsByKey.isInitialized(), &quot;Plugins by key has already been set&quot;);</span>
+<span class="fc" id="L196">    this.pluginsByKey.setProperty(ImmutableMap.copyOf(pluginsByKey));</span>
+<span class="fc" id="L197">    return this;</span>
+  }
+
+  @Override
+  public Map&lt;String, ScannerPlugin&gt; getScannerPluginsByKey() {
+<span class="fc" id="L202">    checkState(pluginsByKey.isInitialized(), &quot;Plugins by key has not been set&quot;);</span>
+<span class="fc" id="L203">    return pluginsByKey.getProperty();</span>
+  }
+
+  @Override
+  public MutableAnalysisMetadataHolder setScmRevision(@Nullable String s) {
+<span class="fc bfc" id="L208" title="All 2 branches covered.">    checkState(!this.scmRevision.isInitialized(), &quot;ScmRevision has already been set&quot;);</span>
+<span class="fc" id="L209">    this.scmRevision.setProperty(defaultIfBlank(s, null));</span>
+<span class="fc" id="L210">    return this;</span>
+  }
+
+  @Override
+  public MutableAnalysisMetadataHolder setNewCodeReferenceBranch(String newCodeReferenceBranch) {
+<span class="fc bfc" id="L215" title="All 2 branches covered.">    checkState(!this.newCodeReferenceBranch.isInitialized(), &quot;newCodeReferenceBranch has already been set&quot;);</span>
+<span class="fc" id="L216">    requireNonNull(newCodeReferenceBranch, &quot;newCodeReferenceBranch can't be null&quot;);</span>
+<span class="fc" id="L217">    this.newCodeReferenceBranch.setProperty(newCodeReferenceBranch);</span>
+<span class="fc" id="L218">    return this;</span>
+  }
+
+  @Override
+  public Optional&lt;String&gt; getScmRevision() {
+<span class="fc bfc" id="L223" title="All 2 branches covered.">    if (!scmRevision.isInitialized()) {</span>
+<span class="fc" id="L224">      return Optional.empty();</span>
+    }
+<span class="fc" id="L226">    return Optional.ofNullable(scmRevision.getProperty());</span>
+  }
+
+  @Override
+  public Optional&lt;String&gt; getNewCodeReferenceBranch() {
+<span class="fc bfc" id="L231" title="All 2 branches covered.">    if (!newCodeReferenceBranch.isInitialized()) {</span>
+<span class="fc" id="L232">      return Optional.empty();</span>
+    }
+<span class="fc" id="L234">    return Optional.of(newCodeReferenceBranch.getProperty());</span>
+  }
+
+  @Override
+  public boolean isBranch() {
+<span class="fc" id="L239">    checkState(this.branch.isInitialized(), BRANCH_NOT_SET);</span>
+<span class="fc" id="L240">    Branch prop = branch.getProperty();</span>
+<span class="pc bpc" id="L241" title="1 of 4 branches missed.">    return prop != null &amp;&amp; prop.getType() == BranchType.BRANCH;</span>
+  }
+
+  @Override
+  public boolean isPullRequest() {
+<span class="fc" id="L246">    checkState(this.branch.isInitialized(), BRANCH_NOT_SET);</span>
+<span class="fc" id="L247">    Branch prop = branch.getProperty();</span>
+<span class="pc bpc" id="L248" title="1 of 4 branches missed.">    return prop != null &amp;&amp; prop.getType() == BranchType.PULL_REQUEST;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

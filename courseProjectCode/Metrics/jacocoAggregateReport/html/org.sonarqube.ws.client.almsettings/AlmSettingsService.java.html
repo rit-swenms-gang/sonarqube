@@ -1,0 +1,354 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AlmSettingsService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonarqube.ws.client.almsettings</a> &gt; <span class="el_source">AlmSettingsService.java</span></div><h1>AlmSettingsService.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonarqube.ws.client.almsettings;
+
+import jakarta.annotation.Generated;
+import org.sonarqube.ws.AlmSettings;
+import org.sonarqube.ws.MediaTypes;
+import org.sonarqube.ws.client.BaseService;
+import org.sonarqube.ws.client.GetRequest;
+import org.sonarqube.ws.client.PostRequest;
+import org.sonarqube.ws.client.WsConnector;
+
+/**
+ * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_settings&quot;&gt;Further information about this web service online&lt;/a&gt;
+ */
+@Generated(&quot;sonar-ws-generator&quot;)
+public class AlmSettingsService extends BaseService {
+
+  public AlmSettingsService(WsConnector wsConnector) {
+<span class="fc" id="L37">    super(wsConnector, &quot;api/alm_settings&quot;);</span>
+<span class="fc" id="L38">  }</span>
+
+  /**
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_settings/count_binding&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 8.1
+   */
+  public AlmSettings.CountBindingWsResponse countBinding(CountBindingRequest request) {
+<span class="nc" id="L46">    return call(</span>
+<span class="nc" id="L47">      new GetRequest(path(&quot;count_binding&quot;))</span>
+<span class="nc" id="L48">        .setParam(&quot;almSetting&quot;, request.getAlmSetting())</span>
+<span class="nc" id="L49">        .setMediaType(MediaTypes.JSON),</span>
+<span class="nc" id="L50">      AlmSettings.CountBindingWsResponse.parser());</span>
+  }
+
+  /**
+   *
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_settings/create_azure&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 8.1
+   */
+  public void createAzure(CreateAzureRequest request) {
+<span class="nc" id="L60">    call(</span>
+<span class="nc" id="L61">      new PostRequest(path(&quot;create_azure&quot;))</span>
+<span class="nc" id="L62">        .setParam(&quot;key&quot;, request.getKey())</span>
+<span class="nc" id="L63">        .setParam(&quot;personalAccessToken&quot;, request.getPersonalAccessToken())</span>
+<span class="nc" id="L64">        .setParam(&quot;url&quot;, request.getUrl())</span>
+<span class="nc" id="L65">        .setMediaType(MediaTypes.JSON)).content();</span>
+<span class="nc" id="L66">  }</span>
+
+  /**
+   *
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_settings/create_gitlab&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 8.1
+   */
+  public void createGitlab(CreateGitlabRequest request) {
+<span class="nc" id="L75">    call(</span>
+<span class="nc" id="L76">      new PostRequest(path(&quot;create_gitlab&quot;))</span>
+<span class="nc" id="L77">        .setParam(&quot;key&quot;, request.getKey())</span>
+<span class="nc" id="L78">        .setParam(&quot;personalAccessToken&quot;, request.getPersonalAccessToken())</span>
+<span class="nc" id="L79">        .setParam(&quot;url&quot;, request.getUrl())</span>
+<span class="nc" id="L80">        .setMediaType(MediaTypes.JSON)).content();</span>
+<span class="nc" id="L81">  }</span>
+
+  /**
+   *
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_settings/create_bitbucket&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 8.1
+   */
+  public void createBitbucket(CreateBitbucketRequest request) {
+<span class="nc" id="L90">    call(</span>
+<span class="nc" id="L91">      new PostRequest(path(&quot;create_bitbucket&quot;))</span>
+<span class="nc" id="L92">        .setParam(&quot;key&quot;, request.getKey())</span>
+<span class="nc" id="L93">        .setParam(&quot;url&quot;, request.getUrl())</span>
+<span class="nc" id="L94">        .setParam(&quot;personalAccessToken&quot;, request.getPersonalAccessToken())</span>
+<span class="nc" id="L95">        .setMediaType(MediaTypes.JSON)).content();</span>
+<span class="nc" id="L96">  }</span>
+
+  /**
+   *
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_settings/create_bitbucket_cloud&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 8.7
+   */
+  public void createBitbucketCloud(CreateBitbucketCloudRequest request) {
+<span class="nc" id="L105">    call(</span>
+<span class="nc" id="L106">      new PostRequest(path(&quot;create_bitbucketcloud&quot;))</span>
+<span class="nc" id="L107">        .setParam(&quot;key&quot;, request.getKey())</span>
+<span class="nc" id="L108">        .setParam(&quot;clientId&quot;, request.getClientId())</span>
+<span class="nc" id="L109">        .setParam(&quot;clientSecret&quot;, request.getClientSecret())</span>
+<span class="nc" id="L110">        .setParam(&quot;workspace&quot;, request.getWorkspace())</span>
+<span class="nc" id="L111">        .setMediaType(MediaTypes.JSON)).content();</span>
+<span class="nc" id="L112">  }</span>
+
+  /**
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_settings/create_github&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 8.1
+   */
+  public void createGithub(CreateGithubRequest request) {
+<span class="nc" id="L120">    call(</span>
+<span class="nc" id="L121">      new PostRequest(path(&quot;create_github&quot;))</span>
+<span class="nc" id="L122">        .setParam(&quot;appId&quot;, request.getAppId())</span>
+<span class="nc" id="L123">        .setParam(&quot;key&quot;, request.getKey())</span>
+<span class="nc" id="L124">        .setParam(&quot;privateKey&quot;, request.getPrivateKey())</span>
+<span class="nc" id="L125">        .setParam(&quot;url&quot;, request.getUrl())</span>
+<span class="nc" id="L126">        .setParam(&quot;clientId&quot;, request.getClientId())</span>
+<span class="nc" id="L127">        .setParam(&quot;clientSecret&quot;, request.getClientSecret())</span>
+<span class="nc" id="L128">        .setParam(&quot;webhookSecret&quot;, request.getWebhookSecret())</span>
+<span class="nc" id="L129">        .setMediaType(MediaTypes.JSON)).content();</span>
+<span class="nc" id="L130">  }</span>
+
+  /**
+   *
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_settings/delete&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 8.1
+   */
+  public void delete(DeleteRequest request) {
+<span class="nc" id="L139">    call(</span>
+<span class="nc" id="L140">      new PostRequest(path(&quot;delete&quot;))</span>
+<span class="nc" id="L141">        .setParam(&quot;key&quot;, request.getKey())</span>
+<span class="nc" id="L142">        .setMediaType(MediaTypes.JSON)).content();</span>
+<span class="nc" id="L143">  }</span>
+
+  /**
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_settings/delete_binding&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 8.1
+   */
+  public void deleteBinding(DeleteBindingRequest request) {
+<span class="nc" id="L151">    call(</span>
+<span class="nc" id="L152">      new PostRequest(path(&quot;delete_binding&quot;))</span>
+<span class="nc" id="L153">        .setParam(&quot;project&quot;, request.getProject())</span>
+<span class="nc" id="L154">        .setMediaType(MediaTypes.JSON)).content();</span>
+<span class="nc" id="L155">  }</span>
+
+  /**
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_settings/get_binding&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 8.1
+   */
+  public AlmSettings.GetBindingWsResponse getBinding(GetBindingRequest request) {
+<span class="nc" id="L163">    return call(</span>
+<span class="nc" id="L164">      new GetRequest(path(&quot;get_binding&quot;))</span>
+<span class="nc" id="L165">        .setParam(&quot;project&quot;, request.getProject())</span>
+<span class="nc" id="L166">        .setMediaType(MediaTypes.JSON),</span>
+<span class="nc" id="L167">      AlmSettings.GetBindingWsResponse.parser());</span>
+  }
+
+  /**
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_settings/list&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 8.1
+   */
+  public AlmSettings.ListWsResponse list(ListRequest request) {
+<span class="nc" id="L176">    return call(</span>
+<span class="nc" id="L177">      new GetRequest(path(&quot;list&quot;))</span>
+<span class="nc" id="L178">        .setParam(&quot;project&quot;, request.getProject())</span>
+<span class="nc" id="L179">        .setMediaType(MediaTypes.JSON),</span>
+<span class="nc" id="L180">      AlmSettings.ListWsResponse.parser());</span>
+  }
+
+  /**
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_settings/validate&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 8.6
+   */
+  public void validate(ValidateRequest request) {
+<span class="nc" id="L189">    call(</span>
+<span class="nc" id="L190">      new GetRequest(path(&quot;validate&quot;))</span>
+<span class="nc" id="L191">        .setParam(&quot;key&quot;, request.getKey()));</span>
+<span class="nc" id="L192">  }</span>
+
+  /**
+   *
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_settings/list_definitions&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 8.1
+   */
+  public AlmSettings.ListDefinitionsWsResponse listDefinitions() {
+<span class="nc" id="L201">    return call(</span>
+<span class="nc" id="L202">      new GetRequest(path(&quot;list_definitions&quot;)),</span>
+<span class="nc" id="L203">      AlmSettings.ListDefinitionsWsResponse.parser());</span>
+  }
+
+  /**
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_settings/set_azure_binding&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 8.1
+   */
+  public void setAzureBinding(SetAzureBindingRequest request) {
+<span class="nc" id="L212">    call(</span>
+<span class="nc" id="L213">      new PostRequest(path(&quot;set_azure_binding&quot;))</span>
+<span class="nc" id="L214">        .setParam(&quot;almSetting&quot;, request.getAlmSetting())</span>
+<span class="nc" id="L215">        .setParam(&quot;project&quot;, request.getProject())</span>
+<span class="nc" id="L216">        .setParam(&quot;projectName&quot;, request.getProjectName())</span>
+<span class="nc" id="L217">        .setParam(&quot;repositoryName&quot;, request.getRepositoryName())</span>
+<span class="nc" id="L218">        .setParam(&quot;monorepo&quot;, request.getMonorepo())</span>
+<span class="nc" id="L219">        .setMediaType(MediaTypes.JSON)).content();</span>
+<span class="nc" id="L220">  }</span>
+
+  /**
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_settings/set_gitlab_binding&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 8.1
+   */
+  public void setGitlabBinding(SetGitlabBindingRequest request) {
+<span class="nc" id="L228">    call(</span>
+<span class="nc" id="L229">      new PostRequest(path(&quot;set_gitlab_binding&quot;))</span>
+<span class="nc" id="L230">        .setParam(&quot;almSetting&quot;, request.getAlmSetting())</span>
+<span class="nc" id="L231">        .setParam(&quot;project&quot;, request.getProject())</span>
+<span class="nc" id="L232">        .setParam(&quot;repository&quot;, request.getRepository())</span>
+<span class="nc" id="L233">        .setParam(&quot;monorepo&quot;, request.getMonorepo())</span>
+<span class="nc" id="L234">        .setMediaType(MediaTypes.JSON)).content();</span>
+<span class="nc" id="L235">  }</span>
+
+  /**
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_settings/set_bitbucket_binding&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 8.1
+   */
+  public void setBitbucketBinding(SetBitbucketBindingRequest request) {
+<span class="nc" id="L243">    call(</span>
+<span class="nc" id="L244">      new PostRequest(path(&quot;set_bitbucket_binding&quot;))</span>
+<span class="nc" id="L245">        .setParam(&quot;almSetting&quot;, request.getAlmSetting())</span>
+<span class="nc" id="L246">        .setParam(&quot;project&quot;, request.getProject())</span>
+<span class="nc" id="L247">        .setParam(&quot;repository&quot;, request.getRepositoryKey())</span>
+<span class="nc" id="L248">        .setParam(&quot;slug&quot;, request.getRepositorySlug())</span>
+<span class="nc" id="L249">        .setParam(&quot;monorepo&quot;, request.getMonorepo())</span>
+<span class="nc" id="L250">        .setMediaType(MediaTypes.JSON)).content();</span>
+<span class="nc" id="L251">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_settings/set_bitbucketcloud_binding&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 8.7
+   */
+  public void setBitbucketcloudBinding(SetBitbucketCloudBindingRequest request) {
+<span class="nc" id="L261">    call(</span>
+<span class="nc" id="L262">      new PostRequest(path(&quot;set_bitbucketcloud_binding&quot;))</span>
+<span class="nc" id="L263">        .setParam(&quot;almSetting&quot;, request.getAlmSetting())</span>
+<span class="nc" id="L264">        .setParam(&quot;monorepo&quot;, request.getMonorepo())</span>
+<span class="nc" id="L265">        .setParam(&quot;project&quot;, request.getProject())</span>
+<span class="nc" id="L266">        .setParam(&quot;repository&quot;, request.getRepository())</span>
+<span class="nc" id="L267">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L268">    ).content();</span>
+<span class="nc" id="L269">  }</span>
+
+  /**
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_settings/set_github_binding&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 8.1
+   */
+  public void setGithubBinding(SetGithubBindingRequest request) {
+<span class="nc" id="L277">    call(</span>
+<span class="nc" id="L278">      new PostRequest(path(&quot;set_github_binding&quot;))</span>
+<span class="nc" id="L279">        .setParam(&quot;almSetting&quot;, request.getAlmSetting())</span>
+<span class="nc" id="L280">        .setParam(&quot;project&quot;, request.getProject())</span>
+<span class="nc" id="L281">        .setParam(&quot;repository&quot;, request.getRepository())</span>
+<span class="nc" id="L282">        .setParam(&quot;summaryCommentEnabled&quot;, request.getSummaryCommentEnabled())</span>
+<span class="nc" id="L283">        .setParam(&quot;monorepo&quot;, request.getMonorepo())</span>
+<span class="nc" id="L284">        .setMediaType(MediaTypes.JSON)).content();</span>
+<span class="nc" id="L285">  }</span>
+
+  /**
+   *
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_settings/update_azure&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 8.1
+   */
+  public void updateAzure(UpdateAzureRequest request) {
+<span class="nc" id="L294">    call(</span>
+<span class="nc" id="L295">      new PostRequest(path(&quot;update_azure&quot;))</span>
+<span class="nc" id="L296">        .setParam(&quot;key&quot;, request.getKey())</span>
+<span class="nc" id="L297">        .setParam(&quot;newKey&quot;, request.getNewKey())</span>
+<span class="nc" id="L298">        .setParam(&quot;personalAccessToken&quot;, request.getPersonalAccessToken())</span>
+<span class="nc" id="L299">        .setParam(&quot;url&quot;, request.getUrl())</span>
+<span class="nc" id="L300">        .setMediaType(MediaTypes.JSON)).content();</span>
+<span class="nc" id="L301">  }</span>
+
+  /**
+   *
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_settings/update_gitlab&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 8.1
+   */
+  public void updateGitlab(UpdateGitlabRequest request) {
+<span class="nc" id="L310">    call(</span>
+<span class="nc" id="L311">      new PostRequest(path(&quot;update_gitlab&quot;))</span>
+<span class="nc" id="L312">        .setParam(&quot;key&quot;, request.getKey())</span>
+<span class="nc" id="L313">        .setParam(&quot;newKey&quot;, request.getNewKey())</span>
+<span class="nc" id="L314">        .setParam(&quot;personalAccessToken&quot;, request.getPersonalAccessToken())</span>
+<span class="nc" id="L315">        .setParam(&quot;url&quot;, request.getUrl())</span>
+<span class="nc" id="L316">        .setMediaType(MediaTypes.JSON)).content();</span>
+<span class="nc" id="L317">  }</span>
+
+  /**
+   *
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_settings/update_bitbucket&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 8.1
+   */
+  public void updateBitbucket(UpdateBitbucketRequest request) {
+<span class="nc" id="L326">    call(</span>
+<span class="nc" id="L327">      new PostRequest(path(&quot;update_bitbucket&quot;))</span>
+<span class="nc" id="L328">        .setParam(&quot;key&quot;, request.getKey())</span>
+<span class="nc" id="L329">        .setParam(&quot;newKey&quot;, request.getNewKey())</span>
+<span class="nc" id="L330">        .setParam(&quot;url&quot;, request.getUrl())</span>
+<span class="nc" id="L331">        .setParam(&quot;personalAccessToken&quot;, request.getPersonalAccessToken())</span>
+<span class="nc" id="L332">        .setMediaType(MediaTypes.JSON)).content();</span>
+<span class="nc" id="L333">  }</span>
+
+  /**
+   *
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/alm_settings/update_github&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 8.1
+   */
+  public void updateGithub(UpdateGithubRequest request) {
+<span class="nc" id="L342">    call(</span>
+<span class="nc" id="L343">      new PostRequest(path(&quot;update_github&quot;))</span>
+<span class="nc" id="L344">        .setParam(&quot;appId&quot;, request.getAppId())</span>
+<span class="nc" id="L345">        .setParam(&quot;key&quot;, request.getKey())</span>
+<span class="nc" id="L346">        .setParam(&quot;newKey&quot;, request.getNewKey())</span>
+<span class="nc" id="L347">        .setParam(&quot;privateKey&quot;, request.getPrivateKey())</span>
+<span class="nc" id="L348">        .setParam(&quot;url&quot;, request.getUrl())</span>
+<span class="nc" id="L349">        .setParam(&quot;clientId&quot;, request.getClientId())</span>
+<span class="nc" id="L350">        .setParam(&quot;clientSecret&quot;, request.getClientSecret())</span>
+<span class="nc" id="L351">        .setMediaType(MediaTypes.JSON)).content();</span>
+<span class="nc" id="L352">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

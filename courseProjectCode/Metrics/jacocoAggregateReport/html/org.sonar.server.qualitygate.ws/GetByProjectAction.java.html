@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GetByProjectAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.qualitygate.ws</a> &gt; <span class="el_source">GetByProjectAction.java</span></div><h1>GetByProjectAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.qualitygate.ws;
+
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.server.component.ComponentFinder;
+import org.sonar.server.qualitygate.QualityGateFinder;
+import org.sonar.server.qualitygate.QualityGateFinder.QualityGateData;
+import org.sonar.server.user.UserSession;
+import org.sonarqube.ws.Qualitygates.GetByProjectResponse;
+
+import static org.sonar.db.permission.ProjectPermission.ADMIN;
+import static org.sonar.db.permission.ProjectPermission.USER;
+import static org.sonar.server.qualitygate.ws.QualityGatesWsParameters.ACTION_GET_BY_PROJECT;
+import static org.sonar.server.user.AbstractUserSession.insufficientPrivilegesException;
+import static org.sonar.server.ws.KeyExamples.KEY_PROJECT_EXAMPLE_001;
+import static org.sonar.server.ws.WsUtils.writeProtobuf;
+
+public class GetByProjectAction implements QualityGatesWsAction {
+  private static final String PARAM_PROJECT = &quot;project&quot;;
+
+  private final UserSession userSession;
+  private final DbClient dbClient;
+  private final ComponentFinder componentFinder;
+  private final QualityGateFinder qualityGateFinder;
+
+<span class="fc" id="L50">  public GetByProjectAction(UserSession userSession, DbClient dbClient, ComponentFinder componentFinder, QualityGateFinder qualityGateFinder) {</span>
+<span class="fc" id="L51">    this.userSession = userSession;</span>
+<span class="fc" id="L52">    this.dbClient = dbClient;</span>
+<span class="fc" id="L53">    this.componentFinder = componentFinder;</span>
+<span class="fc" id="L54">    this.qualityGateFinder = qualityGateFinder;</span>
+<span class="fc" id="L55">  }</span>
+
+  @Override
+  public void define(WebService.NewController context) {
+<span class="fc" id="L59">    WebService.NewAction action = context.createAction(ACTION_GET_BY_PROJECT)</span>
+<span class="fc" id="L60">      .setInternal(false)</span>
+<span class="fc" id="L61">      .setSince(&quot;6.1&quot;)</span>
+<span class="fc" id="L62">      .setDescription(&quot;Get the quality gate of a project.&lt;br /&gt;&quot; +</span>
+        &quot;Requires one of the following permissions:&quot; +
+        &quot;&lt;ul&gt;&quot; +
+        &quot;&lt;li&gt;'Administer System'&lt;/li&gt;&quot; +
+        &quot;&lt;li&gt;'Administer' rights on the specified project&lt;/li&gt;&quot; +
+        &quot;&lt;li&gt;'Browse' on the specified project&lt;/li&gt;&quot; +
+        &quot;&lt;/ul&gt;&quot;)
+<span class="fc" id="L69">      .setResponseExample(getClass().getResource(&quot;get_by_project-example.json&quot;))</span>
+<span class="fc" id="L70">      .setHandler(this)</span>
+<span class="fc" id="L71">      .setChangelog(</span>
+        new Change(&quot;10.0&quot;, &quot;Field 'id' in the response has been removed&quot;),
+        new Change(&quot;8.4&quot;, &quot;Field 'id' in the response is deprecated. Format changes from integer to string.&quot;),
+        new Change(&quot;6.6&quot;, &quot;The parameter 'projectId' has been removed&quot;),
+        new Change(&quot;6.6&quot;, &quot;The parameter 'projectKey' has been renamed to 'project'&quot;),
+        new Change(&quot;6.6&quot;, &quot;This webservice is now part of the public API&quot;));
+
+<span class="fc" id="L78">    action.createParam(PARAM_PROJECT)</span>
+<span class="fc" id="L79">      .setDescription(&quot;Project key&quot;)</span>
+<span class="fc" id="L80">      .setExampleValue(KEY_PROJECT_EXAMPLE_001)</span>
+<span class="fc" id="L81">      .setRequired(true);</span>
+<span class="fc" id="L82">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L86">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L87">      ProjectDto project = componentFinder.getProjectByKey(dbSession, request.mandatoryParam(PARAM_PROJECT));</span>
+
+<span class="fc bfc" id="L89" title="All 2 branches covered.">      if (!userSession.hasEntityPermission(USER, project) &amp;&amp;</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">          !userSession.hasEntityPermission(ADMIN, project)) {</span>
+<span class="fc" id="L91">        throw insufficientPrivilegesException();</span>
+      }
+
+<span class="fc" id="L94">      QualityGateData data = qualityGateFinder.getEffectiveQualityGate(dbSession, project);</span>
+
+<span class="fc" id="L96">      writeProtobuf(buildResponse(data), request, response);</span>
+    }
+<span class="fc" id="L98">  }</span>
+
+  private static GetByProjectResponse buildResponse(QualityGateData qg) {
+<span class="fc" id="L101">    GetByProjectResponse.Builder response = GetByProjectResponse.newBuilder();</span>
+
+<span class="fc" id="L103">    response.getQualityGateBuilder()</span>
+<span class="fc" id="L104">      .setName(qg.getName())</span>
+<span class="fc" id="L105">      .setDefault(qg.isDefault());</span>
+
+<span class="fc" id="L107">    return response.build();</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

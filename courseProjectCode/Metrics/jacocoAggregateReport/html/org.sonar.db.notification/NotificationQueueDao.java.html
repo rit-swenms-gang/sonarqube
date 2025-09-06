@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NotificationQueueDao.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.notification</a> &gt; <span class="el_source">NotificationQueueDao.java</span></div><h1>NotificationQueueDao.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.notification;
+
+import java.util.Collections;
+import java.util.List;
+import org.sonar.api.utils.System2;
+import org.sonar.core.util.UuidFactory;
+import org.sonar.db.Dao;
+import org.sonar.db.DbSession;
+import org.sonar.db.MyBatis;
+
+public class NotificationQueueDao implements Dao {
+
+  private final MyBatis mybatis;
+  private System2 system2;
+  private UuidFactory uuidFactory;
+
+<span class="fc" id="L36">  public NotificationQueueDao(MyBatis mybatis, System2 system2, UuidFactory uuidFactory) {</span>
+<span class="fc" id="L37">    this.mybatis = mybatis;</span>
+<span class="fc" id="L38">    this.system2 = system2;</span>
+<span class="fc" id="L39">    this.uuidFactory = uuidFactory;</span>
+<span class="fc" id="L40">  }</span>
+
+  public void insert(List&lt;NotificationQueueDto&gt; dtos) {
+<span class="fc" id="L43">    try (DbSession session = mybatis.openSession(true)) {</span>
+<span class="fc" id="L44">      NotificationQueueMapper mapper = session.getMapper(NotificationQueueMapper.class);</span>
+<span class="fc bfc" id="L45" title="All 2 branches covered.">      for (NotificationQueueDto dto : dtos) {</span>
+<span class="fc" id="L46">        dto.setUuid(uuidFactory.create());</span>
+<span class="fc" id="L47">        dto.setCreatedAt(system2.now());</span>
+<span class="fc" id="L48">        mapper.insert(dto);</span>
+<span class="fc" id="L49">      }</span>
+<span class="fc" id="L50">      session.commit();</span>
+    }
+<span class="fc" id="L52">  }</span>
+
+  public void delete(List&lt;NotificationQueueDto&gt; dtos) {
+<span class="fc" id="L55">    try (DbSession session = mybatis.openSession(true)) {</span>
+<span class="fc" id="L56">      NotificationQueueMapper mapper = session.getMapper(NotificationQueueMapper.class);</span>
+<span class="fc bfc" id="L57" title="All 2 branches covered.">      for (NotificationQueueDto dto : dtos) {</span>
+<span class="fc" id="L58">        mapper.delete(dto.getUuid());</span>
+<span class="fc" id="L59">      }</span>
+<span class="fc" id="L60">      session.commit();</span>
+    }
+<span class="fc" id="L62">  }</span>
+
+  public List&lt;NotificationQueueDto&gt; selectOldest(int count) {
+<span class="pc bpc" id="L65" title="1 of 2 branches missed.">    if (count &lt; 1) {</span>
+<span class="nc" id="L66">      return Collections.emptyList();</span>
+    }
+<span class="fc" id="L68">    try (DbSession session = mybatis.openSession(false)) {</span>
+<span class="fc" id="L69">      return session.getMapper(NotificationQueueMapper.class).findOldest(count);</span>
+    }
+  }
+
+  public long count() {
+<span class="fc" id="L74">    try (DbSession session = mybatis.openSession(false)) {</span>
+<span class="fc" id="L75">      return session.getMapper(NotificationQueueMapper.class).count();</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

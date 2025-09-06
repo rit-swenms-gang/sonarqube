@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CreateIndexOnColumns.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform.db.migration.step</a> &gt; <span class="el_source">CreateIndexOnColumns.java</span></div><h1>CreateIndexOnColumns.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform.db.migration.step;
+
+import java.sql.Connection;
+import java.sql.SQLException;
+import org.sonar.db.Database;
+import org.sonar.db.DatabaseUtils;
+import org.sonar.server.platform.db.migration.sql.CreateIndexBuilder;
+
+public abstract class CreateIndexOnColumns extends DdlChange {
+
+  private final String table;
+  private final String indexPrefix;
+  private final String[] columnNames;
+  private final boolean unique;
+
+  protected CreateIndexOnColumns(Database db, String table, String indexPrefix, boolean unique, String... columnNames) {
+<span class="nc" id="L36">    super(db);</span>
+<span class="nc" id="L37">    this.table = table;</span>
+<span class="nc" id="L38">    this.indexPrefix = indexPrefix;</span>
+<span class="nc" id="L39">    this.unique = unique;</span>
+<span class="nc" id="L40">    this.columnNames = columnNames;</span>
+<span class="nc" id="L41">  }</span>
+
+  @Override
+  public void execute(Context context) throws SQLException {
+<span class="nc" id="L45">    try (Connection connection = getDatabase().getDataSource().getConnection()) {</span>
+<span class="nc bnc" id="L46" title="All 2 branches missed.">      if (!DatabaseUtils.indexExistsIgnoreCase(table, newIndexName(), connection)) {</span>
+<span class="nc" id="L47">        CreateIndexBuilder builder = new CreateIndexBuilder(getDialect())</span>
+<span class="nc" id="L48">          .setTable(table)</span>
+<span class="nc" id="L49">          .setName(newIndexName())</span>
+<span class="nc" id="L50">          .setUnique(unique);</span>
+<span class="nc bnc" id="L51" title="All 2 branches missed.">        for (String columnName : columnNames) {</span>
+<span class="nc" id="L52">          builder.addColumn(columnName);</span>
+        }
+<span class="nc" id="L54">        context.execute(builder.build());</span>
+      }
+    }
+<span class="nc" id="L57">  }</span>
+
+  public String newIndexName() {
+<span class="nc" id="L60">    return indexPrefix + &quot;_&quot; + String.join(&quot;_&quot;, columnNames);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,385 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LogbackHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.process.logging</a> &gt; <span class="el_source">LogbackHelper.java</span></div><h1>LogbackHelper.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.process.logging;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.LoggerContext;
+import ch.qos.logback.classic.joran.JoranConfigurator;
+import ch.qos.logback.classic.jul.LevelChangePropagator;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.classic.spi.LoggerContextListener;
+import ch.qos.logback.core.ConsoleAppender;
+import ch.qos.logback.core.Context;
+import ch.qos.logback.core.FileAppender;
+import ch.qos.logback.core.encoder.Encoder;
+import ch.qos.logback.core.encoder.LayoutWrappingEncoder;
+import ch.qos.logback.core.joran.spi.JoranException;
+import ch.qos.logback.core.rolling.FixedWindowRollingPolicy;
+import ch.qos.logback.core.rolling.RollingFileAppender;
+import ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy;
+import ch.qos.logback.core.rolling.TimeBasedRollingPolicy;
+import ch.qos.logback.core.util.FileSize;
+import java.io.File;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.logging.LogManager;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.LoggerFactory;
+import org.slf4j.bridge.SLF4JBridgeHandler;
+import org.sonar.process.MessageException;
+import org.sonar.process.ProcessProperties;
+import org.sonar.process.Props;
+
+import static java.lang.String.format;
+import static org.slf4j.Logger.ROOT_LOGGER_NAME;
+import static org.sonar.process.ProcessProperties.Property.LOG_CONSOLE;
+import static org.sonar.process.ProcessProperties.Property.LOG_JSON_OUTPUT;
+import static org.sonar.process.ProcessProperties.Property.LOG_LEVEL;
+import static org.sonar.process.ProcessProperties.Property.LOG_MAX_FILES;
+import static org.sonar.process.ProcessProperties.Property.LOG_ROLLING_POLICY;
+import static org.sonar.process.ProcessProperties.Property.PATH_LOGS;
+
+/**
+ * Helps to configure Logback in a programmatic way, without using XML.
+ */
+public class LogbackHelper extends AbstractLogHelper {
+
+  private static final String LOGBACK_LOGGER_NAME_PATTERN = &quot;%logger{20}&quot;;
+
+  public static final String DEPRECATION_LOGGER_NAME = &quot;SONAR_DEPRECATION&quot;;
+
+  public LogbackHelper() {
+<span class="fc" id="L71">    super(LOGBACK_LOGGER_NAME_PATTERN);</span>
+<span class="fc" id="L72">  }</span>
+
+  public static Collection&lt;Level&gt; allowedLogLevels() {
+<span class="fc" id="L75">    return Arrays.asList(ALLOWED_ROOT_LOG_LEVELS);</span>
+  }
+
+  @Override
+  public String getRootLoggerName() {
+<span class="fc" id="L80">    return ROOT_LOGGER_NAME;</span>
+  }
+
+  public LoggerContext getRootContext() {
+    org.slf4j.Logger logger;
+<span class="pc bpc" id="L85" title="1 of 2 branches missed.">    while (!((logger = LoggerFactory.getLogger(ROOT_LOGGER_NAME)) instanceof Logger)) {</span>
+      // It occurs when the initialization step is still not finished because of a race condition
+      // on ILoggerFactory.getILoggerFactory
+      // http://jira.qos.ch/browse/SLF4J-167
+      // Substitute loggers are used.
+      // http://www.slf4j.org/codes.html#substituteLogger
+      // Bug is not fixed in SLF4J 1.7.14.
+      try {
+<span class="nc" id="L93">        Thread.sleep(10);</span>
+<span class="nc" id="L94">      } catch (InterruptedException e) {</span>
+<span class="nc" id="L95">        Thread.currentThread().interrupt();</span>
+<span class="nc" id="L96">      }</span>
+    }
+<span class="fc" id="L98">    return ((Logger) logger).getLoggerContext();</span>
+  }
+
+  public LoggerContextListener enableJulChangePropagation(LoggerContext loggerContext) {
+<span class="fc" id="L102">    LogManager.getLogManager().reset();</span>
+<span class="fc" id="L103">    SLF4JBridgeHandler.removeHandlersForRootLogger();</span>
+<span class="fc" id="L104">    SLF4JBridgeHandler.install();</span>
+
+<span class="fc" id="L106">    LevelChangePropagator propagator = new LevelChangePropagator();</span>
+<span class="fc" id="L107">    propagator.setContext(loggerContext);</span>
+<span class="fc" id="L108">    propagator.setResetJUL(true);</span>
+<span class="fc" id="L109">    propagator.start();</span>
+<span class="fc" id="L110">    loggerContext.addListener(propagator);</span>
+<span class="fc" id="L111">    return propagator;</span>
+  }
+
+  /**
+   * Applies the specified {@link LogLevelConfig} reading the specified {@link Props}.
+   *
+   * @throws IllegalArgumentException if the any level specified in a property is not one of {@link #ALLOWED_ROOT_LOG_LEVELS}
+   */
+  public LoggerContext apply(LogLevelConfig logLevelConfig, Props props) {
+<span class="fc bfc" id="L120" title="All 2 branches covered.">    if (!ROOT_LOGGER_NAME.equals(logLevelConfig.getRootLoggerName())) {</span>
+<span class="fc" id="L121">      throw new IllegalArgumentException(&quot;Value of LogLevelConfig#rootLoggerName must be \&quot;&quot; + ROOT_LOGGER_NAME + &quot;\&quot;&quot;);</span>
+    }
+
+<span class="fc" id="L124">    LoggerContext rootContext = getRootContext();</span>
+<span class="fc" id="L125">    logLevelConfig.getConfiguredByProperties().forEach((key, value) -&gt; applyLevelByProperty(props, rootContext.getLogger(key), value));</span>
+<span class="fc" id="L126">    logLevelConfig.getConfiguredByHardcodedLevel().forEach((key, value) -&gt; applyHardcodedLevel(rootContext, key, value));</span>
+<span class="fc" id="L127">    Level propertyValueAsLevel = getPropertyValueAsLevel(props, LOG_LEVEL.getKey());</span>
+<span class="fc bfc" id="L128" title="All 2 branches covered.">    boolean traceGloballyEnabled = propertyValueAsLevel == Level.TRACE;</span>
+<span class="fc" id="L129">    logLevelConfig.getOffUnlessTrace().forEach(logger -&gt; applyHardUnlessTrace(rootContext, logger, traceGloballyEnabled));</span>
+<span class="fc" id="L130">    return rootContext;</span>
+  }
+
+  private static void applyLevelByProperty(Props props, Logger logger, List&lt;String&gt; properties) {
+<span class="fc" id="L134">    logger.setLevel(resolveLevel(props, properties.toArray(new String[0])));</span>
+<span class="fc" id="L135">  }</span>
+
+  private static void applyHardcodedLevel(LoggerContext rootContext, String loggerName, Level newLevel) {
+<span class="fc" id="L138">    rootContext.getLogger(loggerName).setLevel(newLevel);</span>
+<span class="fc" id="L139">  }</span>
+
+  private static void applyHardUnlessTrace(LoggerContext rootContext, String logger, boolean traceGloballyEnabled) {
+<span class="fc bfc" id="L142" title="All 2 branches covered.">    if (!traceGloballyEnabled) {</span>
+<span class="fc" id="L143">      rootContext.getLogger(logger).setLevel(Level.OFF);</span>
+    }
+<span class="fc" id="L145">  }</span>
+
+  public void changeRoot(LogLevelConfig logLevelConfig, Level newLevel) {
+<span class="fc" id="L148">    ensureSupportedLevel(newLevel);</span>
+<span class="fc" id="L149">    LoggerContext rootContext = getRootContext();</span>
+<span class="fc" id="L150">    rootContext.getLogger(ROOT_LOGGER_NAME).setLevel(newLevel);</span>
+<span class="fc" id="L151">    logLevelConfig.getConfiguredByProperties().forEach((key, value) -&gt; rootContext.getLogger(key).setLevel(newLevel));</span>
+<span class="fc" id="L152">  }</span>
+
+  private static void ensureSupportedLevel(Level newLevel) {
+<span class="fc bfc" id="L155" title="All 2 branches covered.">    if (!isAllowed(newLevel)) {</span>
+<span class="fc" id="L156">      throw new IllegalArgumentException(format(&quot;%s log level is not supported (allowed levels are %s)&quot;, newLevel, Arrays.toString(ALLOWED_ROOT_LOG_LEVELS)));</span>
+    }
+<span class="fc" id="L158">  }</span>
+
+  /**
+   * Creates a new {@link ConsoleAppender} to {@code System.out} with the specified name and log encoder.
+   */
+  public ConsoleAppender&lt;ILoggingEvent&gt; newConsoleAppender(Context loggerContext, String name, Encoder&lt;ILoggingEvent&gt; encoder) {
+<span class="fc" id="L164">    ConsoleAppender&lt;ILoggingEvent&gt; consoleAppender = new ConsoleAppender&lt;&gt;();</span>
+<span class="fc" id="L165">    consoleAppender.setContext(loggerContext);</span>
+<span class="fc" id="L166">    consoleAppender.setEncoder(encoder);</span>
+<span class="fc" id="L167">    consoleAppender.setName(name);</span>
+<span class="fc" id="L168">    consoleAppender.setTarget(&quot;System.out&quot;);</span>
+<span class="fc" id="L169">    consoleAppender.start();</span>
+<span class="fc" id="L170">    return consoleAppender;</span>
+  }
+
+  /**
+   * Make logback configuration for a process to push all its logs to a log file.
+   * &lt;p&gt;
+   * &lt;ul&gt;
+   * &lt;li&gt;the file's name will use the prefix defined in {@link RootLoggerConfig#getProcessId()#getLogFilenamePrefix()}.&lt;/li&gt;
+   * &lt;li&gt;the file will follow the rotation policy defined in property {@link ProcessProperties.Property#LOG_ROLLING_POLICY} and
+   * the max number of files defined in property {@link org.sonar.process.ProcessProperties.Property#LOG_MAX_FILES}&lt;/li&gt;
+   * &lt;li&gt;the logs will follow the specified log encoder&lt;/li&gt;
+   * &lt;/ul&gt;
+   * &lt;/p&gt;
+   */
+  public void configureGlobalFileLog(Props props, RootLoggerConfig config, Encoder&lt;ILoggingEvent&gt; encoder) {
+<span class="fc" id="L185">    LoggerContext ctx = getRootContext();</span>
+<span class="fc" id="L186">    Logger rootLogger = ctx.getLogger(ROOT_LOGGER_NAME);</span>
+<span class="fc" id="L187">    FileAppender&lt;ILoggingEvent&gt; fileAppender = newFileAppender(ctx, props, config, encoder);</span>
+<span class="fc" id="L188">    rootLogger.addAppender(fileAppender);</span>
+<span class="fc" id="L189">  }</span>
+
+  public FileAppender&lt;ILoggingEvent&gt; newFileAppender(LoggerContext ctx, Props props, RootLoggerConfig config, Encoder&lt;ILoggingEvent&gt; encoder) {
+<span class="fc" id="L192">    return newFileAppender(ctx, props, config.getProcessId().getLogFilenamePrefix(), encoder);</span>
+  }
+
+  public FileAppender&lt;ILoggingEvent&gt; newFileAppender(LoggerContext ctx, Props props, String fileNamePrefix, Encoder&lt;ILoggingEvent&gt; encoder) {
+<span class="fc" id="L196">    RollingPolicy rollingPolicy = createRollingPolicy(ctx, props, fileNamePrefix);</span>
+<span class="fc" id="L197">    FileAppender&lt;ILoggingEvent&gt; fileAppender = rollingPolicy.createAppender(&quot;file_&quot; + fileNamePrefix);</span>
+<span class="fc" id="L198">    fileAppender.setContext(ctx);</span>
+<span class="fc" id="L199">    fileAppender.setEncoder(encoder);</span>
+<span class="fc" id="L200">    fileAppender.start();</span>
+<span class="fc" id="L201">    return fileAppender;</span>
+  }
+
+  /**
+   * Make the logback configuration for a sub process to correctly push all its logs to be read by a stream gobbler
+   * on the sub process's System.out.
+   */
+  public void configureForSubprocessGobbler(Props props, Encoder&lt;ILoggingEvent&gt; encoder) {
+<span class="pc bpc" id="L209" title="1 of 2 branches missed.">    if (isAllLogsToConsoleEnabled(props)) {</span>
+<span class="nc" id="L210">      LoggerContext ctx = getRootContext();</span>
+<span class="nc" id="L211">      ctx.getLogger(ROOT_LOGGER_NAME).addAppender(newConsoleAppender(ctx, &quot;root_console&quot;, encoder));</span>
+    }
+<span class="fc" id="L213">  }</span>
+
+  /**
+   * Finds out whether we are in testing environment (usually ITs) and logs of all processes must be forward to
+   * App's System.out. This is specified by the value of property {@link ProcessProperties.Property#LOG_CONSOLE}.
+   */
+  public boolean isAllLogsToConsoleEnabled(Props props) {
+<span class="fc" id="L220">    return props.valueAsBoolean(LOG_CONSOLE.getKey(), false);</span>
+  }
+
+  public Level getLoggerLevel(String loggerName) {
+<span class="fc" id="L224">    return getRootContext().getLogger(loggerName).getLevel();</span>
+  }
+
+  /**
+   * Generally used to reset logback in logging tests
+   */
+  public void resetFromXml(String xmlResourcePath) throws JoranException {
+<span class="fc" id="L231">    LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();</span>
+<span class="fc" id="L232">    JoranConfigurator configurator = new JoranConfigurator();</span>
+<span class="fc" id="L233">    configurator.setContext(context);</span>
+<span class="fc" id="L234">    context.reset();</span>
+<span class="fc" id="L235">    configurator.doConfigure(LogbackHelper.class.getResource(xmlResourcePath));</span>
+<span class="fc" id="L236">  }</span>
+
+  public Encoder&lt;ILoggingEvent&gt; createEncoder(Props props, RootLoggerConfig config, LoggerContext context) {
+<span class="fc bfc" id="L239" title="All 2 branches covered.">    return props.valueAsBoolean(LOG_JSON_OUTPUT.getKey(), Boolean.parseBoolean(LOG_JSON_OUTPUT.getDefaultValue()))</span>
+<span class="fc" id="L240">      ? createJsonEncoder(context, config)</span>
+<span class="fc" id="L241">      : createPatternLayoutEncoder(context, buildLogPattern(config));</span>
+  }
+
+  public Encoder&lt;ILoggingEvent&gt; createJsonEncoder(LoggerContext context, RootLoggerConfig config) {
+<span class="fc" id="L245">    LayoutWrappingEncoder&lt;ILoggingEvent&gt; encoder = new LayoutWrappingEncoder&lt;&gt;();</span>
+<span class="fc" id="L246">    encoder.setLayout(new LogbackJsonLayout(config.getProcessId().getKey(), config.getNodeNameField(), config.getExcludedFields()));</span>
+<span class="fc" id="L247">    encoder.setContext(context);</span>
+<span class="fc" id="L248">    encoder.start();</span>
+<span class="fc" id="L249">    return encoder;</span>
+  }
+
+  public PatternLayoutEncoder createPatternLayoutEncoder(LoggerContext context, String pattern) {
+<span class="fc" id="L253">    PatternLayoutEncoder encoder = new PatternLayoutEncoder();</span>
+<span class="fc" id="L254">    encoder.setContext(context);</span>
+<span class="fc" id="L255">    encoder.setPattern(pattern);</span>
+<span class="fc" id="L256">    encoder.start();</span>
+<span class="fc" id="L257">    return encoder;</span>
+  }
+
+  public RollingPolicy createRollingPolicy(Context ctx, Props props, String filenamePrefix) {
+<span class="fc" id="L261">    String rollingPolicy = props.value(LOG_ROLLING_POLICY.getKey(), &quot;time:yyyy-MM-dd&quot;);</span>
+<span class="fc" id="L262">    int maxFiles = props.valueAsInt(LOG_MAX_FILES.getKey(), 7);</span>
+<span class="fc" id="L263">    File logsDir = props.nonNullValueAsFile(PATH_LOGS.getKey());</span>
+
+<span class="fc bfc" id="L265" title="All 2 branches covered.">    if (rollingPolicy.startsWith(&quot;time:&quot;)) {</span>
+<span class="fc" id="L266">      return new TimeRollingPolicy(ctx, filenamePrefix, logsDir, maxFiles, StringUtils.substringAfter(rollingPolicy, &quot;time:&quot;));</span>
+
+<span class="fc bfc" id="L268" title="All 2 branches covered.">    } else if (rollingPolicy.startsWith(&quot;size:&quot;)) {</span>
+<span class="fc" id="L269">      return new SizeRollingPolicy(ctx, filenamePrefix, logsDir, maxFiles, StringUtils.substringAfter(rollingPolicy, &quot;size:&quot;));</span>
+
+<span class="fc bfc" id="L271" title="All 2 branches covered.">    } else if (&quot;none&quot;.equals(rollingPolicy)) {</span>
+<span class="fc" id="L272">      return new NoRollingPolicy(ctx, filenamePrefix, logsDir, maxFiles);</span>
+
+    } else {
+<span class="fc" id="L275">      throw new MessageException(format(&quot;Unsupported value for property %s: %s&quot;, LOG_ROLLING_POLICY.getKey(), rollingPolicy));</span>
+    }
+  }
+
+  public abstract static class RollingPolicy {
+    protected final Context context;
+    final String filenamePrefix;
+    final File logsDir;
+    final int maxFiles;
+
+<span class="fc" id="L285">    RollingPolicy(Context context, String filenamePrefix, File logsDir, int maxFiles) {</span>
+<span class="fc" id="L286">      this.context = context;</span>
+<span class="fc" id="L287">      this.filenamePrefix = filenamePrefix;</span>
+<span class="fc" id="L288">      this.logsDir = logsDir;</span>
+<span class="fc" id="L289">      this.maxFiles = maxFiles;</span>
+<span class="fc" id="L290">    }</span>
+
+    public abstract FileAppender&lt;ILoggingEvent&gt; createAppender(String appenderName);
+  }
+
+  /**
+   * Log files are not rotated, for example when unix command logrotate is in place.
+   */
+  private static class NoRollingPolicy extends RollingPolicy {
+    private NoRollingPolicy(Context context, String filenamePrefix, File logsDir, int maxFiles) {
+<span class="fc" id="L300">      super(context, filenamePrefix, logsDir, maxFiles);</span>
+<span class="fc" id="L301">    }</span>
+
+    @Override
+    public FileAppender&lt;ILoggingEvent&gt; createAppender(String appenderName) {
+<span class="fc" id="L305">      FileAppender&lt;ILoggingEvent&gt; appender = new FileAppender&lt;&gt;();</span>
+<span class="fc" id="L306">      appender.setContext(context);</span>
+<span class="fc" id="L307">      appender.setFile(new File(logsDir, filenamePrefix + &quot;.log&quot;).getAbsolutePath());</span>
+<span class="fc" id="L308">      appender.setName(appenderName);</span>
+<span class="fc" id="L309">      return appender;</span>
+    }
+  }
+
+  /**
+   * Log files are rotated according to time (one file per day, month or year).
+   * See &lt;a href=&quot;http://logback.qos.ch/manual/appenders.html#TimeBasedRollingPolicy&quot;&gt;TimeBasedRollingPolicy&lt;/a&gt;
+   */
+  private static class TimeRollingPolicy extends RollingPolicy {
+    private final String datePattern;
+
+    private TimeRollingPolicy(Context context, String filenamePrefix, File logsDir, int maxFiles, String datePattern) {
+<span class="fc" id="L321">      super(context, filenamePrefix, logsDir, maxFiles);</span>
+<span class="fc" id="L322">      this.datePattern = datePattern;</span>
+<span class="fc" id="L323">    }</span>
+
+    @Override
+    public FileAppender&lt;ILoggingEvent&gt; createAppender(String appenderName) {
+<span class="fc" id="L327">      RollingFileAppender&lt;ILoggingEvent&gt; appender = new RollingFileAppender&lt;&gt;();</span>
+<span class="fc" id="L328">      appender.setContext(context);</span>
+<span class="fc" id="L329">      appender.setName(appenderName);</span>
+<span class="fc" id="L330">      String filePath = new File(logsDir, filenamePrefix + &quot;.log&quot;).getAbsolutePath();</span>
+<span class="fc" id="L331">      appender.setFile(filePath);</span>
+
+<span class="fc" id="L333">      TimeBasedRollingPolicy&lt;ILoggingEvent&gt; rollingPolicy = new TimeBasedRollingPolicy&lt;&gt;();</span>
+<span class="fc" id="L334">      rollingPolicy.setContext(context);</span>
+<span class="fc" id="L335">      rollingPolicy.setFileNamePattern(StringUtils.replace(filePath, filenamePrefix + &quot;.log&quot;, filenamePrefix + &quot;.%d{&quot; + datePattern + &quot;}.log&quot;));</span>
+<span class="fc" id="L336">      rollingPolicy.setMaxHistory(maxFiles);</span>
+<span class="fc" id="L337">      rollingPolicy.setParent(appender);</span>
+<span class="fc" id="L338">      rollingPolicy.start();</span>
+<span class="fc" id="L339">      appender.setRollingPolicy(rollingPolicy);</span>
+
+<span class="fc" id="L341">      return appender;</span>
+    }
+  }
+
+  /**
+   * Log files are rotated according to their size.
+   * See &lt;a href=&quot;http://logback.qos.ch/manual/appenders.html#FixedWindowRollingPolicy&quot;&gt;FixedWindowRollingPolicy&lt;/a&gt;
+   */
+  private static class SizeRollingPolicy extends RollingPolicy {
+    private final String size;
+
+    private SizeRollingPolicy(Context context, String filenamePrefix, File logsDir, int maxFiles, String parameter) {
+<span class="fc" id="L353">      super(context, filenamePrefix, logsDir, maxFiles);</span>
+<span class="fc" id="L354">      this.size = parameter;</span>
+<span class="fc" id="L355">    }</span>
+
+    @Override
+    public FileAppender&lt;ILoggingEvent&gt; createAppender(String appenderName) {
+<span class="fc" id="L359">      RollingFileAppender&lt;ILoggingEvent&gt; appender = new RollingFileAppender&lt;&gt;();</span>
+<span class="fc" id="L360">      appender.setContext(context);</span>
+<span class="fc" id="L361">      appender.setName(appenderName);</span>
+<span class="fc" id="L362">      String filePath = new File(logsDir, filenamePrefix + &quot;.log&quot;).getAbsolutePath();</span>
+<span class="fc" id="L363">      appender.setFile(filePath);</span>
+
+<span class="fc" id="L365">      SizeBasedTriggeringPolicy&lt;ILoggingEvent&gt; trigger = new SizeBasedTriggeringPolicy&lt;&gt;();</span>
+<span class="fc" id="L366">      trigger.setMaxFileSize(FileSize.valueOf(size));</span>
+<span class="fc" id="L367">      trigger.setContext(context);</span>
+<span class="fc" id="L368">      trigger.start();</span>
+<span class="fc" id="L369">      appender.setTriggeringPolicy(trigger);</span>
+
+<span class="fc" id="L371">      FixedWindowRollingPolicy rollingPolicy = new FixedWindowRollingPolicy();</span>
+<span class="fc" id="L372">      rollingPolicy.setContext(context);</span>
+<span class="fc" id="L373">      rollingPolicy.setFileNamePattern(StringUtils.replace(filePath, filenamePrefix + &quot;.log&quot;, filenamePrefix + &quot;.%i.log&quot;));</span>
+<span class="fc" id="L374">      rollingPolicy.setMinIndex(1);</span>
+<span class="fc" id="L375">      rollingPolicy.setMaxIndex(maxFiles);</span>
+<span class="fc" id="L376">      rollingPolicy.setParent(appender);</span>
+<span class="fc" id="L377">      rollingPolicy.start();</span>
+<span class="fc" id="L378">      appender.setRollingPolicy(rollingPolicy);</span>
+
+<span class="fc" id="L380">      return appender;</span>
+    }
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

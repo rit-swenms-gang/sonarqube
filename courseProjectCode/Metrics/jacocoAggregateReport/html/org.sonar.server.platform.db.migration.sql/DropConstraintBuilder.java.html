@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DropConstraintBuilder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform.db.migration.sql</a> &gt; <span class="el_source">DropConstraintBuilder.java</span></div><h1>DropConstraintBuilder.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform.db.migration.sql;
+
+import java.util.List;
+import org.sonar.db.dialect.Dialect;
+import org.sonar.db.dialect.H2;
+import org.sonar.db.dialect.MsSql;
+import org.sonar.db.dialect.Oracle;
+import org.sonar.db.dialect.PostgreSql;
+
+import static java.util.Collections.singletonList;
+import static org.sonar.server.platform.db.migration.def.Validations.validateIndexName;
+import static org.sonar.server.platform.db.migration.def.Validations.validateTableName;
+
+/**
+ * This builder have the main goal to drop constraint of a column.
+ * &lt;p&gt;
+ * It shouldn't be used to drop primary keys constraint, use {@link DropPrimaryKeySqlGenerator}
+ */
+public class DropConstraintBuilder {
+
+  private final Dialect dialect;
+  private String tableName;
+  private String constraintName;
+
+<span class="fc" id="L44">  public DropConstraintBuilder(Dialect dialect) {</span>
+<span class="fc" id="L45">    this.dialect = dialect;</span>
+<span class="fc" id="L46">  }</span>
+
+  public DropConstraintBuilder setTable(String s) {
+<span class="fc" id="L49">    this.tableName = s;</span>
+<span class="fc" id="L50">    return this;</span>
+  }
+
+  public DropConstraintBuilder setName(String s) {
+<span class="fc bfc" id="L54" title="All 2 branches covered.">    if (s.startsWith(&quot;pk_&quot;)) {</span>
+<span class="fc" id="L55">      throw new IllegalArgumentException(&quot;This builder should not be used with primary keys&quot;);</span>
+    }
+<span class="fc" id="L57">    this.constraintName = s;</span>
+<span class="fc" id="L58">    return this;</span>
+  }
+
+  public List&lt;String&gt; build() {
+<span class="fc" id="L62">    validateTableName(tableName);</span>
+<span class="fc" id="L63">    validateIndexName(constraintName);</span>
+<span class="fc" id="L64">    return singletonList(createSqlStatement());</span>
+  }
+
+  private String createSqlStatement() {
+<span class="pc bpc" id="L68" title="1 of 2 branches missed.">    return switch (dialect.getId()) {</span>
+<span class="fc" id="L69">      case MsSql.ID, Oracle.ID, PostgreSql.ID, H2.ID -&gt; &quot;ALTER TABLE &quot; + tableName + &quot; DROP CONSTRAINT &quot; + constraintName;</span>
+<span class="nc" id="L70">      default -&gt; throw new IllegalStateException(&quot;Unsupported dialect for drop of constraint: &quot; + dialect);</span>
+    };
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

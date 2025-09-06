@@ -1,0 +1,514 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ComputeEngineContainerImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.container</a> &gt; <span class="el_source">ComputeEngineContainerImpl.java</span></div><h1>ComputeEngineContainerImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.container;
+
+import com.google.common.annotations.VisibleForTesting;
+import java.time.Clock;
+import java.util.List;
+import javax.annotation.CheckForNull;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.SonarEdition;
+import org.sonar.api.SonarQubeSide;
+import org.sonar.api.SonarRuntime;
+import org.sonar.api.internal.MetadataLoader;
+import org.sonar.api.internal.SonarRuntimeImpl;
+import org.sonar.api.server.profile.BuiltInQualityProfileAnnotationLoader;
+import org.sonar.api.server.rule.RulesDefinitionXmlLoader;
+import org.sonar.api.utils.Durations;
+import org.sonar.api.utils.System2;
+import org.sonar.api.utils.UriReader;
+import org.sonar.api.utils.Version;
+import org.sonar.ce.CeConfigurationModule;
+import org.sonar.ce.CeDistributedInformationImpl;
+import org.sonar.ce.CeHttpModule;
+import org.sonar.ce.CeQueueModule;
+import org.sonar.ce.CeTaskCommonsModule;
+import org.sonar.ce.StandaloneCeDistributedInformation;
+import org.sonar.ce.analysis.cache.cleaning.AnalysisCacheCleaningModule;
+import org.sonar.ce.async.SynchronousAsyncExecution;
+import org.sonar.ce.cleaning.CeCleaningModule;
+import org.sonar.ce.issue.index.NoAsyncIssueIndexing;
+import org.sonar.ce.logging.CeProcessLogging;
+import org.sonar.ce.monitoring.CEQueueStatusImpl;
+import org.sonar.ce.platform.CECoreExtensionsInstaller;
+import org.sonar.ce.platform.ComputeEngineExtensionInstaller;
+import org.sonar.ce.platform.DatabaseCompatibility;
+import org.sonar.ce.queue.PurgeCeActivities;
+import org.sonar.ce.task.projectanalysis.ProjectAnalysisTaskModule;
+import org.sonar.ce.task.projectanalysis.analysis.ProjectConfigurationFactory;
+import org.sonar.ce.task.projectanalysis.issue.AdHocRuleCreator;
+import org.sonar.ce.task.projectanalysis.notification.ReportAnalysisFailureNotificationModule;
+import org.sonar.ce.task.projectanalysis.taskprocessor.AuditPurgeTaskModule;
+import org.sonar.ce.task.projectanalysis.taskprocessor.IssueSyncTaskModule;
+import org.sonar.ce.taskprocessor.CeProcessingScheduler;
+import org.sonar.ce.taskprocessor.CeTaskProcessorModule;
+import org.sonar.core.config.CorePropertyDefinitions;
+import org.sonar.core.documentation.DefaultDocumentationLinkGenerator;
+import org.sonar.core.extension.CoreExtensionRepositoryImpl;
+import org.sonar.core.extension.CoreExtensionsLoader;
+import org.sonar.core.language.LanguagesProvider;
+import org.sonar.core.metric.SoftwareQualitiesMetrics;
+import org.sonar.core.platform.EditionProvider;
+import org.sonar.core.platform.ExtensionContainer;
+import org.sonar.core.platform.PlatformEditionProvider;
+import org.sonar.core.platform.PluginClassLoader;
+import org.sonar.core.platform.PluginClassloaderFactory;
+import org.sonar.core.platform.SonarQubeVersion;
+import org.sonar.core.platform.SpringComponentContainer;
+import org.sonar.core.util.UuidFactoryImpl;
+import org.sonar.db.DBSessionsImpl;
+import org.sonar.db.DaoModule;
+import org.sonar.db.DbClient;
+import org.sonar.db.DefaultDatabase;
+import org.sonar.db.MyBatis;
+import org.sonar.db.StartMyBatis;
+import org.sonar.db.audit.NoOpAuditPersister;
+import org.sonar.db.purge.PurgeProfiler;
+import org.sonar.process.NetworkUtilsImpl;
+import org.sonar.process.Props;
+import org.sonar.process.logging.LogbackHelper;
+import org.sonar.server.component.ComponentTypes;
+import org.sonar.server.component.DefaultComponentTypes;
+import org.sonar.server.component.index.EntityDefinitionIndexer;
+import org.sonar.server.config.ConfigurationProvider;
+import org.sonar.server.email.EmailSmtpConfiguration;
+import org.sonar.server.es.EsModule;
+import org.sonar.server.es.IndexersImpl;
+import org.sonar.server.extension.CoreExtensionBootstraper;
+import org.sonar.server.extension.CoreExtensionStopper;
+import org.sonar.server.favorite.FavoriteUpdater;
+import org.sonar.server.issue.IssueFieldsSetter;
+import org.sonar.server.issue.IssueStorage;
+import org.sonar.server.issue.TaintChecker;
+import org.sonar.server.issue.index.IssueIndexer;
+import org.sonar.server.issue.index.IssueIteratorFactory;
+import org.sonar.server.issue.notification.IssuesChangesNotificationModule;
+import org.sonar.server.issue.notification.MyNewIssuesEmailTemplate;
+import org.sonar.server.issue.notification.MyNewIssuesNotificationHandler;
+import org.sonar.server.issue.notification.NewIssuesEmailTemplate;
+import org.sonar.server.issue.notification.NewIssuesNotificationHandler;
+import org.sonar.server.issue.workflow.IssueWorkflow;
+import org.sonar.server.issue.workflow.codequalityissue.CodeQualityIssueWorkflow;
+import org.sonar.server.issue.workflow.codequalityissue.CodeQualityIssueWorkflowActionsFactory;
+import org.sonar.server.issue.workflow.codequalityissue.CodeQualityIssueWorkflowDefinition;
+import org.sonar.server.issue.workflow.securityhotspot.SecurityHotspotWorkflow;
+import org.sonar.server.issue.workflow.securityhotspot.SecurityHotspotWorkflowActionsFactory;
+import org.sonar.server.issue.workflow.securityhotspot.SecurityHotspotWorkflowDefinition;
+import org.sonar.server.l18n.ServerI18n;
+import org.sonar.server.log.DistributedServerLogging;
+import org.sonar.server.log.ServerLogging;
+import org.sonar.server.measure.index.ProjectMeasuresIndexer;
+import org.sonar.server.metric.IssueCountMetrics;
+import org.sonar.server.metric.UnanalyzedLanguageMetrics;
+import org.sonar.server.network.NetworkInterfaceProvider;
+import org.sonar.server.notification.DefaultNotificationManager;
+import org.sonar.server.notification.NotificationService;
+import org.sonar.server.notification.email.EmailNotificationChannel;
+import org.sonar.server.oauth.OAuthMicrosoftRestClient;
+import org.sonar.server.permission.index.PermissionIndexer;
+import org.sonar.server.platform.DefaultNodeInformation;
+import org.sonar.server.platform.OfficialDistribution;
+import org.sonar.server.platform.ServerFileSystemImpl;
+import org.sonar.server.platform.ServerImpl;
+import org.sonar.server.platform.ServerLifecycleNotifier;
+import org.sonar.server.platform.StartupMetadataProvider;
+import org.sonar.server.platform.TempFolderProvider;
+import org.sonar.server.platform.UrlSettings;
+import org.sonar.server.platform.db.migration.MigrationConfigurationModule;
+import org.sonar.server.platform.db.migration.version.DatabaseVersion;
+import org.sonar.server.platform.monitoring.DbSection;
+import org.sonar.server.platform.monitoring.cluster.ProcessInfoProvider;
+import org.sonar.server.platform.serverid.JdbcUrlSanitizer;
+import org.sonar.server.platform.serverid.ServerIdChecksum;
+import org.sonar.server.plugins.InstalledPluginReferentialFactory;
+import org.sonar.server.plugins.ServerExtensionInstaller;
+import org.sonar.server.project.DefaultBranchNameResolver;
+import org.sonar.server.project.VisibilityService;
+import org.sonar.server.property.InternalPropertiesImpl;
+import org.sonar.server.qualitygate.QualityGateEvaluatorImpl;
+import org.sonar.server.qualitygate.QualityGateFinder;
+import org.sonar.server.qualitygate.notification.QGChangeEmailTemplate;
+import org.sonar.server.qualitygate.notification.QGChangeNotificationHandler;
+import org.sonar.server.qualityprofile.index.ActiveRuleIndexer;
+import org.sonar.server.rule.DefaultRuleFinder;
+import org.sonar.server.rule.RuleDescriptionFormatter;
+import org.sonar.server.rule.index.RuleIndex;
+import org.sonar.server.rule.index.RuleIndexer;
+import org.sonar.server.setting.DatabaseSettingLoader;
+import org.sonar.server.setting.DatabaseSettingsEnabler;
+import org.sonar.server.setting.ThreadLocalSettings;
+import org.sonar.server.util.OkHttpClientProvider;
+import org.sonar.server.util.Paths2Impl;
+import org.sonar.server.view.index.ViewIndex;
+import org.sonar.server.view.index.ViewIndexer;
+import org.sonar.server.webhook.WebhookModule;
+import org.sonarqube.ws.Rules;
+
+import static java.util.Objects.requireNonNull;
+import static org.sonar.core.extension.CoreExtensionsInstaller.noAdditionalSideFilter;
+import static org.sonar.core.extension.PlatformLevelPredicates.hasPlatformLevel;
+import static org.sonar.core.extension.PlatformLevelPredicates.hasPlatformLevel4OrNone;
+import static org.sonar.process.ProcessProperties.Property.CLUSTER_ENABLED;
+
+<span class="fc" id="L170">public class ComputeEngineContainerImpl implements ComputeEngineContainer {</span>
+
+<span class="fc" id="L172">  private ComputeEngineStatus computeEngineStatus = null;</span>
+<span class="fc" id="L173">  @CheckForNull</span>
+  private SpringComponentContainer level1 = null;
+<span class="fc" id="L175">  @CheckForNull</span>
+  private SpringComponentContainer level4 = null;
+
+  @Override
+  public void setComputeEngineStatus(ComputeEngineStatus computeEngineStatus) {
+<span class="fc" id="L180">    this.computeEngineStatus = computeEngineStatus;</span>
+<span class="fc" id="L181">  }</span>
+
+  @Override
+  public ComputeEngineContainer start(Props props) {
+<span class="fc" id="L185">    this.level1 = new SpringComponentContainer();</span>
+<span class="fc" id="L186">    populateLevel1(this.level1, props, requireNonNull(computeEngineStatus));</span>
+<span class="fc" id="L187">    startLevel1(this.level1);</span>
+
+<span class="fc" id="L189">    SpringComponentContainer level2 = this.level1.createChild();</span>
+<span class="fc" id="L190">    populateLevel2(level2);</span>
+<span class="fc" id="L191">    startLevel2(level2);</span>
+
+<span class="fc" id="L193">    SpringComponentContainer level3 = level2.createChild();</span>
+<span class="fc" id="L194">    populateLevel3(level3);</span>
+<span class="fc" id="L195">    startLevel3(level3);</span>
+
+<span class="fc" id="L197">    this.level4 = level3.createChild();</span>
+<span class="fc" id="L198">    populateLevel4(this.level4, props);</span>
+<span class="fc" id="L199">    startLevel4(this.level4);</span>
+
+<span class="fc" id="L201">    startupTasks();</span>
+
+<span class="fc" id="L203">    return this;</span>
+  }
+
+  private static void startLevel1(SpringComponentContainer level1) {
+<span class="fc" id="L207">    level1.startComponents();</span>
+<span class="fc" id="L208">  }</span>
+
+  private static void startLevel2(SpringComponentContainer level2) {
+<span class="fc" id="L211">    level2.startComponents();</span>
+<span class="fc" id="L212">  }</span>
+
+  private static void startLevel3(SpringComponentContainer level3) {
+<span class="fc" id="L215">    level3.startComponents();</span>
+<span class="fc" id="L216">  }</span>
+
+  private static void startLevel4(SpringComponentContainer level4) {
+<span class="fc" id="L219">    level4.startComponents();</span>
+
+<span class="fc" id="L221">    PlatformEditionProvider editionProvider = level4.getComponentByType(PlatformEditionProvider.class);</span>
+<span class="fc" id="L222">    LoggerFactory.getLogger(ComputeEngineContainerImpl.class).atInfo()</span>
+<span class="fc" id="L223">      .addArgument(() -&gt; editionProvider.get().map(EditionProvider.Edition::getLabel).orElse(&quot;&quot;))</span>
+<span class="fc" id="L224">      .log(&quot;Running {} edition&quot;);</span>
+<span class="fc" id="L225">  }</span>
+
+  private void startupTasks() {
+<span class="fc" id="L228">    SpringComponentContainer startupLevel = this.level4.createChild();</span>
+<span class="fc" id="L229">    startupLevel.add(startupComponents());</span>
+<span class="fc" id="L230">    startupLevel.startComponents();</span>
+    // done in PlatformLevelStartup
+<span class="fc" id="L232">    ServerLifecycleNotifier serverLifecycleNotifier = startupLevel.getComponentByType(ServerLifecycleNotifier.class);</span>
+<span class="pc bpc" id="L233" title="1 of 2 branches missed.">    if (serverLifecycleNotifier != null) {</span>
+<span class="fc" id="L234">      serverLifecycleNotifier.notifyStart();</span>
+    }
+<span class="fc" id="L236">    startupLevel.stopComponents();</span>
+<span class="fc" id="L237">  }</span>
+
+  @Override
+  public ComputeEngineContainer stopWorkers() {
+<span class="nc bnc" id="L241" title="All 2 branches missed.">    if (level4 != null) {</span>
+      // try to graceful stop in-progress tasks
+<span class="nc" id="L243">      CeProcessingScheduler ceProcessingScheduler = level4.getComponentByType(CeProcessingScheduler.class);</span>
+<span class="nc" id="L244">      ceProcessingScheduler.gracefulStopScheduling();</span>
+    }
+<span class="nc" id="L246">    return this;</span>
+  }
+
+  @Override
+  public ComputeEngineContainer stop() {
+<span class="pc bpc" id="L251" title="1 of 2 branches missed.">    if (level4 != null) {</span>
+      // try to graceful but quick stop in-progress tasks
+<span class="fc" id="L253">      CeProcessingScheduler ceProcessingScheduler = level4.getComponentByType(CeProcessingScheduler.class);</span>
+<span class="fc" id="L254">      ceProcessingScheduler.hardStopScheduling();</span>
+    }
+<span class="fc" id="L256">    this.level1.stopComponents();</span>
+<span class="fc" id="L257">    return this;</span>
+  }
+
+  @VisibleForTesting
+  protected SpringComponentContainer getComponentContainer() {
+<span class="fc" id="L262">    return level4;</span>
+  }
+
+  private static void populateLevel1(SpringComponentContainer level1Container, Props props, ComputeEngineStatus computeEngineStatus) {
+<span class="fc" id="L266">    Version apiVersion = MetadataLoader.loadApiVersion(System2.INSTANCE);</span>
+<span class="fc" id="L267">    Version sqVersion = MetadataLoader.loadSQVersion(System2.INSTANCE);</span>
+<span class="fc" id="L268">    SonarEdition edition = MetadataLoader.loadEdition(System2.INSTANCE);</span>
+<span class="fc" id="L269">    SonarRuntime sonarRuntime = SonarRuntimeImpl.forSonarQube(apiVersion, SonarQubeSide.COMPUTE_ENGINE, edition);</span>
+
+<span class="fc" id="L271">    level1Container.add(</span>
+<span class="fc" id="L272">      props.rawProperties(),</span>
+      ThreadLocalSettings.class,
+      new ConfigurationProvider(),
+      new SonarQubeVersion(sqVersion),
+      sonarRuntime,
+      CeProcessLogging.class,
+      UuidFactoryImpl.INSTANCE,
+      NetworkUtilsImpl.INSTANCE,
+      DefaultNodeInformation.class,
+      LogbackHelper.class,
+      DefaultDatabase.class,
+      MyBatis.class,
+      StartMyBatis.class,
+      PurgeProfiler.class,
+      ServerFileSystemImpl.class,
+      new TempFolderProvider(),
+      System2.INSTANCE,
+<span class="fc" id="L289">      Paths2Impl.getInstance(),</span>
+<span class="fc" id="L290">      Clock.systemDefaultZone(),</span>
+
+      NetworkInterfaceProvider.class,
+
+      // DB
+      new DaoModule(),
+      DBSessionsImpl.class,
+      DbClient.class,
+
+      // Elasticsearch
+      new EsModule(),
+
+      // rules/qprofiles
+      RuleIndex.class,
+
+      new OkHttpClientProvider(),
+      computeEngineStatus,
+      NoOpAuditPersister.class,
+
+      DefaultDocumentationLinkGenerator.class);
+<span class="fc" id="L310">    level1Container.add(toArray(CorePropertyDefinitions.all()));</span>
+
+<span class="fc" id="L312">    addCoreExtensionMechanism(level1Container, sonarRuntime);</span>
+<span class="fc" id="L313">  }</span>
+
+  private static void addCoreExtensionMechanism(SpringComponentContainer level1Container, SonarRuntime sonarRuntime) {
+<span class="fc" id="L316">    var coreExtensionRepository = new CoreExtensionRepositoryImpl();</span>
+<span class="fc" id="L317">    var coreExtensionsLoader = new CoreExtensionsLoader(coreExtensionRepository);</span>
+<span class="fc" id="L318">    var ceCoreExtensionsInstaller = new CECoreExtensionsInstaller(sonarRuntime, coreExtensionRepository);</span>
+
+<span class="fc" id="L320">    level1Container.add(coreExtensionRepository, coreExtensionsLoader, ceCoreExtensionsInstaller);</span>
+
+<span class="fc" id="L322">    coreExtensionsLoader.load();</span>
+<span class="fc" id="L323">    ceCoreExtensionsInstaller.install(level1Container, hasPlatformLevel(1), noAdditionalSideFilter());</span>
+<span class="fc" id="L324">  }</span>
+
+  private static void populateLevel2(ExtensionContainer level2Container) {
+<span class="fc" id="L327">    level2Container.add(</span>
+      new MigrationConfigurationModule(),
+      DatabaseVersion.class,
+      DatabaseCompatibility.class,
+
+      DatabaseSettingLoader.class,
+      DatabaseSettingsEnabler.class,
+      UrlSettings.class,
+
+      // plugins
+      PluginClassloaderFactory.class,
+      CePluginJarExploder.class,
+      PluginClassLoader.class,
+      CePluginRepository.class,
+      InstalledPluginReferentialFactory.class,
+      ComputeEngineExtensionInstaller.class,
+
+      // depends on plugins
+      ServerI18n.class, // used by RuleI18nManager
+      Durations.class // used in Web Services and DebtCalculator
+    );
+
+<span class="fc" id="L349">    level2Container.getParent().getOptionalComponentByType(CECoreExtensionsInstaller.class)</span>
+<span class="pc" id="L350">      .orElseThrow(() -&gt; new IllegalStateException(&quot;Core extension loading mechanism is not available&quot;))</span>
+<span class="fc" id="L351">      .install(level2Container, hasPlatformLevel(2), noAdditionalSideFilter());</span>
+<span class="fc" id="L352">  }</span>
+
+  private static void populateLevel3(SpringComponentContainer level3Container) {
+<span class="fc" id="L355">    level3Container.add(</span>
+      new StartupMetadataProvider(),
+      JdbcUrlSanitizer.class,
+      ServerIdChecksum.class,
+      UriReader.class,
+      ServerImpl.class,
+      SynchronousAsyncExecution.class);
+
+<span class="fc" id="L363">    level3Container.getParent().getOptionalComponentByType(CECoreExtensionsInstaller.class)</span>
+<span class="pc" id="L364">      .orElseThrow(() -&gt; new IllegalStateException(&quot;Core extension loading mechanism is not available&quot;))</span>
+<span class="fc" id="L365">      .install(level3Container, hasPlatformLevel(3), noAdditionalSideFilter());</span>
+
+<span class="fc" id="L367">  }</span>
+
+  private static void populateLevel4(SpringComponentContainer level4Container, Props props) {
+<span class="fc" id="L370">    level4Container.add(</span>
+      RuleDescriptionFormatter.class,
+      ComponentTypes.class,
+<span class="fc" id="L373">      DefaultComponentTypes.get(),</span>
+
+      // quality profile
+      ActiveRuleIndexer.class,
+      BuiltInQualityProfileAnnotationLoader.class,
+      Rules.QProfiles.class,
+
+      // rule
+      DefaultRuleFinder.class,
+      RulesDefinitionXmlLoader.class,
+      AdHocRuleCreator.class,
+      RuleIndexer.class,
+
+      // languages
+      // used by CommonRuleDefinitionsImpl
+      LanguagesProvider.class,
+
+      // measure
+      UnanalyzedLanguageMetrics.class,
+      IssueCountMetrics.class,
+      SoftwareQualitiesMetrics.class,
+
+      // components,
+      FavoriteUpdater.class,
+      IndexersImpl.class,
+      QGChangeNotificationHandler.class,
+<span class="fc" id="L399">      QGChangeNotificationHandler.newMetadata(),</span>
+      ProjectMeasuresIndexer.class,
+      EntityDefinitionIndexer.class,
+      PermissionIndexer.class,
+
+      // views
+      ViewIndexer.class,
+      ViewIndex.class,
+
+      // issues
+      IssueStorage.class,
+      NoAsyncIssueIndexing.class,
+      IssueIndexer.class,
+      IssueIteratorFactory.class,
+      IssueFieldsSetter.class, // used in Web Services and CE's DebtCalculator
+      TaintChecker.class,
+      // used in Web Services and CE's DebtCalculator
+      IssueWorkflow.class,
+      CodeQualityIssueWorkflow.class,
+      CodeQualityIssueWorkflowActionsFactory.class,
+      CodeQualityIssueWorkflowDefinition.class,
+      SecurityHotspotWorkflow.class,
+      SecurityHotspotWorkflowActionsFactory.class,
+      SecurityHotspotWorkflowDefinition.class,
+      NewIssuesEmailTemplate.class,
+      MyNewIssuesEmailTemplate.class,
+      NewIssuesNotificationHandler.class,
+<span class="fc" id="L426">      NewIssuesNotificationHandler.newMetadata(),</span>
+      MyNewIssuesNotificationHandler.class,
+<span class="fc" id="L428">      MyNewIssuesNotificationHandler.newMetadata(),</span>
+      new IssuesChangesNotificationModule(),
+
+      // Notifications
+      QGChangeEmailTemplate.class,
+      EmailSmtpConfiguration.class,
+      OAuthMicrosoftRestClient.class,
+      NotificationService.class,
+      DefaultNotificationManager.class,
+      EmailNotificationChannel.class,
+      new ReportAnalysisFailureNotificationModule(),
+
+      // System
+      CEQueueStatusImpl.class,
+
+      // SonarSource editions
+      PlatformEditionProvider.class,
+
+      // privileged plugins
+      CoreExtensionBootstraper.class,
+      CoreExtensionStopper.class,
+
+      // Compute engine (must be after Views and Developer Cockpit)
+      new CeConfigurationModule(),
+      new CeQueueModule(),
+      new CeHttpModule(),
+      new CeTaskCommonsModule(),
+      new ProjectAnalysisTaskModule(),
+      new IssueSyncTaskModule(),
+      new AuditPurgeTaskModule(),
+      new CeTaskProcessorModule(),
+      OfficialDistribution.class,
+
+      InternalPropertiesImpl.class,
+      ProjectConfigurationFactory.class,
+
+      DefaultBranchNameResolver.class,
+      VisibilityService.class,
+      // webhooks
+      new WebhookModule(),
+
+      QualityGateFinder.class,
+      QualityGateEvaluatorImpl.class,
+
+      new AnalysisCacheCleaningModule()
+
+    );
+
+<span class="pc bpc" id="L476" title="1 of 2 branches missed.">    if (props.valueAsBoolean(CLUSTER_ENABLED.getKey())) {</span>
+<span class="nc" id="L477">      level4Container.add(</span>
+        new CeCleaningModule(),
+
+        // system health
+        CeDistributedInformationImpl.class,
+
+        // system info
+        DbSection.class,
+        DistributedServerLogging.class,
+        ProcessInfoProvider.class);
+    } else {
+<span class="fc" id="L488">      level4Container.add(</span>
+        new CeCleaningModule(),
+        ServerLogging.class,
+        StandaloneCeDistributedInformation.class);
+    }
+
+<span class="fc" id="L494">    level4Container.getParent().getOptionalComponentByType(CECoreExtensionsInstaller.class)</span>
+<span class="pc" id="L495">      .orElseThrow(() -&gt; new IllegalStateException(&quot;Core extension loading mechanism is not available&quot;))</span>
+<span class="fc" id="L496">      .install(level4Container, hasPlatformLevel4OrNone(), noAdditionalSideFilter());</span>
+
+<span class="fc" id="L498">    level4Container.getParent().getOptionalComponentByType(ServerExtensionInstaller.class)</span>
+<span class="pc" id="L499">      .orElseThrow(() -&gt; new IllegalStateException(&quot;Core extension loading mechanism is not available&quot;))</span>
+<span class="fc" id="L500">      .installExtensions(level4Container);</span>
+<span class="fc" id="L501">  }</span>
+
+  private static Object[] startupComponents() {
+<span class="fc" id="L504">    return new Object[] {</span>
+      ServerLifecycleNotifier.class,
+      PurgeCeActivities.class
+    };
+  }
+
+  private static Object[] toArray(List&lt;?&gt; list) {
+<span class="fc" id="L511">    return list.toArray(new Object[list.size()]);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

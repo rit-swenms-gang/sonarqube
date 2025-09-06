@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>QualityGateDetailsData.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.measure.qualitygatedetails</a> &gt; <span class="el_source">QualityGateDetailsData.java</span></div><h1>QualityGateDetailsData.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.measure.qualitygatedetails;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import java.util.List;
+import java.util.stream.StreamSupport;
+import javax.annotation.concurrent.Immutable;
+import org.sonar.ce.task.projectanalysis.measure.Measure;
+import org.sonar.ce.task.projectanalysis.qualitygate.Condition;
+import org.sonar.server.qualitygate.ConditionComparator;
+
+import static java.util.Objects.requireNonNull;
+
+@Immutable
+public class QualityGateDetailsData {
+  private static final String FIELD_LEVEL = &quot;level&quot;;
+  private static final String FIELD_IGNORED_CONDITIONS = &quot;ignoredConditions&quot;;
+
+  private final Measure.Level level;
+  private final List&lt;EvaluatedCondition&gt; conditions;
+  private final boolean ignoredConditions;
+
+<span class="fc" id="L42">  public QualityGateDetailsData(Measure.Level level, Iterable&lt;EvaluatedCondition&gt; conditions, boolean ignoredConditions) {</span>
+<span class="fc" id="L43">    this.level = requireNonNull(level);</span>
+<span class="fc" id="L44">    this.conditions = StreamSupport.stream(conditions.spliterator(), false)</span>
+<span class="fc" id="L45">      .sorted(new ConditionComparator&lt;&gt;(c -&gt; c.getCondition().getMetric().getKey()))</span>
+<span class="fc" id="L46">      .toList();</span>
+<span class="fc" id="L47">    this.ignoredConditions = ignoredConditions;</span>
+<span class="fc" id="L48">  }</span>
+
+  public String toJson() {
+<span class="fc" id="L51">    JsonObject details = new JsonObject();</span>
+<span class="fc" id="L52">    details.addProperty(FIELD_LEVEL, level.toString());</span>
+<span class="fc" id="L53">    JsonArray conditionResults = new JsonArray();</span>
+<span class="fc bfc" id="L54" title="All 2 branches covered.">    for (EvaluatedCondition condition : this.conditions) {</span>
+<span class="fc" id="L55">      conditionResults.add(toJson(condition));</span>
+<span class="fc" id="L56">    }</span>
+<span class="fc" id="L57">    details.add(&quot;conditions&quot;, conditionResults);</span>
+<span class="fc" id="L58">    details.addProperty(FIELD_IGNORED_CONDITIONS, ignoredConditions);</span>
+<span class="fc" id="L59">    return details.toString();</span>
+  }
+
+  private static JsonObject toJson(EvaluatedCondition evaluatedCondition) {
+<span class="fc" id="L63">    Condition condition = evaluatedCondition.getCondition();</span>
+
+<span class="fc" id="L65">    JsonObject result = new JsonObject();</span>
+<span class="fc" id="L66">    result.addProperty(&quot;metric&quot;, condition.getMetric().getKey());</span>
+<span class="fc" id="L67">    result.addProperty(&quot;op&quot;, condition.getOperator().getDbValue());</span>
+<span class="fc bfc" id="L68" title="All 2 branches covered.">    if (condition.useVariation()) {</span>
+      // without this for new_ metrics, the UI will show &quot;-&quot; instead of
+      // the actual value in the QG failure reason
+<span class="fc" id="L71">      result.addProperty(&quot;period&quot;, 1);</span>
+    }
+<span class="fc" id="L73">    result.addProperty(&quot;error&quot;, condition.getErrorThreshold());</span>
+<span class="fc" id="L74">    result.addProperty(&quot;actual&quot;, evaluatedCondition.getActualValue());</span>
+<span class="fc" id="L75">    result.addProperty(FIELD_LEVEL, evaluatedCondition.getLevel().name());</span>
+<span class="fc" id="L76">    return result;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

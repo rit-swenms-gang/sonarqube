@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultInputModuleHierarchy.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.scan</a> &gt; <span class="el_source">DefaultInputModuleHierarchy.java</span></div><h1>DefaultInputModuleHierarchy.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.scan;
+
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import javax.annotation.CheckForNull;
+import javax.annotation.concurrent.Immutable;
+import org.sonar.api.batch.fs.internal.AbstractProjectOrModule;
+import org.sonar.api.batch.fs.internal.DefaultInputModule;
+import org.sonar.api.scan.filesystem.PathResolver;
+import org.sonar.scanner.fs.InputModuleHierarchy;
+
+@Immutable
+public class DefaultInputModuleHierarchy implements InputModuleHierarchy {
+  private final DefaultInputModule root;
+  private final Map&lt;DefaultInputModule, DefaultInputModule&gt; parents;
+  private final Map&lt;DefaultInputModule, List&lt;DefaultInputModule&gt;&gt; children;
+
+<span class="fc" id="L42">  public DefaultInputModuleHierarchy(DefaultInputModule root) {</span>
+<span class="fc" id="L43">    this.children = Collections.emptyMap();</span>
+<span class="fc" id="L44">    this.parents = Collections.emptyMap();</span>
+<span class="fc" id="L45">    this.root = root;</span>
+<span class="fc" id="L46">  }</span>
+
+  /**
+   * Map of child-&gt;parent. Neither the Keys or values can be null.
+   */
+<span class="fc" id="L51">  public DefaultInputModuleHierarchy(DefaultInputModule root, Map&lt;DefaultInputModule, DefaultInputModule&gt; parents) {</span>
+<span class="fc" id="L52">    Map&lt;DefaultInputModule, List&lt;DefaultInputModule&gt;&gt; childrenBuilder = new HashMap&lt;&gt;();</span>
+
+<span class="fc bfc" id="L54" title="All 2 branches covered.">    for (Map.Entry&lt;DefaultInputModule, DefaultInputModule&gt; e : parents.entrySet()) {</span>
+<span class="fc" id="L55">      childrenBuilder.computeIfAbsent(e.getValue(), x -&gt; new ArrayList&lt;&gt;()).add(e.getKey());</span>
+<span class="fc" id="L56">    }</span>
+
+<span class="fc" id="L58">    this.children = Collections.unmodifiableMap(childrenBuilder);</span>
+<span class="fc" id="L59">    this.parents = Map.copyOf(parents);</span>
+<span class="fc" id="L60">    this.root = root;</span>
+<span class="fc" id="L61">  }</span>
+
+  @Override
+  public DefaultInputModule root() {
+<span class="fc" id="L65">    return root;</span>
+  }
+
+  @Override
+  public Collection&lt;DefaultInputModule&gt; children(DefaultInputModule component) {
+<span class="fc" id="L70">    return children.getOrDefault(component, Collections.emptyList());</span>
+  }
+
+  @Override
+  public DefaultInputModule parent(DefaultInputModule component) {
+<span class="fc" id="L75">    return parents.get(component);</span>
+  }
+
+  @Override
+  public boolean isRoot(DefaultInputModule module) {
+<span class="fc" id="L80">    return root.equals(module);</span>
+  }
+
+  @Override
+  @CheckForNull
+  public String relativePath(DefaultInputModule module) {
+<span class="nc" id="L86">    AbstractProjectOrModule parent = parent(module);</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">    if (parent == null) {</span>
+<span class="nc" id="L88">      return &quot;&quot;;</span>
+    }
+<span class="nc" id="L90">    Path parentBaseDir = parent.getBaseDir();</span>
+<span class="nc" id="L91">    Path moduleBaseDir = module.getBaseDir();</span>
+
+<span class="nc" id="L93">    return PathResolver.relativize(parentBaseDir, moduleBaseDir).orElse(null);</span>
+  }
+
+  public String relativePathToRoot(DefaultInputModule module) {
+<span class="fc" id="L97">    Path rootBaseDir = root.getBaseDir();</span>
+<span class="fc" id="L98">    Path moduleBaseDir = module.getBaseDir();</span>
+
+<span class="fc" id="L100">    return PathResolver.relativize(rootBaseDir, moduleBaseDir).orElse(null);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

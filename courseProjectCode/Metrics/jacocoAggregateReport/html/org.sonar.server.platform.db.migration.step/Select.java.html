@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Select.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform.db.migration.step</a> &gt; <span class="el_source">Select.java</span></div><h1>Select.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform.db.migration.step;
+
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.util.Date;
+import java.util.List;
+import javax.annotation.CheckForNull;
+
+public interface Select extends SqlStatement&lt;Select&gt; {
+
+  class Row {
+    private final ResultSet rs;
+
+<span class="fc" id="L35">    Row(ResultSet rs) {</span>
+<span class="fc" id="L36">      this.rs = rs;</span>
+<span class="fc" id="L37">    }</span>
+
+    @CheckForNull
+    public Long getNullableLong(int columnIndex) throws SQLException {
+<span class="fc" id="L41">      long l = rs.getLong(columnIndex);</span>
+<span class="pc bpc" id="L42" title="1 of 2 branches missed.">      return rs.wasNull() ? null : l;</span>
+    }
+
+    public long getLong(int columnIndex) throws SQLException {
+<span class="fc" id="L46">      return rs.getLong(columnIndex);</span>
+    }
+
+    @CheckForNull
+    public Double getNullableDouble(int columnIndex) throws SQLException {
+<span class="fc" id="L51">      double d = rs.getDouble(columnIndex);</span>
+<span class="pc bpc" id="L52" title="1 of 2 branches missed.">      return rs.wasNull() ? null : d;</span>
+    }
+
+    public double getDouble(int columnIndex) throws SQLException {
+<span class="fc" id="L56">      return rs.getDouble(columnIndex);</span>
+    }
+
+    @CheckForNull
+    public Integer getNullableInt(int columnIndex) throws SQLException {
+<span class="fc" id="L61">      int i = rs.getInt(columnIndex);</span>
+<span class="pc bpc" id="L62" title="1 of 2 branches missed.">      return rs.wasNull() ? null : i;</span>
+    }
+
+    public int getInt(int columnIndex) throws SQLException {
+<span class="fc" id="L66">      return rs.getInt(columnIndex);</span>
+    }
+
+    @CheckForNull
+    public Boolean getNullableBoolean(int columnIndex) throws SQLException {
+<span class="fc" id="L71">      boolean b = rs.getBoolean(columnIndex);</span>
+<span class="pc bpc" id="L72" title="1 of 2 branches missed.">      return rs.wasNull() ? null : b;</span>
+    }
+
+    public boolean getBoolean(int columnIndex) throws SQLException {
+<span class="fc" id="L76">      return rs.getBoolean(columnIndex);</span>
+    }
+
+    @CheckForNull
+    public String getNullableString(int columnIndex) throws SQLException {
+<span class="fc" id="L81">      String s = rs.getString(columnIndex);</span>
+<span class="pc bpc" id="L82" title="1 of 2 branches missed.">      return rs.wasNull() ? null : s;</span>
+    }
+
+    public String getString(int columnIndex) throws SQLException {
+<span class="fc" id="L86">      return rs.getString(columnIndex);</span>
+    }
+
+    @CheckForNull
+    public Date getNullableDate(int columnIndex) throws SQLException {
+<span class="fc" id="L91">      Timestamp t = rs.getTimestamp(columnIndex);</span>
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">      return rs.wasNull() ? null : t;</span>
+    }
+
+    public Date getDate(int columnIndex) throws SQLException {
+<span class="fc" id="L96">      return rs.getTimestamp(columnIndex);</span>
+    }
+
+    @CheckForNull
+    public byte[] getNullableBytes(int columnIndex) throws SQLException {
+<span class="nc" id="L101">      byte[] b = rs.getBytes(columnIndex);</span>
+<span class="nc bnc" id="L102" title="All 2 branches missed.">      return rs.wasNull() ? null : b;</span>
+    }
+
+    public byte[] getBytes(int columnIndex) throws SQLException {
+<span class="nc" id="L106">      return rs.getBytes(columnIndex);</span>
+    }
+
+    @Override
+    public String toString() {
+      try {
+<span class="fc" id="L112">        ResultSetMetaData rsMetaData = rs.getMetaData();</span>
+<span class="fc" id="L113">        StringBuilder sb = new StringBuilder();</span>
+<span class="fc bfc" id="L114" title="All 2 branches covered.">        for (int i = 1; i &lt;= rsMetaData.getColumnCount(); i++) {</span>
+<span class="pc bpc" id="L115" title="1 of 2 branches missed.">          if (i &gt; 1) {</span>
+<span class="nc" id="L116">            sb.append(&quot;,&quot;);</span>
+          }
+<span class="fc" id="L118">          sb.append(rsMetaData.getColumnLabel(i).toLowerCase());</span>
+<span class="fc" id="L119">          sb.append(&quot;=&quot;);</span>
+<span class="fc" id="L120">          sb.append(rs.getObject(i));</span>
+        }
+<span class="fc" id="L122">        return sb.toString();</span>
+<span class="nc" id="L123">      } catch (Exception e) {</span>
+<span class="nc" id="L124">        return &quot;Unavailable: &quot; + e.getMessage();</span>
+      }
+    }
+  }
+
+  @FunctionalInterface
+  interface RowReader&lt;T&gt; {
+    T read(Row row) throws SQLException;
+  }
+
+  class LongReader implements RowReader&lt;Long&gt; {
+    private LongReader() {
+    }
+
+    @Override
+    public Long read(Row row) throws SQLException {
+<span class="fc" id="L140">      return row.getNullableLong(1);</span>
+    }
+  }
+
+<span class="fc" id="L144">  RowReader&lt;Long&gt; LONG_READER = new LongReader();</span>
+
+<span class="nc" id="L146">  class StringReader implements RowReader&lt;String&gt; {</span>
+    @Override
+    public String read(Row row) throws SQLException {
+<span class="nc" id="L149">      return row.getNullableString(1);</span>
+    }
+  }
+
+  @FunctionalInterface
+  interface RowHandler {
+    void handle(Row row) throws SQLException;
+  }
+
+  &lt;T&gt; List&lt;T&gt; list(RowReader&lt;T&gt; reader) throws SQLException;
+
+  @CheckForNull
+  &lt;T&gt; T get(RowReader&lt;T&gt; reader) throws SQLException;
+
+  void scroll(RowHandler handler) throws SQLException;
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

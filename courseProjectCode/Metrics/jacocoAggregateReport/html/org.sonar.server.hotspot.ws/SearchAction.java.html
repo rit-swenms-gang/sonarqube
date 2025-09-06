@@ -1,0 +1,758 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SearchAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.hotspot.ws</a> &gt; <span class="el_source">SearchAction.java</span></div><h1>SearchAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.hotspot.ws;
+
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import javax.annotation.Nullable;
+import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.search.SearchHit;
+import org.jetbrains.annotations.NotNull;
+import org.sonar.core.rule.RuleType;
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.api.utils.Paging;
+import org.sonar.api.utils.System2;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.BranchDto;
+import org.sonar.db.component.ComponentDto;
+import org.sonar.db.component.ComponentQualifiers;
+import org.sonar.db.component.SnapshotDto;
+import org.sonar.db.issue.IssueDto;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.db.protobuf.DbIssues;
+import org.sonar.server.component.ComponentFinder;
+import org.sonar.server.component.ComponentFinder.ProjectAndBranch;
+import org.sonar.server.es.SearchOptions;
+import org.sonar.server.exceptions.NotFoundException;
+import org.sonar.server.hotspot.ws.HotspotWsResponseFormatter.SearchResponseData;
+import org.sonar.server.issue.index.IssueIndex;
+import org.sonar.server.issue.index.IssueIndexSyncProgressChecker;
+import org.sonar.server.issue.index.IssueQuery;
+import org.sonar.server.security.SecurityStandards;
+import org.sonar.server.user.UserSession;
+import org.sonarqube.ws.Common;
+import org.sonarqube.ws.Hotspots;
+import org.sonarqube.ws.Hotspots.SearchWsResponse;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Strings.isNullOrEmpty;
+import static java.lang.String.format;
+import static java.util.Collections.singleton;
+import static java.util.Collections.singletonList;
+import static java.util.Optional.ofNullable;
+import static org.sonar.api.issue.Issue.SECURITY_HOTSPOT_RESOLUTIONS;
+import static org.sonar.api.issue.Issue.STATUS_REVIEWED;
+import static org.sonar.api.issue.Issue.STATUS_TO_REVIEW;
+import static org.sonar.api.server.ws.WebService.Param.PAGE;
+import static org.sonar.api.server.ws.WebService.Param.PAGE_SIZE;
+import static org.sonar.api.utils.DateUtils.longToDate;
+import static org.sonar.api.utils.Paging.forPageIndex;
+import static org.sonar.db.permission.ProjectPermission.USER;
+import static org.sonar.db.newcodeperiod.NewCodePeriodType.REFERENCE_BRANCH;
+import static org.sonar.server.es.SearchOptions.MAX_PAGE_SIZE;
+import static org.sonar.server.security.SecurityStandards.SANS_TOP_25_INSECURE_INTERACTION;
+import static org.sonar.server.security.SecurityStandards.SANS_TOP_25_POROUS_DEFENSES;
+import static org.sonar.server.security.SecurityStandards.SANS_TOP_25_RISKY_RESOURCE;
+import static org.sonar.server.ws.KeyExamples.KEY_BRANCH_EXAMPLE_001;
+import static org.sonar.server.ws.KeyExamples.KEY_PROJECT_EXAMPLE_001;
+import static org.sonar.server.ws.KeyExamples.KEY_PULL_REQUEST_EXAMPLE_001;
+import static org.sonar.server.ws.WsUtils.writeProtobuf;
+
+public class SearchAction implements HotspotsWsAction {
+<span class="fc" id="L95">  private static final Set&lt;String&gt; SUPPORTED_QUALIFIERS = Set.of(ComponentQualifiers.PROJECT, ComponentQualifiers.APP);</span>
+  private static final String PARAM_PROJECT = &quot;project&quot;;
+  private static final String PARAM_PROJECT_KEY = &quot;projectKey&quot;;
+  private static final String PARAM_STATUS = &quot;status&quot;;
+  private static final String PARAM_RESOLUTION = &quot;resolution&quot;;
+  private static final String PARAM_HOTSPOTS = &quot;hotspots&quot;;
+  private static final String PARAM_BRANCH = &quot;branch&quot;;
+  private static final String PARAM_PULL_REQUEST = &quot;pullRequest&quot;;
+  private static final String PARAM_IN_NEW_CODE_PERIOD = &quot;inNewCodePeriod&quot;;
+  private static final String PARAM_ONLY_MINE = &quot;onlyMine&quot;;
+  private static final String PARAM_OWASP_ASVS_LEVEL = &quot;owaspAsvsLevel&quot;;
+  private static final String PARAM_PCI_DSS_32 = &quot;pciDss-3.2&quot;;
+  private static final String PARAM_PCI_DSS_40 = &quot;pciDss-4.0&quot;;
+  private static final String PARAM_OWASP_ASVS_40 = &quot;owaspAsvs-4.0&quot;;
+  private static final String PARAM_OWASP_TOP_10_2017 = &quot;owaspTop10&quot;;
+  private static final String PARAM_OWASP_TOP_10_2021 = &quot;owaspTop10-2021&quot;;
+  private static final String PARAM_STIG_ASD_V5R3 = &quot;stig-ASD_V5R3&quot;;
+  private static final String PARAM_CASA = &quot;casa&quot;;
+  /**
+   * @deprecated SansTop25 report is outdated, it has been completely deprecated in version 10.0 and will be removed from version 11.0
+   */
+  @Deprecated(since = &quot;10.0&quot;, forRemoval = true)
+  private static final String PARAM_SANS_TOP_25 = &quot;sansTop25&quot;;
+  private static final String PARAM_SONARSOURCE_SECURITY = &quot;sonarsourceSecurity&quot;;
+  private static final String PARAM_CWE = &quot;cwe&quot;;
+  private static final String PARAM_FILES = &quot;files&quot;;
+
+<span class="fc" id="L122">  private static final List&lt;String&gt; STATUSES = List.of(STATUS_TO_REVIEW, STATUS_REVIEWED);</span>
+
+  private final DbClient dbClient;
+  private final UserSession userSession;
+  private final IssueIndex issueIndex;
+  private final IssueIndexSyncProgressChecker issueIndexSyncProgressChecker;
+  private final HotspotWsResponseFormatter responseFormatter;
+  private final System2 system2;
+  private final ComponentFinder componentFinder;
+
+  public SearchAction(DbClient dbClient, UserSession userSession, IssueIndex issueIndex, IssueIndexSyncProgressChecker issueIndexSyncProgressChecker,
+<span class="fc" id="L133">    HotspotWsResponseFormatter responseFormatter, System2 system2, ComponentFinder componentFinder) {</span>
+<span class="fc" id="L134">    this.dbClient = dbClient;</span>
+<span class="fc" id="L135">    this.userSession = userSession;</span>
+<span class="fc" id="L136">    this.issueIndex = issueIndex;</span>
+<span class="fc" id="L137">    this.issueIndexSyncProgressChecker = issueIndexSyncProgressChecker;</span>
+<span class="fc" id="L138">    this.responseFormatter = responseFormatter;</span>
+<span class="fc" id="L139">    this.system2 = system2;</span>
+<span class="fc" id="L140">    this.componentFinder = componentFinder;</span>
+<span class="fc" id="L141">  }</span>
+
+  private static Set&lt;String&gt; setFromList(@Nullable List&lt;String&gt; list) {
+<span class="fc bfc" id="L144" title="All 2 branches covered.">    return list != null ? Set.copyOf(list) : Set.of();</span>
+  }
+
+  private static WsRequest toWsRequest(Request request) {
+<span class="fc" id="L148">    Set&lt;String&gt; hotspotKeys = setFromList(request.paramAsStrings(PARAM_HOTSPOTS));</span>
+<span class="fc" id="L149">    Set&lt;String&gt; pciDss32 = setFromList(request.paramAsStrings(PARAM_PCI_DSS_32));</span>
+<span class="fc" id="L150">    Set&lt;String&gt; pciDss40 = setFromList(request.paramAsStrings(PARAM_PCI_DSS_40));</span>
+<span class="fc" id="L151">    Set&lt;String&gt; owaspAsvs40 = setFromList(request.paramAsStrings(PARAM_OWASP_ASVS_40));</span>
+<span class="fc" id="L152">    Set&lt;String&gt; owasp2017Top10 = setFromList(request.paramAsStrings(PARAM_OWASP_TOP_10_2017));</span>
+<span class="fc" id="L153">    Set&lt;String&gt; owasp2021Top10 = setFromList(request.paramAsStrings(PARAM_OWASP_TOP_10_2021));</span>
+<span class="fc" id="L154">    Set&lt;String&gt; stigAsdV5R3 = setFromList(request.paramAsStrings(PARAM_STIG_ASD_V5R3));</span>
+<span class="fc" id="L155">    Set&lt;String&gt; casa = setFromList(request.paramAsStrings(PARAM_CASA));</span>
+<span class="fc" id="L156">    Set&lt;String&gt; sansTop25 = setFromList(request.paramAsStrings(PARAM_SANS_TOP_25));</span>
+<span class="fc" id="L157">    Set&lt;String&gt; sonarsourceSecurity = setFromList(request.paramAsStrings(PARAM_SONARSOURCE_SECURITY));</span>
+<span class="fc" id="L158">    Set&lt;String&gt; cwes = setFromList(request.paramAsStrings(PARAM_CWE));</span>
+<span class="fc" id="L159">    Set&lt;String&gt; files = setFromList(request.paramAsStrings(PARAM_FILES));</span>
+
+<span class="fc" id="L161">    return new WsRequest(</span>
+<span class="fc" id="L162">      request.mandatoryParamAsInt(PAGE), request.mandatoryParamAsInt(PAGE_SIZE), request.param(PARAM_PROJECT), request.param(PARAM_BRANCH),</span>
+<span class="fc" id="L163">      request.param(PARAM_PULL_REQUEST), hotspotKeys, request.param(PARAM_STATUS), request.param(PARAM_RESOLUTION),</span>
+<span class="fc" id="L164">      request.paramAsBoolean(PARAM_IN_NEW_CODE_PERIOD), request.paramAsBoolean(PARAM_ONLY_MINE), request.paramAsInt(PARAM_OWASP_ASVS_LEVEL),</span>
+      pciDss32, pciDss40, owaspAsvs40, owasp2017Top10, owasp2021Top10, stigAsdV5R3, casa, sansTop25, sonarsourceSecurity, cwes, files);
+  }
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L170">    WsRequest wsRequest = toWsRequest(request);</span>
+<span class="fc" id="L171">    validateParameters(wsRequest);</span>
+<span class="fc" id="L172">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L173">      checkIfNeedIssueSync(dbSession, wsRequest);</span>
+<span class="fc" id="L174">      Optional&lt;ProjectAndBranch&gt; project = getAndValidateProjectOrApplication(dbSession, wsRequest);</span>
+<span class="fc" id="L175">      SearchResponseData searchResponseData = searchHotspots(wsRequest, dbSession, project.orElse(null));</span>
+<span class="fc" id="L176">      loadComponents(dbSession, searchResponseData);</span>
+<span class="fc" id="L177">      writeProtobuf(formatResponse(searchResponseData), request, response);</span>
+    }
+<span class="fc" id="L179">  }</span>
+
+  private void checkIfNeedIssueSync(DbSession dbSession, WsRequest wsRequest) {
+<span class="fc" id="L182">    Optional&lt;String&gt; projectKey = wsRequest.getProjectKey();</span>
+<span class="fc bfc" id="L183" title="All 2 branches covered.">    if (projectKey.isPresent()) {</span>
+<span class="fc" id="L184">      issueIndexSyncProgressChecker.checkIfComponentNeedIssueSync(dbSession, projectKey.get());</span>
+    } else {
+      // component keys not provided - asking for global
+<span class="fc" id="L187">      issueIndexSyncProgressChecker.checkIfIssueSyncInProgress(dbSession);</span>
+    }
+<span class="fc" id="L189">  }</span>
+
+  private static void addSecurityStandardFilters(WsRequest wsRequest, IssueQuery.Builder builder) {
+<span class="fc bfc" id="L192" title="All 2 branches covered.">    if (!wsRequest.getPciDss32().isEmpty()) {</span>
+<span class="fc" id="L193">      builder.pciDss32(wsRequest.getPciDss32());</span>
+    }
+<span class="fc bfc" id="L195" title="All 2 branches covered.">    if (!wsRequest.getPciDss40().isEmpty()) {</span>
+<span class="fc" id="L196">      builder.pciDss40(wsRequest.getPciDss40());</span>
+    }
+<span class="fc bfc" id="L198" title="All 2 branches covered.">    if (!wsRequest.getOwaspAsvs40().isEmpty()) {</span>
+<span class="fc" id="L199">      builder.owaspAsvs40(wsRequest.getOwaspAsvs40());</span>
+<span class="fc" id="L200">      wsRequest.getOwaspAsvsLevel().ifPresent(builder::owaspAsvsLevel);</span>
+    }
+<span class="fc bfc" id="L202" title="All 2 branches covered.">    if (!wsRequest.getOwaspTop10For2017().isEmpty()) {</span>
+<span class="fc" id="L203">      builder.owaspTop10(wsRequest.getOwaspTop10For2017());</span>
+    }
+<span class="fc bfc" id="L205" title="All 2 branches covered.">    if (!wsRequest.getOwaspTop10For2021().isEmpty()) {</span>
+<span class="fc" id="L206">      builder.owaspTop10For2021(wsRequest.getOwaspTop10For2021());</span>
+    }
+<span class="fc bfc" id="L208" title="All 2 branches covered.">    if (!wsRequest.getStigAsdV5R3().isEmpty()) {</span>
+<span class="fc" id="L209">      builder.stigAsdR5V3(wsRequest.getStigAsdV5R3());</span>
+    }
+<span class="fc bfc" id="L211" title="All 2 branches covered.">    if (!wsRequest.getCasa().isEmpty()) {</span>
+<span class="fc" id="L212">      builder.casa(wsRequest.getCasa());</span>
+    }
+<span class="fc bfc" id="L214" title="All 2 branches covered.">    if (!wsRequest.getSansTop25().isEmpty()) {</span>
+<span class="fc" id="L215">      builder.sansTop25(wsRequest.getSansTop25());</span>
+    }
+<span class="fc bfc" id="L217" title="All 2 branches covered.">    if (!wsRequest.getSonarsourceSecurity().isEmpty()) {</span>
+<span class="fc" id="L218">      builder.sonarsourceSecurity(wsRequest.getSonarsourceSecurity());</span>
+    }
+<span class="fc bfc" id="L220" title="All 2 branches covered.">    if (!wsRequest.getCwe().isEmpty()) {</span>
+<span class="fc" id="L221">      builder.cwe(wsRequest.getCwe());</span>
+    }
+<span class="fc" id="L223">  }</span>
+
+  @Override
+  public void define(WebService.NewController controller) {
+<span class="fc" id="L227">    WebService.NewAction action = controller</span>
+<span class="fc" id="L228">      .createAction(&quot;search&quot;)</span>
+<span class="fc" id="L229">      .setHandler(this)</span>
+<span class="fc" id="L230">      .setDescription(&quot;Search for Security Hotpots. &lt;br&gt;&quot;</span>
+        + &quot;Requires the 'Browse' permission on the specified project(s). &lt;br&gt;&quot;
+        + &quot;For applications, it also requires 'Browse' permission on its child projects. &lt;br&gt;&quot;
+        + &quot;When issue indexing is in progress returns 503 service unavailable HTTP code.&quot;)
+<span class="fc" id="L234">      .setSince(&quot;8.1&quot;)</span>
+<span class="fc" id="L235">      .setChangelog(</span>
+<span class="fc" id="L236">        new Change(&quot;10.7&quot;, format(&quot;Added parameter '%s' and '%s'&quot;, PARAM_STIG_ASD_V5R3, PARAM_CASA)),</span>
+<span class="fc" id="L237">        new Change(&quot;10.2&quot;, format(&quot;Parameter '%s' renamed to '%s'&quot;, PARAM_PROJECT_KEY, PARAM_PROJECT)),</span>
+        new Change(&quot;10.0&quot;, &quot;Parameter 'sansTop25' is deprecated&quot;),
+        new Change(&quot;9.6&quot;, &quot;Added parameters 'pciDss-3.2' and 'pciDss-4.0&quot;),
+        new Change(&quot;9.7&quot;, &quot;Hotspot flows in the response may contain a description and a type&quot;),
+        new Change(&quot;9.7&quot;, &quot;Hotspot in the response contain the corresponding ruleKey&quot;),
+        new Change(&quot;9.8&quot;, &quot;Endpoint visibility change from internal to public&quot;),
+        new Change(&quot;9.8&quot;, &quot;Add message formatting to issue and locations response&quot;));
+
+<span class="fc" id="L245">    action.addPagingParams(100);</span>
+<span class="fc" id="L246">    action.createParam(PARAM_PROJECT)</span>
+<span class="fc" id="L247">      .setDeprecatedKey(PARAM_PROJECT_KEY, &quot;10.2&quot;)</span>
+<span class="fc" id="L248">      .setDescription(format(</span>
+        &quot;Key of the project or application. This parameter is required unless %s is provided.&quot;,
+        PARAM_HOTSPOTS))
+<span class="fc" id="L251">      .setExampleValue(KEY_PROJECT_EXAMPLE_001);</span>
+<span class="fc" id="L252">    action.createParam(PARAM_BRANCH)</span>
+<span class="fc" id="L253">      .setDescription(&quot;Branch key. Not available in the community edition.&quot;)</span>
+<span class="fc" id="L254">      .setExampleValue(KEY_BRANCH_EXAMPLE_001);</span>
+<span class="fc" id="L255">    action.createParam(PARAM_PULL_REQUEST)</span>
+<span class="fc" id="L256">      .setDescription(&quot;Pull request id. Not available in the community edition.&quot;)</span>
+<span class="fc" id="L257">      .setExampleValue(KEY_PULL_REQUEST_EXAMPLE_001);</span>
+<span class="fc" id="L258">    action.createParam(PARAM_HOTSPOTS)</span>
+<span class="fc" id="L259">      .setDescription(format(</span>
+        &quot;Comma-separated list of Security Hotspot keys. This parameter is required unless %s is provided.&quot;,
+        PARAM_PROJECT))
+<span class="fc" id="L262">      .setExampleValue(&quot;AWhXpLoInp4On-Y3xc8x&quot;);</span>
+<span class="fc" id="L263">    action.createParam(PARAM_STATUS)</span>
+<span class="fc" id="L264">      .setDescription(&quot;If '%s' is provided, only Security Hotspots with the specified status are returned.&quot;, PARAM_PROJECT)</span>
+<span class="fc" id="L265">      .setPossibleValues(STATUSES)</span>
+<span class="fc" id="L266">      .setRequired(false);</span>
+<span class="fc" id="L267">    action.createParam(PARAM_RESOLUTION)</span>
+<span class="fc" id="L268">      .setDescription(format(</span>
+        &quot;If '%s' is provided and if status is '%s', only Security Hotspots with the specified resolution are returned.&quot;,
+        PARAM_PROJECT, STATUS_REVIEWED))
+<span class="fc" id="L271">      .setPossibleValues(SECURITY_HOTSPOT_RESOLUTIONS)</span>
+<span class="fc" id="L272">      .setRequired(false);</span>
+<span class="fc" id="L273">    action.createParam(PARAM_IN_NEW_CODE_PERIOD)</span>
+<span class="fc" id="L274">      .setDescription(&quot;If '%s' is provided, only Security Hotspots created in the new code period are returned.&quot;, PARAM_IN_NEW_CODE_PERIOD)</span>
+<span class="fc" id="L275">      .setBooleanPossibleValues()</span>
+<span class="fc" id="L276">      .setDefaultValue(&quot;false&quot;)</span>
+<span class="fc" id="L277">      .setSince(&quot;9.5&quot;);</span>
+<span class="fc" id="L278">    createSecurityStandardParams(action);</span>
+<span class="fc" id="L279">    action.createParam(PARAM_FILES)</span>
+<span class="fc" id="L280">      .setDescription(&quot;Comma-separated list of files. Returns only hotspots found in those files&quot;)</span>
+<span class="fc" id="L281">      .setExampleValue(&quot;src/main/java/org/sonar/server/Test.java&quot;)</span>
+<span class="fc" id="L282">      .setSince(&quot;9.0&quot;);</span>
+
+<span class="fc" id="L284">    action.setResponseExample(getClass().getResource(&quot;search-example.json&quot;));</span>
+<span class="fc" id="L285">  }</span>
+
+  private static void createSecurityStandardParams(WebService.NewAction action) {
+<span class="fc" id="L288">    action.createParam(PARAM_OWASP_ASVS_LEVEL)</span>
+<span class="fc" id="L289">      .setDescription(&quot;Filters hotspots with lower or equal OWASP ASVS level to the parameter value. Should be used in combination with the 'owaspAsvs-4.0' parameter.&quot;)</span>
+<span class="fc" id="L290">      .setSince(&quot;9.7&quot;)</span>
+<span class="fc" id="L291">      .setPossibleValues(1, 2, 3)</span>
+<span class="fc" id="L292">      .setRequired(false)</span>
+<span class="fc" id="L293">      .setExampleValue(&quot;2&quot;);</span>
+<span class="fc" id="L294">    action.createParam(PARAM_PCI_DSS_32)</span>
+<span class="fc" id="L295">      .setDescription(&quot;Comma-separated list of PCI DSS v3.2 categories.&quot;)</span>
+<span class="fc" id="L296">      .setSince(&quot;9.6&quot;)</span>
+<span class="fc" id="L297">      .setExampleValue(&quot;4,6.5.8,10.1&quot;);</span>
+<span class="fc" id="L298">    action.createParam(PARAM_PCI_DSS_40)</span>
+<span class="fc" id="L299">      .setDescription(&quot;Comma-separated list of PCI DSS v4.0 categories.&quot;)</span>
+<span class="fc" id="L300">      .setSince(&quot;9.6&quot;)</span>
+<span class="fc" id="L301">      .setExampleValue(&quot;4,6.5.8,10.1&quot;);</span>
+<span class="fc" id="L302">    action.createParam(PARAM_OWASP_ASVS_40)</span>
+<span class="fc" id="L303">      .setDescription(&quot;Comma-separated list of OWASP ASVS v4.0 categories or rules.&quot;)</span>
+<span class="fc" id="L304">      .setSince(&quot;9.7&quot;)</span>
+<span class="fc" id="L305">      .setExampleValue(&quot;6,6.1.2&quot;);</span>
+<span class="fc" id="L306">    action.createParam(PARAM_ONLY_MINE)</span>
+<span class="fc" id="L307">      .setDescription(&quot;If 'projectKey' is provided, returns only Security Hotspots assigned to the current user&quot;)</span>
+<span class="fc" id="L308">      .setBooleanPossibleValues()</span>
+<span class="fc" id="L309">      .setRequired(false);</span>
+<span class="fc" id="L310">    action.createParam(PARAM_OWASP_TOP_10_2017)</span>
+<span class="fc" id="L311">      .setDescription(&quot;Comma-separated list of OWASP 2017 Top 10 lowercase categories.&quot;)</span>
+<span class="fc" id="L312">      .setSince(&quot;8.6&quot;)</span>
+<span class="fc" id="L313">      .setPossibleValues(&quot;a1&quot;, &quot;a2&quot;, &quot;a3&quot;, &quot;a4&quot;, &quot;a5&quot;, &quot;a6&quot;, &quot;a7&quot;, &quot;a8&quot;, &quot;a9&quot;, &quot;a10&quot;);</span>
+<span class="fc" id="L314">    action.createParam(PARAM_OWASP_TOP_10_2021)</span>
+<span class="fc" id="L315">      .setDescription(&quot;Comma-separated list of OWASP 2021 Top 10 lowercase categories.&quot;)</span>
+<span class="fc" id="L316">      .setSince(&quot;9.4&quot;)</span>
+<span class="fc" id="L317">      .setPossibleValues(&quot;a1&quot;, &quot;a2&quot;, &quot;a3&quot;, &quot;a4&quot;, &quot;a5&quot;, &quot;a6&quot;, &quot;a7&quot;, &quot;a8&quot;, &quot;a9&quot;, &quot;a10&quot;);</span>
+<span class="fc" id="L318">    action.createParam(PARAM_STIG_ASD_V5R3)</span>
+<span class="fc" id="L319">      .setDescription(&quot;Comma-separated list of STIG V5R3 lowercase categories.&quot;)</span>
+<span class="fc" id="L320">      .setSince(&quot;10.7&quot;);</span>
+<span class="fc" id="L321">    action.createParam(PARAM_CASA)</span>
+<span class="fc" id="L322">      .setDescription(&quot;Comma-separated list of CASA categories.&quot;)</span>
+<span class="fc" id="L323">      .setSince(&quot;10.7&quot;);</span>
+<span class="fc" id="L324">    action.createParam(PARAM_SANS_TOP_25)</span>
+<span class="fc" id="L325">      .setDescription(&quot;Comma-separated list of SANS Top 25 categories.&quot;)</span>
+<span class="fc" id="L326">      .setDeprecatedSince(&quot;10.0&quot;)</span>
+<span class="fc" id="L327">      .setSince(&quot;8.6&quot;)</span>
+<span class="fc" id="L328">      .setPossibleValues(SANS_TOP_25_INSECURE_INTERACTION, SANS_TOP_25_RISKY_RESOURCE, SANS_TOP_25_POROUS_DEFENSES);</span>
+<span class="fc" id="L329">    action.createParam(PARAM_SONARSOURCE_SECURITY)</span>
+<span class="fc" id="L330">      .setDescription(&quot;Comma-separated list of SonarSource security categories. Use '&quot; + SecurityStandards.SQCategory.OTHERS.getKey() +</span>
+        &quot;' to select issues not associated with any category&quot;)
+<span class="fc" id="L332">      .setSince(&quot;8.6&quot;)</span>
+<span class="fc" id="L333">      .setPossibleValues(Arrays.stream(SecurityStandards.SQCategory.values()).map(SecurityStandards.SQCategory::getKey).toList());</span>
+<span class="fc" id="L334">    action.createParam(PARAM_CWE)</span>
+<span class="fc" id="L335">      .setDescription(&quot;Comma-separated list of CWE numbers&quot;)</span>
+<span class="fc" id="L336">      .setExampleValue(&quot;89,434,352&quot;)</span>
+<span class="fc" id="L337">      .setSince(&quot;8.8&quot;);</span>
+<span class="fc" id="L338">  }</span>
+
+  private Optional&lt;ProjectAndBranch&gt; getAndValidateProjectOrApplication(DbSession dbSession, WsRequest wsRequest) {
+<span class="fc" id="L341">    return wsRequest.getProjectKey().map(projectKey -&gt; {</span>
+<span class="fc" id="L342">      ProjectAndBranch appOrProjectAndBranch = componentFinder.getAppOrProjectAndBranch(dbSession, projectKey, wsRequest.getBranch().orElse(null),</span>
+<span class="fc" id="L343">        wsRequest.getPullRequest().orElse(null));</span>
+
+<span class="pc bpc" id="L345" title="1 of 2 branches missed.">      if (!SUPPORTED_QUALIFIERS.contains(appOrProjectAndBranch.getProject().getQualifier())) {</span>
+<span class="nc" id="L346">        throw new NotFoundException(format(&quot;Project '%s' not found&quot;, projectKey));</span>
+      }
+<span class="fc" id="L348">      userSession.checkEntityPermission(USER, appOrProjectAndBranch.getProject());</span>
+<span class="fc" id="L349">      userSession.checkChildProjectsPermission(USER, appOrProjectAndBranch.getProject());</span>
+<span class="fc" id="L350">      return appOrProjectAndBranch;</span>
+    });
+  }
+
+  private SearchResponseData searchHotspots(WsRequest wsRequest, DbSession dbSession, @Nullable ProjectAndBranch projectorApp) {
+<span class="fc" id="L355">    SearchResponse result = doIndexSearch(wsRequest, dbSession, projectorApp);</span>
+<span class="fc" id="L356">    result.getHits();</span>
+<span class="fc" id="L357">    List&lt;String&gt; issueKeys = Arrays.stream(result.getHits().getHits())</span>
+<span class="fc" id="L358">      .map(SearchHit::getId)</span>
+<span class="fc" id="L359">      .toList();</span>
+
+<span class="fc" id="L361">    List&lt;IssueDto&gt; hotspots = toIssueDtos(dbSession, issueKeys);</span>
+
+<span class="fc" id="L363">    Paging paging = forPageIndex(wsRequest.getPage()).withPageSize(wsRequest.getIndex()).andTotal((int) getTotalHits(result).value);</span>
+<span class="fc" id="L364">    return new SearchResponseData(paging, hotspots);</span>
+  }
+
+  private static TotalHits getTotalHits(SearchResponse response) {
+<span class="pc" id="L368">    return ofNullable(response.getHits().getTotalHits()).orElseThrow(() -&gt; new IllegalStateException(&quot;Could not get total hits of search results&quot;));</span>
+  }
+
+  private List&lt;IssueDto&gt; toIssueDtos(DbSession dbSession, List&lt;String&gt; issueKeys) {
+<span class="fc" id="L372">    List&lt;IssueDto&gt; unorderedHotspots = dbClient.issueDao().selectByKeys(dbSession, issueKeys);</span>
+<span class="fc" id="L373">    Map&lt;String, IssueDto&gt; hotspotsByKey = unorderedHotspots</span>
+<span class="fc" id="L374">      .stream()</span>
+<span class="fc" id="L375">      .collect(Collectors.toMap(IssueDto::getKey, Function.identity()));</span>
+
+<span class="fc" id="L377">    return issueKeys.stream()</span>
+<span class="fc" id="L378">      .map(hotspotsByKey::get)</span>
+<span class="fc" id="L379">      .filter(Objects::nonNull)</span>
+<span class="fc" id="L380">      .toList();</span>
+  }
+
+  private SearchResponse doIndexSearch(WsRequest wsRequest, DbSession dbSession, @Nullable ProjectAndBranch projectOrAppAndBranch) {
+<span class="fc" id="L384">    var builder = IssueQuery.builder()</span>
+<span class="fc" id="L385">      .types(singleton(RuleType.SECURITY_HOTSPOT.name()))</span>
+<span class="fc" id="L386">      .sort(IssueQuery.SORT_HOTSPOTS)</span>
+<span class="fc" id="L387">      .asc(true)</span>
+<span class="fc" id="L388">      .statuses(wsRequest.getStatus().map(Collections::singletonList).orElse(STATUSES));</span>
+
+<span class="fc bfc" id="L390" title="All 2 branches covered.">    if (projectOrAppAndBranch != null) {</span>
+<span class="fc" id="L391">      ProjectDto projectOrApp = projectOrAppAndBranch.getProject();</span>
+<span class="fc" id="L392">      BranchDto projectOrAppBranch = projectOrAppAndBranch.getBranch();</span>
+
+<span class="fc bfc" id="L394" title="All 2 branches covered.">      if (ComponentQualifiers.APP.equals(projectOrApp.getQualifier())) {</span>
+<span class="fc" id="L395">        builder.viewUuids(singletonList(projectOrAppBranch.getUuid()));</span>
+<span class="pc bpc" id="L396" title="1 of 4 branches missed.">        if (wsRequest.isInNewCodePeriod() &amp;&amp; wsRequest.getPullRequest().isEmpty()) {</span>
+<span class="fc" id="L397">          addInNewCodePeriodFilterByProjects(builder, dbSession, projectOrAppBranch);</span>
+        }
+      } else {
+<span class="fc" id="L400">        builder.projectUuids(singletonList(projectOrApp.getUuid()));</span>
+<span class="fc bfc" id="L401" title="All 4 branches covered.">        if (wsRequest.isInNewCodePeriod() &amp;&amp; wsRequest.getPullRequest().isEmpty()) {</span>
+<span class="fc" id="L402">          addInNewCodePeriodFilter(dbSession, projectOrAppBranch, builder);</span>
+        }
+      }
+
+<span class="fc" id="L406">      addMainBranchFilter(projectOrAppAndBranch.getBranch(), builder);</span>
+    }
+
+<span class="fc" id="L409">    Set&lt;String&gt; hotspotKeys = wsRequest.getHotspotKeys();</span>
+<span class="fc bfc" id="L410" title="All 2 branches covered.">    if (!hotspotKeys.isEmpty()) {</span>
+<span class="fc bfc" id="L411" title="All 2 branches covered.">      checkArgument(hotspotKeys.size() &lt;= MAX_PAGE_SIZE, &quot;Number of issue keys must be less than &quot; + MAX_PAGE_SIZE + &quot; (got &quot; + hotspotKeys.size() + &quot;)&quot;);</span>
+<span class="fc" id="L412">      builder.issueKeys(hotspotKeys);</span>
+    }
+
+<span class="fc bfc" id="L415" title="All 2 branches covered.">    if (!wsRequest.getFiles().isEmpty()) {</span>
+<span class="fc" id="L416">      builder.files(wsRequest.getFiles());</span>
+    }
+
+<span class="fc bfc" id="L419" title="All 2 branches covered.">    if (wsRequest.isOnlyMine()) {</span>
+<span class="fc" id="L420">      userSession.checkLoggedIn();</span>
+<span class="fc" id="L421">      builder.assigneeUuids(Collections.singletonList(userSession.getUuid()));</span>
+    }
+
+<span class="fc" id="L424">    wsRequest.getStatus().ifPresent(status -&gt; builder.resolved(STATUS_REVIEWED.equals(status)));</span>
+<span class="fc" id="L425">    wsRequest.getResolution().ifPresent(resolution -&gt; builder.resolutions(singleton(resolution)));</span>
+<span class="fc" id="L426">    addSecurityStandardFilters(wsRequest, builder);</span>
+
+<span class="fc" id="L428">    IssueQuery query = builder.build();</span>
+<span class="fc" id="L429">    SearchOptions searchOptions = new SearchOptions()</span>
+<span class="fc" id="L430">      .setPage(wsRequest.page, wsRequest.index);</span>
+<span class="fc" id="L431">    return issueIndex.search(query, searchOptions);</span>
+  }
+
+  private void validateParameters(WsRequest wsRequest) {
+<span class="fc" id="L435">    Optional&lt;String&gt; projectKey = wsRequest.getProjectKey();</span>
+<span class="fc" id="L436">    Optional&lt;String&gt; branch = wsRequest.getBranch();</span>
+<span class="fc" id="L437">    Optional&lt;String&gt; pullRequest = wsRequest.getPullRequest();</span>
+
+<span class="fc" id="L439">    Set&lt;String&gt; hotspotKeys = wsRequest.getHotspotKeys();</span>
+<span class="fc" id="L440">    checkArgument(</span>
+<span class="fc bfc" id="L441" title="All 4 branches covered.">      projectKey.isPresent() || !hotspotKeys.isEmpty(),</span>
+      &quot;A value must be provided for either parameter '%s' or parameter '%s'&quot;, PARAM_PROJECT, PARAM_HOTSPOTS);
+
+<span class="fc" id="L444">    checkArgument(</span>
+<span class="fc bfc" id="L445" title="All 4 branches covered.">      branch.isEmpty() || projectKey.isPresent(),</span>
+      &quot;Parameter '%s' must be used with parameter '%s'&quot;, PARAM_BRANCH, PARAM_PROJECT);
+<span class="fc" id="L447">    checkArgument(</span>
+<span class="fc bfc" id="L448" title="All 4 branches covered.">      pullRequest.isEmpty() || projectKey.isPresent(),</span>
+      &quot;Parameter '%s' must be used with parameter '%s'&quot;, PARAM_PULL_REQUEST, PARAM_PROJECT);
+<span class="fc" id="L450">    checkArgument(</span>
+<span class="fc bfc" id="L451" title="All 4 branches covered.">      !(branch.isPresent() &amp;&amp; pullRequest.isPresent()),</span>
+      &quot;Only one of parameters '%s' and '%s' can be provided&quot;, PARAM_BRANCH, PARAM_PULL_REQUEST);
+
+<span class="fc" id="L454">    Optional&lt;String&gt; status = wsRequest.getStatus();</span>
+<span class="fc" id="L455">    Optional&lt;String&gt; resolution = wsRequest.getResolution();</span>
+<span class="fc bfc" id="L456" title="All 4 branches covered.">    checkArgument(status.isEmpty() || hotspotKeys.isEmpty(),</span>
+      &quot;Parameter '%s' can't be used with parameter '%s'&quot;, PARAM_STATUS, PARAM_HOTSPOTS);
+<span class="fc bfc" id="L458" title="All 4 branches covered.">    checkArgument(resolution.isEmpty() || hotspotKeys.isEmpty(),</span>
+      &quot;Parameter '%s' can't be used with parameter '%s'&quot;, PARAM_RESOLUTION, PARAM_HOTSPOTS);
+
+<span class="fc" id="L461">    resolution.ifPresent(</span>
+<span class="fc" id="L462">      r -&gt; checkArgument(status.filter(STATUS_REVIEWED::equals).isPresent(),</span>
+        &quot;Value '%s' of parameter '%s' can only be provided if value of parameter '%s' is '%s'&quot;,
+        r, PARAM_RESOLUTION, PARAM_STATUS, STATUS_REVIEWED));
+
+<span class="fc bfc" id="L466" title="All 2 branches covered.">    if (wsRequest.isOnlyMine()) {</span>
+<span class="fc" id="L467">      checkArgument(userSession.isLoggedIn(),</span>
+        &quot;Parameter '%s' requires user to be logged in&quot;, PARAM_ONLY_MINE);
+<span class="fc" id="L469">      checkArgument(wsRequest.getProjectKey().isPresent(),</span>
+        &quot;Parameter '%s' can be used with parameter '%s' only&quot;, PARAM_ONLY_MINE, PARAM_PROJECT);
+    }
+<span class="fc" id="L472">  }</span>
+
+  private static void addMainBranchFilter(@NotNull BranchDto branch, IssueQuery.Builder builder) {
+<span class="fc bfc" id="L475" title="All 2 branches covered.">    if (branch.isMain()) {</span>
+<span class="fc" id="L476">      builder.mainBranch(true);</span>
+    } else {
+<span class="fc" id="L478">      builder.branchUuid(branch.getUuid());</span>
+<span class="fc" id="L479">      builder.mainBranch(false);</span>
+    }
+<span class="fc" id="L481">  }</span>
+
+  private void addInNewCodePeriodFilter(DbSession dbSession, @NotNull BranchDto projectBranch, IssueQuery.Builder builder) {
+<span class="fc" id="L484">    Optional&lt;SnapshotDto&gt; snapshot = dbClient.snapshotDao().selectLastAnalysisByComponentUuid(dbSession, projectBranch.getUuid());</span>
+
+<span class="fc" id="L486">    boolean isLastAnalysisUsingReferenceBranch = snapshot.map(SnapshotDto::getPeriodMode)</span>
+<span class="fc" id="L487">      .orElse(&quot;&quot;).equals(REFERENCE_BRANCH.name());</span>
+
+<span class="fc bfc" id="L489" title="All 2 branches covered.">    if (isLastAnalysisUsingReferenceBranch) {</span>
+<span class="fc" id="L490">      builder.newCodeOnReference(true);</span>
+    } else {
+<span class="fc" id="L492">      var sinceDate = snapshot</span>
+<span class="fc" id="L493">        .map(s -&gt; longToDate(s.getPeriodDate()))</span>
+<span class="fc" id="L494">        .orElseGet(() -&gt; new Date(system2.now()));</span>
+
+<span class="fc" id="L496">      builder.createdAfter(sinceDate, false);</span>
+    }
+<span class="fc" id="L498">  }</span>
+
+  private void addInNewCodePeriodFilterByProjects(IssueQuery.Builder builder, DbSession dbSession, BranchDto appBranch) {
+    Set&lt;String&gt; branchUuids;
+
+<span class="fc bfc" id="L503" title="All 2 branches covered.">    if (appBranch.isMain()) {</span>
+<span class="fc" id="L504">      branchUuids = dbClient.applicationProjectsDao().selectProjectsMainBranchesOfApplication(dbSession, appBranch.getProjectUuid()).stream()</span>
+<span class="fc" id="L505">        .map(BranchDto::getUuid)</span>
+<span class="fc" id="L506">        .collect(Collectors.toSet());</span>
+    } else {
+<span class="fc" id="L508">      branchUuids = dbClient.applicationProjectsDao().selectProjectBranchesFromAppBranchUuid(dbSession, appBranch.getUuid()).stream()</span>
+<span class="fc" id="L509">        .map(BranchDto::getUuid)</span>
+<span class="fc" id="L510">        .collect(Collectors.toSet());</span>
+    }
+
+<span class="fc" id="L513">    long now = system2.now();</span>
+
+<span class="fc" id="L515">    List&lt;SnapshotDto&gt; snapshots = dbClient.snapshotDao().selectLastAnalysesByRootComponentUuids(dbSession, branchUuids);</span>
+
+<span class="fc" id="L517">    Set&lt;String&gt; newCodeReferenceByProjects = snapshots</span>
+<span class="fc" id="L518">      .stream()</span>
+<span class="pc bpc" id="L519" title="3 of 4 branches missed.">      .filter(s -&gt; !isNullOrEmpty(s.getPeriodMode()) &amp;&amp; s.getPeriodMode().equals(REFERENCE_BRANCH.name()))</span>
+<span class="fc" id="L520">      .map(SnapshotDto::getRootComponentUuid)</span>
+<span class="fc" id="L521">      .collect(Collectors.toSet());</span>
+
+<span class="fc" id="L523">    Map&lt;String, IssueQuery.PeriodStart&gt; leakByProjects = snapshots</span>
+<span class="fc" id="L524">      .stream()</span>
+<span class="pc bpc" id="L525" title="3 of 4 branches missed.">      .filter(s -&gt; isNullOrEmpty(s.getPeriodMode()) || !s.getPeriodMode().equals(REFERENCE_BRANCH.name()))</span>
+<span class="pc bpc" id="L526" title="1 of 2 branches missed.">      .collect(Collectors.toMap(SnapshotDto::getRootComponentUuid, s1 -&gt; new IssueQuery.PeriodStart(longToDate(s1.getPeriodDate() == null ? now : s1.getPeriodDate()), false)));</span>
+
+<span class="fc" id="L528">    builder.createdAfterByProjectUuids(leakByProjects);</span>
+<span class="fc" id="L529">    builder.newCodeOnReferenceByProjectUuids(newCodeReferenceByProjects);</span>
+<span class="fc" id="L530">  }</span>
+
+  private void loadComponents(DbSession dbSession, SearchResponseData searchResponseData) {
+<span class="fc" id="L533">    Set&lt;String&gt; componentUuids = searchResponseData.getHotspots().stream()</span>
+<span class="fc" id="L534">      .flatMap(hotspot -&gt; Stream.of(hotspot.getComponentUuid(), hotspot.getProjectUuid()))</span>
+<span class="fc" id="L535">      .collect(Collectors.toSet());</span>
+
+<span class="fc" id="L537">    Set&lt;String&gt; locationComponentUuids = searchResponseData.getHotspots()</span>
+<span class="fc" id="L538">      .stream()</span>
+<span class="fc" id="L539">      .flatMap(hotspot -&gt; getHotspotLocationComponentUuids(hotspot).stream())</span>
+<span class="fc" id="L540">      .collect(Collectors.toSet());</span>
+
+<span class="fc" id="L542">    Set&lt;String&gt; aggregatedComponentUuids = Stream.of(componentUuids, locationComponentUuids)</span>
+<span class="fc" id="L543">      .flatMap(Collection::stream)</span>
+<span class="fc" id="L544">      .collect(Collectors.toSet());</span>
+
+<span class="fc bfc" id="L546" title="All 2 branches covered.">    if (!aggregatedComponentUuids.isEmpty()) {</span>
+<span class="fc" id="L547">      List&lt;ComponentDto&gt; componentDtos = dbClient.componentDao().selectByUuids(dbSession, aggregatedComponentUuids);</span>
+<span class="fc" id="L548">      searchResponseData.addComponents(componentDtos);</span>
+
+<span class="pc bpc" id="L550" title="1 of 2 branches missed.">      Set&lt;String&gt; branchUuids = componentDtos.stream().map(c -&gt; c.getCopyComponentUuid() != null ? c.getCopyComponentUuid() : c.branchUuid()).collect(Collectors.toSet());</span>
+<span class="fc" id="L551">      List&lt;BranchDto&gt; branchDtos = dbClient.branchDao().selectByUuids(dbSession, branchUuids);</span>
+<span class="fc" id="L552">      searchResponseData.addBranches(branchDtos);</span>
+    }
+<span class="fc" id="L554">  }</span>
+
+  private static Set&lt;String&gt; getHotspotLocationComponentUuids(IssueDto hotspot) {
+<span class="fc" id="L557">    Set&lt;String&gt; locationComponentUuids = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L558">    DbIssues.Locations locations = hotspot.parseLocations();</span>
+
+<span class="fc bfc" id="L560" title="All 2 branches covered.">    if (locations == null) {</span>
+<span class="fc" id="L561">      return locationComponentUuids;</span>
+    }
+
+<span class="fc" id="L564">    List&lt;DbIssues.Flow&gt; flows = locations.getFlowList();</span>
+
+<span class="fc bfc" id="L566" title="All 2 branches covered.">    for (DbIssues.Flow flow : flows) {</span>
+<span class="fc" id="L567">      List&lt;DbIssues.Location&gt; flowLocations = flow.getLocationList();</span>
+<span class="fc bfc" id="L568" title="All 2 branches covered.">      for (DbIssues.Location location : flowLocations) {</span>
+<span class="fc bfc" id="L569" title="All 2 branches covered.">        if (location.hasComponentId()) {</span>
+<span class="fc" id="L570">          locationComponentUuids.add(location.getComponentId());</span>
+        }
+<span class="fc" id="L572">      }</span>
+<span class="fc" id="L573">    }</span>
+
+<span class="fc" id="L575">    return locationComponentUuids;</span>
+  }
+
+  private SearchWsResponse formatResponse(SearchResponseData searchResponseData) {
+<span class="fc" id="L579">    SearchWsResponse.Builder responseBuilder = SearchWsResponse.newBuilder();</span>
+<span class="fc" id="L580">    formatPaging(searchResponseData, responseBuilder);</span>
+<span class="fc bfc" id="L581" title="All 2 branches covered.">    if (searchResponseData.isPresent()) {</span>
+<span class="fc" id="L582">      responseFormatter.formatHotspots(searchResponseData, responseBuilder);</span>
+<span class="fc" id="L583">      formatComponents(searchResponseData, responseBuilder);</span>
+    }
+<span class="fc" id="L585">    return responseBuilder.build();</span>
+  }
+
+  private static void formatPaging(SearchResponseData searchResponseData, SearchWsResponse.Builder responseBuilder) {
+<span class="fc" id="L589">    Paging paging = searchResponseData.getPaging();</span>
+<span class="fc" id="L590">    Common.Paging.Builder pagingBuilder = Common.Paging.newBuilder()</span>
+<span class="fc" id="L591">      .setPageIndex(paging.pageIndex())</span>
+<span class="fc" id="L592">      .setPageSize(paging.pageSize())</span>
+<span class="fc" id="L593">      .setTotal(paging.total());</span>
+
+<span class="fc" id="L595">    responseBuilder.setPaging(pagingBuilder.build());</span>
+<span class="fc" id="L596">  }</span>
+
+  private void formatComponents(SearchResponseData searchResponseData, SearchWsResponse.Builder responseBuilder) {
+<span class="fc" id="L599">    Collection&lt;ComponentDto&gt; components = searchResponseData.getComponents();</span>
+<span class="pc bpc" id="L600" title="1 of 2 branches missed.">    if (components.isEmpty()) {</span>
+<span class="nc" id="L601">      return;</span>
+    }
+
+<span class="fc" id="L604">    Hotspots.Component.Builder builder = Hotspots.Component.newBuilder();</span>
+<span class="fc bfc" id="L605" title="All 2 branches covered.">    for (ComponentDto component : components) {</span>
+<span class="pc bpc" id="L606" title="1 of 2 branches missed.">      String branchUuid = component.getCopyComponentUuid() != null ? component.getCopyComponentUuid() : component.branchUuid();</span>
+<span class="fc" id="L607">      BranchDto branchDto = searchResponseData.getBranch(branchUuid);</span>
+<span class="pc bpc" id="L608" title="3 of 4 branches missed.">      if (branchDto == null &amp;&amp; component.getCopyComponentUuid() == null) {</span>
+<span class="nc" id="L609">        throw new IllegalStateException(&quot;Could not find a branch for a component &quot; + component.getKey() + &quot; with uuid &quot; + component.uuid());</span>
+      }
+<span class="fc" id="L611">      responseBuilder.addComponents(responseFormatter.formatComponent(builder, component, branchDto));</span>
+<span class="fc" id="L612">    }</span>
+<span class="fc" id="L613">  }</span>
+
+  private static final class WsRequest {
+    private final int page;
+    private final int index;
+    private final String projectKey;
+    private final String branch;
+    private final String pullRequest;
+    private final Set&lt;String&gt; hotspotKeys;
+    private final String status;
+    private final String resolution;
+    private final boolean inNewCodePeriod;
+    private final boolean onlyMine;
+    private final Integer owaspAsvsLevel;
+    private final Set&lt;String&gt; pciDss32;
+    private final Set&lt;String&gt; pciDss40;
+    private final Set&lt;String&gt; owaspAsvs40;
+    private final Set&lt;String&gt; owaspTop10For2017;
+    private final Set&lt;String&gt; owaspTop10For2021;
+    private final Set&lt;String&gt; stigAsdV5R3;
+    private final Set&lt;String&gt; casa;
+    private final Set&lt;String&gt; sansTop25;
+    private final Set&lt;String&gt; sonarsourceSecurity;
+    private final Set&lt;String&gt; cwe;
+    private final Set&lt;String&gt; files;
+
+    private WsRequest(int page, int index,
+      @Nullable String projectKey, @Nullable String branch, @Nullable String pullRequest, Set&lt;String&gt; hotspotKeys,
+      @Nullable String status, @Nullable String resolution, @Nullable Boolean inNewCodePeriod, @Nullable Boolean onlyMine,
+      @Nullable Integer owaspAsvsLevel, Set&lt;String&gt; pciDss32, Set&lt;String&gt; pciDss40, Set&lt;String&gt; owaspAsvs40,
+      Set&lt;String&gt; owaspTop10For2017, Set&lt;String&gt; owaspTop10For2021, Set&lt;String&gt; stigAsdV5R3, Set&lt;String&gt; casa, Set&lt;String&gt; sansTop25, Set&lt;String&gt; sonarsourceSecurity,
+<span class="fc" id="L644">      Set&lt;String&gt; cwe, @Nullable Set&lt;String&gt; files) {</span>
+<span class="fc" id="L645">      this.page = page;</span>
+<span class="fc" id="L646">      this.index = index;</span>
+<span class="fc" id="L647">      this.projectKey = projectKey;</span>
+<span class="fc" id="L648">      this.branch = branch;</span>
+<span class="fc" id="L649">      this.pullRequest = pullRequest;</span>
+<span class="fc" id="L650">      this.hotspotKeys = hotspotKeys;</span>
+<span class="fc" id="L651">      this.status = status;</span>
+<span class="fc" id="L652">      this.resolution = resolution;</span>
+<span class="pc bpc" id="L653" title="1 of 4 branches missed.">      this.inNewCodePeriod = inNewCodePeriod != null &amp;&amp; inNewCodePeriod;</span>
+<span class="fc bfc" id="L654" title="All 4 branches covered.">      this.onlyMine = onlyMine != null &amp;&amp; onlyMine;</span>
+<span class="fc" id="L655">      this.owaspAsvsLevel = owaspAsvsLevel;</span>
+<span class="fc" id="L656">      this.pciDss32 = pciDss32;</span>
+<span class="fc" id="L657">      this.pciDss40 = pciDss40;</span>
+<span class="fc" id="L658">      this.owaspAsvs40 = owaspAsvs40;</span>
+<span class="fc" id="L659">      this.owaspTop10For2017 = owaspTop10For2017;</span>
+<span class="fc" id="L660">      this.owaspTop10For2021 = owaspTop10For2021;</span>
+<span class="fc" id="L661">      this.stigAsdV5R3 = stigAsdV5R3;</span>
+<span class="fc" id="L662">      this.casa = casa;</span>
+<span class="fc" id="L663">      this.sansTop25 = sansTop25;</span>
+<span class="fc" id="L664">      this.sonarsourceSecurity = sonarsourceSecurity;</span>
+<span class="fc" id="L665">      this.cwe = cwe;</span>
+<span class="fc" id="L666">      this.files = files;</span>
+<span class="fc" id="L667">    }</span>
+
+    int getPage() {
+<span class="fc" id="L670">      return page;</span>
+    }
+
+    int getIndex() {
+<span class="fc" id="L674">      return index;</span>
+    }
+
+    Optional&lt;String&gt; getProjectKey() {
+<span class="fc" id="L678">      return ofNullable(projectKey);</span>
+    }
+
+    Optional&lt;String&gt; getBranch() {
+<span class="fc" id="L682">      return ofNullable(branch);</span>
+    }
+
+    Optional&lt;String&gt; getPullRequest() {
+<span class="fc" id="L686">      return ofNullable(pullRequest);</span>
+    }
+
+    Set&lt;String&gt; getHotspotKeys() {
+<span class="fc" id="L690">      return hotspotKeys;</span>
+    }
+
+    Optional&lt;String&gt; getStatus() {
+<span class="fc" id="L694">      return ofNullable(status);</span>
+    }
+
+    Optional&lt;String&gt; getResolution() {
+<span class="fc" id="L698">      return ofNullable(resolution);</span>
+    }
+
+    boolean isInNewCodePeriod() {
+<span class="fc" id="L702">      return inNewCodePeriod;</span>
+    }
+
+    boolean isOnlyMine() {
+<span class="fc" id="L706">      return onlyMine;</span>
+    }
+
+    public Optional&lt;Integer&gt; getOwaspAsvsLevel() {
+<span class="fc" id="L710">      return ofNullable(owaspAsvsLevel);</span>
+    }
+
+    public Set&lt;String&gt; getPciDss32() {
+<span class="fc" id="L714">      return pciDss32;</span>
+    }
+
+    public Set&lt;String&gt; getPciDss40() {
+<span class="fc" id="L718">      return pciDss40;</span>
+    }
+
+    public Set&lt;String&gt; getOwaspAsvs40() {
+<span class="fc" id="L722">      return owaspAsvs40;</span>
+    }
+
+    public Set&lt;String&gt; getOwaspTop10For2017() {
+<span class="fc" id="L726">      return owaspTop10For2017;</span>
+    }
+
+    public Set&lt;String&gt; getOwaspTop10For2021() {
+<span class="fc" id="L730">      return owaspTop10For2021;</span>
+    }
+
+    public Set&lt;String&gt; getStigAsdV5R3() {
+<span class="fc" id="L734">      return stigAsdV5R3;</span>
+    }
+
+    public Set&lt;String&gt; getCasa() {
+<span class="fc" id="L738">      return casa;</span>
+    }
+
+    public Set&lt;String&gt; getSansTop25() {
+<span class="fc" id="L742">      return sansTop25;</span>
+    }
+
+    public Set&lt;String&gt; getSonarsourceSecurity() {
+<span class="fc" id="L746">      return sonarsourceSecurity;</span>
+    }
+
+    public Set&lt;String&gt; getCwe() {
+<span class="fc" id="L750">      return cwe;</span>
+    }
+
+    public Set&lt;String&gt; getFiles() {
+<span class="fc" id="L754">      return files;</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

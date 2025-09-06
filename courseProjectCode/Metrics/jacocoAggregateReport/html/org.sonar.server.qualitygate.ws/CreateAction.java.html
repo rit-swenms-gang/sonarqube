@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CreateAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.qualitygate.ws</a> &gt; <span class="el_source">CreateAction.java</span></div><h1>CreateAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.qualitygate.ws;
+
+import java.io.Serializable;
+import java.util.Map;
+import java.util.Objects;
+import org.sonar.api.measures.Metric;
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.permission.GlobalPermission;
+import org.sonar.db.qualitygate.QualityGateDto;
+import org.sonar.server.qualitygate.Condition;
+import org.sonar.server.qualitygate.QualityGateConditionsUpdater;
+import org.sonar.server.qualitygate.QualityGateUpdater;
+import org.sonar.server.user.UserSession;
+import org.sonarqube.ws.Qualitygates.CreateResponse;
+
+import static org.sonar.api.measures.CoreMetrics.NEW_COVERAGE_KEY;
+import static org.sonar.api.measures.CoreMetrics.NEW_DUPLICATED_LINES_DENSITY_KEY;
+import static org.sonar.api.measures.Metric.DIRECTION_BETTER;
+import static org.sonar.api.measures.Metric.DIRECTION_WORST;
+import static org.sonar.server.qualitygate.Condition.Operator.GREATER_THAN;
+import static org.sonar.server.qualitygate.Condition.Operator.LESS_THAN;
+import static org.sonar.server.qualitygate.QualityGateCaycChecker.CAYC_METRICS;
+import static org.sonar.server.qualitygate.ws.QualityGatesWsParameters.ACTION_CREATE;
+import static org.sonar.server.qualitygate.ws.QualityGatesWsParameters.PARAM_NAME;
+import static org.sonar.server.ws.WsUtils.writeProtobuf;
+
+public class CreateAction implements QualityGatesWsAction {
+
+<span class="fc" id="L53">  static final Map&lt;String, Integer&gt; DEFAULT_METRIC_VALUES = Map.of(</span>
+<span class="fc" id="L54">    NEW_COVERAGE_KEY, 80,</span>
+<span class="fc" id="L55">    NEW_DUPLICATED_LINES_DENSITY_KEY, 3</span>
+  );
+
+<span class="fc" id="L58">  private static final Map&lt;Integer, Condition.Operator&gt; OPERATORS_BY_DIRECTION = Map.of(</span>
+<span class="fc" id="L59">    DIRECTION_BETTER, LESS_THAN,</span>
+<span class="fc" id="L60">    DIRECTION_WORST, GREATER_THAN);</span>
+
+  public static final int NAME_MAXIMUM_LENGTH = 100;
+
+  private final DbClient dbClient;
+  private final UserSession userSession;
+  private final QualityGateUpdater qualityGateUpdater;
+  private final QualityGateConditionsUpdater qualityGateConditionsUpdater;
+
+<span class="fc" id="L69">  public CreateAction(DbClient dbClient, UserSession userSession, QualityGateUpdater qualityGateUpdater, QualityGateConditionsUpdater qualityGateConditionsUpdater) {</span>
+<span class="fc" id="L70">    this.dbClient = dbClient;</span>
+<span class="fc" id="L71">    this.userSession = userSession;</span>
+<span class="fc" id="L72">    this.qualityGateUpdater = qualityGateUpdater;</span>
+<span class="fc" id="L73">    this.qualityGateConditionsUpdater = qualityGateConditionsUpdater;</span>
+<span class="fc" id="L74">  }</span>
+
+  @Override
+  public void define(WebService.NewController controller) {
+<span class="fc" id="L78">    WebService.NewAction action = controller.createAction(ACTION_CREATE)</span>
+<span class="fc" id="L79">      .setPost(true)</span>
+<span class="fc" id="L80">      .setDescription(&quot;Create a Quality Gate.&lt;br&gt;&quot; +</span>
+        &quot;Requires the 'Administer Quality Gates' permission.&quot;)
+<span class="fc" id="L82">      .setSince(&quot;4.3&quot;)</span>
+<span class="fc" id="L83">      .setChangelog(</span>
+        new Change(&quot;10.0&quot;, &quot;Field 'id' in the response is removed.&quot;),
+        new Change(&quot;8.4&quot;, &quot;Field 'id' in the response is deprecated. Format changes from integer to string.&quot;))
+<span class="fc" id="L86">      .setResponseExample(getClass().getResource(&quot;create-example.json&quot;))</span>
+<span class="fc" id="L87">      .setHandler(this);</span>
+
+<span class="fc" id="L89">    action.createParam(PARAM_NAME)</span>
+<span class="fc" id="L90">      .setRequired(true)</span>
+<span class="fc" id="L91">      .setMaximumLength(NAME_MAXIMUM_LENGTH)</span>
+<span class="fc" id="L92">      .setDescription(&quot;The name of the quality gate to create&quot;)</span>
+<span class="fc" id="L93">      .setExampleValue(&quot;My Quality Gate&quot;);</span>
+<span class="fc" id="L94">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) {
+<span class="fc" id="L98">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L99">      userSession.checkPermission(GlobalPermission.ADMINISTER_QUALITY_GATES);</span>
+
+<span class="fc" id="L101">      String name = request.mandatoryParam(PARAM_NAME);</span>
+
+<span class="fc" id="L103">      QualityGateDto newQualityGate = qualityGateUpdater.create(dbSession, name);</span>
+<span class="fc" id="L104">      addCaycConditions(dbSession, newQualityGate);</span>
+
+<span class="fc" id="L106">      CreateResponse.Builder createResponse = CreateResponse.newBuilder()</span>
+<span class="fc" id="L107">        .setName(newQualityGate.getName());</span>
+<span class="fc" id="L108">      dbSession.commit();</span>
+<span class="fc" id="L109">      writeProtobuf(createResponse.build(), request, response);</span>
+    }
+<span class="fc" id="L111">  }</span>
+
+  private void addCaycConditions(DbSession dbSession, QualityGateDto newQualityGate) {
+<span class="fc" id="L114">    CAYC_METRICS.forEach(metric -&gt;</span>
+<span class="fc" id="L115">      qualityGateConditionsUpdater.createCondition(dbSession, newQualityGate, metric.getKey(), OPERATORS_BY_DIRECTION.get(metric.getDirection()).getDbValue(),</span>
+<span class="fc" id="L116">        String.valueOf(getDefaultCaycValue(metric)))</span>
+    );
+<span class="fc" id="L118">  }</span>
+
+  private static int getDefaultCaycValue(Metric&lt;? extends Serializable&gt; metric) {
+<span class="fc bfc" id="L121" title="All 2 branches covered.">    return DEFAULT_METRIC_VALUES.containsKey(metric.getKey()) ?</span>
+<span class="fc" id="L122">      DEFAULT_METRIC_VALUES.get(metric.getKey()) :</span>
+<span class="fc" id="L123">      Objects.requireNonNull(metric.getBestValue()).intValue();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NewCustomRule.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.common.rule.service</a> &gt; <span class="el_source">NewCustomRule.java</span></div><h1>NewCustomRule.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.common.rule.service;
+
+import com.google.common.base.Preconditions;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.api.issue.impact.Severity;
+import org.sonar.api.issue.impact.SoftwareQuality;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.api.rule.RuleStatus;
+import org.sonar.api.rules.CleanCodeAttribute;
+import org.sonar.core.rule.RuleType;
+import org.sonar.server.common.rule.ReactivationException;
+
+public class NewCustomRule {
+
+  private RuleKey ruleKey;
+  private RuleKey templateKey;
+  private String name;
+  private String markdownDescription;
+  private String severity;
+  private RuleStatus status;
+  private RuleType type;
+<span class="fc" id="L45">  private Map&lt;String, String&gt; parameters = new HashMap&lt;&gt;();</span>
+  private CleanCodeAttribute cleanCodeAttribute;
+  private List&lt;Impact&gt; impacts;
+<span class="fc" id="L48">  private boolean preventReactivation = false;</span>
+
+<span class="fc" id="L50">  private NewCustomRule() {</span>
+    // No direct call to constructor
+<span class="fc" id="L52">  }</span>
+
+  public RuleKey ruleKey() {
+<span class="fc" id="L55">    return ruleKey;</span>
+  }
+
+  public RuleKey templateKey() {
+<span class="fc" id="L59">    return templateKey;</span>
+  }
+
+  @CheckForNull
+  public String name() {
+<span class="fc" id="L64">    return name;</span>
+  }
+
+  public NewCustomRule setName(@Nullable String name) {
+<span class="fc" id="L68">    this.name = name;</span>
+<span class="fc" id="L69">    return this;</span>
+  }
+
+  @CheckForNull
+  public String markdownDescription() {
+<span class="fc" id="L74">    return markdownDescription;</span>
+  }
+
+  public NewCustomRule setMarkdownDescription(@Nullable String markdownDescription) {
+<span class="fc" id="L78">    this.markdownDescription = markdownDescription;</span>
+<span class="fc" id="L79">    return this;</span>
+  }
+
+  @CheckForNull
+  public String severity() {
+<span class="fc" id="L84">    return severity;</span>
+  }
+
+  public NewCustomRule setSeverity(@Nullable String severity) {
+<span class="fc" id="L88">    this.severity = severity;</span>
+<span class="fc" id="L89">    return this;</span>
+  }
+
+  @CheckForNull
+  public RuleStatus status() {
+<span class="fc" id="L94">    return status;</span>
+  }
+
+  public NewCustomRule setStatus(@Nullable RuleStatus status) {
+<span class="fc" id="L98">    this.status = status;</span>
+<span class="fc" id="L99">    return this;</span>
+  }
+
+  @CheckForNull
+  public RuleType type() {
+<span class="fc" id="L104">    return type;</span>
+  }
+
+  public NewCustomRule setType(@Nullable RuleType type) {
+<span class="fc" id="L108">    this.type = type;</span>
+<span class="fc" id="L109">    return this;</span>
+  }
+
+  @CheckForNull
+  public String parameter(final String paramKey) {
+<span class="fc" id="L114">    return parameters.get(paramKey);</span>
+  }
+
+  public NewCustomRule setParameters(Map&lt;String, String&gt; params) {
+<span class="fc" id="L118">    this.parameters = params;</span>
+<span class="fc" id="L119">    return this;</span>
+  }
+
+  public CleanCodeAttribute getCleanCodeAttribute() {
+<span class="fc" id="L123">    return cleanCodeAttribute;</span>
+  }
+
+  public NewCustomRule setCleanCodeAttribute(@Nullable CleanCodeAttribute cleanCodeAttribute) {
+<span class="fc" id="L127">    this.cleanCodeAttribute = cleanCodeAttribute;</span>
+<span class="fc" id="L128">    return this;</span>
+  }
+
+  public List&lt;Impact&gt; getImpacts() {
+<span class="fc" id="L132">    return impacts;</span>
+  }
+
+  public NewCustomRule setImpacts(List&lt;Impact&gt; impacts) {
+<span class="fc" id="L136">    this.impacts = impacts;</span>
+<span class="fc" id="L137">    return this;</span>
+  }
+
+  public boolean isPreventReactivation() {
+<span class="fc" id="L141">    return preventReactivation;</span>
+  }
+
+  /**
+   * When true, if the rule already exists in status REMOVED, an {@link ReactivationException} will be thrown
+   */
+  public NewCustomRule setPreventReactivation(boolean preventReactivation) {
+<span class="fc" id="L148">    this.preventReactivation = preventReactivation;</span>
+<span class="fc" id="L149">    return this;</span>
+  }
+
+  public static NewCustomRule createForCustomRule(RuleKey customKey, RuleKey templateKey) {
+<span class="fc bfc" id="L153" title="All 2 branches covered.">    Preconditions.checkArgument(customKey != null, &quot;Custom key should be set&quot;);</span>
+<span class="fc bfc" id="L154" title="All 2 branches covered.">    Preconditions.checkArgument(templateKey != null, &quot;Template key should be set&quot;);</span>
+<span class="fc" id="L155">    NewCustomRule newRule = new NewCustomRule();</span>
+<span class="fc" id="L156">    newRule.ruleKey = customKey;</span>
+<span class="fc" id="L157">    newRule.templateKey = templateKey;</span>
+<span class="fc" id="L158">    return newRule;</span>
+  }
+
+<span class="fc" id="L161">  public record Impact(SoftwareQuality softwareQuality, Severity severity) {</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

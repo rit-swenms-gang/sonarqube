@@ -1,0 +1,423 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TrackerRawInputFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.issue</a> &gt; <span class="el_source">TrackerRawInputFactory.java</span></div><h1>TrackerRawInputFactory.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.issue;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
+import javax.annotation.Nullable;
+import org.jetbrains.annotations.NotNull;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.issue.impact.Severity;
+import org.sonar.api.issue.impact.SoftwareQuality;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.core.rule.RuleType;
+import org.sonar.api.server.rule.internal.ImpactMapper;
+import org.sonar.api.utils.Duration;
+import org.sonar.ce.common.scanner.ScannerReportReader;
+import org.sonar.ce.task.projectanalysis.component.Component;
+import org.sonar.ce.task.projectanalysis.component.TreeRootHolder;
+import org.sonar.ce.task.projectanalysis.issue.filter.IssueFilter;
+import org.sonar.ce.task.projectanalysis.qualityprofile.ActiveRule;
+import org.sonar.ce.task.projectanalysis.qualityprofile.ActiveRulesHolder;
+import org.sonar.ce.task.projectanalysis.source.SourceLinesHashRepository;
+import org.sonar.core.issue.DefaultIssue;
+import org.sonar.core.issue.tracking.Input;
+import org.sonar.core.issue.tracking.LazyInput;
+import org.sonar.core.issue.tracking.LineHashSequence;
+import org.sonar.core.rule.RuleTypeMapper;
+import org.sonar.core.util.CloseableIterator;
+import org.sonar.db.protobuf.DbCommons;
+import org.sonar.db.protobuf.DbIssues;
+import org.sonar.scanner.protocol.Constants;
+import org.sonar.scanner.protocol.output.ScannerReport;
+import org.sonar.scanner.protocol.output.ScannerReport.Impact;
+import org.sonar.scanner.protocol.output.ScannerReport.IssueType;
+import org.sonar.server.rule.CommonRuleKeys;
+
+import static org.apache.commons.lang3.StringUtils.isNotEmpty;
+import static org.sonar.api.issue.Issue.STATUS_OPEN;
+import static org.sonar.api.issue.Issue.STATUS_TO_REVIEW;
+
+public class TrackerRawInputFactory {
+  private static final long DEFAULT_EXTERNAL_ISSUE_EFFORT = 0L;
+  private final TreeRootHolder treeRootHolder;
+  private final ScannerReportReader reportReader;
+  private final IssueFilter issueFilter;
+  private final SourceLinesHashRepository sourceLinesHash;
+  private final RuleRepository ruleRepository;
+  private final ActiveRulesHolder activeRulesHolder;
+
+  public TrackerRawInputFactory(TreeRootHolder treeRootHolder, ScannerReportReader reportReader, SourceLinesHashRepository sourceLinesHash,
+<span class="fc" id="L74">    IssueFilter issueFilter, RuleRepository ruleRepository, ActiveRulesHolder activeRulesHolder) {</span>
+<span class="fc" id="L75">    this.treeRootHolder = treeRootHolder;</span>
+<span class="fc" id="L76">    this.reportReader = reportReader;</span>
+<span class="fc" id="L77">    this.sourceLinesHash = sourceLinesHash;</span>
+<span class="fc" id="L78">    this.issueFilter = issueFilter;</span>
+<span class="fc" id="L79">    this.ruleRepository = ruleRepository;</span>
+<span class="fc" id="L80">    this.activeRulesHolder = activeRulesHolder;</span>
+<span class="fc" id="L81">  }</span>
+
+  public Input&lt;DefaultIssue&gt; create(Component component) {
+<span class="fc" id="L84">    return new RawLazyInput(component);</span>
+  }
+
+  private class RawLazyInput extends LazyInput&lt;DefaultIssue&gt; {
+    private final Component component;
+
+<span class="fc" id="L90">    private RawLazyInput(Component component) {</span>
+<span class="fc" id="L91">      this.component = component;</span>
+<span class="fc" id="L92">    }</span>
+
+    @Override
+    protected LineHashSequence loadLineHashSequence() {
+<span class="fc bfc" id="L96" title="All 2 branches covered.">      if (component.getType() == Component.Type.FILE) {</span>
+<span class="fc" id="L97">        return new LineHashSequence(sourceLinesHash.getLineHashesMatchingDBVersion(component));</span>
+      } else {
+<span class="fc" id="L99">        return new LineHashSequence(Collections.emptyList());</span>
+      }
+    }
+
+    @Override
+    protected List&lt;DefaultIssue&gt; loadIssues() {
+<span class="fc" id="L105">      List&lt;DefaultIssue&gt; result = new ArrayList&lt;&gt;();</span>
+
+<span class="pc bpc" id="L107" title="1 of 2 branches missed.">      if (component.getReportAttributes().getRef() == null) {</span>
+<span class="nc" id="L108">        return result;</span>
+      }
+
+<span class="fc" id="L111">      try (CloseableIterator&lt;ScannerReport.Issue&gt; reportIssues = reportReader.readComponentIssues(component.getReportAttributes().getRef())) {</span>
+        // optimization - do not load line hashes if there are no issues -&gt; getLineHashSequence() is executed
+        // as late as possible
+<span class="fc bfc" id="L114" title="All 2 branches covered.">        while (reportIssues.hasNext()) {</span>
+<span class="fc" id="L115">          ScannerReport.Issue reportIssue = reportIssues.next();</span>
+<span class="fc bfc" id="L116" title="All 2 branches covered.">          if (isOnInactiveRule(reportIssue)) {</span>
+<span class="fc" id="L117">            continue;</span>
+          }
+<span class="fc bfc" id="L119" title="All 2 branches covered.">          if (!isIssueOnUnsupportedCommonRule(reportIssue)) {</span>
+<span class="fc" id="L120">            LoggerFactory.getLogger(getClass()).debug(&quot;Ignored issue from analysis report on rule {}:{}&quot;, reportIssue.getRuleRepository(), reportIssue.getRuleKey());</span>
+<span class="fc" id="L121">            continue;</span>
+          }
+<span class="fc" id="L123">          DefaultIssue issue = toIssue(getLineHashSequence(), reportIssue);</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">          if (issueFilter.accept(issue, component)) {</span>
+<span class="fc" id="L125">            result.add(issue);</span>
+          }
+<span class="fc" id="L127">        }</span>
+      }
+
+<span class="fc" id="L130">      Map&lt;RuleKey, ScannerReport.AdHocRule&gt; adHocRuleMap = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L131">      try (CloseableIterator&lt;ScannerReport.AdHocRule&gt; reportAdHocRule = reportReader.readAdHocRules()) {</span>
+<span class="pc bpc" id="L132" title="1 of 2 branches missed.">        while (reportAdHocRule.hasNext()) {</span>
+<span class="nc" id="L133">          ScannerReport.AdHocRule adHocRule = reportAdHocRule.next();</span>
+<span class="nc" id="L134">          adHocRuleMap.put(RuleKey.of(RuleKey.EXTERNAL_RULE_REPO_PREFIX + adHocRule.getEngineId(), adHocRule.getRuleId()), adHocRule);</span>
+<span class="nc" id="L135">        }</span>
+      }
+
+<span class="fc" id="L138">      try (CloseableIterator&lt;ScannerReport.ExternalIssue&gt; reportExternalIssues = reportReader.readComponentExternalIssues(component.getReportAttributes().getRef())) {</span>
+        // optimization - do not load line hashes if there are no issues -&gt; getLineHashSequence() is executed
+        // as late as possible
+<span class="fc bfc" id="L141" title="All 2 branches covered.">        while (reportExternalIssues.hasNext()) {</span>
+<span class="fc" id="L142">          ScannerReport.ExternalIssue reportExternalIssue = reportExternalIssues.next();</span>
+<span class="fc" id="L143">          result.add(toExternalIssue(getLineHashSequence(), reportExternalIssue, adHocRuleMap));</span>
+<span class="fc" id="L144">        }</span>
+      }
+
+<span class="fc" id="L147">      return result;</span>
+    }
+
+    private boolean isOnInactiveRule(ScannerReport.Issue reportIssue) {
+<span class="fc" id="L151">      RuleKey ruleKey = RuleKey.of(reportIssue.getRuleRepository(), reportIssue.getRuleKey());</span>
+<span class="fc" id="L152">      return activeRulesHolder.get(ruleKey).isEmpty();</span>
+    }
+
+    private boolean isIssueOnUnsupportedCommonRule(ScannerReport.Issue issue) {
+      // issues on batch common rules are ignored. This feature
+      // is natively supported by compute engine since 5.2.
+<span class="fc bfc" id="L158" title="All 2 branches covered.">      return !issue.getRuleRepository().startsWith(CommonRuleKeys.REPOSITORY_PREFIX);</span>
+    }
+
+    private DefaultIssue toIssue(LineHashSequence lineHashSeq, ScannerReport.Issue reportIssue) {
+<span class="fc" id="L162">      DefaultIssue issue = new DefaultIssue();</span>
+<span class="fc" id="L163">      init(issue, STATUS_OPEN);</span>
+<span class="fc" id="L164">      RuleKey ruleKey = RuleKey.of(reportIssue.getRuleRepository(), reportIssue.getRuleKey());</span>
+<span class="fc" id="L165">      issue.setRuleKey(ruleKey);</span>
+<span class="fc bfc" id="L166" title="All 2 branches covered.">      if (reportIssue.hasTextRange()) {</span>
+<span class="fc" id="L167">        int startLine = reportIssue.getTextRange().getStartLine();</span>
+<span class="fc" id="L168">        issue.setLine(startLine);</span>
+<span class="fc" id="L169">        issue.setChecksum(lineHashSeq.getHashForLine(startLine));</span>
+<span class="fc" id="L170">      } else {</span>
+<span class="fc" id="L171">        issue.setChecksum(&quot;&quot;);</span>
+      }
+<span class="fc bfc" id="L173" title="All 2 branches covered.">      if (isNotEmpty(reportIssue.getMsg())) {</span>
+<span class="fc" id="L174">        issue.setMessage(reportIssue.getMsg());</span>
+<span class="fc bfc" id="L175" title="All 2 branches covered.">        if (!reportIssue.getMsgFormattingList().isEmpty()) {</span>
+<span class="fc" id="L176">          issue.setMessageFormattings(convertMessageFormattings(reportIssue.getMsgFormattingList()));</span>
+        }
+      } else {
+<span class="fc" id="L179">        Rule rule = ruleRepository.getByKey(ruleKey);</span>
+<span class="fc" id="L180">        issue.setMessage(rule.getName());</span>
+      }
+<span class="fc" id="L182">      issue.setSeverity(replaceDefaultWithOverriddenSeverity(issue.ruleKey(), reportIssue));</span>
+<span class="fc bfc" id="L183" title="All 2 branches covered.">      if (Double.compare(reportIssue.getGap(), 0D) != 0) {</span>
+<span class="fc" id="L184">        issue.setGap(reportIssue.getGap());</span>
+      }
+<span class="fc" id="L186">      DbIssues.Locations.Builder dbLocationsBuilder = DbIssues.Locations.newBuilder();</span>
+<span class="fc bfc" id="L187" title="All 2 branches covered.">      if (reportIssue.hasTextRange()) {</span>
+<span class="fc" id="L188">        dbLocationsBuilder.setTextRange(convertTextRange(reportIssue.getTextRange()));</span>
+      }
+<span class="fc bfc" id="L190" title="All 2 branches covered.">      for (ScannerReport.Flow flow : reportIssue.getFlowList()) {</span>
+<span class="pc bpc" id="L191" title="1 of 2 branches missed.">        if (flow.getLocationCount() &gt; 0) {</span>
+<span class="fc" id="L192">          DbIssues.Flow.Builder dbFlowBuilder = convertLocations(flow);</span>
+<span class="fc" id="L193">          dbLocationsBuilder.addFlow(dbFlowBuilder);</span>
+        }
+<span class="fc" id="L195">      }</span>
+<span class="fc" id="L196">      issue.setIsFromExternalRuleEngine(false);</span>
+<span class="fc" id="L197">      issue.setLocations(dbLocationsBuilder.build());</span>
+<span class="fc" id="L198">      issue.setQuickFixAvailable(reportIssue.getQuickFixAvailable());</span>
+<span class="fc bfc" id="L199" title="All 2 branches covered.">      issue.setRuleDescriptionContextKey(reportIssue.hasRuleDescriptionContextKey() ? reportIssue.getRuleDescriptionContextKey() : null);</span>
+<span class="fc" id="L200">      issue.setCodeVariants(reportIssue.getCodeVariantsList());</span>
+
+<span class="fc" id="L202">      issue.replaceImpacts(replaceDefaultWithOverriddenImpactsForIssue(issue.ruleKey(), reportIssue.getOverriddenImpactsList()));</span>
+<span class="fc" id="L203">      return issue;</span>
+    }
+
+    private String replaceDefaultWithOverriddenSeverity(RuleKey ruleKey, ScannerReport.Issue reportIssue) {
+<span class="fc bfc" id="L207" title="All 2 branches covered.">      if (reportIssue.hasOverriddenSeverity()) {</span>
+<span class="fc" id="L208">        return reportIssue.getOverriddenSeverity().name();</span>
+      } else {
+        // Rule can't be inactive (see contract of IssueVisitor)
+<span class="pc" id="L211">        ActiveRule activeRule = activeRulesHolder.get(ruleKey).orElseThrow(() -&gt; new IllegalStateException(&quot;Rule &quot; + ruleKey + &quot; is not active&quot;));</span>
+<span class="fc" id="L212">        return activeRule.getSeverity();</span>
+      }
+    }
+
+    private Map&lt;SoftwareQuality, Severity&gt; replaceDefaultWithOverriddenImpactsForIssue(RuleKey ruleKey, List&lt;Impact&gt; overriddenImpactsList) {
+      // Rule can't be inactive (see contract of IssueVisitor)
+<span class="pc" id="L218">      ActiveRule activeRule = activeRulesHolder.get(ruleKey).orElseThrow(() -&gt; new IllegalStateException(&quot;Rule &quot; + ruleKey + &quot; is not active&quot;));</span>
+<span class="fc" id="L219">      return replaceDefaultWithOverriddenImpacts(ruleKey, activeRule, overriddenImpactsList);</span>
+    }
+
+    private Map&lt;SoftwareQuality, Severity&gt; replaceDefaultWithOverriddenImpactsForExternalIssue(RuleKey ruleKey, List&lt;Impact&gt; overriddenImpactsList) {
+<span class="fc" id="L223">      return replaceDefaultWithOverriddenImpacts(ruleKey, null, overriddenImpactsList);</span>
+    }
+
+    private Map&lt;SoftwareQuality, Severity&gt; replaceDefaultWithOverriddenImpacts(RuleKey ruleKey, @Nullable ActiveRule activeRule,
+      List&lt;Impact&gt; overriddenImpactsList) {
+<span class="fc" id="L228">      EnumMap&lt;SoftwareQuality, Severity&gt; impacts = new EnumMap&lt;&gt;(SoftwareQuality.class);</span>
+<span class="fc" id="L229">      impacts.putAll(ruleRepository.getByKey(ruleKey).getDefaultImpacts());</span>
+<span class="fc bfc" id="L230" title="All 2 branches covered.">      if (activeRule != null) {</span>
+        // Override default impacts with the ones possibly defined in the quality profile
+<span class="fc" id="L232">        overrideImpacts(impacts, activeRule.getImpacts());</span>
+      }
+      // Override default impacts with the ones possibly defined at the issue level
+<span class="fc" id="L235">      overrideImpacts(impacts, toMap(overriddenImpactsList));</span>
+<span class="fc" id="L236">      return impacts;</span>
+    }
+
+    private void overrideImpacts(EnumMap&lt;SoftwareQuality, Severity&gt; impacts, Map&lt;SoftwareQuality, Severity&gt; overridenImpactMap) {
+<span class="fc" id="L240">      overridenImpactMap.forEach((softwareQuality, severity) -&gt; {</span>
+<span class="fc bfc" id="L241" title="All 2 branches covered.">        if (impacts.containsKey(softwareQuality)) {</span>
+<span class="fc" id="L242">          impacts.put(softwareQuality, severity);</span>
+        }
+<span class="fc" id="L244">      });</span>
+<span class="fc" id="L245">    }</span>
+
+    private static Map&lt;SoftwareQuality, Severity&gt; toMap(List&lt;Impact&gt; overriddenImpactsList) {
+<span class="fc" id="L248">      return overriddenImpactsList.stream()</span>
+<span class="fc" id="L249">        .collect(Collectors.toMap(</span>
+<span class="fc" id="L250">          impact -&gt; SoftwareQuality.valueOf(impact.getSoftwareQuality().name()),</span>
+<span class="fc" id="L251">          impact -&gt; org.sonar.ce.task.projectanalysis.issue.ImpactMapper.mapImpactSeverity(impact.getSeverity())));</span>
+    }
+
+    private DbIssues.Flow.Builder convertLocations(ScannerReport.Flow flow) {
+<span class="fc" id="L255">      DbIssues.Flow.Builder dbFlowBuilder = DbIssues.Flow.newBuilder();</span>
+<span class="fc bfc" id="L256" title="All 2 branches covered.">      for (ScannerReport.IssueLocation location : flow.getLocationList()) {</span>
+<span class="fc" id="L257">        convertLocation(location).ifPresent(dbFlowBuilder::addLocation);</span>
+<span class="fc" id="L258">      }</span>
+<span class="fc bfc" id="L259" title="All 2 branches covered.">      if (isNotEmpty(flow.getDescription())) {</span>
+<span class="fc" id="L260">        dbFlowBuilder.setDescription(flow.getDescription());</span>
+      }
+<span class="fc" id="L262">      toFlowType(flow.getType()).ifPresent(dbFlowBuilder::setType);</span>
+<span class="fc" id="L263">      return dbFlowBuilder;</span>
+    }
+
+    private DefaultIssue toExternalIssue(LineHashSequence lineHashSeq, ScannerReport.ExternalIssue reportExternalIssue, Map&lt;RuleKey, ScannerReport.AdHocRule&gt; adHocRuleMap) {
+<span class="fc" id="L267">      DefaultIssue issue = new DefaultIssue();</span>
+<span class="fc" id="L268">      RuleKey ruleKey = RuleKey.of(RuleKey.EXTERNAL_RULE_REPO_PREFIX + reportExternalIssue.getEngineId(), reportExternalIssue.getRuleId());</span>
+<span class="fc" id="L269">      issue.setRuleKey(ruleKey);</span>
+<span class="fc" id="L270">      ruleRepository.addOrUpdateAddHocRuleIfNeeded(ruleKey, () -&gt; toAdHocRule(reportExternalIssue, adHocRuleMap.get(issue.ruleKey())));</span>
+
+<span class="fc" id="L272">      Rule existingRule = ruleRepository.getByKey(ruleKey);</span>
+<span class="fc" id="L273">      issue.setSeverity(determineDeprecatedSeverity(reportExternalIssue, existingRule));</span>
+<span class="fc" id="L274">      issue.setType(determineDeprecatedType(reportExternalIssue, existingRule));</span>
+<span class="fc" id="L275">      issue.replaceImpacts(replaceDefaultWithOverriddenImpactsForExternalIssue(issue.ruleKey(), reportExternalIssue.getImpactsList()));</span>
+
+<span class="fc bfc" id="L277" title="All 2 branches covered.">      init(issue, issue.type() == RuleType.SECURITY_HOTSPOT ? STATUS_TO_REVIEW : STATUS_OPEN);</span>
+
+<span class="pc bpc" id="L279" title="1 of 2 branches missed.">      if (reportExternalIssue.hasTextRange()) {</span>
+<span class="fc" id="L280">        int startLine = reportExternalIssue.getTextRange().getStartLine();</span>
+<span class="fc" id="L281">        issue.setLine(startLine);</span>
+<span class="fc" id="L282">        issue.setChecksum(lineHashSeq.getHashForLine(startLine));</span>
+<span class="fc" id="L283">      } else {</span>
+<span class="nc" id="L284">        issue.setChecksum(&quot;&quot;);</span>
+      }
+<span class="pc bpc" id="L286" title="1 of 2 branches missed.">      if (isNotEmpty(reportExternalIssue.getMsg())) {</span>
+<span class="fc" id="L287">        issue.setMessage(reportExternalIssue.getMsg());</span>
+<span class="fc bfc" id="L288" title="All 2 branches covered.">        if (!reportExternalIssue.getMsgFormattingList().isEmpty()) {</span>
+<span class="fc" id="L289">          issue.setMessageFormattings(convertMessageFormattings(reportExternalIssue.getMsgFormattingList()));</span>
+        }
+      }
+<span class="fc bfc" id="L292" title="All 2 branches covered.">      issue.setEffort(Duration.create(reportExternalIssue.getEffort() != 0 ? reportExternalIssue.getEffort() : DEFAULT_EXTERNAL_ISSUE_EFFORT));</span>
+<span class="fc" id="L293">      DbIssues.Locations.Builder dbLocationsBuilder = DbIssues.Locations.newBuilder();</span>
+<span class="pc bpc" id="L294" title="1 of 2 branches missed.">      if (reportExternalIssue.hasTextRange()) {</span>
+<span class="fc" id="L295">        dbLocationsBuilder.setTextRange(convertTextRange(reportExternalIssue.getTextRange()));</span>
+      }
+<span class="fc bfc" id="L297" title="All 2 branches covered.">      for (ScannerReport.Flow flow : reportExternalIssue.getFlowList()) {</span>
+<span class="pc bpc" id="L298" title="1 of 2 branches missed.">        if (flow.getLocationCount() &gt; 0) {</span>
+<span class="fc" id="L299">          DbIssues.Flow.Builder dbFlowBuilder = convertLocations(flow);</span>
+<span class="fc" id="L300">          dbLocationsBuilder.addFlow(dbFlowBuilder);</span>
+        }
+<span class="fc" id="L302">      }</span>
+<span class="fc" id="L303">      issue.setIsFromExternalRuleEngine(true);</span>
+<span class="fc" id="L304">      issue.setLocations(dbLocationsBuilder.build());</span>
+
+<span class="fc" id="L306">      return issue;</span>
+    }
+
+    private NewAdHocRule toAdHocRule(ScannerReport.ExternalIssue reportIssue, @Nullable ScannerReport.AdHocRule adHocRule) {
+<span class="pc bpc" id="L310" title="1 of 2 branches missed.">      if (adHocRule != null) {</span>
+<span class="nc" id="L311">        return new NewAdHocRule(adHocRule);</span>
+      }
+<span class="fc" id="L313">      return new NewAdHocRule(reportIssue);</span>
+    }
+
+    private Optional&lt;DbIssues.FlowType&gt; toFlowType(ScannerReport.FlowType flowType) {
+<span class="pc bpc" id="L317" title="1 of 4 branches missed.">      return switch (flowType) {</span>
+<span class="fc" id="L318">        case DATA -&gt; Optional.of(DbIssues.FlowType.DATA);</span>
+<span class="fc" id="L319">        case EXECUTION -&gt; Optional.of(DbIssues.FlowType.EXECUTION);</span>
+<span class="fc" id="L320">        case UNDEFINED -&gt; Optional.empty();</span>
+<span class="nc" id="L321">        default -&gt; throw new IllegalArgumentException(&quot;Unrecognized type: &quot; + flowType);</span>
+      };
+    }
+
+    private RuleType toRuleType(IssueType type) {
+<span class="pc bpc" id="L326" title="1 of 5 branches missed.">      return switch (type) {</span>
+<span class="fc" id="L327">        case BUG -&gt; RuleType.BUG;</span>
+<span class="fc" id="L328">        case CODE_SMELL -&gt; RuleType.CODE_SMELL;</span>
+<span class="fc" id="L329">        case VULNERABILITY -&gt; RuleType.VULNERABILITY;</span>
+<span class="fc" id="L330">        case SECURITY_HOTSPOT -&gt; RuleType.SECURITY_HOTSPOT;</span>
+<span class="nc" id="L331">        default -&gt; throw new IllegalStateException(&quot;Invalid issue type: &quot; + type);</span>
+      };
+    }
+
+    private DefaultIssue init(DefaultIssue issue, String initialStatus) {
+<span class="fc" id="L336">      issue.setStatus(initialStatus);</span>
+<span class="fc" id="L337">      issue.setResolution(null);</span>
+<span class="fc" id="L338">      issue.setComponentUuid(component.getUuid());</span>
+<span class="fc" id="L339">      issue.setComponentKey(component.getKey());</span>
+<span class="fc" id="L340">      issue.setProjectUuid(treeRootHolder.getRoot().getUuid());</span>
+<span class="fc" id="L341">      issue.setProjectKey(treeRootHolder.getRoot().getKey());</span>
+<span class="fc" id="L342">      return issue;</span>
+    }
+
+    private Optional&lt;DbIssues.Location&gt; convertLocation(ScannerReport.IssueLocation source) {
+<span class="fc" id="L346">      DbIssues.Location.Builder target = DbIssues.Location.newBuilder();</span>
+<span class="fc bfc" id="L347" title="All 4 branches covered.">      if (source.getComponentRef() != 0 &amp;&amp; source.getComponentRef() != component.getReportAttributes().getRef()) {</span>
+        // Component might not exist because on PR, only changed components are included in the component tree
+        // See in BuildComponentTreeStep the call to buildChangedComponentTreeRoot
+<span class="fc" id="L350">        Optional&lt;Component&gt; optionalComponent = treeRootHolder.getOptionalComponentByRef(source.getComponentRef());</span>
+<span class="fc bfc" id="L351" title="All 2 branches covered.">        if (optionalComponent.isEmpty()) {</span>
+<span class="fc" id="L352">          return Optional.empty();</span>
+        }
+<span class="fc" id="L354">        target.setComponentId(optionalComponent.get().getUuid());</span>
+      }
+<span class="fc bfc" id="L356" title="All 2 branches covered.">      if (isNotEmpty(source.getMsg())) {</span>
+<span class="fc" id="L357">        target.setMsg(source.getMsg());</span>
+<span class="fc" id="L358">        source.getMsgFormattingList()</span>
+<span class="fc" id="L359">          .forEach(m -&gt; target.addMsgFormatting(convertMessageFormatting(m)));</span>
+      }
+<span class="fc bfc" id="L361" title="All 2 branches covered.">      if (source.hasTextRange()) {</span>
+<span class="fc" id="L362">        ScannerReport.TextRange sourceRange = source.getTextRange();</span>
+<span class="fc" id="L363">        DbCommons.TextRange.Builder targetRange = convertTextRange(sourceRange);</span>
+<span class="fc" id="L364">        target.setTextRange(targetRange);</span>
+      }
+<span class="fc" id="L366">      return Optional.of(target.build());</span>
+    }
+
+    private DbCommons.TextRange.Builder convertTextRange(ScannerReport.TextRange sourceRange) {
+<span class="fc" id="L370">      DbCommons.TextRange.Builder targetRange = DbCommons.TextRange.newBuilder();</span>
+<span class="fc" id="L371">      targetRange.setStartLine(sourceRange.getStartLine());</span>
+<span class="fc" id="L372">      targetRange.setStartOffset(sourceRange.getStartOffset());</span>
+<span class="fc" id="L373">      targetRange.setEndLine(sourceRange.getEndLine());</span>
+<span class="fc" id="L374">      targetRange.setEndOffset(sourceRange.getEndOffset());</span>
+<span class="fc" id="L375">      return targetRange;</span>
+    }
+
+    private RuleType determineDeprecatedType(ScannerReport.ExternalIssue reportExternalIssue, Rule rule) {
+<span class="fc bfc" id="L379" title="All 2 branches covered.">      if (reportExternalIssue.getType() != ScannerReport.IssueType.UNSET) {</span>
+<span class="fc" id="L380">        return toRuleType(reportExternalIssue.getType());</span>
+<span class="pc bpc" id="L381" title="1 of 2 branches missed.">      } else if (rule.getType() != null) {</span>
+<span class="fc" id="L382">        return rule.getType();</span>
+<span class="nc bnc" id="L383" title="All 2 branches missed.">      } else if (!rule.getDefaultImpacts().isEmpty()) {</span>
+<span class="nc" id="L384">        SoftwareQuality impactSoftwareQuality = ImpactMapper.getBestImpactForBackmapping(rule.getDefaultImpacts()).getKey();</span>
+<span class="nc" id="L385">        return RuleTypeMapper.toRuleType(ImpactMapper.convertToRuleType(impactSoftwareQuality));</span>
+      } else {
+<span class="nc" id="L387">        throw new IllegalArgumentException(&quot;Cannot determine the type for issue of rule %s&quot;.formatted(reportExternalIssue.getRuleId()));</span>
+      }
+    }
+
+    private static String determineDeprecatedSeverity(ScannerReport.ExternalIssue reportExternalIssue, Rule rule) {
+<span class="fc bfc" id="L392" title="All 2 branches covered.">      if (reportExternalIssue.getSeverity() != Constants.Severity.UNSET_SEVERITY) {</span>
+<span class="fc" id="L393">        return reportExternalIssue.getSeverity().name();</span>
+<span class="fc bfc" id="L394" title="All 2 branches covered.">      } else if (rule.getSeverity() != null) {</span>
+<span class="fc" id="L395">        return rule.getSeverity();</span>
+<span class="pc bpc" id="L396" title="1 of 2 branches missed.">      } else if (!rule.getDefaultImpacts().isEmpty()) {</span>
+<span class="fc" id="L397">        Severity impactSeverity = ImpactMapper.getBestImpactForBackmapping(rule.getDefaultImpacts()).getValue();</span>
+<span class="fc" id="L398">        return ImpactMapper.convertToDeprecatedSeverity(impactSeverity);</span>
+      } else {
+<span class="nc" id="L400">        throw new IllegalArgumentException(&quot;Cannot determine the severity for issue of rule %s&quot;.formatted(reportExternalIssue.getRuleId()));</span>
+      }
+    }
+
+  }
+
+  private static DbIssues.MessageFormattings convertMessageFormattings(List&lt;ScannerReport.MessageFormatting&gt; msgFormattings) {
+<span class="fc" id="L407">    DbIssues.MessageFormattings.Builder builder = DbIssues.MessageFormattings.newBuilder();</span>
+<span class="fc" id="L408">    msgFormattings.stream()</span>
+<span class="fc" id="L409">      .forEach(m -&gt; builder.addMessageFormatting(TrackerRawInputFactory.convertMessageFormatting(m)));</span>
+<span class="fc" id="L410">    return builder.build();</span>
+  }
+
+  @NotNull
+  private static DbIssues.MessageFormatting convertMessageFormatting(ScannerReport.MessageFormatting m) {
+<span class="fc" id="L415">    DbIssues.MessageFormatting.Builder msgFormattingBuilder = DbIssues.MessageFormatting.newBuilder();</span>
+<span class="fc" id="L416">    return msgFormattingBuilder</span>
+<span class="fc" id="L417">      .setStart(m.getStart())</span>
+<span class="fc" id="L418">      .setEnd(m.getEnd())</span>
+<span class="fc" id="L419">      .setType(DbIssues.MessageFormattingType.valueOf(m.getType().name())).build();</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

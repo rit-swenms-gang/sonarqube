@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SqUpgradeDetectionEventsStep.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.step</a> &gt; <span class="el_source">SqUpgradeDetectionEventsStep.java</span></div><h1>SqUpgradeDetectionEventsStep.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.step;
+
+import java.util.List;
+import org.sonar.ce.task.projectanalysis.component.Component;
+import org.sonar.ce.task.projectanalysis.component.TreeRootHolder;
+import org.sonar.ce.task.projectanalysis.event.Event;
+import org.sonar.ce.task.projectanalysis.event.EventRepository;
+import org.sonar.ce.task.step.ComputationStep;
+import org.sonar.core.platform.SonarQubeVersion;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.event.EventDto;
+
+/**
+ * Computation of SQ Upgrade events
+ */
+public class SqUpgradeDetectionEventsStep implements ComputationStep {
+  private final TreeRootHolder treeRootHolder;
+  private final DbClient dbClient;
+  private final EventRepository eventRepository;
+  private final SonarQubeVersion sonarQubeVersion;
+
+  public SqUpgradeDetectionEventsStep(TreeRootHolder treeRootHolder, DbClient dbClient,
+<span class="fc" id="L43">    EventRepository eventRepository, SonarQubeVersion sonarQubeVersion) {</span>
+<span class="fc" id="L44">    this.treeRootHolder = treeRootHolder;</span>
+<span class="fc" id="L45">    this.dbClient = dbClient;</span>
+<span class="fc" id="L46">    this.eventRepository = eventRepository;</span>
+<span class="fc" id="L47">    this.sonarQubeVersion = sonarQubeVersion;</span>
+<span class="fc" id="L48">  }</span>
+
+  @Override
+  public void execute(Context context) {
+<span class="fc" id="L52">    executeForBranch(treeRootHolder.getRoot());</span>
+<span class="fc" id="L53">  }</span>
+
+  private void executeForBranch(Component branchComponent) {
+<span class="fc" id="L56">    String currentSqVersion = sonarQubeVersion.get().toString();</span>
+<span class="fc" id="L57">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L58">      List&lt;EventDto&gt; sqUpgradeEvents = dbClient.eventDao().selectSqUpgradesByMostRecentFirst(dbSession, branchComponent.getUuid());</span>
+
+      //We don't really care about newer versions, we want to log the events related to a version change.
+<span class="fc bfc" id="L61" title="All 4 branches covered.">      boolean isFirstAnalysisForSqVersion = sqUpgradeEvents.isEmpty() || !currentSqVersion.equals(sqUpgradeEvents.get(0).getName());</span>
+
+<span class="fc bfc" id="L63" title="All 2 branches covered.">      if (isFirstAnalysisForSqVersion) {</span>
+<span class="fc" id="L64">        Event event = Event.createSqUpgrade(currentSqVersion);</span>
+<span class="fc" id="L65">        eventRepository.add(event);</span>
+      }
+    }
+<span class="fc" id="L68">  }</span>
+
+  @Override
+  public String getDescription() {
+<span class="fc" id="L72">    return &quot;Generate SQ Upgrade analysis events&quot;;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

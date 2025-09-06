@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ModuleSensorsExecutor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.sensor</a> &gt; <span class="el_source">ModuleSensorsExecutor.java</span></div><h1>ModuleSensorsExecutor.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.sensor;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.sonar.api.batch.fs.internal.SensorStrategy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.core.util.logs.Profiler;
+import org.sonar.scanner.bootstrap.ScannerPluginRepository;
+import org.sonar.api.batch.fs.internal.DefaultInputModule;
+import org.sonar.scanner.fs.InputModuleHierarchy;
+
+public class ModuleSensorsExecutor {
+<span class="fc" id="L35">  private static final Logger LOG = LoggerFactory.getLogger(ModuleSensorsExecutor.class);</span>
+<span class="fc" id="L36">  private static final Profiler profiler = Profiler.create(LOG);</span>
+  private final ModuleSensorExtensionDictionary selector;
+  private final SensorStrategy strategy;
+  private final ScannerPluginRepository pluginRepo;
+  private final ExecutingSensorContext executingSensorCtx;
+  private final boolean isRoot;
+
+  public ModuleSensorsExecutor(ModuleSensorExtensionDictionary selector, DefaultInputModule module, InputModuleHierarchy hierarchy,
+<span class="fc" id="L44">    SensorStrategy strategy, ScannerPluginRepository pluginRepo, ExecutingSensorContext executingSensorCtx) {</span>
+<span class="fc" id="L45">    this.selector = selector;</span>
+<span class="fc" id="L46">    this.strategy = strategy;</span>
+<span class="fc" id="L47">    this.pluginRepo = pluginRepo;</span>
+<span class="fc" id="L48">    this.executingSensorCtx = executingSensorCtx;</span>
+<span class="fc" id="L49">    this.isRoot = hierarchy.isRoot(module);</span>
+<span class="fc" id="L50">  }</span>
+
+  public void execute() {
+<span class="fc" id="L53">    Collection&lt;ModuleSensorWrapper&gt; moduleSensors = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L54">    withModuleStrategy(() -&gt; moduleSensors.addAll(selector.selectSensors(false)));</span>
+<span class="fc" id="L55">    Collection&lt;ModuleSensorWrapper&gt; deprecatedGlobalSensors = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L56" title="All 2 branches covered.">    if (isRoot) {</span>
+<span class="fc" id="L57">      deprecatedGlobalSensors.addAll(selector.selectSensors(true));</span>
+    }
+
+<span class="fc" id="L60">    printSensors(moduleSensors, deprecatedGlobalSensors);</span>
+<span class="fc" id="L61">    withModuleStrategy(() -&gt; execute(moduleSensors));</span>
+
+<span class="fc bfc" id="L63" title="All 2 branches covered.">    if (isRoot) {</span>
+<span class="fc" id="L64">      execute(deprecatedGlobalSensors);</span>
+    }
+<span class="fc" id="L66">  }</span>
+
+  private void printSensors(Collection&lt;ModuleSensorWrapper&gt; moduleSensors, Collection&lt;ModuleSensorWrapper&gt; globalSensors) {
+<span class="fc" id="L69">    String sensors = Stream</span>
+<span class="fc" id="L70">      .concat(moduleSensors.stream(), globalSensors.stream())</span>
+<span class="fc" id="L71">      .map(Object::toString)</span>
+<span class="fc" id="L72">      .collect(Collectors.joining(&quot; -&gt; &quot;));</span>
+<span class="fc" id="L73">    LOG.debug(&quot;Sensors : {}&quot;, sensors);</span>
+<span class="fc" id="L74">  }</span>
+
+  private void withModuleStrategy(Runnable r) {
+<span class="fc" id="L77">    boolean orig = strategy.isGlobal();</span>
+<span class="fc" id="L78">    strategy.setGlobal(false);</span>
+<span class="fc" id="L79">    r.run();</span>
+<span class="fc" id="L80">    strategy.setGlobal(orig);</span>
+<span class="fc" id="L81">  }</span>
+
+  private void execute(Collection&lt;ModuleSensorWrapper&gt; sensors) {
+<span class="fc bfc" id="L84" title="All 2 branches covered.">    for (ModuleSensorWrapper sensor : sensors) {</span>
+<span class="fc" id="L85">      SensorId sensorId = getSensorId(sensor);</span>
+<span class="fc" id="L86">      profiler.startInfo(&quot;Sensor &quot; + sensorId);</span>
+<span class="fc" id="L87">      executingSensorCtx.setSensorExecuting(sensorId);</span>
+<span class="fc" id="L88">      sensor.analyse();</span>
+<span class="fc" id="L89">      executingSensorCtx.clearExecutingSensor();</span>
+<span class="fc" id="L90">      profiler.stopInfo();</span>
+<span class="fc" id="L91">    }</span>
+<span class="fc" id="L92">  }</span>
+
+  private SensorId getSensorId(ModuleSensorWrapper sensor) {
+<span class="fc" id="L95">    ClassLoader cl = getSensorClassLoader(sensor);</span>
+<span class="fc" id="L96">    String pluginKey = pluginRepo.getPluginKey(cl);</span>
+<span class="fc" id="L97">    return new SensorId(pluginKey, sensor.toString());</span>
+  }
+
+  private static ClassLoader getSensorClassLoader(ModuleSensorWrapper sensor) {
+<span class="fc" id="L101">    return sensor.wrappedSensor().getClass().getClassLoader();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

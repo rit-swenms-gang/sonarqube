@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ComponentTreeQuery.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.component</a> &gt; <span class="el_source">ComponentTreeQuery.java</span></div><h1>ComponentTreeQuery.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.component;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Locale;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.db.WildcardPosition;
+
+import static com.google.common.collect.Lists.newArrayList;
+import static java.util.Objects.requireNonNull;
+import static org.sonar.db.DaoUtils.buildLikeValue;
+import static org.sonar.db.WildcardPosition.BEFORE_AND_AFTER;
+
+public class ComponentTreeQuery {
+
+<span class="fc" id="L36">  public enum Strategy {</span>
+<span class="fc" id="L37">    CHILDREN, LEAVES</span>
+  }
+
+  @CheckForNull
+  private final String nameOrKeyQuery;
+  // SONAR-7681 a public implementation of List must be used in MyBatis - potential concurrency exceptions otherwise
+  @CheckForNull
+  private final ArrayList&lt;String&gt; qualifiers;
+  @CheckForNull
+  private final ArrayList&lt;String&gt; scopes;
+  private final String baseUuid;
+  private final Strategy strategy;
+
+<span class="fc" id="L50">  private ComponentTreeQuery(Builder builder) {</span>
+<span class="fc" id="L51">    this.nameOrKeyQuery = builder.nameOrKeyQuery;</span>
+<span class="fc bfc" id="L52" title="All 2 branches covered.">    this.qualifiers = builder.qualifiers == null ? null : newArrayList(builder.qualifiers);</span>
+<span class="fc bfc" id="L53" title="All 2 branches covered.">    this.scopes = builder.scopes == null ? null : newArrayList(builder.scopes);</span>
+<span class="fc" id="L54">    this.baseUuid = builder.baseUuid;</span>
+<span class="fc" id="L55">    this.strategy = requireNonNull(builder.strategy);</span>
+<span class="fc" id="L56">  }</span>
+
+  @CheckForNull
+  public Collection&lt;String&gt; getQualifiers() {
+<span class="fc" id="L60">    return qualifiers;</span>
+  }
+
+  @CheckForNull
+  public Collection&lt;String&gt; getScopes() {
+<span class="fc" id="L65">    return scopes;</span>
+  }
+
+  @CheckForNull
+  public String getNameOrKeyQuery() {
+<span class="fc" id="L70">    return nameOrKeyQuery;</span>
+  }
+
+  /**
+   * Used by MyBatis mapper
+   */
+  @CheckForNull
+  public String getNameOrKeyUpperLikeQuery() {
+<span class="fc bfc" id="L78" title="All 2 branches covered.">    return nameOrKeyQuery == null ? null : buildLikeValue(nameOrKeyQuery, BEFORE_AND_AFTER).toUpperCase(Locale.ENGLISH);</span>
+  }
+
+  public String getBaseUuid() {
+<span class="fc" id="L82">    return baseUuid;</span>
+  }
+
+  public Strategy getStrategy() {
+<span class="fc" id="L86">    return strategy;</span>
+  }
+
+  public String getUuidPath(ComponentDto component) {
+<span class="pc bpc" id="L90" title="1 of 3 branches missed.">    switch (strategy) {</span>
+      case CHILDREN:
+<span class="fc" id="L92">        return component.getUuidPath() + component.uuid() + &quot;.&quot;;</span>
+      case LEAVES:
+<span class="fc" id="L94">        return buildLikeValue(component.getUuidPath() + component.uuid() + &quot;.&quot;, WildcardPosition.AFTER);</span>
+      default:
+<span class="nc" id="L96">        throw new IllegalArgumentException(&quot;Unknown strategy : &quot; + strategy);</span>
+    }
+  }
+
+  public static Builder builder() {
+<span class="fc" id="L101">    return new Builder();</span>
+  }
+
+  public static class Builder {
+    @CheckForNull
+    private String nameOrKeyQuery;
+    @CheckForNull
+    private Collection&lt;String&gt; qualifiers;
+    @CheckForNull
+    private Collection&lt;String&gt; scopes;
+    private String baseUuid;
+    private Strategy strategy;
+
+    private Builder() {
+      // private constructor
+    }
+
+    public ComponentTreeQuery build() {
+<span class="fc" id="L119">      requireNonNull(baseUuid);</span>
+<span class="fc" id="L120">      return new ComponentTreeQuery(this);</span>
+    }
+
+    public Builder setNameOrKeyQuery(@Nullable String nameOrKeyQuery) {
+<span class="fc" id="L124">      this.nameOrKeyQuery = nameOrKeyQuery;</span>
+<span class="fc" id="L125">      return this;</span>
+    }
+
+    public Builder setQualifiers(Collection&lt;String&gt; qualifiers) {
+<span class="fc" id="L129">      this.qualifiers = qualifiers;</span>
+<span class="fc" id="L130">      return this;</span>
+    }
+
+    public Builder setScopes(Collection&lt;String&gt; scopes) {
+<span class="fc" id="L134">      this.scopes = scopes;</span>
+<span class="fc" id="L135">      return this;</span>
+    }
+
+    public Builder setBaseUuid(String uuid) {
+<span class="fc" id="L139">      this.baseUuid = uuid;</span>
+<span class="fc" id="L140">      return this;</span>
+    }
+
+    public Builder setStrategy(Strategy strategy) {
+<span class="fc" id="L144">      this.strategy = requireNonNull(strategy);</span>
+<span class="fc" id="L145">      return this;</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>
