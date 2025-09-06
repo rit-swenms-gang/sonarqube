@@ -26,9 +26,11 @@ not appear to be a trivial process. For one, the project relies on JDK 17 and at
 The authors have been working with Java 22 and Gradle 9, which has resulted in the removal of
 deprecated features and incompatible test suites. While it is difficult to guage exactly how many
 tests there are, the test compilation process took over 15 minutes to run and contained thousands
-of test cases. The authors have been trying to use the `jacocoAggregateReport` Gradle plugin to
-compile a comprehensive coverage report, but have yet to succeed.
+of test cases. The authors used the Chat GPT and `jacocoAggregateReport` Gradle plugin to modify the
+`build.gradle` file to compile a comprehensive coverage report.
 
 ### Steps
-1. As shown in the root `README`, run the `./gradlew test` command.
-1. Reports are generated under the `./<sub-dir>/build/test-results/test` directory in XML format.
+1. Clone the `sonarqube` fork repo with `git clone`.
+1. As shown in the root `README`, run the `./gradlew jacocoAggregateReport` command.
+1. Reports are generated under the `./build/reports/jacoco/jacocoAggregateReport/` directory.
+   View results in a browser from `./build/reports/jacoco/jacocoAggregateReport/html/index.html`.
