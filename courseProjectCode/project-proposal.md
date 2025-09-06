@@ -24,3 +24,31 @@ tasks to improve software based on quality metrics, such as reliability,
 understandability, and maintainability.
 
 ## Key Quality Metrics
+
+### Compatibility
+
+Given that SonarQube is able to support so many project languages and
+configurations, compatibility must be one of the most important software
+metrics. This makes sense, given their platform and business model; the
+more projects they can supports will increase their user base. This is
+particularly true for multi-language projects (e.g., a JS frontend and
+Python backend). Providing a single tool to perform checks on the whole
+repo instead of requiring users to manage multiple dependencies for the
+same task streamlines the software quality analysis process.
+
+### Performance Efficiency
+
+Initial analysis of the repository revealed that many components are
+able to be multi-threaded. Since the tool can be used in CI pipelines,
+it would track the scanner needs to be able to run on (at least) GitHub
+runners or in some way interact with an external API. Users would want a
+responsive API to verify the quality of their code quickly.
+
+### Interaction Capability
+
+One of SonarQube's major selling points is that repository owners are able
+to enforce their own chosen standards for any repository. Sonar Qube gives
+its users the agency to decide on their own needs for a project instead of
+a set of prescribed practices. If, for example, a TypeScript project
+disabled the rule for `no-explicit-any`, SonarQube would not flag these
+"errors" even if standard practice dicates otherwise.
