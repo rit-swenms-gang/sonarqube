@@ -19,7 +19,16 @@ have test files been excluded.
 
 ## Testability Analysis
 
-Project uses gradle, JUnit, Mockito, maybe more?.
+SonarQube appears to use Gradle, JUnit, and Mockito for their unit and integration tests. Jacoco
+seems to be used to generate reports into the build directory for each subsystem. While it is
+possible to run the automated build and test processes, the reviewing the results of all tests does
+not appear to be a trivial process. For one, the project relies on JDK 17 and at most Gradle 8.
+The authors have been working with Java 22 and Gradle 9, which has resulted in the removal of
+deprecated features and incompatible test suites. While it is difficult to guage exactly how many
+tests there are, the test compilation process took over 15 minutes to run and contained thousands
+of test cases. The authors have been trying to use the `jacocoAggregateReport` Gradle plugin to
+compile a comprehensive coverage report, but have yet to succeed.
 
- `./gradlew test`
- generates report under `sonarqube/sonar-scanner-engine/build/reports/tests/test/index.html`
+### Steps
+1. As shown in the root `README`, run the `./gradlew test` command.
+1. Reports are generated under the `./<sub-dir>/build/test-results/test` directory in XML format.
