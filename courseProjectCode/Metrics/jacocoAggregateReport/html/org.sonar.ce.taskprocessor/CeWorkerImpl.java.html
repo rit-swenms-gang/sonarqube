@@ -1,0 +1,316 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CeWorkerImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.taskprocessor</a> &gt; <span class="el_source">CeWorkerImpl.java</span></div><h1>CeWorkerImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.taskprocessor;
+
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.api.utils.MessageException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.ce.queue.InternalCeQueue;
+import org.sonar.ce.task.CeTask;
+import org.sonar.ce.task.CeTaskInterruptedException;
+import org.sonar.ce.task.CeTaskResult;
+import org.sonar.ce.task.taskprocessor.CeTaskProcessor;
+import org.sonar.core.util.logs.Profiler;
+import org.sonar.db.ce.CeActivityDto;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.lang.String.format;
+import static org.sonar.ce.task.CeTaskInterruptedException.isTaskInterruptedException;
+import static org.sonar.ce.taskprocessor.CeWorker.Result.DISABLED;
+import static org.sonar.ce.taskprocessor.CeWorker.Result.NO_TASK;
+import static org.sonar.ce.taskprocessor.CeWorker.Result.TASK_PROCESSED;
+import static org.sonar.db.ce.CeActivityDto.Status.FAILED;
+
+public class CeWorkerImpl implements CeWorker {
+
+<span class="fc" id="L55">  private static final Logger LOG = LoggerFactory.getLogger(CeWorkerImpl.class);</span>
+
+  private final int ordinal;
+  private final String uuid;
+  private final InternalCeQueue queue;
+  private final CeTaskProcessorRepository taskProcessorRepository;
+  private final CeWorkerController ceWorkerController;
+  private final List&lt;ExecutionListener&gt; listeners;
+<span class="fc" id="L63">  private final AtomicReference&lt;RunningState&gt; runningState = new AtomicReference&lt;&gt;();</span>
+  private boolean excludeIndexationJob;
+
+  public CeWorkerImpl(int ordinal, String uuid,
+    InternalCeQueue queue, CeTaskProcessorRepository taskProcessorRepository,
+    CeWorkerController ceWorkerController,
+<span class="fc" id="L69">    ExecutionListener... listeners) {</span>
+<span class="fc" id="L70">    this.ordinal = checkOrdinal(ordinal);</span>
+<span class="fc" id="L71">    this.uuid = uuid;</span>
+<span class="fc" id="L72">    this.queue = queue;</span>
+<span class="fc" id="L73">    this.taskProcessorRepository = taskProcessorRepository;</span>
+<span class="fc" id="L74">    this.ceWorkerController = ceWorkerController;</span>
+<span class="fc" id="L75">    this.listeners = Arrays.asList(listeners);</span>
+<span class="fc" id="L76">    this.excludeIndexationJob = true;</span>
+<span class="fc" id="L77">  }</span>
+
+  private static int checkOrdinal(int ordinal) {
+<span class="fc bfc" id="L80" title="All 2 branches covered.">    checkArgument(ordinal &gt;= 0, &quot;Ordinal must be &gt;= 0&quot;);</span>
+<span class="fc" id="L81">    return ordinal;</span>
+  }
+
+  @Override
+  public Result call() {
+<span class="fc" id="L86">    try (TrackRunningState trackRunningState = new TrackRunningState(this::findAndProcessTask)) {</span>
+<span class="fc" id="L87">      return trackRunningState.get();</span>
+    }
+  }
+
+  @Override
+  public int getOrdinal() {
+<span class="fc" id="L93">    return ordinal;</span>
+  }
+
+  @Override
+  public String getUUID() {
+<span class="fc" id="L98">    return uuid;</span>
+  }
+
+  @Override
+  public boolean isExecutedBy(Thread thread) {
+<span class="fc" id="L103">    return Optional.ofNullable(runningState.get())</span>
+<span class="fc" id="L104">      .filter(state -&gt; state.runningThread.equals(thread))</span>
+<span class="fc" id="L105">      .isPresent();</span>
+  }
+
+  @Override
+  public Optional&lt;CeTask&gt; getCurrentTask() {
+<span class="fc" id="L110">    return Optional.ofNullable(runningState.get())</span>
+<span class="fc" id="L111">      .flatMap(RunningState::getTask);</span>
+  }
+
+  private class TrackRunningState implements AutoCloseable, Supplier&lt;Result&gt; {
+    private final RunningState localRunningState;
+    private final Function&lt;RunningState, Result&gt; delegate;
+    private final String oldName;
+
+<span class="fc" id="L119">    private TrackRunningState(Function&lt;RunningState, Result&gt; delegate) {</span>
+<span class="fc" id="L120">      Thread currentThread = Thread.currentThread();</span>
+<span class="fc" id="L121">      localRunningState = new RunningState(currentThread);</span>
+<span class="pc bpc" id="L122" title="1 of 2 branches missed.">      if (!runningState.compareAndSet(null, localRunningState)) {</span>
+<span class="nc" id="L123">        LOG.warn(&quot;Worker {} (UUID=%s) starts executing with new Thread {} while running state isn't null. &quot; +</span>
+          &quot;Forcefully updating Workers's running state to new Thread.&quot;,
+<span class="nc" id="L125">          getOrdinal(), getUUID(), currentThread);</span>
+<span class="nc" id="L126">        runningState.set(localRunningState);</span>
+      }
+<span class="fc" id="L128">      this.delegate = delegate;</span>
+<span class="fc" id="L129">      this.oldName = currentThread.getName();</span>
+<span class="fc" id="L130">    }</span>
+
+    @Override
+    public Result get() {
+<span class="fc" id="L134">      localRunningState.runningThread.setName(String.format(&quot;Worker %s (UUID=%s) on %s&quot;, getOrdinal(), getUUID(), oldName));</span>
+<span class="fc" id="L135">      return delegate.apply(localRunningState);</span>
+    }
+
+    @Override
+    public void close() {
+<span class="fc" id="L140">      localRunningState.runningThread.setName(oldName);</span>
+<span class="pc bpc" id="L141" title="1 of 2 branches missed.">      if (!runningState.compareAndSet(localRunningState, null)) {</span>
+<span class="nc" id="L142">        LOG.warn(&quot;Worker {} (UUID=%s) ending execution in Thread {} while running state has already changed.&quot; +</span>
+          &quot; Keeping this new state.&quot;,
+<span class="nc" id="L144">          getOrdinal(), getUUID(), localRunningState.runningThread);</span>
+      }
+<span class="fc" id="L146">    }</span>
+  }
+
+  private Result findAndProcessTask(RunningState localRunningState) {
+<span class="fc bfc" id="L150" title="All 2 branches covered.">    if (!ceWorkerController.isEnabled(this)) {</span>
+<span class="fc" id="L151">      return DISABLED;</span>
+    }
+<span class="fc" id="L153">    Optional&lt;CeTask&gt; ceTask = tryAndFindTaskToExecute();</span>
+<span class="fc bfc" id="L154" title="All 2 branches covered.">    if (!ceTask.isPresent()) {</span>
+<span class="fc" id="L155">      return NO_TASK;</span>
+    }
+
+<span class="fc" id="L158">    try (CeWorkerController.ProcessingRecorderHook processing = ceWorkerController.registerProcessingFor(this);</span>
+<span class="fc" id="L159">      ExecuteTask executeTask = new ExecuteTask(localRunningState, ceTask.get())) {</span>
+<span class="fc" id="L160">      executeTask.run();</span>
+<span class="nc" id="L161">    } catch (Exception e) {</span>
+<span class="nc" id="L162">      LOG.error(format(&quot;An error occurred while executing task with uuid '%s'&quot;, ceTask.get().getUuid()), e);</span>
+<span class="fc" id="L163">    }</span>
+<span class="fc" id="L164">    return TASK_PROCESSED;</span>
+  }
+
+  private Optional&lt;CeTask&gt; tryAndFindTaskToExecute() {
+<span class="fc bfc" id="L168" title="All 2 branches covered.">    excludeIndexationJob = !excludeIndexationJob;</span>
+    try {
+<span class="fc" id="L170">      return queue.peek(uuid, excludeIndexationJob);</span>
+<span class="nc" id="L171">    } catch (Exception e) {</span>
+<span class="nc" id="L172">      LOG.error(&quot;Failed to pop the queue of analysis reports&quot;, e);</span>
+    }
+<span class="nc" id="L174">    return Optional.empty();</span>
+  }
+
+  private final class ExecuteTask implements Runnable, AutoCloseable {
+    private final CeTask task;
+    private final RunningState localRunningState;
+    private final Profiler ceProfiler;
+<span class="fc" id="L181">    private CeActivityDto.Status status = FAILED;</span>
+<span class="fc" id="L182">    private CeTaskResult taskResult = null;</span>
+<span class="fc" id="L183">    private Throwable error = null;</span>
+
+<span class="fc" id="L185">    private ExecuteTask(RunningState localRunningState, CeTask task) {</span>
+<span class="fc" id="L186">      this.task = task;</span>
+<span class="fc" id="L187">      this.localRunningState = localRunningState;</span>
+<span class="fc" id="L188">      this.ceProfiler = startLogProfiler(task);</span>
+<span class="fc" id="L189">    }</span>
+
+    @Override
+    public void run() {
+<span class="fc" id="L193">      beforeExecute();</span>
+<span class="fc" id="L194">      executeTask();</span>
+<span class="fc" id="L195">    }</span>
+
+    @Override
+    public void close() {
+<span class="fc" id="L199">      afterExecute();</span>
+<span class="fc" id="L200">    }</span>
+
+    private void beforeExecute() {
+<span class="fc" id="L203">      localRunningState.setTask(task);</span>
+<span class="fc" id="L204">      callListeners(t -&gt; t.onStart(task));</span>
+<span class="fc" id="L205">    }</span>
+
+    private void executeTask() {
+      try {
+        // TODO delegate the message to the related task processor, according to task type
+<span class="fc" id="L210">        Optional&lt;CeTaskProcessor&gt; taskProcessor = taskProcessorRepository.getForCeTask(task);</span>
+<span class="fc bfc" id="L211" title="All 2 branches covered.">        if (taskProcessor.isPresent()) {</span>
+<span class="fc" id="L212">          taskResult = taskProcessor.get().process(task);</span>
+<span class="fc" id="L213">          status = CeActivityDto.Status.SUCCESS;</span>
+        } else {
+<span class="fc" id="L215">          LOG.error(&quot;No CeTaskProcessor is defined for task of type {}. Plugin configuration may have changed&quot;, task.getType());</span>
+<span class="fc" id="L216">          status = FAILED;</span>
+        }
+<span class="fc" id="L218">      } catch (MessageException e) {</span>
+        // error
+<span class="fc" id="L220">        error = e;</span>
+<span class="fc" id="L221">      } catch (Throwable e) {</span>
+<span class="fc" id="L222">        Optional&lt;CeTaskInterruptedException&gt; taskInterruptedException = isTaskInterruptedException(e);</span>
+<span class="pc bpc" id="L223" title="1 of 2 branches missed.">        if (taskInterruptedException.isPresent()) {</span>
+<span class="nc" id="L224">          LOG.trace(&quot;Task interrupted&quot;, e);</span>
+<span class="nc" id="L225">          CeTaskInterruptedException exception = taskInterruptedException.get();</span>
+<span class="nc" id="L226">          CeActivityDto.Status interruptionStatus = exception.getStatus();</span>
+<span class="nc" id="L227">          status = interruptionStatus;</span>
+<span class="nc bnc" id="L228" title="All 2 branches missed.">          error = (interruptionStatus == FAILED ? exception : null);</span>
+<span class="nc" id="L229">        } else {</span>
+          // error
+<span class="fc" id="L231">          LOG.error(&quot;Failed to execute task {}&quot;, task.getUuid(), e);</span>
+<span class="fc" id="L232">          error = e;</span>
+        }
+<span class="fc" id="L234">      }</span>
+<span class="fc" id="L235">    }</span>
+
+    private void afterExecute() {
+<span class="fc" id="L238">      localRunningState.setTask(null);</span>
+<span class="fc" id="L239">      finalizeTask(task, ceProfiler, status, taskResult, error);</span>
+<span class="fc" id="L240">    }</span>
+
+    private void finalizeTask(CeTask task, Profiler ceProfiler, CeActivityDto.Status status,
+      @Nullable CeTaskResult taskResult, @Nullable Throwable error) {
+      try {
+<span class="fc" id="L245">        queue.remove(task, status, taskResult, error);</span>
+<span class="fc" id="L246">      } catch (Exception e) {</span>
+<span class="fc bfc" id="L247" title="All 2 branches covered.">        if (error != null) {</span>
+<span class="fc" id="L248">          e.addSuppressed(error);</span>
+        }
+<span class="fc" id="L250">        LOG.error(format(&quot;Failed to finalize task with uuid '%s' and persist its state to db&quot;, task.getUuid()), e);</span>
+      } finally {
+<span class="fc" id="L252">        ceProfiler.addContext(&quot;status&quot;, status.name());</span>
+<span class="fc" id="L253">        long durationMs = ceProfiler.stopInfo(&quot;Executed task&quot;);</span>
+<span class="fc" id="L254">        Duration duration = Duration.of(durationMs, ChronoUnit.MILLIS);</span>
+<span class="fc" id="L255">        callListeners(t -&gt; t.onEnd(task, status, duration, taskResult, error));</span>
+      }
+<span class="fc" id="L257">    }</span>
+
+    private void callListeners(Consumer&lt;ExecutionListener&gt; call) {
+<span class="fc" id="L260">      listeners.forEach(listener -&gt; {</span>
+        try {
+<span class="fc" id="L262">          call.accept(listener);</span>
+<span class="nc" id="L263">        } catch (Throwable t) {</span>
+<span class="nc" id="L264">          LOG.error(format(&quot;Call to listener %s failed.&quot;, listener.getClass().getSimpleName()), t);</span>
+<span class="fc" id="L265">        }</span>
+<span class="fc" id="L266">      });</span>
+<span class="fc" id="L267">    }</span>
+  }
+
+  private static Profiler startLogProfiler(CeTask task) {
+<span class="fc" id="L271">    Profiler profiler = Profiler.create(LOG)</span>
+<span class="fc" id="L272">      .logTimeLast(true)</span>
+<span class="fc" id="L273">      .addContext(&quot;project&quot;, task.getEntity().flatMap(CeTask.Component::getKey).orElse(null))</span>
+<span class="fc" id="L274">      .addContext(&quot;type&quot;, task.getType());</span>
+<span class="fc bfc" id="L275" title="All 2 branches covered.">    for (Map.Entry&lt;String, String&gt; characteristic : task.getCharacteristics().entrySet()) {</span>
+<span class="fc" id="L276">      profiler.addContext(characteristic.getKey(), characteristic.getValue());</span>
+<span class="fc" id="L277">    }</span>
+<span class="fc" id="L278">    return profiler</span>
+<span class="fc" id="L279">      .addContext(&quot;id&quot;, task.getUuid())</span>
+<span class="fc" id="L280">      .addContext(&quot;submitter&quot;, submitterOf(task))</span>
+<span class="fc" id="L281">      .startInfo(&quot;Execute task&quot;);</span>
+  }
+
+  @CheckForNull
+  private static String submitterOf(CeTask task) {
+<span class="fc" id="L286">    CeTask.User submitter = task.getSubmitter();</span>
+<span class="fc bfc" id="L287" title="All 2 branches covered.">    if (submitter == null) {</span>
+<span class="fc" id="L288">      return null;</span>
+    }
+<span class="fc" id="L290">    String submitterLogin = submitter.login();</span>
+<span class="fc bfc" id="L291" title="All 2 branches covered.">    if (submitterLogin != null) {</span>
+<span class="fc" id="L292">      return submitterLogin;</span>
+    } else {
+<span class="fc" id="L294">      return submitter.uuid();</span>
+    }
+  }
+
+  private static final class RunningState {
+    private final Thread runningThread;
+    private CeTask task;
+
+<span class="fc" id="L302">    private RunningState(Thread runningThread) {</span>
+<span class="fc" id="L303">      this.runningThread = runningThread;</span>
+<span class="fc" id="L304">    }</span>
+
+    public Optional&lt;CeTask&gt; getTask() {
+<span class="fc" id="L307">      return Optional.ofNullable(task);</span>
+    }
+
+    public void setTask(@Nullable CeTask task) {
+<span class="fc" id="L311">      this.task = task;</span>
+<span class="fc" id="L312">    }</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

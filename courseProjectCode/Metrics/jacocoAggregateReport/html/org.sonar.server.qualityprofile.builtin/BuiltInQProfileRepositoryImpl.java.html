@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BuiltInQProfileRepositoryImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.qualityprofile.builtin</a> &gt; <span class="el_source">BuiltInQProfileRepositoryImpl.java</span></div><h1>BuiltInQProfileRepositoryImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.qualityprofile.builtin;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Multimap;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import javax.annotation.Nullable;
+import org.sonar.api.resources.Language;
+import org.sonar.api.resources.Languages;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.api.server.profile.BuiltInQualityProfilesDefinition;
+import org.sonar.api.server.profile.BuiltInQualityProfilesDefinition.BuiltInQualityProfile;
+import org.sonar.api.utils.log.Logger;
+import org.sonar.api.utils.log.Loggers;
+import org.sonar.api.utils.log.Profiler;
+import org.sonar.core.util.stream.MoreCollectors;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.rule.DeprecatedRuleKeyDto;
+import org.sonar.db.rule.RuleDto;
+import org.sonar.server.rule.ServerRuleFinder;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import static com.google.common.base.Preconditions.checkState;
+
+public class BuiltInQProfileRepositoryImpl implements BuiltInQProfileRepository {
+<span class="fc" id="L54">  private static final Logger LOGGER = Loggers.get(BuiltInQProfileRepositoryImpl.class);</span>
+  private static final String DEFAULT_PROFILE_NAME = &quot;Sonar way&quot;;
+
+  private final DbClient dbClient;
+  private final ServerRuleFinder ruleFinder;
+  private final Languages languages;
+  private final List&lt;BuiltInQualityProfilesDefinition&gt; definitions;
+  private List&lt;BuiltInQProfile&gt; qProfiles;
+
+  /**
+   * Used by the ioc container when no {@link BuiltInQualityProfilesDefinition} is defined at all
+   */
+  @Autowired(required = false)
+  public BuiltInQProfileRepositoryImpl(DbClient dbClient, ServerRuleFinder ruleFinder, Languages languages) {
+<span class="fc" id="L68">    this(dbClient, ruleFinder, languages, new BuiltInQualityProfilesDefinition[0]);</span>
+<span class="fc" id="L69">  }</span>
+
+  @Autowired(required = false)
+<span class="fc" id="L72">  public BuiltInQProfileRepositoryImpl(DbClient dbClient, ServerRuleFinder ruleFinder, Languages languages, BuiltInQualityProfilesDefinition... definitions) {</span>
+<span class="fc" id="L73">    this.dbClient = dbClient;</span>
+<span class="fc" id="L74">    this.ruleFinder = ruleFinder;</span>
+<span class="fc" id="L75">    this.languages = languages;</span>
+<span class="fc" id="L76">    this.definitions = ImmutableList.copyOf(definitions);</span>
+<span class="fc" id="L77">  }</span>
+
+  @Override
+  public void initialize() {
+<span class="fc bfc" id="L81" title="All 2 branches covered.">    checkState(qProfiles == null, &quot;initialize must be called only once&quot;);</span>
+
+<span class="fc" id="L83">    Profiler profiler = Profiler.create(LOGGER).startInfo(&quot;Load quality profiles&quot;);</span>
+<span class="fc" id="L84">    BuiltInQualityProfilesDefinition.Context context = new BuiltInQualityProfilesDefinition.Context();</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">    for (BuiltInQualityProfilesDefinition definition : definitions) {</span>
+<span class="fc" id="L86">      definition.define(context);</span>
+<span class="fc" id="L87">    }</span>
+<span class="fc" id="L88">    Map&lt;String, Map&lt;String, BuiltInQualityProfile&gt;&gt; rulesProfilesByLanguage = validateAndClean(context);</span>
+<span class="fc" id="L89">    this.qProfiles = toFlatList(rulesProfilesByLanguage);</span>
+<span class="fc" id="L90">    ensureAllLanguagesHaveAtLeastOneBuiltInQP();</span>
+<span class="fc" id="L91">    profiler.stopDebug();</span>
+<span class="fc" id="L92">  }</span>
+
+  @Override
+  public List&lt;BuiltInQProfile&gt; get() {
+<span class="fc bfc" id="L96" title="All 2 branches covered.">    checkState(qProfiles != null, &quot;initialize must be called first&quot;);</span>
+
+<span class="fc" id="L98">    return qProfiles;</span>
+  }
+
+  private void ensureAllLanguagesHaveAtLeastOneBuiltInQP() {
+<span class="fc" id="L102">    Set&lt;String&gt; languagesWithBuiltInQProfiles = qProfiles.stream().map(BuiltInQProfile::getLanguage).collect(Collectors.toSet());</span>
+<span class="fc" id="L103">    Set&lt;String&gt; languagesWithoutBuiltInQProfiles = Arrays.stream(languages.all())</span>
+<span class="fc" id="L104">      .map(Language::getKey)</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">      .filter(key -&gt; !languagesWithBuiltInQProfiles.contains(key))</span>
+<span class="fc" id="L106">      .collect(Collectors.toSet());</span>
+
+<span class="fc" id="L108">    checkState(languagesWithoutBuiltInQProfiles.isEmpty(), &quot;The following languages have no built-in quality profiles: %s&quot;,</span>
+<span class="fc bfc" id="L109" title="All 2 branches covered.">      languagesWithoutBuiltInQProfiles.isEmpty() ? &quot;&quot; : String.join(&quot;, &quot;, languagesWithoutBuiltInQProfiles));</span>
+<span class="fc" id="L110">  }</span>
+
+  private Map&lt;String, Map&lt;String, BuiltInQualityProfile&gt;&gt; validateAndClean(BuiltInQualityProfilesDefinition.Context context) {
+<span class="fc" id="L113">    Map&lt;String, Map&lt;String, BuiltInQualityProfile&gt;&gt; profilesByLanguageAndName = context.profilesByLanguageAndName();</span>
+<span class="fc" id="L114">    profilesByLanguageAndName.entrySet()</span>
+<span class="fc" id="L115">      .removeIf(entry -&gt; {</span>
+<span class="fc" id="L116">        String language = entry.getKey();</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">        if (languages.get(language) == null) {</span>
+<span class="fc" id="L118">          LOGGER.info(&quot;Language {} is not installed, related quality profiles are ignored&quot;, language);</span>
+<span class="fc" id="L119">          return true;</span>
+        }
+<span class="fc" id="L121">        return false;</span>
+      });
+
+<span class="fc" id="L124">    return profilesByLanguageAndName;</span>
+  }
+
+  private List&lt;BuiltInQProfile&gt; toFlatList(Map&lt;String, Map&lt;String, BuiltInQualityProfile&gt;&gt; rulesProfilesByLanguage) {
+<span class="fc bfc" id="L128" title="All 2 branches covered.">    if (rulesProfilesByLanguage.isEmpty()) {</span>
+<span class="fc" id="L129">      return Collections.emptyList();</span>
+    }
+<span class="fc" id="L131">    Map&lt;RuleKey, RuleDto&gt; rulesByRuleKey = loadRuleDefinitionsByRuleKey();</span>
+<span class="fc" id="L132">    Map&lt;String, List&lt;BuiltInQProfile.Builder&gt;&gt; buildersByLanguage = rulesProfilesByLanguage</span>
+<span class="fc" id="L133">      .entrySet()</span>
+<span class="fc" id="L134">      .stream()</span>
+<span class="fc" id="L135">      .collect(Collectors.toMap(Map.Entry::getKey, rulesProfilesByLanguageAndName -&gt; toQualityProfileBuilders(rulesProfilesByLanguageAndName, rulesByRuleKey)));</span>
+<span class="fc" id="L136">    return buildersByLanguage</span>
+<span class="fc" id="L137">      .entrySet()</span>
+<span class="fc" id="L138">      .stream()</span>
+<span class="fc" id="L139">      .filter(BuiltInQProfileRepositoryImpl::ensureAtMostOneDeclaredDefault)</span>
+<span class="fc" id="L140">      .map(entry -&gt; toQualityProfiles(entry.getValue()))</span>
+<span class="fc" id="L141">      .flatMap(Collection::stream)</span>
+<span class="fc" id="L142">      .toList();</span>
+  }
+
+  private Map&lt;RuleKey, RuleDto&gt; loadRuleDefinitionsByRuleKey() {
+<span class="fc" id="L146">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L147">      Collection&lt;RuleDto&gt; ruleDefinitions = ruleFinder.findAll();</span>
+<span class="fc" id="L148">      Multimap&lt;String, DeprecatedRuleKeyDto&gt; deprecatedRuleKeysByRuleId = dbClient.ruleDao().selectAllDeprecatedRuleKeys(dbSession).stream()</span>
+<span class="fc" id="L149">        .collect(MoreCollectors.index(DeprecatedRuleKeyDto::getRuleUuid));</span>
+<span class="fc" id="L150">      Map&lt;RuleKey, RuleDto&gt; rulesByRuleKey = new HashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L151" title="All 2 branches covered.">      for (RuleDto ruleDto : ruleDefinitions) {</span>
+<span class="fc" id="L152">        rulesByRuleKey.put(ruleDto.getKey(), ruleDto);</span>
+<span class="fc" id="L153">        deprecatedRuleKeysByRuleId.get(ruleDto.getUuid()).forEach(t -&gt; rulesByRuleKey.put(RuleKey.of(t.getOldRepositoryKey(), t.getOldRuleKey()), ruleDto));</span>
+<span class="fc" id="L154">      }</span>
+<span class="fc" id="L155">      return rulesByRuleKey;</span>
+    }
+  }
+
+  /**
+   * Creates {@link BuiltInQProfile.Builder} for each unique quality profile name for a given language.
+   * Builders will have the following properties populated:
+   * &lt;ul&gt;
+   *   &lt;li&gt;{@link BuiltInQProfile.Builder#language language}: key of the method's parameter&lt;/li&gt;
+   *   &lt;li&gt;{@link BuiltInQProfile.Builder#name name}: {@link RulesProfile#getName()}&lt;/li&gt;
+   *   &lt;li&gt;{@link BuiltInQProfile.Builder#declaredDefault declaredDefault}: {@code true} if at least one RulesProfile
+   *       with a given name has {@link RulesProfile#getDefaultProfile()} is {@code true}&lt;/li&gt;
+   *   &lt;li&gt;{@link BuiltInQProfile.Builder#activeRules activeRules}: the concatenate of the active rules of all
+   *       RulesProfile with a given name&lt;/li&gt;
+   * &lt;/ul&gt;
+   */
+  private static List&lt;BuiltInQProfile.Builder&gt; toQualityProfileBuilders(Map.Entry&lt;String, Map&lt;String, BuiltInQualityProfile&gt;&gt; rulesProfilesByLanguageAndName,
+    Map&lt;RuleKey, RuleDto&gt; rulesByRuleKey) {
+<span class="fc" id="L173">    String language = rulesProfilesByLanguageAndName.getKey();</span>
+    // use a LinkedHashMap to keep order of insertion of RulesProfiles
+<span class="fc" id="L175">    Map&lt;String, BuiltInQProfile.Builder&gt; qualityProfileBuildersByName = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L176" title="All 2 branches covered.">    for (BuiltInQualityProfile builtInProfile : rulesProfilesByLanguageAndName.getValue().values()) {</span>
+<span class="fc" id="L177">      qualityProfileBuildersByName.compute(</span>
+<span class="fc" id="L178">        builtInProfile.name(),</span>
+<span class="fc" id="L179">        (name, existingBuilder) -&gt; updateOrCreateBuilder(language, existingBuilder, builtInProfile, rulesByRuleKey));</span>
+<span class="fc" id="L180">    }</span>
+<span class="fc" id="L181">    return ImmutableList.copyOf(qualityProfileBuildersByName.values());</span>
+  }
+
+  /**
+   * Fails if more than one {@link BuiltInQProfile.Builder#declaredDefault} is {@code true}, otherwise returns {@code true}.
+   */
+  private static boolean ensureAtMostOneDeclaredDefault(Map.Entry&lt;String, List&lt;BuiltInQProfile.Builder&gt;&gt; entry) {
+<span class="fc" id="L188">    Set&lt;String&gt; declaredDefaultProfileNames = entry.getValue().stream()</span>
+<span class="fc" id="L189">      .filter(BuiltInQProfile.Builder::isDeclaredDefault)</span>
+<span class="fc" id="L190">      .map(BuiltInQProfile.Builder::getName)</span>
+<span class="fc" id="L191">      .collect(Collectors.toSet());</span>
+<span class="fc bfc" id="L192" title="All 2 branches covered.">    checkState(declaredDefaultProfileNames.size() &lt;= 1, &quot;Several Quality profiles are flagged as default for the language %s: %s&quot;, entry.getKey(), declaredDefaultProfileNames);</span>
+<span class="fc" id="L193">    return true;</span>
+  }
+
+  private static BuiltInQProfile.Builder updateOrCreateBuilder(String language, @Nullable BuiltInQProfile.Builder existingBuilder, BuiltInQualityProfile builtInProfile,
+    Map&lt;RuleKey, RuleDto&gt; rulesByRuleKey) {
+<span class="fc" id="L198">    BuiltInQProfile.Builder builder = createOrReuseBuilder(existingBuilder, language, builtInProfile);</span>
+<span class="fc" id="L199">    builder.setDeclaredDefault(builtInProfile.isDefault());</span>
+<span class="fc" id="L200">    builtInProfile.rules().forEach(builtInActiveRule -&gt; {</span>
+<span class="fc" id="L201">      RuleKey ruleKey = RuleKey.of(builtInActiveRule.repoKey(), builtInActiveRule.ruleKey());</span>
+<span class="fc" id="L202">      RuleDto ruleDto = rulesByRuleKey.get(ruleKey);</span>
+<span class="fc bfc" id="L203" title="All 2 branches covered.">      checkState(ruleDto != null, &quot;Rule with key '%s' not found&quot;, ruleKey);</span>
+<span class="fc" id="L204">      builder.addRule(new BuiltInQProfile.ActiveRule(ruleDto.getUuid(), ruleDto.getKey(),</span>
+<span class="fc" id="L205">        builtInActiveRule.overriddenSeverity(), builtInActiveRule.overriddenParams()));</span>
+<span class="fc" id="L206">    });</span>
+<span class="fc" id="L207">    return builder;</span>
+  }
+
+  private static BuiltInQProfile.Builder createOrReuseBuilder(@Nullable BuiltInQProfile.Builder existingBuilder, String language, BuiltInQualityProfile builtInProfile) {
+<span class="pc bpc" id="L211" title="1 of 2 branches missed.">    if (existingBuilder == null) {</span>
+<span class="fc" id="L212">      return new BuiltInQProfile.Builder()</span>
+<span class="fc" id="L213">        .setLanguage(language)</span>
+<span class="fc" id="L214">        .setName(builtInProfile.name());</span>
+    }
+<span class="nc" id="L216">    return existingBuilder;</span>
+  }
+
+  private static List&lt;BuiltInQProfile&gt; toQualityProfiles(List&lt;BuiltInQProfile.Builder&gt; builders) {
+<span class="fc bfc" id="L220" title="All 2 branches covered.">    if (builders.stream().noneMatch(BuiltInQProfile.Builder::isDeclaredDefault)) {</span>
+<span class="fc" id="L221">      Optional&lt;BuiltInQProfile.Builder&gt; sonarWayProfile = builders.stream().filter(builder -&gt; builder.getName().equals(DEFAULT_PROFILE_NAME)).findFirst();</span>
+<span class="fc bfc" id="L222" title="All 2 branches covered.">      if (sonarWayProfile.isPresent()) {</span>
+<span class="fc" id="L223">        sonarWayProfile.get().setComputedDefault(true);</span>
+      } else {
+<span class="fc" id="L225">        builders.iterator().next().setComputedDefault(true);</span>
+      }
+    }
+<span class="fc" id="L228">    return builders.stream()</span>
+<span class="fc" id="L229">      .map(BuiltInQProfile.Builder::build)</span>
+<span class="fc" id="L230">      .toList();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

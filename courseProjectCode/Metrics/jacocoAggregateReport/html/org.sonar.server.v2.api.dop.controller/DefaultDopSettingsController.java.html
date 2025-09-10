@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultDopSettingsController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.v2.api.dop.controller</a> &gt; <span class="el_source">DefaultDopSettingsController.java</span></div><h1>DefaultDopSettingsController.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.v2.api.dop.controller;
+
+import java.util.List;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.alm.setting.AlmSettingDto;
+import org.sonar.server.user.UserSession;
+import org.sonar.server.v2.api.dop.response.DopSettingsResource;
+import org.sonar.server.v2.api.dop.response.DopSettingsRestResponse;
+import org.sonar.server.v2.api.response.PageRestResponse;
+
+import static org.sonar.db.permission.GlobalPermission.PROVISION_PROJECTS;
+import static org.sonar.server.common.AlmSettingMapper.toResponseAlm;
+
+public class DefaultDopSettingsController implements DopSettingsController {
+
+  private final UserSession userSession;
+  private final DbClient dbClient;
+
+<span class="fc" id="L39">  public DefaultDopSettingsController(UserSession userSession, DbClient dbClient) {</span>
+<span class="fc" id="L40">    this.userSession = userSession;</span>
+<span class="fc" id="L41">    this.dbClient = dbClient;</span>
+<span class="fc" id="L42">  }</span>
+
+  @Override
+  public DopSettingsRestResponse fetchAllDopSettings() {
+<span class="fc" id="L46">    userSession.checkLoggedIn().checkPermission(PROVISION_PROJECTS);</span>
+<span class="fc" id="L47">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L48">      List&lt;DopSettingsResource&gt; dopSettingsResources = dbClient.almSettingDao().selectAll(dbSession)</span>
+<span class="fc" id="L49">        .stream()</span>
+<span class="fc" id="L50">        .map(DefaultDopSettingsController::toDopSettingsResource)</span>
+<span class="fc" id="L51">        .toList();</span>
+
+<span class="fc" id="L53">      PageRestResponse pageRestResponse = new PageRestResponse(1, dopSettingsResources.size(), dopSettingsResources.size());</span>
+<span class="fc" id="L54">      return new DopSettingsRestResponse(dopSettingsResources, pageRestResponse);</span>
+    }
+  }
+
+  private static DopSettingsResource toDopSettingsResource(AlmSettingDto almSettingDto) {
+<span class="fc" id="L59">    return new DopSettingsResource(</span>
+<span class="fc" id="L60">      almSettingDto.getUuid(),</span>
+<span class="fc" id="L61">      toResponseAlm(almSettingDto.getAlm()).name(),</span>
+<span class="fc" id="L62">      almSettingDto.getKey(),</span>
+<span class="fc" id="L63">      almSettingDto.getUrl(),</span>
+<span class="fc" id="L64">      almSettingDto.getAppId());</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

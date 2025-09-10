@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractSensorOptimizer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.sensor</a> &gt; <span class="el_source">AbstractSensorOptimizer.java</span></div><h1>AbstractSensorOptimizer.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.sensor;
+
+import java.util.HashSet;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.batch.fs.FilePredicate;
+import org.sonar.api.batch.fs.FileSystem;
+import org.sonar.api.batch.rule.ActiveRules;
+import org.sonar.api.batch.sensor.internal.DefaultSensorDescriptor;
+import org.sonar.api.config.Configuration;
+import org.sonar.scanner.config.DefaultConfiguration;
+
+public abstract class AbstractSensorOptimizer {
+
+<span class="fc" id="L37">  private static final Logger LOG = LoggerFactory.getLogger(AbstractSensorOptimizer.class);</span>
+
+  private final FileSystem fs;
+  private final ActiveRules activeRules;
+  private final Configuration originalConfiguration;
+  private final ConfigurationReadsInterceptor config;
+
+<span class="fc" id="L44">  public AbstractSensorOptimizer(FileSystem fs, ActiveRules activeRules, Configuration config) {</span>
+<span class="fc" id="L45">    this.fs = fs;</span>
+<span class="fc" id="L46">    this.activeRules = activeRules;</span>
+<span class="fc" id="L47">    this.originalConfiguration = config;</span>
+<span class="fc" id="L48">    this.config = new ConfigurationReadsInterceptor(config);</span>
+<span class="fc" id="L49">  }</span>
+
+  /**
+   * Decide if the given Sensor should be executed.
+   */
+  public boolean shouldExecute(DefaultSensorDescriptor descriptor) {
+<span class="fc bfc" id="L55" title="All 2 branches covered.">    if (!fsCondition(descriptor)) {</span>
+<span class="fc" id="L56">      LOG.debug(&quot;'{}' skipped because there is no related file in current project&quot;, descriptor.name());</span>
+<span class="fc" id="L57">      return false;</span>
+    }
+<span class="fc bfc" id="L59" title="All 2 branches covered.">    if (!activeRulesCondition(descriptor)) {</span>
+<span class="fc" id="L60">      LOG.debug(&quot;'{}' skipped because there is no related rule activated in the quality profile&quot;, descriptor.name());</span>
+<span class="fc" id="L61">      return false;</span>
+    }
+<span class="fc bfc" id="L63" title="All 2 branches covered.">    if (!settingsCondition(descriptor)) {</span>
+<span class="fc" id="L64">      String accessedConfiguration = config.getAccessedKeys().stream()</span>
+<span class="fc" id="L65">        .map(key -&gt; &quot;- &quot; + key + &quot;: &quot; + getConfigurationValue(key).orElse(&quot;&lt;empty&gt;&quot;))</span>
+<span class="fc" id="L66">        .collect(Collectors.joining(&quot;\n&quot;));</span>
+
+<span class="fc" id="L68">      LOG.debug(&quot;&quot;&quot;</span>
+        '{}' skipped because of missing configuration requirements.
+        Accessed configuration:
+<span class="fc" id="L71">        {}&quot;&quot;&quot;, descriptor.name(), accessedConfiguration);</span>
+<span class="fc" id="L72">      return false;</span>
+    }
+<span class="fc" id="L74">    return true;</span>
+  }
+
+  private Optional&lt;String&gt; getConfigurationValue(String key) {
+<span class="fc bfc" id="L78" title="All 2 branches covered.">    if (originalConfiguration instanceof DefaultConfiguration configuration) {</span>
+<span class="fc" id="L79">      return Optional.ofNullable(configuration.getOriginalProperties().get(key));</span>
+    } else {
+<span class="fc" id="L81">      return config.get(key);</span>
+    }
+  }
+
+  private boolean settingsCondition(DefaultSensorDescriptor descriptor) {
+<span class="fc bfc" id="L86" title="All 2 branches covered.">    if (descriptor.configurationPredicate() != null) {</span>
+<span class="fc" id="L87">      return descriptor.configurationPredicate().test(config);</span>
+    }
+<span class="fc" id="L89">    return true;</span>
+  }
+
+  private boolean activeRulesCondition(DefaultSensorDescriptor descriptor) {
+<span class="fc bfc" id="L93" title="All 2 branches covered.">    if (!descriptor.ruleRepositories().isEmpty()) {</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">      for (String repoKey : descriptor.ruleRepositories()) {</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">        if (!activeRules.findByRepository(repoKey).isEmpty()) {</span>
+<span class="fc" id="L96">          return true;</span>
+        }
+<span class="fc" id="L98">      }</span>
+<span class="fc" id="L99">      return false;</span>
+    }
+<span class="fc" id="L101">    return true;</span>
+  }
+
+  private boolean fsCondition(DefaultSensorDescriptor descriptor) {
+<span class="fc bfc" id="L105" title="All 4 branches covered.">    if (!descriptor.languages().isEmpty() || descriptor.type() != null) {</span>
+<span class="fc bfc" id="L106" title="All 2 branches covered.">      FilePredicate langPredicate = descriptor.languages().isEmpty() ? fs.predicates().all() : fs.predicates().hasLanguages(descriptor.languages());</span>
+
+<span class="fc bfc" id="L108" title="All 2 branches covered.">      FilePredicate typePredicate = descriptor.type() == null ? fs.predicates().all() : fs.predicates().hasType(descriptor.type());</span>
+<span class="fc" id="L109">      return fs.hasFiles(fs.predicates().and(langPredicate, typePredicate));</span>
+    }
+<span class="fc" id="L111">    return true;</span>
+  }
+
+  private static class ConfigurationReadsInterceptor implements Configuration {
+    private final Configuration configuration;
+    private final Set&lt;String&gt; accessedKeys;
+
+<span class="fc" id="L118">    private ConfigurationReadsInterceptor(Configuration configuration) {</span>
+<span class="fc" id="L119">      this.configuration = configuration;</span>
+<span class="fc" id="L120">      this.accessedKeys = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L121">    }</span>
+
+    Set&lt;String&gt; getAccessedKeys() {
+<span class="fc" id="L124">      return accessedKeys;</span>
+    }
+
+    @Override
+    public boolean hasKey(String key) {
+<span class="fc" id="L129">      boolean hasKey = configuration.hasKey(key);</span>
+<span class="fc" id="L130">      accessedKeys.add(key);</span>
+<span class="fc" id="L131">      return hasKey;</span>
+    }
+
+    @Override
+    public Optional&lt;String&gt; get(String key) {
+<span class="fc" id="L136">      Optional&lt;String&gt; value = configuration.get(key);</span>
+<span class="fc" id="L137">      accessedKeys.add(key);</span>
+<span class="fc" id="L138">      return value;</span>
+    }
+
+    @Override
+    public String[] getStringArray(String key) {
+<span class="fc" id="L143">      String[] values = configuration.getStringArray(key);</span>
+<span class="fc" id="L144">      accessedKeys.add(key);</span>
+<span class="fc" id="L145">      return values;</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

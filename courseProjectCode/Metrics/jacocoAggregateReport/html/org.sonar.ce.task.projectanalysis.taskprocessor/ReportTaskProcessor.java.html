@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ReportTaskProcessor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.taskprocessor</a> &gt; <span class="el_source">ReportTaskProcessor.java</span></div><h1>ReportTaskProcessor.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.taskprocessor;
+
+import java.util.Collections;
+import java.util.Set;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.ce.task.CeTask;
+import org.sonar.ce.task.CeTaskResult;
+import org.sonar.ce.task.container.TaskContainer;
+import org.sonar.ce.task.projectanalysis.container.ContainerFactory;
+import org.sonar.ce.task.projectanalysis.container.ReportAnalysisComponentProvider;
+import org.sonar.ce.task.step.ComputationStepExecutor;
+import org.sonar.ce.task.taskprocessor.CeTaskProcessor;
+import org.sonar.ce.task.taskprocessor.TaskResultHolder;
+import org.sonar.core.platform.SpringComponentContainer;
+import org.sonar.db.ce.CeTaskTypes;
+import org.springframework.beans.factory.annotation.Autowired;
+
+public class ReportTaskProcessor implements CeTaskProcessor {
+
+<span class="fc" id="L40">  private static final Set&lt;String&gt; HANDLED_TYPES = Collections.singleton(CeTaskTypes.REPORT);</span>
+
+  private final ContainerFactory containerFactory;
+  private final SpringComponentContainer serverContainer;
+  @CheckForNull
+  private final ReportAnalysisComponentProvider[] componentProviders;
+
+  @Autowired(required = false)
+<span class="fc" id="L48">  public ReportTaskProcessor(ContainerFactory containerFactory, SpringComponentContainer serverContainer, @Nullable ReportAnalysisComponentProvider[] componentProviders) {</span>
+<span class="fc" id="L49">    this.containerFactory = containerFactory;</span>
+<span class="fc" id="L50">    this.serverContainer = serverContainer;</span>
+<span class="fc" id="L51">    this.componentProviders = componentProviders;</span>
+<span class="fc" id="L52">  }</span>
+
+  /**
+   * Used when loaded in WebServer where none of the dependencies are available and where only
+   * {@link #getHandledCeTaskTypes()} will be called.
+   */
+  @Autowired(required = false)
+<span class="nc" id="L59">  public ReportTaskProcessor() {</span>
+<span class="nc" id="L60">    this.containerFactory = null;</span>
+<span class="nc" id="L61">    this.serverContainer = null;</span>
+<span class="nc" id="L62">    this.componentProviders = null;</span>
+<span class="nc" id="L63">  }</span>
+
+  @Override
+  public Set&lt;String&gt; getHandledCeTaskTypes() {
+<span class="fc" id="L67">    return HANDLED_TYPES;</span>
+  }
+
+  @Override
+  public CeTaskResult process(CeTask task) {
+<span class="nc" id="L72">    try (TaskContainer ceContainer = containerFactory.create(serverContainer, task, componentProviders)) {</span>
+<span class="nc" id="L73">      ceContainer.bootup();</span>
+
+<span class="nc" id="L75">      ceContainer.getComponentByType(ComputationStepExecutor.class).execute();</span>
+<span class="nc" id="L76">      return ceContainer.getComponentByType(TaskResultHolder.class).getResult();</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

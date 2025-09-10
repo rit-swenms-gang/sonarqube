@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RuleIndexDefinition.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.rule.index</a> &gt; <span class="el_source">RuleIndexDefinition.java</span></div><h1>RuleIndexDefinition.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.rule.index;
+
+import java.util.Set;
+import jakarta.inject.Inject;
+import org.sonar.api.config.Configuration;
+import org.sonar.api.config.internal.MapSettings;
+import org.sonar.server.es.Index;
+import org.sonar.server.es.IndexDefinition;
+import org.sonar.server.es.IndexType;
+import org.sonar.server.es.IndexType.IndexMainType;
+import org.sonar.server.es.IndexType.IndexRelationType;
+import org.sonar.server.es.newindex.NewRegularIndex;
+import org.sonar.server.es.newindex.TypeMapping;
+
+import static org.sonar.server.es.newindex.DefaultIndexSettingsElement.ENGLISH_HTML_ANALYZER;
+import static org.sonar.server.es.newindex.DefaultIndexSettingsElement.SEARCH_GRAMS_ANALYZER;
+import static org.sonar.server.es.newindex.DefaultIndexSettingsElement.SORTABLE_ANALYZER;
+import static org.sonar.server.es.newindex.SettingsConfiguration.MANUAL_REFRESH_INTERVAL;
+import static org.sonar.server.es.newindex.SettingsConfiguration.newBuilder;
+
+/**
+ * Definition of ES index &quot;rules&quot;, including settings and fields.
+ */
+public class RuleIndexDefinition implements IndexDefinition {
+
+<span class="fc" id="L45">  public static final Index DESCRIPTOR = Index.withRelations(&quot;rules&quot;);</span>
+<span class="fc" id="L46">  public static final IndexMainType TYPE_RULE = IndexType.main(DESCRIPTOR, &quot;rule&quot;);</span>
+  public static final String FIELD_RULE_UUID = &quot;ruleUuid&quot;;
+  public static final String FIELD_RULE_KEY = &quot;key&quot;;
+  public static final String FIELD_RULE_REPOSITORY = &quot;repo&quot;;
+  public static final String FIELD_RULE_RULE_KEY = &quot;ruleKey&quot;;
+  public static final String FIELD_RULE_INTERNAL_KEY = &quot;internalKey&quot;;
+  public static final String FIELD_RULE_NAME = &quot;name&quot;;
+  public static final String FIELD_RULE_HTML_DESCRIPTION = &quot;htmlDesc&quot;;
+  public static final String FIELD_RULE_SEVERITY = &quot;severity&quot;;
+  public static final String FIELD_RULE_STATUS = &quot;status&quot;;
+  public static final String FIELD_RULE_LANGUAGE = &quot;lang&quot;;
+  public static final String FIELD_RULE_IS_TEMPLATE = &quot;isTemplate&quot;;
+  public static final String FIELD_RULE_IS_EXTERNAL = &quot;isExternal&quot;;
+  public static final String FIELD_RULE_TEMPLATE_KEY = &quot;templateKey&quot;;
+  public static final String FIELD_RULE_TYPE = &quot;type&quot;;
+  public static final String FIELD_RULE_CREATED_AT = &quot;createdAt&quot;;
+  public static final String FIELD_RULE_UPDATED_AT = &quot;updatedAt&quot;;
+  public static final String FIELD_RULE_CWE = &quot;cwe&quot;;
+  public static final String FIELD_RULE_OWASP_TOP_10 = &quot;owaspTop10&quot;;
+  public static final String FIELD_RULE_OWASP_TOP_10_2021 = &quot;owaspTop10-2021&quot;;
+  public static final String FIELD_RULE_OWASP_MOBILE_TOP_10_2024 = &quot;owaspMobileTop10-2024&quot;;
+  public static final String FIELD_RULE_SANS_TOP_25 = &quot;sansTop25&quot;;
+  public static final String FIELD_RULE_SONARSOURCE_SECURITY = &quot;sonarsourceSecurity&quot;;
+  public static final String FIELD_RULE_TAGS = &quot;tags&quot;;
+  public static final String FIELD_RULE_CLEAN_CODE_ATTRIBUTE_CATEGORY = &quot;cleanCodeAttributeCategory&quot;;
+  public static final String FIELD_RULE_IMPACTS = &quot;impacts&quot;;
+  public static final String SUB_FIELD_SOFTWARE_QUALITY = &quot;softwareQuality&quot;;
+  public static final String SUB_FIELD_SEVERITY = &quot;severity&quot;;
+  public static final String FIELD_RULE_IMPACT_SOFTWARE_QUALITY = FIELD_RULE_IMPACTS + &quot;.&quot; + SUB_FIELD_SOFTWARE_QUALITY;
+  public static final String FIELD_RULE_IMPACT_SEVERITY = FIELD_RULE_IMPACTS + &quot;.&quot; + SUB_FIELD_SEVERITY;
+
+  // Active rule fields
+<span class="fc" id="L78">  public static final IndexRelationType TYPE_ACTIVE_RULE = IndexType.relation(TYPE_RULE, &quot;activeRule&quot;);</span>
+  public static final String FIELD_ACTIVE_RULE_UUID = &quot;activeRule_uuid&quot;;
+  public static final String FIELD_ACTIVE_RULE_INHERITANCE = &quot;activeRule_inheritance&quot;;
+  public static final String FIELD_ACTIVE_RULE_PROFILE_UUID = &quot;activeRule_ruleProfile&quot;;
+  public static final String FIELD_ACTIVE_RULE_SEVERITY = &quot;activeRule_severity&quot;;
+  public static final String FIELD_PRIORITIZED_RULE = &quot;activeRule_prioritizedRule&quot;;
+  public static final String FIELD_ACTIVE_RULE_IMPACTS = &quot;activeRule_impacts&quot;;
+  public static final String FIELD_ACTIVE_RULE_IMPACT_SEVERITY = FIELD_ACTIVE_RULE_IMPACTS + &quot;.&quot; + SUB_FIELD_SEVERITY;
+
+<span class="fc" id="L87">  public static final Set&lt;String&gt; SORT_FIELDS = Set.of(</span>
+    FIELD_RULE_NAME,
+    FIELD_RULE_UPDATED_AT,
+    FIELD_RULE_CREATED_AT,
+    FIELD_RULE_KEY);
+
+  private final Configuration config;
+  private final boolean enableSource;
+
+  @Inject
+  public RuleIndexDefinition(Configuration config) {
+<span class="fc" id="L98">    this(config, false);</span>
+<span class="fc" id="L99">  }</span>
+
+<span class="fc" id="L101">  private RuleIndexDefinition(Configuration config, boolean enableSource) {</span>
+<span class="fc" id="L102">    this.config = config;</span>
+<span class="fc" id="L103">    this.enableSource = enableSource;</span>
+<span class="fc" id="L104">  }</span>
+
+  /**
+   * Keep the document sources in index so that indexer tests can verify content
+   * of indexed documents.
+   */
+  public static RuleIndexDefinition createForTest() {
+<span class="fc" id="L111">    return new RuleIndexDefinition(new MapSettings().asConfig(), true);</span>
+  }
+
+  @Override
+  public void define(IndexDefinitionContext context) {
+<span class="fc" id="L116">    NewRegularIndex index = context.create(</span>
+      DESCRIPTOR,
+<span class="fc" id="L118">      newBuilder(config)</span>
+<span class="fc" id="L119">        .setRefreshInterval(MANUAL_REFRESH_INTERVAL)</span>
+        // Default nb of shards should be greater than 1 in order to
+        // easily detect routing misconfiguration.
+        // See https://jira.sonarsource.com/browse/SONAR-9489
+<span class="fc" id="L123">        .setDefaultNbOfShards(2)</span>
+<span class="fc" id="L124">        .build())</span>
+<span class="fc" id="L125">      .setEnableSource(enableSource);</span>
+
+    // Rule type
+<span class="fc" id="L128">    TypeMapping ruleMapping = index.createTypeMapping(TYPE_RULE);</span>
+<span class="fc" id="L129">    ruleMapping.keywordFieldBuilder(FIELD_RULE_UUID).disableNorms().build();</span>
+<span class="fc" id="L130">    ruleMapping.keywordFieldBuilder(FIELD_RULE_KEY).addSubFields(SORTABLE_ANALYZER).build();</span>
+<span class="fc" id="L131">    ruleMapping.keywordFieldBuilder(FIELD_RULE_RULE_KEY).addSubFields(SORTABLE_ANALYZER).build();</span>
+<span class="fc" id="L132">    ruleMapping.keywordFieldBuilder(FIELD_RULE_REPOSITORY).build();</span>
+<span class="fc" id="L133">    ruleMapping.keywordFieldBuilder(FIELD_RULE_INTERNAL_KEY).disableNorms().disableSearch().build();</span>
+
+<span class="fc" id="L135">    ruleMapping.keywordFieldBuilder(FIELD_RULE_NAME).addSubFields(SORTABLE_ANALYZER, SEARCH_GRAMS_ANALYZER).build();</span>
+<span class="fc" id="L136">    ruleMapping.textFieldBuilder(FIELD_RULE_HTML_DESCRIPTION)</span>
+<span class="fc" id="L137">      .disableSearch()</span>
+<span class="fc" id="L138">      .disableNorms()</span>
+<span class="fc" id="L139">      .addSubFields(ENGLISH_HTML_ANALYZER)</span>
+<span class="fc" id="L140">      .build();</span>
+<span class="fc" id="L141">    ruleMapping.keywordFieldBuilder(FIELD_RULE_SEVERITY).disableNorms().build();</span>
+<span class="fc" id="L142">    ruleMapping.keywordFieldBuilder(FIELD_RULE_STATUS).disableNorms().build();</span>
+<span class="fc" id="L143">    ruleMapping.keywordFieldBuilder(FIELD_RULE_LANGUAGE).disableNorms().build();</span>
+<span class="fc" id="L144">    ruleMapping.keywordFieldBuilder(FIELD_RULE_TAGS).build();</span>
+
+<span class="fc" id="L146">    ruleMapping.createBooleanField(FIELD_RULE_IS_TEMPLATE);</span>
+<span class="fc" id="L147">    ruleMapping.createBooleanField(FIELD_RULE_IS_EXTERNAL);</span>
+<span class="fc" id="L148">    ruleMapping.keywordFieldBuilder(FIELD_RULE_TEMPLATE_KEY).disableNorms().build();</span>
+
+<span class="fc" id="L150">    ruleMapping.keywordFieldBuilder(FIELD_RULE_TYPE).disableNorms().build();</span>
+
+<span class="fc" id="L152">    ruleMapping.createLongField(FIELD_RULE_CREATED_AT);</span>
+<span class="fc" id="L153">    ruleMapping.createLongField(FIELD_RULE_UPDATED_AT);</span>
+
+<span class="fc" id="L155">    ruleMapping.keywordFieldBuilder(FIELD_RULE_CWE).disableNorms().build();</span>
+<span class="fc" id="L156">    ruleMapping.keywordFieldBuilder(FIELD_RULE_OWASP_TOP_10).disableNorms().build();</span>
+<span class="fc" id="L157">    ruleMapping.keywordFieldBuilder(FIELD_RULE_OWASP_TOP_10_2021).disableNorms().build();</span>
+<span class="fc" id="L158">    ruleMapping.keywordFieldBuilder(FIELD_RULE_OWASP_MOBILE_TOP_10_2024).disableNorms().build();</span>
+<span class="fc" id="L159">    ruleMapping.keywordFieldBuilder(FIELD_RULE_SANS_TOP_25).disableNorms().build();</span>
+<span class="fc" id="L160">    ruleMapping.keywordFieldBuilder(FIELD_RULE_SONARSOURCE_SECURITY).disableNorms().build();</span>
+
+<span class="fc" id="L162">    ruleMapping.keywordFieldBuilder(FIELD_RULE_CLEAN_CODE_ATTRIBUTE_CATEGORY).disableNorms().build();</span>
+<span class="fc" id="L163">    ruleMapping.nestedFieldBuilder(FIELD_RULE_IMPACTS)</span>
+<span class="fc" id="L164">      .addKeywordField(SUB_FIELD_SOFTWARE_QUALITY)</span>
+<span class="fc" id="L165">      .addKeywordField(SUB_FIELD_SEVERITY)</span>
+<span class="fc" id="L166">      .build();</span>
+
+    // Active rule
+<span class="fc" id="L169">    TypeMapping activeRuleMapping = index.createTypeMapping(TYPE_ACTIVE_RULE);</span>
+<span class="fc" id="L170">    activeRuleMapping.keywordFieldBuilder(FIELD_ACTIVE_RULE_UUID).disableNorms().build();</span>
+<span class="fc" id="L171">    activeRuleMapping.keywordFieldBuilder(FIELD_ACTIVE_RULE_PROFILE_UUID).disableNorms().build();</span>
+<span class="fc" id="L172">    activeRuleMapping.keywordFieldBuilder(FIELD_ACTIVE_RULE_INHERITANCE).disableNorms().build();</span>
+<span class="fc" id="L173">    activeRuleMapping.keywordFieldBuilder(FIELD_ACTIVE_RULE_SEVERITY).disableNorms().build();</span>
+<span class="fc" id="L174">    activeRuleMapping.createBooleanField(FIELD_PRIORITIZED_RULE);</span>
+<span class="fc" id="L175">    activeRuleMapping.nestedFieldBuilder(FIELD_ACTIVE_RULE_IMPACTS)</span>
+<span class="fc" id="L176">      .addKeywordField(SUB_FIELD_SOFTWARE_QUALITY)</span>
+<span class="fc" id="L177">      .addKeywordField(SUB_FIELD_SEVERITY).build()</span>
+    ;
+<span class="fc" id="L179">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

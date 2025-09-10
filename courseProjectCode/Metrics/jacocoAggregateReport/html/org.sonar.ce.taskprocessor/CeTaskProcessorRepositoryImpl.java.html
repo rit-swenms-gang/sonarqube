@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CeTaskProcessorRepositoryImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.taskprocessor</a> &gt; <span class="el_source">CeTaskProcessorRepositoryImpl.java</span></div><h1>CeTaskProcessorRepositoryImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.taskprocessor;
+
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
+import java.util.Collection;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import javax.annotation.Nonnull;
+import org.sonar.ce.task.CeTask;
+import org.sonar.ce.task.taskprocessor.CeTaskProcessor;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.lang.String.CASE_INSENSITIVE_ORDER;
+import static java.lang.String.format;
+
+/**
+ * {@link CeTaskProcessorRepository} implementation which provides access to the {@link CeTaskProcessor} existing in the
+ * ioc container the current object belongs to.
+ */
+public class CeTaskProcessorRepositoryImpl implements CeTaskProcessorRepository {
+  private final Map&lt;String, CeTaskProcessor&gt; taskProcessorByCeTaskType;
+
+<span class="fc" id="L44">  public CeTaskProcessorRepositoryImpl(CeTaskProcessor[] taskProcessors) {</span>
+<span class="fc" id="L45">    this.taskProcessorByCeTaskType = indexTaskProcessors(taskProcessors);</span>
+<span class="fc" id="L46">  }</span>
+
+  @Override
+  public Optional&lt;CeTaskProcessor&gt; getForCeTask(CeTask ceTask) {
+<span class="fc" id="L50">    return Optional.ofNullable(taskProcessorByCeTaskType.get(ceTask.getType()));</span>
+  }
+
+  private static Map&lt;String, CeTaskProcessor&gt; indexTaskProcessors(CeTaskProcessor[] taskProcessors) {
+<span class="fc" id="L54">    Multimap&lt;String, CeTaskProcessor&gt; permissiveIndex = buildPermissiveCeTaskProcessorIndex(taskProcessors);</span>
+<span class="fc" id="L55">    checkUniqueHandlerPerCeTaskType(permissiveIndex);</span>
+<span class="fc" id="L56">    return permissiveIndex.asMap().entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, y -&gt; CeTaskProcessorCollectionToFirstElement.INSTANCE.apply(y.getValue())));</span>
+  }
+
+  private static Multimap&lt;String, CeTaskProcessor&gt; buildPermissiveCeTaskProcessorIndex(CeTaskProcessor[] taskProcessors) {
+<span class="fc" id="L60">    Multimap&lt;String, CeTaskProcessor&gt; permissiveIndex = ArrayListMultimap.create(taskProcessors.length, 1);</span>
+<span class="fc bfc" id="L61" title="All 2 branches covered.">    for (CeTaskProcessor taskProcessor : taskProcessors) {</span>
+<span class="fc bfc" id="L62" title="All 2 branches covered.">      for (String ceTaskType : taskProcessor.getHandledCeTaskTypes()) {</span>
+<span class="fc" id="L63">        permissiveIndex.put(ceTaskType, taskProcessor);</span>
+<span class="fc" id="L64">      }</span>
+    }
+<span class="fc" id="L66">    return permissiveIndex;</span>
+  }
+
+  private static void checkUniqueHandlerPerCeTaskType(Multimap&lt;String, CeTaskProcessor&gt; permissiveIndex) {
+<span class="fc bfc" id="L70" title="All 2 branches covered.">    for (Map.Entry&lt;String, Collection&lt;CeTaskProcessor&gt;&gt; entry : permissiveIndex.asMap().entrySet()) {</span>
+<span class="fc" id="L71">      checkArgument(</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">        entry.getValue().size() == 1,</span>
+<span class="fc" id="L73">        format(</span>
+          &quot;There can be only one CeTaskProcessor instance registered as the processor for CeTask type %s. &quot; +
+            &quot;More than one found. Please fix your configuration: %s&quot;,
+<span class="fc" id="L76">          entry.getKey(),</span>
+<span class="fc" id="L77">          entry.getValue().stream().map(ToClassName.INSTANCE).sorted(CASE_INSENSITIVE_ORDER).collect(Collectors.joining(&quot;, &quot;))));</span>
+<span class="fc" id="L78">    }</span>
+<span class="fc" id="L79">  }</span>
+
+<span class="fc" id="L81">  private enum ToClassName implements Function&lt;Object, String&gt; {</span>
+<span class="fc" id="L82">    INSTANCE;</span>
+
+    @Override
+    @Nonnull
+    public String apply(@Nonnull Object input) {
+<span class="fc" id="L87">      return input.getClass().getName();</span>
+    }
+  }
+
+<span class="fc" id="L91">  private enum CeTaskProcessorCollectionToFirstElement implements Function&lt;Collection&lt;CeTaskProcessor&gt;, CeTaskProcessor&gt; {</span>
+<span class="fc" id="L92">    INSTANCE;</span>
+
+    @Override
+    @Nonnull
+    public CeTaskProcessor apply(@Nonnull Collection&lt;CeTaskProcessor&gt; input) {
+<span class="fc" id="L97">      return input.iterator().next();</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

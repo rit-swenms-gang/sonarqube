@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractNewIssuesEmailTemplate.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.issue.notification</a> &gt; <span class="el_source">AbstractNewIssuesEmailTemplate.java</span></div><h1>AbstractNewIssuesEmailTemplate.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.issue.notification;
+
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
+import java.util.Date;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.api.notifications.Notification;
+import org.sonar.api.platform.Server;
+import org.sonar.api.utils.DateUtils;
+import org.sonar.server.issue.notification.NewIssuesStatistics.Metric;
+
+import static com.google.common.base.Preconditions.checkNotNull;
+import static java.nio.charset.StandardCharsets.UTF_8;
+
+/**
+ * Base class to create emails for new issues
+ */
+public abstract class AbstractNewIssuesEmailTemplate implements EmailTemplate {
+
+  protected static final char NEW_LINE = '\n';
+  protected static final String TAB = &quot;    &quot;;
+  protected static final String DOT = &quot;.&quot;;
+  protected static final String COUNT = DOT + &quot;count&quot;;
+  protected static final String LABEL = DOT + &quot;label&quot;;
+
+  static final String FIELD_PROJECT_NAME = &quot;projectName&quot;;
+  static final String FIELD_PROJECT_KEY = &quot;projectKey&quot;;
+  static final String FIELD_PROJECT_DATE = &quot;projectDate&quot;;
+  static final String FIELD_PROJECT_VERSION = &quot;projectVersion&quot;;
+  static final String FIELD_ASSIGNEE = &quot;assignee&quot;;
+  static final String FIELD_BRANCH = &quot;branch&quot;;
+  static final String FIELD_PULL_REQUEST = &quot;pullRequest&quot;;
+
+  protected final Server server;
+
+<span class="fc" id="L56">  protected AbstractNewIssuesEmailTemplate(Server server) {</span>
+<span class="fc" id="L57">    this.server = server;</span>
+<span class="fc" id="L58">  }</span>
+
+  public static String encode(String toEncode) {
+    try {
+<span class="fc" id="L62">      return URLEncoder.encode(toEncode, UTF_8.name());</span>
+<span class="nc" id="L63">    } catch (UnsupportedEncodingException e) {</span>
+<span class="nc" id="L64">      throw new IllegalStateException(&quot;Encoding not supported&quot;, e);</span>
+    }
+  }
+
+  @Override
+  @CheckForNull
+  public EmailMessage format(Notification notification) {
+<span class="fc bfc" id="L71" title="All 2 branches covered.">    if (shouldNotFormat(notification)) {</span>
+<span class="fc" id="L72">      return null;</span>
+    }
+<span class="fc" id="L74">    String projectName = checkNotNull(notification.getFieldValue(FIELD_PROJECT_NAME));</span>
+<span class="fc" id="L75">    String branchName = notification.getFieldValue(FIELD_BRANCH);</span>
+<span class="fc" id="L76">    String pullRequest = notification.getFieldValue(FIELD_PULL_REQUEST);</span>
+
+<span class="fc" id="L78">    StringBuilder message = new StringBuilder();</span>
+<span class="fc" id="L79">    message.append(&quot;Project: &quot;).append(projectName).append(NEW_LINE);</span>
+<span class="fc bfc" id="L80" title="All 2 branches covered.">    if (branchName != null) {</span>
+<span class="fc" id="L81">      message.append(&quot;Branch: &quot;).append(branchName).append(NEW_LINE);</span>
+    }
+<span class="pc bpc" id="L83" title="1 of 2 branches missed.">    if (pullRequest!= null) {</span>
+<span class="nc" id="L84">      message.append(&quot;Pull request: &quot;).append(pullRequest).append(NEW_LINE);</span>
+    }
+<span class="fc" id="L86">    String version = notification.getFieldValue(FIELD_PROJECT_VERSION);</span>
+<span class="fc bfc" id="L87" title="All 2 branches covered.">    if (version != null) {</span>
+<span class="fc" id="L88">      message.append(&quot;Version: &quot;).append(version).append(NEW_LINE);</span>
+    }
+<span class="fc" id="L90">    message.append(NEW_LINE);</span>
+<span class="fc" id="L91">    appendIssueCount(message, notification);</span>
+<span class="fc" id="L92">    appendAssignees(message, notification);</span>
+<span class="fc" id="L93">    appendRules(message, notification);</span>
+<span class="fc" id="L94">    appendTags(message, notification);</span>
+<span class="fc" id="L95">    appendComponents(message, notification);</span>
+<span class="fc" id="L96">    appendFooter(message, notification);</span>
+
+<span class="fc" id="L98">    return new EmailMessage()</span>
+<span class="fc" id="L99">      .setMessageId(notification.getType() + &quot;/&quot; + notification.getFieldValue(FIELD_PROJECT_KEY))</span>
+<span class="fc" id="L100">      .setSubject(subject(notification, computeFullProjectName(projectName, branchName)))</span>
+<span class="fc" id="L101">      .setPlainTextMessage(message.toString());</span>
+  }
+
+  private static String computeFullProjectName(String projectName, @Nullable String branchName) {
+<span class="pc bpc" id="L105" title="1 of 4 branches missed.">    if (branchName == null || branchName.isEmpty()) {</span>
+<span class="fc" id="L106">      return projectName;</span>
+    }
+<span class="fc" id="L108">    return String.format(&quot;%s (%s)&quot;, projectName, branchName);</span>
+  }
+
+  protected abstract boolean shouldNotFormat(Notification notification);
+
+  protected String subject(Notification notification, String fullProjectName) {
+<span class="fc" id="L114">    String issueCount = notification.getFieldValue(Metric.ISSUE + COUNT);</span>
+<span class="fc" id="L115">    return String.format(&quot;%s: %s new issue%s&quot;,</span>
+      fullProjectName,
+      issueCount,
+<span class="fc bfc" id="L118" title="All 2 branches covered.">      &quot;1&quot;.equals(issueCount) ? &quot;&quot; : &quot;s&quot;);</span>
+  }
+
+  private static boolean doNotHaveValue(Notification notification, Metric metric) {
+<span class="fc bfc" id="L122" title="All 2 branches covered.">    return notification.getFieldValue(metric + DOT + &quot;1&quot; + LABEL) == null;</span>
+  }
+
+  private static void genericAppendOfMetric(Metric metric, String label, StringBuilder message, Notification notification) {
+<span class="fc bfc" id="L126" title="All 2 branches covered.">    if (doNotHaveValue(notification, metric)) {</span>
+<span class="fc" id="L127">      return;</span>
+    }
+
+<span class="fc" id="L130">    message</span>
+<span class="fc" id="L131">      .append(TAB)</span>
+<span class="fc" id="L132">      .append(label)</span>
+<span class="fc" id="L133">      .append(NEW_LINE);</span>
+<span class="fc" id="L134">    int i = 1;</span>
+<span class="pc bpc" id="L135" title="1 of 4 branches missed.">    while (notification.getFieldValue(metric + DOT + i + LABEL) != null &amp;&amp; i &lt;= 5) {</span>
+<span class="fc" id="L136">      String name = notification.getFieldValue(metric + DOT + i + LABEL);</span>
+<span class="fc" id="L137">      message</span>
+<span class="fc" id="L138">        .append(TAB).append(TAB)</span>
+<span class="fc" id="L139">        .append(name)</span>
+<span class="fc" id="L140">        .append(&quot;: &quot;)</span>
+<span class="fc" id="L141">        .append(notification.getFieldValue(metric + DOT + i + COUNT))</span>
+<span class="fc" id="L142">        .append(NEW_LINE);</span>
+<span class="fc" id="L143">      i += 1;</span>
+<span class="fc" id="L144">    }</span>
+
+<span class="fc" id="L146">    message.append(NEW_LINE);</span>
+<span class="fc" id="L147">  }</span>
+
+  protected void appendAssignees(StringBuilder message, Notification notification) {
+<span class="fc" id="L150">    genericAppendOfMetric(Metric.ASSIGNEE, &quot;Assignees&quot;, message, notification);</span>
+<span class="fc" id="L151">  }</span>
+
+  protected void appendComponents(StringBuilder message, Notification notification) {
+<span class="fc" id="L154">    genericAppendOfMetric(Metric.COMPONENT, &quot;Most impacted files&quot;, message, notification);</span>
+<span class="fc" id="L155">  }</span>
+
+  protected void appendTags(StringBuilder message, Notification notification) {
+<span class="fc" id="L158">    genericAppendOfMetric(Metric.TAG, &quot;Tags&quot;, message, notification);</span>
+<span class="fc" id="L159">  }</span>
+
+  protected void appendRules(StringBuilder message, Notification notification) {
+<span class="fc" id="L162">    genericAppendOfMetric(Metric.RULE, &quot;Rules&quot;, message, notification);</span>
+<span class="fc" id="L163">  }</span>
+
+  protected void appendIssueCount(StringBuilder message, Notification notification) {
+<span class="fc" id="L166">    String issueCount = notification.getFieldValue(Metric.ISSUE + COUNT);</span>
+<span class="fc" id="L167">    message</span>
+<span class="fc bfc" id="L168" title="All 2 branches covered.">      .append(String.format(&quot;%s new issue%s&quot;, issueCount, &quot;1&quot;.equals(issueCount) ? &quot;&quot; : &quot;s&quot;))</span>
+<span class="fc" id="L169">      .append(NEW_LINE)</span>
+<span class="fc" id="L170">      .append(NEW_LINE);</span>
+<span class="fc" id="L171">  }</span>
+
+  protected void appendFooter(StringBuilder message, Notification notification) {
+<span class="fc" id="L174">    String projectKey = notification.getFieldValue(FIELD_PROJECT_KEY);</span>
+<span class="fc" id="L175">    String dateString = notification.getFieldValue(FIELD_PROJECT_DATE);</span>
+<span class="pc bpc" id="L176" title="1 of 4 branches missed.">    if (projectKey != null &amp;&amp; dateString != null) {</span>
+<span class="fc" id="L177">      Date date = DateUtils.parseDateTime(dateString);</span>
+<span class="fc" id="L178">      String url = String.format(&quot;%s/project/issues?id=%s&quot;, server.getPublicRootUrl(), encode(projectKey));</span>
+<span class="fc" id="L179">      String branchName = notification.getFieldValue(FIELD_BRANCH);</span>
+<span class="fc bfc" id="L180" title="All 2 branches covered.">      if (branchName != null) {</span>
+<span class="fc" id="L181">        url += &quot;&amp;branch=&quot; + encode(branchName);</span>
+      }
+<span class="fc" id="L183">      String pullRequest = notification.getFieldValue(FIELD_PULL_REQUEST);</span>
+<span class="pc bpc" id="L184" title="1 of 2 branches missed.">      if (pullRequest != null) {</span>
+<span class="nc" id="L185">        url += &quot;&amp;pullRequest=&quot; + encode(pullRequest);</span>
+      }
+<span class="fc" id="L187">      url += &quot;&amp;createdAt=&quot; + encode(DateUtils.formatDateTime(date));</span>
+<span class="fc" id="L188">      message</span>
+<span class="fc" id="L189">        .append(&quot;More details at: &quot;)</span>
+<span class="fc" id="L190">        .append(url)</span>
+<span class="fc" id="L191">        .append(NEW_LINE);</span>
+    }
+<span class="fc" id="L193">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

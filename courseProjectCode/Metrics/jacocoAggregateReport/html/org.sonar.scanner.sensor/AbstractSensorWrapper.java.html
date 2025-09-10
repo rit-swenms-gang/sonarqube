@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractSensorWrapper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.sensor</a> &gt; <span class="el_source">AbstractSensorWrapper.java</span></div><h1>AbstractSensorWrapper.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.sensor;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.batch.sensor.SensorContext;
+import org.sonar.api.batch.sensor.internal.DefaultSensorDescriptor;
+import org.sonar.api.scanner.sensor.ProjectSensor;
+import org.sonar.scanner.scan.branch.BranchConfiguration;
+import org.sonar.scanner.scan.branch.BranchType;
+import org.sonar.scanner.scan.filesystem.MutableFileSystem;
+
+public abstract class AbstractSensorWrapper&lt;G extends ProjectSensor&gt; {
+<span class="fc" id="L32">  private static final Logger LOGGER = LoggerFactory.getLogger(AbstractSensorWrapper.class);</span>
+
+  private final G wrappedSensor;
+  private final SensorContext context;
+  private final MutableFileSystem fileSystem;
+  private final DefaultSensorDescriptor descriptor;
+  private final AbstractSensorOptimizer optimizer;
+  private final boolean isPullRequest;
+
+<span class="fc" id="L41">  public AbstractSensorWrapper(G sensor, SensorContext context, AbstractSensorOptimizer optimizer, MutableFileSystem fileSystem, BranchConfiguration branchConfiguration) {</span>
+<span class="fc" id="L42">    this.wrappedSensor = sensor;</span>
+<span class="fc" id="L43">    this.optimizer = optimizer;</span>
+<span class="fc" id="L44">    this.context = context;</span>
+<span class="fc" id="L45">    this.descriptor = new DefaultSensorDescriptor();</span>
+<span class="fc" id="L46">    this.fileSystem = fileSystem;</span>
+<span class="fc bfc" id="L47" title="All 2 branches covered.">    this.isPullRequest = branchConfiguration.branchType() == BranchType.PULL_REQUEST;</span>
+<span class="fc" id="L48">    sensor.describe(this.descriptor);</span>
+<span class="fc bfc" id="L49" title="All 2 branches covered.">    if (descriptor.name() == null) {</span>
+<span class="fc" id="L50">      descriptor.name(sensor.getClass().getName());</span>
+    }
+<span class="fc" id="L52">  }</span>
+
+  public boolean shouldExecute() {
+<span class="fc" id="L55">    return optimizer.shouldExecute(descriptor);</span>
+  }
+
+  public void analyse() {
+<span class="fc bfc" id="L59" title="All 4 branches covered.">    boolean sensorIsRestricted = descriptor.isProcessesFilesIndependently() &amp;&amp; isPullRequest;</span>
+<span class="fc bfc" id="L60" title="All 2 branches covered.">    if (sensorIsRestricted) {</span>
+<span class="fc" id="L61">      LOGGER.info(&quot;Sensor {} is restricted to changed files only&quot;, descriptor.name());</span>
+    }
+<span class="fc" id="L63">    boolean allowHiddenFileAnalysis = descriptor.isProcessesHiddenFiles();</span>
+<span class="fc bfc" id="L64" title="All 2 branches covered.">    if (allowHiddenFileAnalysis) {</span>
+<span class="fc" id="L65">      LOGGER.debug(&quot;Sensor {} is allowed to analyze hidden files&quot;, descriptor.name());</span>
+    }
+<span class="fc" id="L67">    fileSystem.setRestrictToChangedFiles(sensorIsRestricted);</span>
+<span class="fc" id="L68">    fileSystem.setAllowHiddenFileAnalysis(allowHiddenFileAnalysis);</span>
+<span class="fc" id="L69">    wrappedSensor.execute(context);</span>
+<span class="fc" id="L70">  }</span>
+
+  public G wrappedSensor() {
+<span class="fc" id="L73">    return wrappedSensor;</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="fc" id="L78">    return descriptor.name();</span>
+  }
+
+  public boolean isGlobal() {
+<span class="fc" id="L82">    return descriptor.isGlobal();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

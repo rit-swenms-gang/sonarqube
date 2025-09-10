@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ValidateProjectStep.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.step</a> &gt; <span class="el_source">ValidateProjectStep.java</span></div><h1>ValidateProjectStep.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.step;
+
+import com.google.common.base.Joiner;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Optional;
+import org.sonar.api.utils.MessageException;
+import org.sonar.ce.task.projectanalysis.analysis.AnalysisMetadataHolder;
+import org.sonar.ce.task.projectanalysis.component.Component;
+import org.sonar.ce.task.projectanalysis.component.ComponentVisitor;
+import org.sonar.ce.task.projectanalysis.component.CrawlerDepthLimit;
+import org.sonar.ce.task.projectanalysis.component.DepthTraversalTypeAwareCrawler;
+import org.sonar.ce.task.projectanalysis.component.TreeRootHolder;
+import org.sonar.ce.task.projectanalysis.component.TypeAwareVisitorAdapter;
+import org.sonar.ce.task.step.ComputationStep;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.ComponentDao;
+import org.sonar.db.component.ComponentDto;
+import org.sonar.db.component.SnapshotDto;
+
+import static java.lang.String.format;
+import static org.sonar.api.utils.DateUtils.formatDateTime;
+import static org.sonar.core.component.ComponentKeys.ALLOWED_CHARACTERS_MESSAGE;
+import static org.sonar.core.component.ComponentKeys.isValidProjectKey;
+
+public class ValidateProjectStep implements ComputationStep {
+<span class="fc" id="L48">  private static final Joiner MESSAGES_JOINER = Joiner.on(&quot;\n  o &quot;);</span>
+
+  private final DbClient dbClient;
+  private final TreeRootHolder treeRootHolder;
+  private final AnalysisMetadataHolder analysisMetadataHolder;
+
+<span class="fc" id="L54">  public ValidateProjectStep(DbClient dbClient, TreeRootHolder treeRootHolder, AnalysisMetadataHolder analysisMetadataHolder) {</span>
+<span class="fc" id="L55">    this.dbClient = dbClient;</span>
+<span class="fc" id="L56">    this.treeRootHolder = treeRootHolder;</span>
+<span class="fc" id="L57">    this.analysisMetadataHolder = analysisMetadataHolder;</span>
+<span class="fc" id="L58">  }</span>
+
+  @Override
+  public void execute(ComputationStep.Context context) {
+<span class="fc" id="L62">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L63">      Component root = treeRootHolder.getRoot();</span>
+<span class="fc" id="L64">      ValidateProjectsVisitor visitor = new ValidateProjectsVisitor(dbSession, dbClient.componentDao());</span>
+<span class="fc" id="L65">      new DepthTraversalTypeAwareCrawler(visitor).visit(root);</span>
+
+<span class="fc bfc" id="L67" title="All 2 branches covered.">      if (!visitor.validationMessages.isEmpty()) {</span>
+<span class="fc" id="L68">        throw MessageException.of(&quot;Validation of project failed:\n  o &quot; + MESSAGES_JOINER.join(visitor.validationMessages));</span>
+      }
+    }
+<span class="fc" id="L71">  }</span>
+
+  @Override
+  public String getDescription() {
+<span class="nc" id="L75">    return &quot;Validate project&quot;;</span>
+  }
+
+  private class ValidateProjectsVisitor extends TypeAwareVisitorAdapter {
+    private final DbSession session;
+    private final ComponentDao componentDao;
+<span class="fc" id="L81">    private final List&lt;String&gt; validationMessages = new ArrayList&lt;&gt;();</span>
+
+<span class="fc" id="L83">    public ValidateProjectsVisitor(DbSession session, ComponentDao componentDao) {</span>
+<span class="fc" id="L84">      super(CrawlerDepthLimit.PROJECT, ComponentVisitor.Order.PRE_ORDER);</span>
+<span class="fc" id="L85">      this.session = session;</span>
+<span class="fc" id="L86">      this.componentDao = componentDao;</span>
+<span class="fc" id="L87">    }</span>
+
+    @Override
+    public void visitProject(Component rawProject) {
+<span class="fc" id="L91">      String rawProjectKey = rawProject.getKey();</span>
+<span class="fc" id="L92">      Optional&lt;ComponentDto&gt; baseProjectOpt = loadBaseComponent(rawProjectKey);</span>
+<span class="pc bpc" id="L93" title="1 of 2 branches missed.">      if (baseProjectOpt.isPresent()) {</span>
+<span class="fc" id="L94">        ComponentDto baseProject = baseProjectOpt.get();</span>
+<span class="fc" id="L95">        validateAnalysisDate(baseProject);</span>
+<span class="fc" id="L96">        validateProjectKey(baseProject);</span>
+      }
+<span class="fc" id="L98">    }</span>
+
+    private void validateProjectKey(ComponentDto baseProject) {
+<span class="fc bfc" id="L101" title="All 2 branches covered.">      if (!isValidProjectKey(baseProject.getKey())) {</span>
+<span class="fc" id="L102">        validationMessages.add(format(&quot;The project key ‘%s’ contains invalid characters. %s. You should update the project key with the expected format.&quot;, baseProject.getKey(),</span>
+          ALLOWED_CHARACTERS_MESSAGE));
+      }
+<span class="fc" id="L105">    }</span>
+
+    private void validateAnalysisDate(ComponentDto baseProject) {
+<span class="fc" id="L108">      Optional&lt;SnapshotDto&gt; snapshotDto = dbClient.snapshotDao().selectLastAnalysisByRootComponentUuid(session, baseProject.uuid());</span>
+<span class="fc" id="L109">      long currentAnalysisDate = analysisMetadataHolder.getAnalysisDate();</span>
+<span class="fc" id="L110">      Long lastAnalysisDate = snapshotDto.map(SnapshotDto::getCreatedAt).orElse(null);</span>
+<span class="pc bpc" id="L111" title="1 of 4 branches missed.">      if (lastAnalysisDate != null &amp;&amp; currentAnalysisDate &lt;= lastAnalysisDate) {</span>
+<span class="fc" id="L112">        validationMessages.add(format(&quot;Date of analysis cannot be older than the date of the last known analysis on this project. Value: \&quot;%s\&quot;. &quot; +</span>
+            &quot;Latest analysis: \&quot;%s\&quot;. It's only possible to rebuild the past in a chronological order.&quot;,
+<span class="fc" id="L114">          formatDateTime(new Date(currentAnalysisDate)), formatDateTime(new Date(lastAnalysisDate))));</span>
+      }
+<span class="fc" id="L116">    }</span>
+
+    private Optional&lt;ComponentDto&gt; loadBaseComponent(String rawComponentKey) {
+      // Load component from key to be able to detect issue (try to analyze a module, etc.)
+<span class="pc bpc" id="L120" title="1 of 2 branches missed.">      if (analysisMetadataHolder.isBranch()) {</span>
+<span class="fc" id="L121">        return componentDao.selectByKeyAndBranch(session, rawComponentKey, analysisMetadataHolder.getBranch().getName());</span>
+      } else {
+<span class="nc" id="L123">        return componentDao.selectByKeyAndPullRequest(session, rawComponentKey, analysisMetadataHolder.getBranch().getPullRequestKey());</span>
+      }
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

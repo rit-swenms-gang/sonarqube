@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PermissionIndexerDao.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.permission.index</a> &gt; <span class="el_source">PermissionIndexerDao.java</span></div><h1>PermissionIndexerDao.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.permission.index;
+
+import com.google.common.collect.ImmutableList;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import org.apache.commons.lang3.StringUtils;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+
+import static org.apache.commons.lang3.StringUtils.repeat;
+import static org.sonar.db.DatabaseUtils.executeLargeInputs;
+
+/**
+ * No streaming because of union of joins -&gt; no need to use ResultSetIterator
+ */
+<span class="fc" id="L41">public class PermissionIndexerDao {</span>
+
+<span class="fc" id="L43">  private enum RowKind {</span>
+<span class="fc" id="L44">    USER, GROUP, ANYONE, NONE</span>
+  }
+
+<span class="fc" id="L47">  private static final String SQL_TEMPLATE = &quot;&quot;&quot;</span>
+    with entity as ((select prj.uuid      as uuid,
+                            prj.private   as isPrivate,
+                            prj.qualifier as qualifier
+                     from projects prj)
+                    union
+                    (select p.uuid    as uuid,
+                            p.private as isPrivate,
+                            'VW'      as qualifier
+                     from portfolios p
+                     where p.parent_uuid is null))
+    SELECT entity_authorization.kind       as kind,
+           entity_authorization.entity     as entity,
+           entity_authorization.user_uuid  as user_uuid,
+           entity_authorization.group_uuid as group_uuid,
+           entity_authorization.qualifier  as qualifier
+    FROM (SELECT '%s'                 as kind,
+                 e.uuid               AS entity,
+                 e.qualifier          AS qualifier,
+                 user_roles.user_uuid AS user_uuid,
+                 NULL                 AS group_uuid
+          FROM entity e
+                   INNER JOIN user_roles ON user_roles.entity_uuid = e.uuid AND user_roles.role = 'user'
+          WHERE (1 = 1)
+                {entitiesCondition}
+          UNION
+          SELECT '%s' as kind, e.uuid AS entity, e.qualifier AS qualifier, NULL AS user_uuid, groups.uuid AS group_uuid
+          FROM entity e
+                   INNER JOIN group_roles
+                              ON group_roles.entity_uuid = e.uuid AND group_roles.role = 'user'
+                   INNER JOIN groups ON groups.uuid = group_roles.group_uuid
+          WHERE group_uuid IS NOT NULL
+                {entitiesCondition}
+          UNION
+          SELECT '%s' as kind, e.uuid AS entity, e.qualifier AS qualifier, NULL AS user_uuid, NULL AS group_uuid
+          FROM entity e
+          WHERE e.isPrivate = ?
+                {entitiesCondition}
+          UNION
+          SELECT '%s' as kind, e.uuid AS entity, e.qualifier AS qualifier, NULL AS user_uuid, NULL AS group_uuid
+          FROM entity e
+          WHERE e.isPrivate = ?
+             {entitiesCondition}
+<span class="fc" id="L90">         ) entity_authorization&quot;&quot;&quot;.formatted(RowKind.USER, RowKind.GROUP, RowKind.ANYONE, RowKind.NONE);</span>
+
+  List&lt;IndexPermissions&gt; selectAll(DbClient dbClient, DbSession session) {
+<span class="fc" id="L93">    return doSelectByEntities(dbClient, session, Collections.emptyList());</span>
+  }
+
+  public List&lt;IndexPermissions&gt; selectByUuids(DbClient dbClient, DbSession session, Collection&lt;String&gt; entitiesUuid) {
+    // we use a smaller partitionSize because the SQL_TEMPLATE contain 4x the list of entity uuid.
+    // the MsSQL jdbc driver accept a maximum of 2100 prepareStatement parameter. To stay under the limit,
+    // we go with batch of 1000/2=500 entities uuids, to stay under the limit (4x500 &lt; 2100)
+<span class="fc" id="L100">    return executeLargeInputs(entitiesUuid, entity -&gt; doSelectByEntities(dbClient, session, entity), i -&gt; i / 2);</span>
+  }
+
+  private static List&lt;IndexPermissions&gt; doSelectByEntities(DbClient dbClient, DbSession session, List&lt;String&gt; entitiesUuids) {
+    try {
+<span class="fc" id="L105">      Map&lt;String, IndexPermissions&gt; dtosByEntityUuid = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L106">      try (PreparedStatement stmt = createStatement(dbClient, session, entitiesUuids);</span>
+<span class="fc" id="L107">        ResultSet rs = stmt.executeQuery()) {</span>
+<span class="fc bfc" id="L108" title="All 2 branches covered.">        while (rs.next()) {</span>
+<span class="fc" id="L109">          processRow(rs, dtosByEntityUuid);</span>
+        }
+<span class="fc" id="L111">        return ImmutableList.copyOf(dtosByEntityUuid.values());</span>
+      }
+<span class="nc" id="L113">    } catch (SQLException e) {</span>
+<span class="nc" id="L114">      throw new IllegalStateException(&quot;Fail to select authorizations&quot;, e);</span>
+    }
+  }
+
+  private static PreparedStatement createStatement(DbClient dbClient, DbSession session, List&lt;String&gt; entityUuids) throws SQLException {
+    String sql;
+<span class="fc bfc" id="L120" title="All 2 branches covered.">    if (entityUuids.isEmpty()) {</span>
+<span class="fc" id="L121">      sql = StringUtils.replace(SQL_TEMPLATE, &quot;{entitiesCondition}&quot;, &quot;&quot;);</span>
+    } else {
+<span class="fc" id="L123">      sql = StringUtils.replace(SQL_TEMPLATE, &quot;{entitiesCondition}&quot;, &quot; AND e.uuid in (&quot; + repeat(&quot;?&quot;, &quot;, &quot;, entityUuids.size()) + &quot;)&quot;);</span>
+    }
+<span class="fc" id="L125">    PreparedStatement stmt = dbClient.getMyBatis().newScrollingSelectStatement(session, sql);</span>
+<span class="fc" id="L126">    int index = 1;</span>
+    // query for RowKind.USER
+<span class="fc" id="L128">    index = populateEntityUuidPlaceholders(stmt, entityUuids, index);</span>
+    // query for RowKind.GROUP
+<span class="fc" id="L130">    index = populateEntityUuidPlaceholders(stmt, entityUuids, index);</span>
+    // query for RowKind.ANYONE
+<span class="fc" id="L132">    index = setPrivateEntityPlaceHolder(stmt, index, false);</span>
+<span class="fc" id="L133">    index = populateEntityUuidPlaceholders(stmt, entityUuids, index);</span>
+    // query for RowKind.NONE
+<span class="fc" id="L135">    index = setPrivateEntityPlaceHolder(stmt, index, true);</span>
+<span class="fc" id="L136">    populateEntityUuidPlaceholders(stmt, entityUuids, index);</span>
+<span class="fc" id="L137">    return stmt;</span>
+  }
+
+  private static int populateEntityUuidPlaceholders(PreparedStatement stmt, List&lt;String&gt; entityUuids, int index) throws SQLException {
+<span class="fc" id="L141">    int newIndex = index;</span>
+<span class="fc bfc" id="L142" title="All 2 branches covered.">    for (String entityUuid : entityUuids) {</span>
+<span class="fc" id="L143">      stmt.setString(newIndex, entityUuid);</span>
+<span class="fc" id="L144">      newIndex++;</span>
+<span class="fc" id="L145">    }</span>
+<span class="fc" id="L146">    return newIndex;</span>
+  }
+
+  private static int setPrivateEntityPlaceHolder(PreparedStatement stmt, int index, boolean isPrivate) throws SQLException {
+<span class="fc" id="L150">    int newIndex = index;</span>
+<span class="fc" id="L151">    stmt.setBoolean(newIndex, isPrivate);</span>
+<span class="fc" id="L152">    newIndex++;</span>
+<span class="fc" id="L153">    return newIndex;</span>
+  }
+
+  private static void processRow(ResultSet rs, Map&lt;String, IndexPermissions&gt; dtosByEntityUuid) throws SQLException {
+<span class="fc" id="L157">    RowKind rowKind = RowKind.valueOf(rs.getString(1));</span>
+<span class="fc" id="L158">    String entityUuid = rs.getString(2);</span>
+
+<span class="fc" id="L160">    IndexPermissions dto = dtosByEntityUuid.get(entityUuid);</span>
+<span class="fc bfc" id="L161" title="All 2 branches covered.">    if (dto == null) {</span>
+<span class="fc" id="L162">      String qualifier = rs.getString(5);</span>
+<span class="fc" id="L163">      dto = new IndexPermissions(entityUuid, qualifier);</span>
+<span class="fc" id="L164">      dtosByEntityUuid.put(entityUuid, dto);</span>
+    }
+<span class="pc bpc" id="L166" title="1 of 5 branches missed.">    switch (rowKind) {</span>
+      case NONE:
+<span class="fc" id="L168">        break;</span>
+      case USER:
+<span class="fc" id="L170">        dto.addUserUuid(rs.getString(3));</span>
+<span class="fc" id="L171">        break;</span>
+      case GROUP:
+<span class="fc" id="L173">        dto.addGroupUuid(rs.getString(4));</span>
+<span class="fc" id="L174">        break;</span>
+      case ANYONE:
+<span class="fc" id="L176">        dto.allowAnyone();</span>
+        break;
+    }
+<span class="fc" id="L179">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

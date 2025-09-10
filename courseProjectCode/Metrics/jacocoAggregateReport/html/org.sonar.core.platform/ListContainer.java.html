@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ListContainer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.core.platform</a> &gt; <span class="el_source">ListContainer.java</span></div><h1>ListContainer.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.core.platform;
+
+import com.google.common.collect.Iterables;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import javax.annotation.Nullable;
+
+import static java.util.Collections.unmodifiableList;
+
+/**
+ * Intended to be used in tests
+ */
+<span class="fc" id="L35">public class ListContainer implements ExtensionContainer {</span>
+<span class="fc" id="L36">  private final List&lt;Object&gt; objects = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L37">  private final Set&lt;Class&lt;?&gt;&gt; webConfigurationClasses = new HashSet&lt;&gt;();</span>
+
+  @Override
+  public Container add(Object... objects) {
+<span class="fc bfc" id="L41" title="All 2 branches covered.">    for (Object o : objects) {</span>
+<span class="fc bfc" id="L42" title="All 2 branches covered.">      if (o instanceof Module module) {</span>
+<span class="fc" id="L43">        module.configure(this);</span>
+<span class="fc bfc" id="L44" title="All 2 branches covered.">      } else if (o instanceof Iterable) {</span>
+<span class="fc" id="L45">        add(Iterables.toArray((Iterable&lt;?&gt;) o, Object.class));</span>
+      } else {
+<span class="fc" id="L47">        this.objects.add(o);</span>
+      }
+    }
+<span class="fc" id="L50">    return this;</span>
+  }
+
+  public List&lt;Object&gt; getAddedObjects() {
+<span class="fc" id="L54">    return unmodifiableList(new ArrayList&lt;&gt;(objects));</span>
+  }
+
+  @Override
+  public &lt;T&gt; T getComponentByType(Class&lt;T&gt; type) {
+<span class="fc" id="L59">    throw new UnsupportedOperationException();</span>
+  }
+
+  @Override
+  public &lt;T&gt; Optional&lt;T&gt; getOptionalComponentByType(Class&lt;T&gt; type) {
+<span class="fc" id="L64">    throw new UnsupportedOperationException();</span>
+  }
+
+  @Override
+  public &lt;T&gt; List&lt;T&gt; getComponentsByType(Class&lt;T&gt; type) {
+<span class="fc" id="L69">    throw new UnsupportedOperationException();</span>
+  }
+
+  @Override
+  public ExtensionContainer addExtension(@Nullable PluginInfo pluginInfo, Object extension) {
+<span class="fc" id="L74">    add(extension);</span>
+<span class="fc" id="L75">    return this;</span>
+  }
+
+  @Override
+  public ExtensionContainer addExtension(@Nullable String defaultCategory, Object extension) {
+<span class="fc" id="L80">    add(extension);</span>
+<span class="fc" id="L81">    return this;</span>
+  }
+
+  @Override
+  public ExtensionContainer declareExtension(@Nullable PluginInfo pluginInfo, Object extension) {
+<span class="fc" id="L86">    return this;</span>
+  }
+
+  @Override
+  public ExtensionContainer declareExtension(@Nullable String defaultCategory, Object extension) {
+<span class="fc" id="L91">    return this;</span>
+  }
+
+  @Override
+  public void addWebApiV2ConfigurationClass(Class&lt;?&gt; clazz) {
+<span class="fc" id="L96">    webConfigurationClasses.add(clazz);</span>
+<span class="fc" id="L97">  }</span>
+
+  @Override
+  public Set&lt;Class&lt;?&gt;&gt; getWebApiV2ConfigurationClasses() {
+<span class="fc" id="L101">    return webConfigurationClasses;</span>
+  }
+
+  @Override
+  public &lt;T&gt; T getParentComponentByType(Class&lt;T&gt; type) {
+<span class="nc" id="L106">    throw new UnsupportedOperationException();</span>
+  }
+
+  @Override
+  public &lt;T&gt; List&lt;T&gt; getParentComponentsByType(Class&lt;T&gt; type) {
+<span class="nc" id="L111">    throw new UnsupportedOperationException();</span>
+  }
+
+  @Override
+  public ExtensionContainer getParent() {
+<span class="fc" id="L116">    throw new UnsupportedOperationException();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

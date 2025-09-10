@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ProjectsWsModule.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.project.ws</a> &gt; <span class="el_source">ProjectsWsModule.java</span></div><h1>ProjectsWsModule.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.project.ws;
+
+import org.sonar.core.platform.Module;
+import org.sonar.server.common.project.ImportProjectService;
+import org.sonar.server.common.project.ProjectCreator;
+import org.sonar.server.project.ProjectDefaultVisibility;
+import org.sonar.server.project.ProjectLifeCycleListenersImpl;
+
+public class ProjectsWsModule extends Module {
+
+<span class="fc" id="L30">  public ProjectsWsModule() {</span>
+    // nothing to do
+<span class="fc" id="L32">  }</span>
+
+  @Override
+  protected void configureModule() {
+<span class="fc" id="L36">    add(</span>
+      ImportProjectService.class,
+      ProjectDefaultVisibility.class,
+      ProjectFinder.class,
+      ProjectLifeCycleListenersImpl.class,
+      ProjectsWs.class,
+      ProjectCreator.class,
+      CreateAction.class,
+      BulkDeleteAction.class,
+      DeleteAction.class,
+      UpdateKeyAction.class,
+      SearchMyProjectsAction.class,
+      SearchAction.class,
+      SearchMyScannableProjectsAction.class,
+      UpdateVisibilityAction.class,
+      UpdateDefaultVisibilityAction.class);
+<span class="fc" id="L52">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

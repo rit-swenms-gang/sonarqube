@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WebServiceFilter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform.web</a> &gt; <span class="el_source">WebServiceFilter.java</span></div><h1>WebServiceFilter.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform.web;
+
+import java.util.HashSet;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.sonar.api.server.http.HttpRequest;
+import org.sonar.api.server.http.HttpResponse;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.api.web.FilterChain;
+import org.sonar.api.web.HttpFilter;
+import org.sonar.api.web.UrlPattern;
+import org.sonar.server.ws.ServletFilterHandler;
+import org.sonar.server.ws.ServletRequest;
+import org.sonar.server.ws.ServletResponse;
+import org.sonar.server.ws.WebServiceEngine;
+
+import static java.util.stream.Collectors.toCollection;
+import static java.util.stream.Stream.concat;
+import static org.sonar.server.platform.web.WebServiceReroutingFilter.MOVED_WEB_SERVICES;
+
+/**
+ * This filter is used to execute Web Services.
+ *
+ * Every urls beginning with '/api' and every web service urls are taken into account, except :
+ * &lt;ul&gt;
+ *   &lt;li&gt;web services that directly implemented with servlet filter, see {@link ServletFilterHandler})&lt;/li&gt;
+ * &lt;/ul&gt;
+ */
+public class WebServiceFilter extends HttpFilter {
+
+  private final WebServiceEngine webServiceEngine;
+  private final Set&lt;String&gt; includeUrls;
+  private final Set&lt;String&gt; excludeUrls;
+
+<span class="fc" id="L56">  public WebServiceFilter(WebServiceEngine webServiceEngine) {</span>
+<span class="fc" id="L57">    this.webServiceEngine = webServiceEngine;</span>
+<span class="fc" id="L58">    this.includeUrls = concat(</span>
+<span class="fc" id="L59">      Stream.of(&quot;/api/*&quot;),</span>
+<span class="fc" id="L60">      webServiceEngine.controllers().stream()</span>
+<span class="fc" id="L61">        .flatMap(controller -&gt; controller.actions().stream())</span>
+<span class="fc" id="L62">        .map(toPath()))</span>
+<span class="fc" id="L63">          .collect(Collectors.toSet());</span>
+<span class="fc" id="L64">    this.excludeUrls = concat(MOVED_WEB_SERVICES.stream(),</span>
+<span class="fc" id="L65">      webServiceEngine.controllers().stream()</span>
+<span class="fc" id="L66">        .flatMap(controller -&gt; controller.actions().stream())</span>
+<span class="fc" id="L67">        .filter(action -&gt; action.handler() instanceof ServletFilterHandler)</span>
+<span class="fc" id="L68">        .map(toPath())).collect(toCollection(HashSet::new));</span>
+<span class="fc" id="L69">    excludeUrls.add(&quot;/api/v2/*&quot;);</span>
+<span class="fc" id="L70">  }</span>
+
+  @Override
+  public UrlPattern doGetPattern() {
+<span class="fc" id="L74">    return UrlPattern.builder()</span>
+<span class="fc" id="L75">      .includes(includeUrls)</span>
+<span class="fc" id="L76">      .excludes(excludeUrls)</span>
+<span class="fc" id="L77">      .build();</span>
+  }
+
+  @Override
+  public void doFilter(HttpRequest request, HttpResponse response, FilterChain filterChain) {
+<span class="fc" id="L82">    ServletRequest wsRequest = new ServletRequest(request);</span>
+<span class="fc" id="L83">    ServletResponse wsResponse = new ServletResponse(response);</span>
+<span class="fc" id="L84">    webServiceEngine.execute(wsRequest, wsResponse);</span>
+<span class="fc" id="L85">  }</span>
+
+  private static Function&lt;WebService.Action, String&gt; toPath() {
+<span class="fc" id="L88">    return action -&gt; &quot;/&quot; + action.path() + &quot;.*&quot;;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

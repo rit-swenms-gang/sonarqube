@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SearchData.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.qualityprofile.ws</a> &gt; <span class="el_source">SearchData.java</span></div><h1>SearchData.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.qualityprofile.ws;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.sonar.db.qualityprofile.QProfileDto;
+
+import static com.google.common.base.MoreObjects.firstNonNull;
+import static com.google.common.collect.ImmutableList.copyOf;
+import static com.google.common.collect.ImmutableMap.copyOf;
+
+<span class="fc" id="L33">class SearchData {</span>
+  private List&lt;QProfileDto&gt; profiles;
+  private Map&lt;String, Long&gt; activeRuleCountByProfileKey;
+  private Map&lt;String, Long&gt; activeDeprecatedRuleCountByProfileKey;
+  private Map&lt;String, Long&gt; projectCountByProfileKey;
+  private Set&lt;String&gt; defaultProfileKeys;
+  private Set&lt;String&gt; editableProfileKeys;
+
+  List&lt;QProfileDto&gt; getProfiles() {
+<span class="fc" id="L42">    return profiles;</span>
+  }
+
+  SearchData setProfiles(List&lt;QProfileDto&gt; profiles) {
+<span class="fc" id="L46">    this.profiles = copyOf(profiles);</span>
+<span class="fc" id="L47">    return this;</span>
+  }
+
+  SearchData setActiveRuleCountByProfileKey(Map&lt;String, Long&gt; activeRuleCountByProfileKey) {
+<span class="fc" id="L51">    this.activeRuleCountByProfileKey = copyOf(activeRuleCountByProfileKey);</span>
+<span class="fc" id="L52">    return this;</span>
+  }
+
+  SearchData setActiveDeprecatedRuleCountByProfileKey(Map&lt;String, Long&gt; activeDeprecatedRuleCountByProfileKey) {
+<span class="fc" id="L56">    this.activeDeprecatedRuleCountByProfileKey = activeDeprecatedRuleCountByProfileKey;</span>
+<span class="fc" id="L57">    return this;</span>
+  }
+
+  SearchData setProjectCountByProfileKey(Map&lt;String, Long&gt; projectCountByProfileKey) {
+<span class="fc" id="L61">    this.projectCountByProfileKey = copyOf(projectCountByProfileKey);</span>
+<span class="fc" id="L62">    return this;</span>
+  }
+
+  long getActiveRuleCount(String profileKey) {
+<span class="fc" id="L66">    return firstNonNull(activeRuleCountByProfileKey.get(profileKey), 0L);</span>
+  }
+
+  long getProjectCount(String profileKey) {
+<span class="fc" id="L70">    return firstNonNull(projectCountByProfileKey.get(profileKey), 0L);</span>
+  }
+
+  long getActiveDeprecatedRuleCount(String profileKey) {
+<span class="fc" id="L74">    return firstNonNull(activeDeprecatedRuleCountByProfileKey.get(profileKey), 0L);</span>
+  }
+
+  boolean isDefault(QProfileDto profile) {
+<span class="fc" id="L78">    return defaultProfileKeys.contains(profile.getKee());</span>
+  }
+
+  SearchData setDefaultProfileKeys(List&lt;QProfileDto&gt; s) {
+<span class="fc" id="L82">    this.defaultProfileKeys = s.stream().map(QProfileDto::getKee).collect(Collectors.toSet());</span>
+<span class="fc" id="L83">    return this;</span>
+  }
+
+  boolean isEditable(QProfileDto profile) {
+<span class="fc" id="L87">    return editableProfileKeys.contains(profile.getKee());</span>
+  }
+
+  SearchData setEditableProfileKeys(List&lt;String&gt; editableProfileKeys) {
+<span class="fc" id="L91">    this.editableProfileKeys = new HashSet&lt;&gt;(editableProfileKeys);</span>
+<span class="fc" id="L92">    return this;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

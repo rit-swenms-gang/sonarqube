@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ProcessId.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.process</a> &gt; <span class="el_source">ProcessId.java</span></div><h1>ProcessId.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.process;
+
+import static java.lang.String.format;
+
+<span class="fc" id="L24">public enum ProcessId {</span>
+
+<span class="fc" id="L26">  APP(&quot;app&quot;, 0, &quot;sonar&quot;, &quot;SonarQube&quot;),</span>
+<span class="fc" id="L27">  ELASTICSEARCH(&quot;es&quot;, 1, &quot;es&quot;, &quot;ElasticSearch&quot;),</span>
+<span class="fc" id="L28">  WEB_SERVER(&quot;web&quot;, 2, &quot;web&quot;, &quot;Web Server&quot;),</span>
+<span class="fc" id="L29">  COMPUTE_ENGINE(&quot;ce&quot;, 3, &quot;ce&quot;, &quot;Compute Engine&quot;);</span>
+
+  private final String key;
+  private final int ipcIndex;
+  private final String logFilenamePrefix;
+  private final String humanReadableName;
+
+<span class="fc" id="L36">  ProcessId(String key, int ipcIndex, String logFilenamePrefix, String humanReadableName) {</span>
+<span class="fc" id="L37">    this.key = key;</span>
+<span class="fc" id="L38">    this.ipcIndex = ipcIndex;</span>
+<span class="fc" id="L39">    this.logFilenamePrefix = logFilenamePrefix;</span>
+<span class="fc" id="L40">    this.humanReadableName = humanReadableName;</span>
+<span class="fc" id="L41">  }</span>
+
+  public String getKey() {
+<span class="fc" id="L44">    return key;</span>
+  }
+
+  /**
+   * Index used for inter-process communication
+   */
+  public int getIpcIndex() {
+<span class="fc" id="L51">    return ipcIndex;</span>
+  }
+
+  /**
+   * Prefix of log file, for example &quot;web&quot; for file &quot;web.log&quot;
+   */
+  public String getLogFilenamePrefix() {
+<span class="fc" id="L58">    return logFilenamePrefix;</span>
+  }
+
+  public String getHumanReadableName() {
+<span class="fc" id="L62">    return humanReadableName;</span>
+  }
+
+  public static ProcessId fromKey(String key) {
+<span class="fc bfc" id="L66" title="All 2 branches covered.">    for (ProcessId processId : values()) {</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">      if (processId.getKey().equals(key)) {</span>
+<span class="fc" id="L68">        return processId;</span>
+      }
+    }
+<span class="fc" id="L71">    throw new IllegalArgumentException(format(&quot;Process [%s] does not exist&quot;, key));</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

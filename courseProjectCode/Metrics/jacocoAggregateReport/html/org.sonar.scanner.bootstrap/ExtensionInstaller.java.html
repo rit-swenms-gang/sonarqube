@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ExtensionInstaller.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.bootstrap</a> &gt; <span class="el_source">ExtensionInstaller.java</span></div><h1>ExtensionInstaller.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.bootstrap;
+
+import java.util.Collection;
+import javax.annotation.Nullable;
+import org.sonar.api.Plugin;
+import org.sonar.api.SonarRuntime;
+import org.sonar.api.config.Configuration;
+import org.sonar.api.internal.PluginContextImpl;
+import org.sonar.core.platform.ExtensionContainer;
+import org.sonar.core.platform.PluginInfo;
+import org.sonar.core.platform.PluginRepository;
+
+public class ExtensionInstaller {
+
+  private final SonarRuntime sonarRuntime;
+  private final PluginRepository pluginRepository;
+  private final Configuration bootConfiguration;
+
+<span class="fc" id="L38">  public ExtensionInstaller(SonarRuntime sonarRuntime, PluginRepository pluginRepository, Configuration bootConfiguration) {</span>
+<span class="fc" id="L39">    this.sonarRuntime = sonarRuntime;</span>
+<span class="fc" id="L40">    this.pluginRepository = pluginRepository;</span>
+<span class="fc" id="L41">    this.bootConfiguration = bootConfiguration;</span>
+<span class="fc" id="L42">  }</span>
+
+  public ExtensionInstaller install(ExtensionContainer container, ExtensionMatcher matcher) {
+    // core components
+<span class="fc bfc" id="L46" title="All 2 branches covered.">    for (Object o : BatchComponents.all()) {</span>
+<span class="fc" id="L47">      doInstall(container, matcher, null, o);</span>
+<span class="fc" id="L48">    }</span>
+
+    // plugin extensions
+<span class="fc" id="L51">    installExtensionsForPlugins(container, matcher, pluginRepository.getPluginInfos());</span>
+
+<span class="fc" id="L53">    return this;</span>
+  }
+
+  public void installExtensionsForPlugins(ExtensionContainer container, ExtensionMatcher matcher, Collection&lt;PluginInfo&gt; pluginInfos) {
+<span class="fc bfc" id="L57" title="All 2 branches covered.">    for (PluginInfo pluginInfo : pluginInfos) {</span>
+<span class="fc" id="L58">      Plugin plugin = pluginRepository.getPluginInstance(pluginInfo.getKey());</span>
+<span class="fc" id="L59">      Plugin.Context context = new PluginContextImpl.Builder()</span>
+<span class="fc" id="L60">        .setSonarRuntime(sonarRuntime)</span>
+<span class="fc" id="L61">        .setBootConfiguration(bootConfiguration)</span>
+<span class="fc" id="L62">        .build();</span>
+
+<span class="fc" id="L64">      plugin.define(context);</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">      for (Object extension : context.getExtensions()) {</span>
+<span class="fc" id="L66">        doInstall(container, matcher, pluginInfo, extension);</span>
+<span class="fc" id="L67">      }</span>
+<span class="fc" id="L68">    }</span>
+<span class="fc" id="L69">  }</span>
+
+  private static void doInstall(ExtensionContainer container, ExtensionMatcher matcher, @Nullable PluginInfo pluginInfo, Object extension) {
+<span class="fc bfc" id="L72" title="All 2 branches covered.">    if (matcher.accept(extension)) {</span>
+<span class="fc" id="L73">      container.addExtension(pluginInfo, extension);</span>
+    } else {
+<span class="fc" id="L75">      container.declareExtension(pluginInfo, extension);</span>
+    }
+<span class="fc" id="L77">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

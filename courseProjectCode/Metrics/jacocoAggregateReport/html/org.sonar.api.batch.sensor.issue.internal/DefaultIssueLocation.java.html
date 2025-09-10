@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultIssueLocation.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.api.batch.sensor.issue.internal</a> &gt; <span class="el_source">DefaultIssueLocation.java</span></div><h1>DefaultIssueLocation.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.api.batch.sensor.issue.internal;
+
+import java.util.ArrayList;
+import java.util.List;
+import org.apache.commons.lang3.StringUtils;
+import org.sonar.api.batch.fs.InputComponent;
+import org.sonar.api.batch.fs.TextRange;
+import org.sonar.api.batch.fs.internal.DefaultInputFile;
+import org.sonar.api.batch.sensor.issue.IssueLocation;
+import org.sonar.api.batch.sensor.issue.MessageFormatting;
+import org.sonar.api.batch.sensor.issue.NewIssueLocation;
+import org.sonar.api.batch.sensor.issue.NewMessageFormatting;
+import org.sonar.api.issue.Issue;
+
+import static java.util.Objects.requireNonNull;
+import static org.apache.commons.lang3.StringUtils.abbreviate;
+import static org.apache.commons.lang3.StringUtils.trim;
+import static org.sonar.api.utils.Preconditions.checkArgument;
+import static org.sonar.api.utils.Preconditions.checkState;
+
+<span class="fc" id="L40">public class DefaultIssueLocation implements NewIssueLocation, IssueLocation {</span>
+
+  private static final String NULL_CHARACTER = &quot;\u0000&quot;;
+  private static final String NULL_REPLACEMENT = &quot;[NULL]&quot;;
+
+  private InputComponent component;
+  private TextRange textRange;
+  private String message;
+<span class="fc" id="L48">  private final List&lt;MessageFormatting&gt; messageFormattings = new ArrayList&lt;&gt;();</span>
+
+  @Override
+  public DefaultIssueLocation on(InputComponent component) {
+<span class="pc bpc" id="L52" title="1 of 2 branches missed.">    checkArgument(component != null, &quot;Component can't be null&quot;);</span>
+<span class="fc bfc" id="L53" title="All 2 branches covered.">    checkState(this.component == null, &quot;on() already called&quot;);</span>
+<span class="fc" id="L54">    this.component = component;</span>
+<span class="fc" id="L55">    return this;</span>
+  }
+
+  @Override
+  public DefaultIssueLocation at(TextRange location) {
+<span class="pc bpc" id="L60" title="1 of 2 branches missed.">    checkState(this.component != null, &quot;at() should be called after on()&quot;);</span>
+<span class="fc" id="L61">    checkState(this.component.isFile(), &quot;at() should be called only for an InputFile.&quot;);</span>
+<span class="fc" id="L62">    DefaultInputFile file = (DefaultInputFile) this.component;</span>
+<span class="fc" id="L63">    file.validate(location);</span>
+<span class="fc" id="L64">    this.textRange = location;</span>
+<span class="fc" id="L65">    return this;</span>
+  }
+
+  @Override
+  public DefaultIssueLocation message(String message) {
+<span class="fc" id="L70">    validateMessage(message);</span>
+<span class="fc" id="L71">    String sanitizedMessage = sanitizeNulls(message);</span>
+<span class="fc" id="L72">    this.message = abbreviate(trim(sanitizedMessage), Issue.MESSAGE_MAX_SIZE);</span>
+<span class="fc" id="L73">    return this;</span>
+  }
+
+  @Override
+  public DefaultIssueLocation message(String message, List&lt;NewMessageFormatting&gt; newMessageFormattings) {
+<span class="fc" id="L78">    validateMessage(message);</span>
+<span class="fc" id="L79">    validateFormattings(newMessageFormattings, message);</span>
+<span class="fc" id="L80">    String sanitizedMessage = sanitizeNulls(message);</span>
+<span class="fc" id="L81">    this.message = abbreviate(sanitizedMessage, Issue.MESSAGE_MAX_SIZE);</span>
+
+<span class="fc bfc" id="L83" title="All 2 branches covered.">    for (NewMessageFormatting newMessageFormatting : newMessageFormattings) {</span>
+<span class="fc" id="L84">      DefaultMessageFormatting messageFormatting = (DefaultMessageFormatting) newMessageFormatting;</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">      if (messageFormatting.start() &gt;  Issue.MESSAGE_MAX_SIZE) {</span>
+<span class="fc" id="L86">        continue;</span>
+      }
+<span class="fc bfc" id="L88" title="All 2 branches covered.">      if (messageFormatting.end() &gt; Issue.MESSAGE_MAX_SIZE) {</span>
+<span class="fc" id="L89">        messageFormatting = new DefaultMessageFormatting()</span>
+<span class="fc" id="L90">          .start(messageFormatting.start())</span>
+<span class="fc" id="L91">          .end( Issue.MESSAGE_MAX_SIZE)</span>
+<span class="fc" id="L92">          .type(messageFormatting.type());</span>
+      }
+<span class="fc" id="L94">      messageFormattings.add(messageFormatting);</span>
+<span class="fc" id="L95">    }</span>
+<span class="fc" id="L96">    return this;</span>
+  }
+
+  private static void validateFormattings(List&lt;NewMessageFormatting&gt; newMessageFormattings, String message) {
+<span class="pc bpc" id="L100" title="1 of 2 branches missed.">    checkArgument(newMessageFormattings != null, &quot;messageFormattings can't be null&quot;);</span>
+<span class="fc" id="L101">    newMessageFormattings.stream()</span>
+<span class="fc" id="L102">      .map(DefaultMessageFormatting.class::cast)</span>
+<span class="fc" id="L103">      .forEach(e -&gt; e.validate(message));</span>
+<span class="fc" id="L104">  }</span>
+
+  private static void validateMessage(String message) {
+<span class="fc" id="L107">    requireNonNull(message, &quot;Message can't be null&quot;);</span>
+<span class="fc" id="L108">  }</span>
+
+  private static String sanitizeNulls(String message) {
+<span class="fc" id="L111">    return StringUtils.replace(message, NULL_CHARACTER, NULL_REPLACEMENT);</span>
+  }
+
+  @Override
+  public NewMessageFormatting newMessageFormatting() {
+<span class="fc" id="L116">    return new DefaultMessageFormatting();</span>
+  }
+
+  @Override
+  public InputComponent inputComponent() {
+<span class="fc" id="L121">    return this.component;</span>
+  }
+
+  @Override
+  public TextRange textRange() {
+<span class="fc" id="L126">    return textRange;</span>
+  }
+
+  @Override
+  public String message() {
+<span class="fc" id="L131">    return this.message;</span>
+  }
+
+  @Override
+  public List&lt;MessageFormatting&gt; messageFormattings() {
+<span class="fc" id="L136">    return this.messageFormattings;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

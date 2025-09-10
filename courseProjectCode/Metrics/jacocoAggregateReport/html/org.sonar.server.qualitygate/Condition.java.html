@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Condition.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.qualitygate</a> &gt; <span class="el_source">Condition.java</span></div><h1>Condition.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.qualitygate;
+
+import java.util.Objects;
+import java.util.stream.Stream;
+import javax.annotation.concurrent.Immutable;
+import org.sonar.db.qualitygate.QualityGateConditionDto;
+
+import static java.util.Objects.requireNonNull;
+
+@Immutable
+public class Condition {
+
+  private final String metricKey;
+  private final Operator operator;
+  private final String errorThreshold;
+  private final boolean onLeakPeriod;
+
+<span class="fc" id="L37">  public Condition(String metricKey, Operator operator, String errorThreshold) {</span>
+<span class="fc" id="L38">    this.metricKey = requireNonNull(metricKey, &quot;metricKey can't be null&quot;);</span>
+<span class="fc" id="L39">    this.operator = requireNonNull(operator, &quot;operator can't be null&quot;);</span>
+<span class="fc" id="L40">    this.errorThreshold = requireNonNull(errorThreshold, &quot;errorThreshold can't be null&quot;);</span>
+<span class="fc" id="L41">    this.onLeakPeriod = metricKey.startsWith(&quot;new_&quot;);</span>
+<span class="fc" id="L42">  }</span>
+
+  public String getMetricKey() {
+<span class="fc" id="L45">    return metricKey;</span>
+  }
+
+  public boolean isOnLeakPeriod() {
+<span class="fc" id="L49">    return onLeakPeriod;</span>
+  }
+
+  public Operator getOperator() {
+<span class="fc" id="L53">    return operator;</span>
+  }
+
+  public String getErrorThreshold() {
+<span class="fc" id="L57">    return errorThreshold;</span>
+  }
+
+  @Override
+  public boolean equals(Object o) {
+<span class="fc bfc" id="L62" title="All 2 branches covered.">    if (this == o) {</span>
+<span class="fc" id="L63">      return true;</span>
+    }
+<span class="pc bpc" id="L65" title="1 of 4 branches missed.">    if (o == null || getClass() != o.getClass()) {</span>
+<span class="fc" id="L66">      return false;</span>
+    }
+<span class="fc" id="L68">    Condition condition = (Condition) o;</span>
+<span class="fc bfc" id="L69" title="All 4 branches covered.">    return Objects.equals(metricKey, condition.metricKey) &amp;&amp;</span>
+      operator == condition.operator &amp;&amp;
+<span class="fc bfc" id="L71" title="All 2 branches covered.">      Objects.equals(errorThreshold, condition.errorThreshold);</span>
+  }
+
+  @Override
+  public int hashCode() {
+<span class="fc" id="L76">    return Objects.hash(metricKey, operator, errorThreshold);</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="fc" id="L81">    return &quot;Condition{&quot; +</span>
+      &quot;metricKey='&quot; + metricKey + '\'' +
+      &quot;, operator=&quot; + operator +
+<span class="fc" id="L84">      &quot;, errorThreshold=&quot; + toString(errorThreshold) +</span>
+      '}';
+  }
+
+  private static String toString(String errorThreshold) {
+<span class="fc" id="L89">    return '\'' + errorThreshold + '\'';</span>
+  }
+
+<span class="fc" id="L92">  public enum Operator {</span>
+<span class="fc" id="L93">    GREATER_THAN(QualityGateConditionDto.OPERATOR_GREATER_THAN),</span>
+<span class="fc" id="L94">    LESS_THAN(QualityGateConditionDto.OPERATOR_LESS_THAN);</span>
+
+    private final String dbValue;
+
+<span class="fc" id="L98">    Operator(String dbValue) {</span>
+<span class="fc" id="L99">      this.dbValue = dbValue;</span>
+<span class="fc" id="L100">    }</span>
+
+    public String getDbValue() {
+<span class="fc" id="L103">      return dbValue;</span>
+    }
+
+    public static Operator fromDbValue(String s) {
+<span class="fc" id="L107">      return Stream.of(values())</span>
+<span class="fc" id="L108">        .filter(o -&gt; o.getDbValue().equals(s))</span>
+<span class="fc" id="L109">        .findFirst()</span>
+<span class="pc" id="L110">        .orElseThrow(() -&gt; new IllegalArgumentException(&quot;Unsupported operator db value: &quot; + s));</span>
+    }
+
+    public static boolean isValid(String s) {
+<span class="fc" id="L114">      return Stream.of(values())</span>
+<span class="fc" id="L115">        .anyMatch(o -&gt; o.getDbValue().equals(s));</span>
+    }
+
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

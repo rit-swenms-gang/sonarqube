@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GovernanceReportsService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonarqube.ws.client.governancereports</a> &gt; <span class="el_source">GovernanceReportsService.java</span></div><h1>GovernanceReportsService.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonarqube.ws.client.governancereports;
+
+import java.util.stream.Collectors;
+import jakarta.annotation.Generated;
+import org.sonarqube.ws.MediaTypes;
+import org.sonarqube.ws.client.BaseService;
+import org.sonarqube.ws.client.GetRequest;
+import org.sonarqube.ws.client.PostRequest;
+import org.sonarqube.ws.client.WsConnector;
+
+/**
+ * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/governance_reports&quot;&gt;Further information about this web service online&lt;/a&gt;
+ */
+@Generated(&quot;sonar-ws-generator&quot;)
+public class GovernanceReportsService extends BaseService {
+
+  public GovernanceReportsService(WsConnector wsConnector) {
+<span class="fc" id="L37">    super(wsConnector, &quot;api/governance_reports&quot;);</span>
+<span class="fc" id="L38">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/governance_reports/download&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 1.0
+   */
+  public String download(DownloadRequest request) {
+<span class="nc" id="L48">    return call(</span>
+<span class="nc" id="L49">      new GetRequest(path(&quot;download&quot;))</span>
+<span class="nc" id="L50">        .setParam(&quot;componentId&quot;, request.getComponentId())</span>
+<span class="nc" id="L51">        .setParam(&quot;componentKey&quot;, request.getComponentKey())</span>
+<span class="nc" id="L52">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L53">      ).content();</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/governance_reports/status&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 1.0
+   */
+  public String status(StatusRequest request) {
+<span class="nc" id="L64">    return call(</span>
+<span class="nc" id="L65">      new GetRequest(path(&quot;status&quot;))</span>
+<span class="nc" id="L66">        .setParam(&quot;componentId&quot;, request.getComponentId())</span>
+<span class="nc" id="L67">        .setParam(&quot;componentKey&quot;, request.getComponentKey())</span>
+<span class="nc" id="L68">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L69">      ).content();</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/governance_reports/subscribe&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 1.0
+   */
+  public void subscribe(SubscribeRequest request) {
+<span class="nc" id="L80">    call(</span>
+<span class="nc" id="L81">      new PostRequest(path(&quot;subscribe&quot;))</span>
+<span class="nc" id="L82">        .setParam(&quot;componentId&quot;, request.getComponentId())</span>
+<span class="nc" id="L83">        .setParam(&quot;componentKey&quot;, request.getComponentKey())</span>
+<span class="nc" id="L84">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L85">      ).content();</span>
+<span class="nc" id="L86">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/governance_reports/unsubscribe&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 1.0
+   */
+  public void unsubscribe(UnsubscribeRequest request) {
+<span class="nc" id="L96">    call(</span>
+<span class="nc" id="L97">      new PostRequest(path(&quot;unsubscribe&quot;))</span>
+<span class="nc" id="L98">        .setParam(&quot;componentId&quot;, request.getComponentId())</span>
+<span class="nc" id="L99">        .setParam(&quot;componentKey&quot;, request.getComponentKey())</span>
+<span class="nc" id="L100">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L101">      ).content();</span>
+<span class="nc" id="L102">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/governance_reports/update_frequency&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 1.0
+   */
+  public void updateFrequency(UpdateFrequencyRequest request) {
+<span class="nc" id="L112">    call(</span>
+<span class="nc" id="L113">      new PostRequest(path(&quot;update_frequency&quot;))</span>
+<span class="nc" id="L114">        .setParam(&quot;componentId&quot;, request.getComponentId())</span>
+<span class="nc" id="L115">        .setParam(&quot;componentKey&quot;, request.getComponentKey())</span>
+<span class="nc" id="L116">        .setParam(&quot;frequency&quot;, request.getFrequency())</span>
+<span class="nc" id="L117">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L118">      ).content();</span>
+<span class="nc" id="L119">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/governance_reports/update_recipients&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 1.0
+   */
+  public void updateRecipients(UpdateRecipientsRequest request) {
+<span class="nc" id="L129">    call(</span>
+<span class="nc" id="L130">      new PostRequest(path(&quot;update_recipients&quot;))</span>
+<span class="nc" id="L131">        .setParam(&quot;componentId&quot;, request.getComponentId())</span>
+<span class="nc" id="L132">        .setParam(&quot;componentKey&quot;, request.getComponentKey())</span>
+<span class="nc bnc" id="L133" title="All 2 branches missed.">        .setParam(&quot;recipients&quot;, request.getRecipients() == null ? null : request.getRecipients().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc" id="L134">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L135">      ).content();</span>
+<span class="nc" id="L136">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

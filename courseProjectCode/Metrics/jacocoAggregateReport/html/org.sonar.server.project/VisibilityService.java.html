@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VisibilityService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.project</a> &gt; <span class="el_source">VisibilityService.java</span></div><h1>VisibilityService.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.project;
+
+import com.google.common.annotations.VisibleForTesting;
+import java.util.Optional;
+import org.sonar.api.ce.ComputeEngineSide;
+import org.sonar.api.server.ServerSide;
+import org.sonar.core.util.UuidFactory;
+import org.sonar.core.util.Uuids;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.ce.CeQueueDto;
+import org.sonar.db.component.BranchDto;
+import org.sonar.db.entity.EntityDto;
+import org.sonar.db.permission.GroupPermissionDto;
+import org.sonar.db.permission.UserPermissionDto;
+import org.sonar.db.user.GroupDto;
+import org.sonar.db.user.UserId;
+import org.sonar.server.es.Indexers;
+
+import static java.util.Collections.singletonList;
+import static java.util.Optional.ofNullable;
+import static org.sonar.api.utils.Preconditions.checkState;
+import static org.sonar.db.permission.ProjectPermission.PUBLIC_PERMISSIONS;
+import static org.sonar.db.ce.CeTaskTypes.GITHUB_PROJECT_PERMISSIONS_PROVISIONING;
+import static org.sonar.db.ce.CeTaskTypes.GITLAB_PROJECT_PERMISSIONS_PROVISIONING;
+
+@ServerSide
+@ComputeEngineSide
+public class VisibilityService {
+  private final DbClient dbClient;
+  private final Indexers indexers;
+  private final UuidFactory uuidFactory;
+
+<span class="fc" id="L53">  public VisibilityService(DbClient dbClient,  Indexers indexers, UuidFactory uuidFactory) {</span>
+<span class="fc" id="L54">    this.dbClient = dbClient;</span>
+<span class="fc" id="L55">    this.indexers = indexers;</span>
+<span class="fc" id="L56">    this.uuidFactory = uuidFactory;</span>
+<span class="fc" id="L57">  }</span>
+
+  public void changeVisibility(EntityDto entityDto, boolean isPrivate) {
+<span class="fc" id="L60">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L61">      checkNoPendingTasks(dbSession, entityDto);</span>
+<span class="fc bfc" id="L62" title="All 2 branches covered.">      if (isPrivate != entityDto.isPrivate()) {</span>
+<span class="fc" id="L63">        setPrivateForRootComponentUuid(dbSession, entityDto, isPrivate);</span>
+<span class="fc bfc" id="L64" title="All 2 branches covered.">        if (isPrivate) {</span>
+<span class="fc" id="L65">          updatePermissionsToPrivate(dbSession, entityDto);</span>
+        } else {
+<span class="fc" id="L67">          updatePermissionsToPublic(dbSession, entityDto);</span>
+        }
+<span class="fc" id="L69">        indexers.commitAndIndexEntities(dbSession, singletonList(entityDto), Indexers.EntityEvent.PERMISSION_CHANGE);</span>
+      }
+    }
+<span class="fc" id="L72">  }</span>
+
+  @VisibleForTesting
+  void checkNoPendingTasks(DbSession dbSession, EntityDto entityDto) {
+    //This check likely can be removed when we remove the column 'private' from components table in SONAR-20126.
+<span class="fc bfc" id="L77" title="All 2 branches covered.">    checkState(countPendingTask(dbSession, entityDto.getKey()) == 0, &quot;Component visibility can't be changed as long as it has background task(s) pending or in progress&quot;);</span>
+<span class="fc" id="L78">  }</span>
+
+  private long countPendingTask(DbSession dbSession, String entityKey) {
+<span class="fc" id="L81">    EntityDto entityDto = dbClient.entityDao().selectByKey(dbSession, entityKey).orElseThrow(() -&gt; new IllegalStateException(&quot;Can't find entity &quot; + entityKey));</span>
+<span class="fc" id="L82">    return dbClient.ceQueueDao().selectByEntityUuid(dbSession, entityDto.getUuid())</span>
+<span class="fc" id="L83">      .stream()</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">      .filter(task -&gt; !hasDevopsProjectPermissionsProvisioningTaskRunning(task))</span>
+<span class="fc" id="L85">      .count();</span>
+  }
+
+  private static boolean hasDevopsProjectPermissionsProvisioningTaskRunning(CeQueueDto task) {
+<span class="fc bfc" id="L89" title="All 4 branches covered.">    return task.getTaskType().equals(GITHUB_PROJECT_PERMISSIONS_PROVISIONING) || task.getTaskType().equals(GITLAB_PROJECT_PERMISSIONS_PROVISIONING);</span>
+  }
+
+  private void setPrivateForRootComponentUuid(DbSession dbSession, EntityDto entity, boolean newIsPrivate) {
+<span class="fc" id="L93">    Optional&lt;BranchDto&gt; branchDto = dbClient.branchDao().selectMainBranchByProjectUuid(dbSession, entity.getUuid());</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">    String branchUuid = branchDto.isPresent() ? branchDto.get().getUuid() : entity.getUuid();</span>
+<span class="fc" id="L95">    dbClient.componentDao().setPrivateForBranchUuid(dbSession, branchUuid, newIsPrivate, entity.getKey(), entity.getQualifier(), entity.getName());</span>
+
+<span class="fc bfc" id="L97" title="All 2 branches covered.">    if (entity.isProjectOrApp()) {</span>
+<span class="fc" id="L98">      dbClient.projectDao().updateVisibility(dbSession, entity.getUuid(), newIsPrivate);</span>
+<span class="fc" id="L99">      dbClient.branchDao().selectByProjectUuid(dbSession, entity.getUuid()).stream()</span>
+<span class="fc bfc" id="L100" title="All 2 branches covered.">        .filter(branch -&gt; !branch.isMain())</span>
+<span class="fc" id="L101">        .forEach(branch -&gt; dbClient.componentDao().setPrivateForBranchUuidWithoutAuditLog(dbSession, branch.getUuid(), newIsPrivate));</span>
+    } else {
+<span class="fc" id="L103">      dbClient.portfolioDao().updateVisibilityByPortfolioUuid(dbSession, entity.getUuid(), newIsPrivate);</span>
+    }
+<span class="fc" id="L105">    entity.setPrivate(newIsPrivate);</span>
+<span class="fc" id="L106">  }</span>
+
+  private void updatePermissionsToPrivate(DbSession dbSession, EntityDto entity) {
+    // delete project permissions for group AnyOne
+<span class="fc" id="L110">    dbClient.groupPermissionDao().deleteByEntityUuidForAnyOne(dbSession, entity);</span>
+    // grant UserRole.CODEVIEWER and UserRole.USER to any group or user with at least one permission on project
+<span class="fc" id="L112">    PUBLIC_PERMISSIONS.forEach(permission -&gt; {</span>
+<span class="fc" id="L113">      dbClient.groupPermissionDao().selectGroupUuidsWithPermissionOnEntityBut(dbSession, entity.getUuid(), permission.getKey())</span>
+<span class="fc" id="L114">        .forEach(group -&gt; insertProjectPermissionOnGroup(dbSession, entity, permission.getKey(), group));</span>
+<span class="fc" id="L115">      dbClient.userPermissionDao().selectUserIdsWithPermissionOnEntityBut(dbSession, entity.getUuid(), permission.getKey())</span>
+<span class="fc" id="L116">        .forEach(userUuid -&gt; insertProjectPermissionOnUser(dbSession, entity, permission.getKey(), userUuid));</span>
+<span class="fc" id="L117">    });</span>
+<span class="fc" id="L118">  }</span>
+
+  private void insertProjectPermissionOnUser(DbSession dbSession, EntityDto entity, String permission, UserId userId) {
+<span class="fc" id="L121">    dbClient.userPermissionDao().insert(dbSession, new UserPermissionDto(Uuids.create(), permission, userId.getUuid(), entity.getUuid()),</span>
+      entity, userId, null);
+<span class="fc" id="L123">  }</span>
+
+  private void insertProjectPermissionOnGroup(DbSession dbSession, EntityDto entity, String permission, String groupUuid) {
+<span class="fc" id="L126">    String groupName = ofNullable(dbClient.groupDao().selectByUuid(dbSession, groupUuid)).map(GroupDto::getName).orElse(null);</span>
+<span class="fc" id="L127">    dbClient.groupPermissionDao().insert(dbSession, new GroupPermissionDto()</span>
+<span class="fc" id="L128">      .setUuid(uuidFactory.create())</span>
+<span class="fc" id="L129">      .setEntityUuid(entity.getUuid())</span>
+<span class="fc" id="L130">      .setGroupUuid(groupUuid)</span>
+<span class="fc" id="L131">      .setGroupName(groupName)</span>
+<span class="fc" id="L132">      .setRole(permission)</span>
+<span class="fc" id="L133">      .setEntityName(entity.getName()), entity, null);</span>
+<span class="fc" id="L134">  }</span>
+
+  private void updatePermissionsToPublic(DbSession dbSession, EntityDto entity) {
+<span class="fc" id="L137">    PUBLIC_PERMISSIONS.forEach(permission -&gt; {</span>
+      // delete project group permission for UserRole.CODEVIEWER and UserRole.USER
+<span class="fc" id="L139">      dbClient.groupPermissionDao().deleteByEntityAndPermission(dbSession, permission.getKey(), entity);</span>
+      // delete project user permission for UserRole.CODEVIEWER and UserRole.USER
+<span class="fc" id="L141">      dbClient.userPermissionDao().deleteEntityPermissionOfAnyUser(dbSession, permission.getKey(), entity);</span>
+<span class="fc" id="L142">    });</span>
+<span class="fc" id="L143">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

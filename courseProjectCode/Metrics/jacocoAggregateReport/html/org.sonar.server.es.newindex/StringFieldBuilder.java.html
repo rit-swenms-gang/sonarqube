@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StringFieldBuilder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.es.newindex</a> &gt; <span class="el_source">StringFieldBuilder.java</span></div><h1>StringFieldBuilder.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.es.newindex;
+
+import com.google.common.collect.Maps;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.SortedMap;
+import java.util.TreeMap;
+
+import static java.lang.String.valueOf;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.FIELDDATA_ENABLED;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.FIELD_FIELDDATA;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.FIELD_TERM_VECTOR;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.FIELD_TYPE_KEYWORD;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.INDEX;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.INDEX_NOT_SEARCHABLE;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.INDEX_SEARCHABLE;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.NORMS;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.STORE;
+
+/**
+ * Helper to define a string field in mapping of index type
+ */
+public abstract class StringFieldBuilder&lt;U extends FieldAware&lt;U&gt;, T extends StringFieldBuilder&lt;U, T&gt;&gt; {
+  private final U parent;
+  private final String fieldName;
+<span class="fc" id="L45">  private boolean disableSearch = false;</span>
+<span class="fc" id="L46">  private boolean disableNorms = false;</span>
+<span class="fc" id="L47">  private boolean termVectorWithPositionOffsets = false;</span>
+<span class="fc" id="L48">  private SortedMap&lt;String, Object&gt; subFields = Maps.newTreeMap();</span>
+<span class="fc" id="L49">  private boolean store = false;</span>
+<span class="fc" id="L50">  protected boolean disabledDocValues = false;</span>
+
+<span class="fc" id="L52">  protected StringFieldBuilder(U parent, String fieldName) {</span>
+<span class="fc" id="L53">    this.parent = parent;</span>
+<span class="fc" id="L54">    this.fieldName = fieldName;</span>
+<span class="fc" id="L55">  }</span>
+
+  /**
+   * Add a sub-field. A {@code SortedMap} is required for consistency of the index settings hash.
+   */
+  private T addSubField(String fieldName, SortedMap&lt;String, String&gt; fieldDefinition) {
+<span class="fc" id="L61">    subFields.put(fieldName, fieldDefinition);</span>
+<span class="fc" id="L62">    return castThis();</span>
+  }
+
+  /**
+   * Add subfields, one for each analyzer.
+   */
+  public T addSubFields(DefaultIndexSettingsElement... analyzers) {
+<span class="fc" id="L69">    Arrays.stream(analyzers)</span>
+<span class="fc" id="L70">      .forEach(analyzer -&gt; addSubField(analyzer.getSubFieldSuffix(), analyzer.fieldMapping()));</span>
+<span class="fc" id="L71">    return castThis();</span>
+  }
+
+  /**
+   * Norms consume useless memory if string field is used solely for filtering or aggregations.
+   *
+   * https://www.elastic.co/guide/en/elasticsearch/reference/2.3/norms.html
+   * https://www.elastic.co/guide/en/elasticsearch/guide/current/scoring-theory.html#field-norm
+   */
+  public T disableNorms() {
+<span class="fc" id="L81">    this.disableNorms = true;</span>
+<span class="fc" id="L82">    return castThis();</span>
+  }
+
+  /**
+   * Position offset term vectors are required for the fast_vector_highlighter (fvh).
+   */
+  public T termVectorWithPositionOffsets() {
+<span class="fc" id="L89">    this.termVectorWithPositionOffsets = true;</span>
+<span class="fc" id="L90">    return castThis();</span>
+  }
+
+  /**
+   * &quot;index: false&quot; -&gt; Make this field not searchable.
+   * By default field is &quot;true&quot;: it is searchable, but index the value exactly
+   * as specified.
+   */
+  public T disableSearch() {
+<span class="fc" id="L99">    this.disableSearch = true;</span>
+<span class="fc" id="L100">    return castThis();</span>
+  }
+
+  public T store() {
+<span class="fc" id="L104">    this.store = true;</span>
+<span class="fc" id="L105">    return castThis();</span>
+  }
+
+  @SuppressWarnings(&quot;unchecked&quot;)
+  private T castThis() {
+<span class="fc" id="L110">    return (T) this;</span>
+  }
+
+  public U build() {
+<span class="fc bfc" id="L114" title="All 2 branches covered.">    if (subFields.isEmpty()) {</span>
+<span class="fc" id="L115">      return buildWithoutSubfields();</span>
+    }
+<span class="fc" id="L117">    return buildWithSubfields();</span>
+  }
+
+  private U buildWithoutSubfields() {
+<span class="fc" id="L121">    Map&lt;String, Object&gt; hash = new TreeMap&lt;&gt;();</span>
+<span class="fc" id="L122">    hash.put(&quot;type&quot;, getFieldType());</span>
+<span class="fc bfc" id="L123" title="All 2 branches covered.">    hash.put(INDEX, disableSearch ? INDEX_NOT_SEARCHABLE : INDEX_SEARCHABLE);</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">    hash.put(NORMS, valueOf(!disableNorms));</span>
+<span class="fc" id="L125">    hash.put(STORE, valueOf(store));</span>
+<span class="fc bfc" id="L126" title="All 2 branches covered.">    if (FIELD_TYPE_KEYWORD.equals(getFieldType())) {</span>
+<span class="fc bfc" id="L127" title="All 2 branches covered.">      hash.put(&quot;doc_values&quot;, valueOf(!disabledDocValues));</span>
+    }
+<span class="pc bpc" id="L129" title="1 of 2 branches missed.">    if (getFieldData()) {</span>
+<span class="nc" id="L130">      hash.put(FIELD_FIELDDATA, FIELDDATA_ENABLED);</span>
+    }
+<span class="fc" id="L132">    return parent.setField(fieldName, hash);</span>
+  }
+
+  private U buildWithSubfields() {
+<span class="fc" id="L136">    Map&lt;String, Object&gt; hash = new TreeMap&lt;&gt;();</span>
+<span class="fc" id="L137">    hash.put(&quot;type&quot;, getFieldType());</span>
+<span class="fc bfc" id="L138" title="All 2 branches covered.">    hash.put(INDEX, disableSearch ? INDEX_NOT_SEARCHABLE : INDEX_SEARCHABLE);</span>
+<span class="fc" id="L139">    hash.put(NORMS, &quot;false&quot;);</span>
+<span class="fc" id="L140">    hash.put(STORE, valueOf(store));</span>
+<span class="fc bfc" id="L141" title="All 2 branches covered.">    if (FIELD_TYPE_KEYWORD.equals(getFieldType())) {</span>
+<span class="pc bpc" id="L142" title="1 of 2 branches missed.">      hash.put(&quot;doc_values&quot;, valueOf(!disabledDocValues));</span>
+    }
+<span class="fc bfc" id="L144" title="All 2 branches covered.">    if (getFieldData()) {</span>
+<span class="fc" id="L145">      hash.put(FIELD_FIELDDATA, FIELDDATA_ENABLED);</span>
+    }
+<span class="fc bfc" id="L147" title="All 2 branches covered.">    if (termVectorWithPositionOffsets) {</span>
+<span class="fc" id="L148">      hash.put(FIELD_TERM_VECTOR, &quot;with_positions_offsets&quot;);</span>
+    }
+<span class="fc" id="L150">    hash.put(&quot;fields&quot;, configureSubFields());</span>
+<span class="fc" id="L151">    return parent.setField(fieldName, hash);</span>
+  }
+
+  private Map&lt;String, Object&gt; configureSubFields() {
+<span class="fc" id="L155">    Map&lt;String, Object&gt; multiFields = new TreeMap&lt;&gt;(subFields);</span>
+
+    // apply this fields configuration to all subfields
+<span class="fc" id="L158">    multiFields.entrySet().forEach(entry -&gt; {</span>
+<span class="fc" id="L159">      Object subFieldMapping = entry.getValue();</span>
+<span class="pc bpc" id="L160" title="1 of 2 branches missed.">      if (subFieldMapping instanceof Map) {</span>
+<span class="fc" id="L161">        entry.setValue(configureSubField((Map&lt;String, String&gt;) subFieldMapping));</span>
+      }
+<span class="fc" id="L163">    });</span>
+<span class="fc" id="L164">    return multiFields;</span>
+  }
+
+  private Map&lt;String, String&gt; configureSubField(Map&lt;String, String&gt; subFieldMapping) {
+<span class="fc" id="L168">    Map&lt;String, String&gt; subHash = new TreeMap&lt;&gt;(subFieldMapping);</span>
+<span class="fc" id="L169">    subHash.put(INDEX, INDEX_SEARCHABLE);</span>
+<span class="fc" id="L170">    subHash.put(NORMS, &quot;false&quot;);</span>
+<span class="fc" id="L171">    subHash.put(STORE, valueOf(store));</span>
+<span class="fc bfc" id="L172" title="All 2 branches covered.">    if (termVectorWithPositionOffsets) {</span>
+<span class="fc" id="L173">      subHash.put(FIELD_TERM_VECTOR, &quot;with_positions_offsets&quot;);</span>
+    }
+<span class="fc" id="L175">    return subHash;</span>
+  }
+
+  protected abstract boolean getFieldData();
+
+  protected abstract String getFieldType();
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

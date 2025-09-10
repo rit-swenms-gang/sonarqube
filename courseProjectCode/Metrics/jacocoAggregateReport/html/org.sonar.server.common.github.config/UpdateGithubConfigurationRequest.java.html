@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UpdateGithubConfigurationRequest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.common.github.config</a> &gt; <span class="el_source">UpdateGithubConfigurationRequest.java</span></div><h1>UpdateGithubConfigurationRequest.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.common.github.config;
+
+import java.util.Set;
+import org.sonar.server.common.NonNullUpdatedValue;
+import org.sonar.server.common.gitlab.config.ProvisioningType;
+
+<span class="fc" id="L26">public record UpdateGithubConfigurationRequest(</span>
+  String githubConfigurationId,
+  NonNullUpdatedValue&lt;Boolean&gt; enabled,
+  NonNullUpdatedValue&lt;String&gt; clientId,
+  NonNullUpdatedValue&lt;String&gt; clientSecret,
+  NonNullUpdatedValue&lt;String&gt; applicationId,
+  NonNullUpdatedValue&lt;String&gt; privateKey,
+  NonNullUpdatedValue&lt;Boolean&gt; synchronizeGroups,
+  NonNullUpdatedValue&lt;String&gt; apiUrl,
+  NonNullUpdatedValue&lt;String&gt; webUrl,
+  NonNullUpdatedValue&lt;Set&lt;String&gt;&gt; allowedOrganizations,
+  NonNullUpdatedValue&lt;ProvisioningType&gt; provisioningType,
+  NonNullUpdatedValue&lt;Boolean&gt; allowUsersToSignUp,
+  NonNullUpdatedValue&lt;Boolean&gt; projectVisibility,
+  NonNullUpdatedValue&lt;Boolean&gt; userConsentRequiredAfterUpgrade
+) {
+
+  public static Builder builder() {
+<span class="fc" id="L44">    return new Builder();</span>
+  }
+
+  public static final class Builder {
+    private String githubConfigurationId;
+<span class="fc" id="L49">    private NonNullUpdatedValue&lt;Boolean&gt; enabled = NonNullUpdatedValue.undefined();</span>
+<span class="fc" id="L50">    private NonNullUpdatedValue&lt;String&gt; clientId = NonNullUpdatedValue.undefined();</span>
+<span class="fc" id="L51">    private NonNullUpdatedValue&lt;String&gt; clientSecret = NonNullUpdatedValue.undefined();</span>
+<span class="fc" id="L52">    private NonNullUpdatedValue&lt;String&gt; applicationId = NonNullUpdatedValue.undefined();</span>
+<span class="fc" id="L53">    private NonNullUpdatedValue&lt;String&gt; privateKey = NonNullUpdatedValue.undefined();</span>
+<span class="fc" id="L54">    private NonNullUpdatedValue&lt;Boolean&gt; synchronizeGroups = NonNullUpdatedValue.undefined();</span>
+<span class="fc" id="L55">    private NonNullUpdatedValue&lt;String&gt; apiUrl = NonNullUpdatedValue.undefined();</span>
+<span class="fc" id="L56">    private NonNullUpdatedValue&lt;String&gt; webUrl = NonNullUpdatedValue.undefined();</span>
+<span class="fc" id="L57">    private NonNullUpdatedValue&lt;Set&lt;String&gt;&gt; allowedOrganizations = NonNullUpdatedValue.undefined();</span>
+<span class="fc" id="L58">    private NonNullUpdatedValue&lt;ProvisioningType&gt; provisioningType = NonNullUpdatedValue.undefined();</span>
+<span class="fc" id="L59">    private NonNullUpdatedValue&lt;Boolean&gt; allowUsersToSignUp = NonNullUpdatedValue.undefined();</span>
+<span class="fc" id="L60">    private NonNullUpdatedValue&lt;Boolean&gt; projectVisibility = NonNullUpdatedValue.undefined();</span>
+<span class="fc" id="L61">    private NonNullUpdatedValue&lt;Boolean&gt; userConsentRequiredAfterUpgrade = NonNullUpdatedValue.undefined();</span>
+
+<span class="fc" id="L63">    private Builder() {</span>
+<span class="fc" id="L64">    }</span>
+
+    public Builder githubConfigurationId(String githubConfigurationId) {
+<span class="fc" id="L67">      this.githubConfigurationId = githubConfigurationId;</span>
+<span class="fc" id="L68">      return this;</span>
+    }
+
+    public Builder enabled(NonNullUpdatedValue&lt;Boolean&gt; enabled) {
+<span class="fc" id="L72">      this.enabled = enabled;</span>
+<span class="fc" id="L73">      return this;</span>
+    }
+
+    public Builder clientId(NonNullUpdatedValue&lt;String&gt; clientId) {
+<span class="fc" id="L77">      this.clientId = clientId;</span>
+<span class="fc" id="L78">      return this;</span>
+    }
+
+    public Builder clientSecret(NonNullUpdatedValue&lt;String&gt; clientSecret) {
+<span class="fc" id="L82">      this.clientSecret = clientSecret;</span>
+<span class="fc" id="L83">      return this;</span>
+    }
+
+    public Builder applicationId(NonNullUpdatedValue&lt;String&gt; applicationId) {
+<span class="fc" id="L87">      this.applicationId = applicationId;</span>
+<span class="fc" id="L88">      return this;</span>
+    }
+
+    public Builder privateKey(NonNullUpdatedValue&lt;String&gt; privateKey) {
+<span class="fc" id="L92">      this.privateKey = privateKey;</span>
+<span class="fc" id="L93">      return this;</span>
+    }
+
+    public Builder synchronizeGroups(NonNullUpdatedValue&lt;Boolean&gt; synchronizeGroups) {
+<span class="fc" id="L97">      this.synchronizeGroups = synchronizeGroups;</span>
+<span class="fc" id="L98">      return this;</span>
+    }
+
+    public Builder apiUrl(NonNullUpdatedValue&lt;String&gt; apiUrl) {
+<span class="fc" id="L102">      this.apiUrl = apiUrl;</span>
+<span class="fc" id="L103">      return this;</span>
+    }
+
+    public Builder webUrl(NonNullUpdatedValue&lt;String&gt; webUrl) {
+<span class="fc" id="L107">      this.webUrl = webUrl;</span>
+<span class="fc" id="L108">      return this;</span>
+    }
+
+    public Builder allowedOrganizations(NonNullUpdatedValue&lt;Set&lt;String&gt;&gt; allowedOrganizations) {
+<span class="fc" id="L112">      this.allowedOrganizations = allowedOrganizations;</span>
+<span class="fc" id="L113">      return this;</span>
+    }
+
+    public Builder provisioningType(NonNullUpdatedValue&lt;ProvisioningType&gt; provisioningType) {
+<span class="fc" id="L117">      this.provisioningType = provisioningType;</span>
+<span class="fc" id="L118">      return this;</span>
+    }
+
+    public Builder allowUsersToSignUp(NonNullUpdatedValue&lt;Boolean&gt; allowUsersToSignUp) {
+<span class="fc" id="L122">      this.allowUsersToSignUp = allowUsersToSignUp;</span>
+<span class="fc" id="L123">      return this;</span>
+    }
+
+    public Builder projectVisibility(NonNullUpdatedValue&lt;Boolean&gt; projectVisibility) {
+<span class="fc" id="L127">      this.projectVisibility = projectVisibility;</span>
+<span class="fc" id="L128">      return this;</span>
+    }
+
+    public Builder userConsentRequiredAfterUpgrade(NonNullUpdatedValue&lt;Boolean&gt; userConsentRequiredAfterUpgrade) {
+<span class="fc" id="L132">      this.userConsentRequiredAfterUpgrade = userConsentRequiredAfterUpgrade;</span>
+<span class="fc" id="L133">      return this;</span>
+    }
+
+    public UpdateGithubConfigurationRequest build() {
+<span class="fc" id="L137">      return new UpdateGithubConfigurationRequest(githubConfigurationId, enabled, clientId, clientSecret, applicationId, privateKey, synchronizeGroups, apiUrl, webUrl,</span>
+        allowedOrganizations, provisioningType, allowUsersToSignUp, projectVisibility, userConsentRequiredAfterUpgrade);
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

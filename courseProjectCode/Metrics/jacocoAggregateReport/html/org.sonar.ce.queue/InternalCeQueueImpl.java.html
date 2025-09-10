@@ -1,0 +1,267 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>InternalCeQueueImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.queue</a> &gt; <span class="el_source">InternalCeQueueImpl.java</span></div><h1>InternalCeQueueImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.queue;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.PrintWriter;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.ce.ComputeEngineSide;
+import org.sonar.api.utils.System2;
+import org.sonar.ce.container.ComputeEngineStatus;
+import org.sonar.ce.monitoring.CEQueueStatus;
+import org.sonar.ce.task.CeTask;
+import org.sonar.ce.task.CeTaskResult;
+import org.sonar.ce.task.TypedException;
+import org.sonar.ce.task.projectanalysis.component.VisitException;
+import org.sonar.core.util.UuidFactory;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.ce.CeActivityDto;
+import org.sonar.db.ce.CeQueueDto;
+import org.sonar.db.ce.CeTaskCharacteristicDto;
+import org.sonar.server.platform.NodeInformation;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.lang.String.format;
+import static java.util.Collections.singletonList;
+import static java.util.Objects.requireNonNull;
+
+@ComputeEngineSide
+public class InternalCeQueueImpl extends CeQueueImpl implements InternalCeQueue {
+<span class="fc" id="L58">  private static final Logger LOG = LoggerFactory.getLogger(InternalCeQueueImpl.class);</span>
+
+  private final DbClient dbClient;
+  private final CEQueueStatus queueStatus;
+  private final ComputeEngineStatus computeEngineStatus;
+  private final NextPendingTaskPicker nextPendingTaskPicker;
+
+  public InternalCeQueueImpl(System2 system2, DbClient dbClient, UuidFactory uuidFactory, CEQueueStatus queueStatus,
+    ComputeEngineStatus computeEngineStatus, NextPendingTaskPicker nextPendingTaskPicker, NodeInformation nodeInformation) {
+<span class="fc" id="L67">    super(system2, dbClient, uuidFactory, nodeInformation);</span>
+<span class="fc" id="L68">    this.dbClient = dbClient;</span>
+<span class="fc" id="L69">    this.queueStatus = queueStatus;</span>
+<span class="fc" id="L70">    this.computeEngineStatus = computeEngineStatus;</span>
+<span class="fc" id="L71">    this.nextPendingTaskPicker = nextPendingTaskPicker;</span>
+<span class="fc" id="L72">  }</span>
+
+  @Override
+  public Optional&lt;CeTask&gt; peek(String workerUuid, boolean excludeIndexationJob) {
+<span class="fc" id="L76">    requireNonNull(workerUuid, &quot;workerUuid can't be null&quot;);</span>
+
+<span class="fc bfc" id="L78" title="All 4 branches covered.">    if (computeEngineStatus.getStatus() != ComputeEngineStatus.Status.STARTED || getWorkersPauseStatus() != WorkersPauseStatus.RESUMED) {</span>
+<span class="fc" id="L79">      return Optional.empty();</span>
+    }
+<span class="fc" id="L81">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L82">      resetNotPendingTasks(workerUuid, dbSession);</span>
+<span class="fc" id="L83">      Optional&lt;CeQueueDto&gt; opt = nextPendingTaskPicker.findPendingTask(workerUuid, dbSession, excludeIndexationJob);</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">      if (opt.isEmpty()) {</span>
+<span class="fc" id="L85">        return Optional.empty();</span>
+      }
+<span class="fc" id="L87">      CeQueueDto taskDto = opt.get();</span>
+<span class="fc" id="L88">      Map&lt;String, String&gt; characteristics = dbClient.ceTaskCharacteristicsDao().selectByTaskUuids(dbSession, singletonList(taskDto.getUuid())).stream()</span>
+<span class="fc" id="L89">        .collect(Collectors.toMap(CeTaskCharacteristicDto::getKey, CeTaskCharacteristicDto::getValue));</span>
+
+<span class="fc" id="L91">      CeTask task = convertToTask(dbSession, taskDto, characteristics);</span>
+<span class="fc" id="L92">      queueStatus.addInProgress();</span>
+<span class="fc" id="L93">      return Optional.of(task);</span>
+<span class="pc bpc" id="L94" title="1 of 2 branches missed.">    }</span>
+  }
+
+  private void resetNotPendingTasks(String workerUuid, DbSession dbSession) {
+<span class="fc" id="L98">    List&lt;CeQueueDto&gt; notPendingTasks = dbClient.ceQueueDao().selectNotPendingForWorker(dbSession, workerUuid);</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">    if (!notPendingTasks.isEmpty()) {</span>
+<span class="fc bfc" id="L100" title="All 2 branches covered.">      for (CeQueueDto pendingTask : notPendingTasks) {</span>
+<span class="fc" id="L101">        dbClient.ceQueueDao().resetToPendingByUuid(dbSession, pendingTask.getUuid());</span>
+<span class="fc" id="L102">      }</span>
+<span class="fc" id="L103">      dbSession.commit();</span>
+<span class="fc" id="L104">      LOG.debug(&quot;{} in progress tasks reset for worker uuid {}&quot;, notPendingTasks.size(), workerUuid);</span>
+    }
+<span class="fc" id="L106">  }</span>
+
+  @Override
+  public void remove(CeTask task, CeActivityDto.Status status, @Nullable CeTaskResult taskResult, @Nullable Throwable error) {
+<span class="fc bfc" id="L110" title="All 4 branches covered.">    checkArgument(error == null || status == CeActivityDto.Status.FAILED, &quot;Error can be provided only when status is FAILED&quot;);</span>
+
+<span class="fc" id="L112">    long executionTimeInMs = 0L;</span>
+<span class="fc" id="L113">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L114">      CeQueueDto queueDto = dbClient.ceQueueDao().selectByUuid(dbSession, task.getUuid())</span>
+<span class="fc" id="L115">        .orElseThrow(() -&gt; new IllegalStateException(&quot;Task does not exist anymore: &quot; + task));</span>
+<span class="fc" id="L116">      CeActivityDto activityDto = new CeActivityDto(queueDto);</span>
+<span class="fc" id="L117">      activityDto.setNodeName(nodeInformation.getNodeName().orElse(null));</span>
+<span class="fc" id="L118">      activityDto.setStatus(status);</span>
+<span class="fc" id="L119">      executionTimeInMs = updateExecutionFields(activityDto);</span>
+<span class="fc" id="L120">      updateTaskResult(activityDto, taskResult);</span>
+<span class="fc" id="L121">      updateError(activityDto, error);</span>
+<span class="fc" id="L122">      remove(dbSession, queueDto, activityDto);</span>
+    } finally {
+<span class="fc" id="L124">      updateQueueStatus(status, executionTimeInMs);</span>
+    }
+<span class="fc" id="L126">  }</span>
+
+  private void updateQueueStatus(CeActivityDto.Status status, long executionTimeInMs) {
+<span class="fc bfc" id="L129" title="All 2 branches covered.">    if (status == CeActivityDto.Status.SUCCESS) {</span>
+<span class="fc" id="L130">      queueStatus.addSuccess(executionTimeInMs);</span>
+    } else {
+<span class="fc" id="L132">      queueStatus.addError(executionTimeInMs);</span>
+    }
+<span class="fc" id="L134">  }</span>
+
+  private static void updateTaskResult(CeActivityDto activityDto, @Nullable CeTaskResult taskResult) {
+<span class="fc bfc" id="L137" title="All 2 branches covered.">    if (taskResult != null) {</span>
+<span class="fc" id="L138">      Optional&lt;String&gt; analysisUuid = taskResult.getAnalysisUuid();</span>
+<span class="fc" id="L139">      analysisUuid.ifPresent(activityDto::setAnalysisUuid);</span>
+    }
+<span class="fc" id="L141">  }</span>
+
+  private static void updateError(CeActivityDto activityDto, @Nullable Throwable error) {
+<span class="fc bfc" id="L144" title="All 2 branches covered.">    if (error == null) {</span>
+<span class="fc" id="L145">      return;</span>
+    }
+
+<span class="pc bpc" id="L148" title="3 of 4 branches missed.">    if (error instanceof VisitException &amp;&amp; error.getCause() != null) {</span>
+<span class="nc" id="L149">      activityDto.setErrorMessage(format(&quot;%s (%s)&quot;, error.getCause().getMessage(), error.getMessage()));</span>
+    } else {
+<span class="fc" id="L151">      activityDto.setErrorMessage(error.getMessage());</span>
+    }
+<span class="fc" id="L153">    String stacktrace = getStackTraceForPersistence(error);</span>
+<span class="pc bpc" id="L154" title="1 of 2 branches missed.">    if (stacktrace != null) {</span>
+<span class="fc" id="L155">      activityDto.setErrorStacktrace(stacktrace);</span>
+    }
+<span class="fc bfc" id="L157" title="All 2 branches covered.">    if (error instanceof TypedException typedException) {</span>
+<span class="fc" id="L158">      activityDto.setErrorType(typedException.getType());</span>
+    }
+<span class="fc" id="L160">  }</span>
+
+  @CheckForNull
+  private static String getStackTraceForPersistence(Throwable error) {
+<span class="fc" id="L164">    try (ByteArrayOutputStream out = new ByteArrayOutputStream();</span>
+<span class="fc" id="L165">      LineReturnEnforcedPrintStream printStream = new LineReturnEnforcedPrintStream(out)) {</span>
+<span class="fc" id="L166">      error.printStackTrace(printStream);</span>
+<span class="fc" id="L167">      printStream.flush();</span>
+<span class="fc" id="L168">      return out.toString();</span>
+<span class="nc" id="L169">    } catch (IOException e) {</span>
+<span class="nc" id="L170">      LOG.debug(&quot;Failed to getStacktrace out of error&quot;, e);</span>
+<span class="nc" id="L171">      return null;</span>
+    }
+  }
+
+  @Override
+  public void cancelWornOuts() {
+<span class="fc" id="L177">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L178">      List&lt;CeQueueDto&gt; wornOutTasks = dbClient.ceQueueDao().selectWornout(dbSession);</span>
+<span class="fc" id="L179">      wornOutTasks.forEach(queueDto -&gt; {</span>
+<span class="fc" id="L180">        CeActivityDto activityDto = new CeActivityDto(queueDto);</span>
+<span class="fc" id="L181">        activityDto.setNodeName(nodeInformation.getNodeName().orElse(null));</span>
+<span class="fc" id="L182">        activityDto.setStatus(CeActivityDto.Status.CANCELED);</span>
+<span class="fc" id="L183">        updateExecutionFields(activityDto);</span>
+<span class="fc" id="L184">        remove(dbSession, queueDto, activityDto);</span>
+<span class="fc" id="L185">      });</span>
+    }
+<span class="fc" id="L187">  }</span>
+
+  @Override
+  public void resetTasksWithUnknownWorkerUUIDs(Set&lt;String&gt; knownWorkerUUIDs) {
+<span class="fc" id="L191">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L192">      dbClient.ceQueueDao().resetTasksWithUnknownWorkerUUIDs(dbSession, knownWorkerUUIDs);</span>
+<span class="fc" id="L193">      dbSession.commit();</span>
+    }
+<span class="fc" id="L195">  }</span>
+
+  /**
+   * A {@link PrintWriter} subclass which enforces that line returns are {@code \n} whichever the platform.
+   */
+  private static class LineReturnEnforcedPrintStream extends PrintWriter {
+
+    LineReturnEnforcedPrintStream(OutputStream out) {
+<span class="fc" id="L203">      super(out);</span>
+<span class="fc" id="L204">    }</span>
+
+    @Override
+    public void println() {
+<span class="fc" id="L208">      super.print('\n');</span>
+<span class="fc" id="L209">    }</span>
+
+    @Override
+    public void println(boolean x) {
+<span class="nc" id="L213">      super.print(x);</span>
+<span class="nc" id="L214">      println();</span>
+<span class="nc" id="L215">    }</span>
+
+    @Override
+    public void println(char x) {
+<span class="nc" id="L219">      super.print(x);</span>
+<span class="nc" id="L220">      println();</span>
+<span class="nc" id="L221">    }</span>
+
+    @Override
+    public void println(int x) {
+<span class="nc" id="L225">      super.print(x);</span>
+<span class="nc" id="L226">      println();</span>
+<span class="nc" id="L227">    }</span>
+
+    @Override
+    public void println(long x) {
+<span class="nc" id="L231">      super.print(x);</span>
+<span class="nc" id="L232">      println();</span>
+<span class="nc" id="L233">    }</span>
+
+    @Override
+    public void println(float x) {
+<span class="nc" id="L237">      super.print(x);</span>
+<span class="nc" id="L238">      println();</span>
+<span class="nc" id="L239">    }</span>
+
+    @Override
+    public void println(double x) {
+<span class="nc" id="L243">      super.print(x);</span>
+<span class="nc" id="L244">      println();</span>
+<span class="nc" id="L245">    }</span>
+
+    @Override
+    public void println(char[] x) {
+<span class="nc" id="L249">      super.print(x);</span>
+<span class="nc" id="L250">      println();</span>
+<span class="nc" id="L251">    }</span>
+
+    @Override
+    public void println(String x) {
+<span class="nc" id="L255">      super.print(x);</span>
+<span class="nc" id="L256">      println();</span>
+<span class="nc" id="L257">    }</span>
+
+    @Override
+    public void println(Object x) {
+<span class="fc" id="L261">      super.print(x);</span>
+<span class="fc" id="L262">      println();</span>
+<span class="fc" id="L263">    }</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

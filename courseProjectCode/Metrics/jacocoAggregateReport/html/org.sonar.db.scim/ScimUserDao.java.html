@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ScimUserDao.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.scim</a> &gt; <span class="el_source">ScimUserDao.java</span></div><h1>ScimUserDao.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.scim;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Optional;
+import java.util.function.BiFunction;
+import org.sonar.core.util.UuidFactory;
+import org.sonar.db.Dao;
+import org.sonar.db.DbSession;
+import org.sonar.db.Pagineable;
+
+import static org.sonar.api.utils.Preconditions.checkState;
+import static org.sonar.db.DatabaseUtils.executeLargeInputs;
+
+public class ScimUserDao implements Dao {
+  private final UuidFactory uuidFactory;
+
+<span class="fc" id="L37">  public ScimUserDao(UuidFactory uuidFactory) {</span>
+<span class="fc" id="L38">    this.uuidFactory = uuidFactory;</span>
+<span class="fc" id="L39">  }</span>
+
+  public List&lt;ScimUserDto&gt; findAll(DbSession dbSession) {
+<span class="fc" id="L42">    return mapper(dbSession).findAll();</span>
+  }
+
+  public Optional&lt;ScimUserDto&gt; findByScimUuid(DbSession dbSession, String scimUserUuid) {
+<span class="fc" id="L46">    return Optional.ofNullable(mapper(dbSession).findByScimUuid(scimUserUuid));</span>
+  }
+
+  public Optional&lt;ScimUserDto&gt; findByUserUuid(DbSession dbSession, String userUuid) {
+<span class="fc" id="L50">    return Optional.ofNullable(mapper(dbSession).findByUserUuid(userUuid));</span>
+  }
+
+  public ScimUserDto enableScimForUser(DbSession dbSession, String userUuid) {
+<span class="fc" id="L54">    ScimUserDto scimUserDto = new ScimUserDto(uuidFactory.create(), userUuid);</span>
+<span class="fc" id="L55">    mapper(dbSession).insert(scimUserDto);</span>
+<span class="fc" id="L56">    return scimUserDto;</span>
+  }
+
+  public List&lt;ScimUserWithUsernameDto&gt; findScimUsers(DbSession dbSession, ScimUserQuery scimUserQuery, Pagineable pagination) {
+<span class="pc bpc" id="L60" title="1 of 4 branches missed.">    checkState(scimUserQuery.getUserUuids() == null || scimUserQuery.getScimUserUuids() == null,</span>
+      &quot;Only one of userUuids &amp; scimUserUuids request parameter is supported.&quot;);
+<span class="fc bfc" id="L62" title="All 2 branches covered.">    if (scimUserQuery.getScimUserUuids() != null) {</span>
+<span class="fc" id="L63">      return executeLargeInputs(</span>
+<span class="fc" id="L64">        scimUserQuery.getScimUserUuids(),</span>
+<span class="fc" id="L65">        partialSetOfUsers -&gt; createPartialQuery(scimUserQuery, partialSetOfUsers,</span>
+<span class="fc" id="L66">          (builder, scimUserUuids) -&gt; builder.scimUserUuids(new HashSet&lt;&gt;(scimUserUuids)),</span>
+          dbSession, pagination)
+      );
+    }
+<span class="fc bfc" id="L70" title="All 2 branches covered.">    if (scimUserQuery.getUserUuids() != null) {</span>
+<span class="fc" id="L71">      return executeLargeInputs(</span>
+<span class="fc" id="L72">        scimUserQuery.getUserUuids(),</span>
+<span class="fc" id="L73">        partialSetOfUsers -&gt; createPartialQuery(scimUserQuery, partialSetOfUsers,</span>
+<span class="fc" id="L74">          (builder, userUuids) -&gt; builder.userUuids(new HashSet&lt;&gt;(userUuids)),</span>
+          dbSession, pagination)
+      );
+    }
+
+<span class="fc" id="L79">    return mapper(dbSession).findScimUsers(scimUserQuery, pagination);</span>
+  }
+
+  private static List&lt;ScimUserWithUsernameDto&gt; createPartialQuery(ScimUserQuery completeQuery, List&lt;String&gt; strings,
+    BiFunction&lt;ScimUserQuery.ScimUserQueryBuilder, List&lt;String&gt;, ScimUserQuery.ScimUserQueryBuilder&gt; queryModifier,
+    DbSession dbSession, Pagineable pagination) {
+
+<span class="fc" id="L86">    ScimUserQuery.ScimUserQueryBuilder partialScimUserQuery = ScimUserQuery.builder()</span>
+<span class="fc" id="L87">      .userName(completeQuery.getUserName());</span>
+<span class="fc" id="L88">    partialScimUserQuery = queryModifier.apply(partialScimUserQuery, strings);</span>
+<span class="fc" id="L89">    return mapper(dbSession).findScimUsers(partialScimUserQuery.build(), pagination);</span>
+  }
+
+  public int countScimUsers(DbSession dbSession, ScimUserQuery scimUserQuery) {
+<span class="fc" id="L93">    return mapper(dbSession).countScimUsers(scimUserQuery);</span>
+  }
+
+  private static ScimUserMapper mapper(DbSession session) {
+<span class="fc" id="L97">    return session.getMapper(ScimUserMapper.class);</span>
+  }
+
+  public void deleteByUserUuid(DbSession dbSession, String userUuid) {
+<span class="fc" id="L101">    mapper(dbSession).deleteByUserUuid(userUuid);</span>
+<span class="fc" id="L102">  }</span>
+
+  public void deleteByScimUuid(DbSession dbSession, String scimUuid) {
+<span class="fc" id="L105">    mapper(dbSession).deleteByScimUuid(scimUuid);</span>
+<span class="fc" id="L106">  }</span>
+
+  public String getManagedUserSqlFilter(boolean filterByManaged) {
+<span class="fc bfc" id="L109" title="All 2 branches covered.">    return String.format(&quot;%s exists (select user_uuid from scim_users su where su.user_uuid = uuid)&quot;, filterByManaged ? &quot;&quot; : &quot;not&quot;);</span>
+  }
+
+  public void deleteAll(DbSession dbSession) {
+<span class="fc" id="L113">    mapper(dbSession).deleteAll();</span>
+<span class="fc" id="L114">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

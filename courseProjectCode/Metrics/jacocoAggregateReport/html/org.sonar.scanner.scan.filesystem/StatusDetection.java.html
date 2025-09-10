@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StatusDetection.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.scan.filesystem</a> &gt; <span class="el_source">StatusDetection.java</span></div><h1>StatusDetection.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.scan.filesystem;
+
+import javax.annotation.concurrent.Immutable;
+import org.apache.commons.lang3.StringUtils;
+import org.sonar.api.batch.fs.InputFile;
+import org.sonar.api.batch.fs.internal.DefaultInputFile;
+import org.sonar.scanner.repository.FileData;
+import org.sonar.scanner.repository.ProjectRepositories;
+import org.sonar.scanner.scm.ScmChangedFiles;
+
+import static org.sonar.api.batch.fs.InputFile.Status.ADDED;
+import static org.sonar.api.batch.fs.InputFile.Status.CHANGED;
+import static org.sonar.api.batch.fs.InputFile.Status.SAME;
+
+@Immutable
+public class StatusDetection {
+  private final ProjectRepositories projectRepositories;
+  private final ScmChangedFiles scmChangedFiles;
+
+<span class="fc" id="L39">  public StatusDetection(ProjectRepositories projectRepositories, ScmChangedFiles scmChangedFiles) {</span>
+<span class="fc" id="L40">    this.projectRepositories = projectRepositories;</span>
+<span class="fc" id="L41">    this.scmChangedFiles = scmChangedFiles;</span>
+<span class="fc" id="L42">  }</span>
+
+  public boolean isScmStatusAvailable() {
+<span class="fc" id="L45">    return scmChangedFiles.isValid();</span>
+  }
+
+  InputFile.Status status(String moduleKeyWithBranch, DefaultInputFile inputFile, String hash) {
+<span class="fc" id="L49">    InputFile.Status statusFromScm = findStatusFromScm(inputFile);</span>
+<span class="fc bfc" id="L50" title="All 2 branches covered.">    if (statusFromScm != null) {</span>
+<span class="fc" id="L51">      return statusFromScm;</span>
+    }
+<span class="fc" id="L53">    return checkChangedWithProjectRepositories(moduleKeyWithBranch, inputFile, hash);</span>
+  }
+
+  InputFile.Status findStatusFromScm(DefaultInputFile inputFile) {
+<span class="fc bfc" id="L57" title="All 2 branches covered.">    if (isScmStatusAvailable()) {</span>
+<span class="fc" id="L58">      return checkChangedWithScm(inputFile);</span>
+    }
+<span class="fc" id="L60">    return null;</span>
+  }
+
+  private InputFile.Status checkChangedWithProjectRepositories(String moduleKeyWithBranch, DefaultInputFile inputFile, String hash) {
+<span class="fc" id="L64">    FileData fileDataPerPath = projectRepositories.fileData(moduleKeyWithBranch, inputFile);</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">    if (fileDataPerPath == null) {</span>
+<span class="fc" id="L66">      return ADDED;</span>
+    }
+<span class="fc" id="L68">    String previousHash = fileDataPerPath.hash();</span>
+<span class="fc bfc" id="L69" title="All 2 branches covered.">    if (StringUtils.equals(hash, previousHash)) {</span>
+<span class="fc" id="L70">      return SAME;</span>
+    }
+<span class="pc bpc" id="L72" title="1 of 2 branches missed.">    if (StringUtils.isEmpty(previousHash)) {</span>
+<span class="nc" id="L73">      return ADDED;</span>
+    }
+<span class="fc" id="L75">    return CHANGED;</span>
+  }
+
+  private InputFile.Status checkChangedWithScm(DefaultInputFile inputFile) {
+<span class="fc bfc" id="L79" title="All 2 branches covered.">    if (!scmChangedFiles.isChanged(inputFile.path())) {</span>
+<span class="fc" id="L80">      return SAME;</span>
+    }
+<span class="fc" id="L82">    return CHANGED;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

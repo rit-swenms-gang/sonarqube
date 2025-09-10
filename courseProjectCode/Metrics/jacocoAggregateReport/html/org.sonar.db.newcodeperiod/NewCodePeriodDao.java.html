@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NewCodePeriodDao.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.newcodeperiod</a> &gt; <span class="el_source">NewCodePeriodDao.java</span></div><h1>NewCodePeriodDao.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.newcodeperiod;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import javax.annotation.Nullable;
+import org.sonar.api.utils.System2;
+import org.sonar.core.util.UuidFactory;
+import org.sonar.db.Dao;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.BranchDto;
+
+import static java.util.Objects.requireNonNull;
+import static java.util.Optional.ofNullable;
+import static org.sonar.api.utils.Preconditions.checkArgument;
+
+public class NewCodePeriodDao implements Dao {
+  private static final String MSG_PROJECT_UUID_NOT_SPECIFIED = &quot;Project uuid must be specified.&quot;;
+  private final System2 system2;
+  private final UuidFactory uuidFactory;
+
+<span class="fc" id="L41">  public NewCodePeriodDao(System2 system2, UuidFactory uuidFactory) {</span>
+<span class="fc" id="L42">    this.system2 = system2;</span>
+<span class="fc" id="L43">    this.uuidFactory = uuidFactory;</span>
+<span class="fc" id="L44">  }</span>
+
+  public Optional&lt;NewCodePeriodDto&gt; selectByUuid(DbSession dbSession, String uuid) {
+<span class="fc" id="L47">    return mapper(dbSession).selectByUuid(uuid);</span>
+  }
+
+  public Optional&lt;NewCodePeriodDto&gt; selectGlobal(DbSession dbSession) {
+<span class="fc" id="L51">    return ofNullable(mapper(dbSession).selectGlobal());</span>
+  }
+
+  public void insert(DbSession dbSession, NewCodePeriodDto dto) {
+<span class="fc" id="L55">    requireNonNull(dto.getType(), &quot;Type of NewCodePeriod must be specified.&quot;);</span>
+<span class="fc" id="L56">    long currentTime = system2.now();</span>
+<span class="fc" id="L57">    mapper(dbSession).insert(dto.setCreatedAt(currentTime)</span>
+<span class="fc" id="L58">      .setUpdatedAt(currentTime)</span>
+<span class="fc" id="L59">      .setUuid(ofNullable(dto.getUuid()).orElse(uuidFactory.create())));</span>
+<span class="fc" id="L60">  }</span>
+
+  public void upsert(DbSession dbSession, NewCodePeriodDto dto) {
+<span class="fc" id="L63">    NewCodePeriodMapper mapper = mapper(dbSession);</span>
+<span class="fc" id="L64">    long currentTime = system2.now();</span>
+<span class="fc" id="L65">    dto.setUpdatedAt(currentTime);</span>
+<span class="fc bfc" id="L66" title="All 2 branches covered.">    if (mapper.update(dto) == 0) {</span>
+<span class="fc" id="L67">      dto.setCreatedAt(currentTime);</span>
+<span class="fc" id="L68">      dto.setUuid(uuidFactory.create());</span>
+<span class="fc" id="L69">      mapper.insert(dto);</span>
+    }
+<span class="fc" id="L71">  }</span>
+
+  public void update(DbSession dbSession, NewCodePeriodDto dto) {
+<span class="fc" id="L74">    requireNonNull(dto.getUuid(), &quot;Uuid of NewCodePeriod must be specified.&quot;);</span>
+<span class="fc" id="L75">    mapper(dbSession).update(dto.setUpdatedAt(system2.now()));</span>
+<span class="fc" id="L76">  }</span>
+
+  public void updateBranchReferenceValues(DbSession dbSession, BranchDto branchDto, String newBranchName) {
+<span class="fc" id="L79">    requireNonNull(branchDto, &quot;Original referenced branch must be specified.&quot;);</span>
+<span class="fc" id="L80">    requireNonNull(branchDto.getProjectUuid(), MSG_PROJECT_UUID_NOT_SPECIFIED);</span>
+<span class="fc" id="L81">    requireNonNull(newBranchName, &quot;New branch name must be specified.&quot;);</span>
+<span class="fc" id="L82">    selectAllByProject(dbSession, branchDto.getProjectUuid()).stream()</span>
+<span class="pc bpc" id="L83" title="1 of 4 branches missed.">      .filter(newCP -&gt; NewCodePeriodType.REFERENCE_BRANCH.equals(newCP.getType()) &amp;&amp; branchDto.getBranchKey().equals(newCP.getValue()))</span>
+<span class="fc" id="L84">      .forEach(newCodePeriodDto -&gt; update(dbSession, newCodePeriodDto.setValue(newBranchName)));</span>
+<span class="fc" id="L85">  }</span>
+
+  public Optional&lt;NewCodePeriodDto&gt; selectByProject(DbSession dbSession, String projectUuid) {
+<span class="fc" id="L88">    requireNonNull(projectUuid, MSG_PROJECT_UUID_NOT_SPECIFIED);</span>
+<span class="fc" id="L89">    return ofNullable(mapper(dbSession).selectByProject(projectUuid));</span>
+  }
+
+  public List&lt;NewCodePeriodDto&gt; selectAllByProject(DbSession dbSession, String projectUuid) {
+<span class="fc" id="L93">    requireNonNull(projectUuid, MSG_PROJECT_UUID_NOT_SPECIFIED);</span>
+<span class="fc" id="L94">    return mapper(dbSession).selectAllByProject(projectUuid);</span>
+  }
+
+  public Optional&lt;NewCodePeriodDto&gt; selectByBranch(DbSession dbSession, String projectUuid, String branchUuid) {
+<span class="fc" id="L98">    requireNonNull(projectUuid, MSG_PROJECT_UUID_NOT_SPECIFIED);</span>
+<span class="fc" id="L99">    requireNonNull(branchUuid, &quot;Branch uuid must be specified.&quot;);</span>
+<span class="fc" id="L100">    return ofNullable(mapper(dbSession).selectByBranch(projectUuid, branchUuid));</span>
+  }
+
+  public Set&lt;String&gt; selectBranchesReferencing(DbSession dbSession, String projectUuid, String referenceBranchName) {
+<span class="fc" id="L104">    return mapper(dbSession).selectBranchesReferencing(projectUuid, referenceBranchName);</span>
+  }
+
+  public boolean existsByProjectAnalysisUuid(DbSession dbSession, String projectAnalysisUuid) {
+<span class="fc" id="L108">    requireNonNull(projectAnalysisUuid, MSG_PROJECT_UUID_NOT_SPECIFIED);</span>
+<span class="fc bfc" id="L109" title="All 2 branches covered.">    return mapper(dbSession).countByProjectAnalysis(projectAnalysisUuid) &gt; 0;</span>
+  }
+
+  /**
+   * Deletes an entry. It can be the global setting or a specific project or branch setting.
+   * Note that deleting project's setting doesn't delete the settings of the branches belonging to that project.
+   */
+  public void delete(DbSession dbSession, @Nullable String projectUuid, @Nullable String branchUuid) {
+<span class="pc bpc" id="L117" title="1 of 4 branches missed.">    checkArgument(branchUuid == null || projectUuid != null, &quot;branchUuid must be null if projectUuid is null&quot;);</span>
+<span class="fc" id="L118">    mapper(dbSession).delete(projectUuid, branchUuid);</span>
+<span class="fc" id="L119">  }</span>
+
+  private static NewCodePeriodMapper mapper(DbSession session) {
+<span class="fc" id="L122">    return session.getMapper(NewCodePeriodMapper.class);</span>
+  }
+
+  public List&lt;NewCodePeriodDto&gt; selectAll(DbSession dbSession) {
+<span class="fc" id="L126">    return mapper(dbSession).selectAll();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

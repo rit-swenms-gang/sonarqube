@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ScaExecutor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.sca</a> &gt; <span class="el_source">ScaExecutor.java</span></div><h1>ScaExecutor.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.sca;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.concurrent.TimeUnit;
+import org.apache.commons.lang3.time.StopWatch;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.batch.fs.internal.DefaultInputModule;
+import org.sonar.scanner.config.DefaultConfiguration;
+import org.sonar.scanner.report.ReportPublisher;
+import org.sonar.scanner.repository.featureflags.FeatureFlagsRepository;
+
+/**
+ * The ScaExecutor class is the main entrypoint for generating manifest dependency
+ * data during a Sonar scan and passing that data in the report so that it can
+ * be analyzed further by SQ server.
+ */
+public class ScaExecutor {
+<span class="fc" id="L39">  private static final Logger LOG = LoggerFactory.getLogger(ScaExecutor.class);</span>
+  private static final String SCA_FEATURE_NAME = &quot;sca&quot;;
+
+  private final CliCacheService cliCacheService;
+  private final CliService cliService;
+  private final ReportPublisher reportPublisher;
+  private final FeatureFlagsRepository featureFlagsRepository;
+  private final DefaultConfiguration configuration;
+
+  public ScaExecutor(CliCacheService cliCacheService, CliService cliService, ReportPublisher reportPublisher, FeatureFlagsRepository featureFlagsRepository,
+<span class="fc" id="L49">    DefaultConfiguration configuration) {</span>
+<span class="fc" id="L50">    this.cliCacheService = cliCacheService;</span>
+<span class="fc" id="L51">    this.cliService = cliService;</span>
+<span class="fc" id="L52">    this.reportPublisher = reportPublisher;</span>
+<span class="fc" id="L53">    this.featureFlagsRepository = featureFlagsRepository;</span>
+<span class="fc" id="L54">    this.configuration = configuration;</span>
+<span class="fc" id="L55">  }</span>
+
+  public void execute(DefaultInputModule root) {
+    // Feature available in license and enabled by admin
+<span class="fc bfc" id="L59" title="All 2 branches covered.">    if (!featureFlagsRepository.isEnabled(SCA_FEATURE_NAME)) {</span>
+<span class="fc" id="L60">      LOG.info(&quot;Dependency analysis skipped&quot;);</span>
+<span class="fc" id="L61">      return;</span>
+    }
+
+    // SCA enabled in scans at global, project, or scanner level
+<span class="fc bfc" id="L65" title="All 2 branches covered.">    if (!configuration.getBoolean(&quot;sonar.sca.enabled&quot;).orElse(true)) {</span>
+<span class="fc" id="L66">      LOG.info(&quot;Dependency analysis disabled for this project&quot;);</span>
+<span class="fc" id="L67">      return;</span>
+    }
+
+<span class="fc" id="L70">    var stopwatch = new StopWatch();</span>
+<span class="fc" id="L71">    stopwatch.start();</span>
+<span class="fc" id="L72">    LOG.info(&quot;Checking for latest CLI&quot;);</span>
+<span class="fc" id="L73">    File cliFile = cliCacheService.cacheCli();</span>
+
+<span class="fc" id="L75">    LOG.info(&quot;Collecting manifests for the dependency analysis...&quot;);</span>
+<span class="fc bfc" id="L76" title="All 2 branches covered.">    if (cliFile.exists()) {</span>
+      try {
+<span class="fc" id="L78">        File generatedZip = cliService.generateManifestsArchive(root, cliFile, configuration);</span>
+<span class="fc" id="L79">        LOG.debug(&quot;Zip ready for report: {}&quot;, generatedZip);</span>
+<span class="fc" id="L80">        reportPublisher.getWriter().writeScaFile(generatedZip);</span>
+<span class="fc" id="L81">        LOG.debug(&quot;Manifest zip written to report&quot;);</span>
+<span class="fc" id="L82">      } catch (IOException | IllegalStateException e) {</span>
+<span class="fc" id="L83">        LOG.error(&quot;Error gathering manifests&quot;, e);</span>
+      } finally {
+<span class="fc" id="L85">        stopwatch.stop();</span>
+<span class="pc bpc" id="L86" title="1 of 2 branches missed.">        if (LOG.isInfoEnabled()) {</span>
+<span class="fc" id="L87">          LOG.info(&quot;Load SCA project dependencies (done) | time={}ms&quot;, stopwatch.getTime(TimeUnit.MILLISECONDS));</span>
+        }
+      }
+    }
+<span class="fc" id="L91">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

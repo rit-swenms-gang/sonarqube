@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JdbcSettings.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.application.config</a> &gt; <span class="el_source">JdbcSettings.java</span></div><h1>JdbcSettings.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.application.config;
+
+import java.io.File;
+import java.net.Inet6Address;
+import java.net.InetAddress;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.process.MessageException;
+import org.sonar.process.Props;
+
+import static java.lang.String.format;
+import static org.apache.commons.lang3.StringUtils.isEmpty;
+import static org.apache.commons.lang3.StringUtils.isNotEmpty;
+import static org.sonar.process.ProcessProperties.Property.JDBC_ADDITIONAL_LIB_PATHS;
+import static org.sonar.process.ProcessProperties.Property.JDBC_DRIVER_PATH;
+import static org.sonar.process.ProcessProperties.Property.JDBC_EMBEDDED_PORT;
+import static org.sonar.process.ProcessProperties.Property.JDBC_URL;
+import static org.sonar.process.ProcessProperties.Property.PATH_HOME;
+
+<span class="fc" id="L46">public class JdbcSettings implements Consumer&lt;Props&gt; {</span>
+  private static final String IGNORED_KEYWORDS_OPTION = &quot;;NON_KEYWORDS=VALUE&quot;;
+  private static final int JDBC_EMBEDDED_PORT_DEFAULT_VALUE = 9092;
+
+<span class="fc" id="L50">  enum Provider {</span>
+<span class="fc" id="L51">    H2(&quot;lib/jdbc/h2&quot;), SQLSERVER(&quot;lib/jdbc/mssql&quot;), ORACLE(&quot;extensions/jdbc-driver/oracle&quot;),</span>
+<span class="fc" id="L52">    POSTGRESQL(&quot;lib/jdbc/postgresql&quot;);</span>
+
+    final String path;
+
+<span class="fc" id="L56">    Provider(String path) {</span>
+<span class="fc" id="L57">      this.path = path;</span>
+<span class="fc" id="L58">    }</span>
+  }
+
+  @Override
+  public void accept(Props props) {
+<span class="fc" id="L63">    File homeDir = props.nonNullValueAsFile(PATH_HOME.getKey());</span>
+<span class="fc" id="L64">    Provider provider = resolveProviderAndEnforceNonnullJdbcUrl(props);</span>
+<span class="fc" id="L65">    String driverPath = driverPath(homeDir, provider);</span>
+<span class="fc" id="L66">    props.set(JDBC_DRIVER_PATH.getKey(), driverPath);</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">    if (provider == Provider.SQLSERVER) {</span>
+<span class="fc" id="L68">      List&lt;String&gt; additionalPaths = additionalMsSqlLibPaths(homeDir);</span>
+<span class="fc" id="L69">      String libPathsToBeAddedToClasspath = String.join(&quot;;&quot;, additionalPaths);</span>
+<span class="fc" id="L70">      props.set(JDBC_ADDITIONAL_LIB_PATHS.getKey(), libPathsToBeAddedToClasspath);</span>
+    }
+<span class="fc" id="L72">  }</span>
+
+  private static List&lt;String&gt; additionalMsSqlLibPaths(File homeDir) {
+<span class="fc" id="L75">    File dir = new File(homeDir, Provider.SQLSERVER.path);</span>
+<span class="fc" id="L76">    List&lt;File&gt; files = new ArrayList&lt;&gt;(FileUtils.listFiles(dir, new String[] {&quot;jar&quot;}, false));</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">    return files.stream().filter(f -&gt; !f.getName().startsWith(&quot;mssql-jdbc&quot;)).map(File::getAbsolutePath).toList();</span>
+  }
+
+  String driverPath(File homeDir, Provider provider) {
+<span class="fc" id="L81">    String dirPath = provider.path;</span>
+<span class="fc" id="L82">    File dir = new File(homeDir, dirPath);</span>
+<span class="fc bfc" id="L83" title="All 2 branches covered.">    if (!dir.exists()) {</span>
+<span class="fc" id="L84">      throw new MessageException(&quot;Directory does not exist: &quot; + dirPath);</span>
+    }
+<span class="fc" id="L86">    List&lt;File&gt; files = new ArrayList&lt;&gt;(FileUtils.listFiles(dir, new String[] {&quot;jar&quot;}, false));</span>
+<span class="fc bfc" id="L87" title="All 2 branches covered.">    if (files.isEmpty()) {</span>
+<span class="fc" id="L88">      throw new MessageException(&quot;Directory does not contain JDBC driver: &quot; + dirPath);</span>
+    }
+<span class="fc bfc" id="L90" title="All 4 branches covered.">    if (files.size() &gt; 1 &amp;&amp; Provider.SQLSERVER != provider) {</span>
+<span class="fc" id="L91">      throw new MessageException(&quot;Directory must contain only one JAR file: &quot; + dirPath);</span>
+<span class="fc bfc" id="L92" title="All 2 branches covered.">    } else if (Provider.SQLSERVER == provider) {</span>
+<span class="fc" id="L93">      return files.stream().filter(f -&gt; f.getName().startsWith(&quot;mssql-jdbc&quot;)).findFirst()</span>
+<span class="pc" id="L94">        .orElseThrow(() -&gt; new MessageException(&quot;Directory does not contain JDBC driver: &quot; + dirPath)).getAbsolutePath();</span>
+    }
+<span class="fc" id="L96">    return files.get(0).getAbsolutePath();</span>
+  }
+
+  Provider resolveProviderAndEnforceNonnullJdbcUrl(Props props) {
+<span class="fc" id="L100">    String url = props.value(JDBC_URL.getKey());</span>
+<span class="fc" id="L101">    Integer embeddedDatabasePort = props.valueAsInt(JDBC_EMBEDDED_PORT.getKey());</span>
+
+<span class="pc bpc" id="L103" title="1 of 2 branches missed.">    if (embeddedDatabasePort != null) {</span>
+<span class="nc" id="L104">      String correctUrl = buildH2JdbcUrl(embeddedDatabasePort);</span>
+<span class="nc" id="L105">      warnIfUrlIsSet(embeddedDatabasePort, url, correctUrl);</span>
+<span class="nc" id="L106">      props.set(JDBC_URL.getKey(), correctUrl);</span>
+<span class="nc" id="L107">      return Provider.H2;</span>
+    }
+
+<span class="fc bfc" id="L110" title="All 2 branches covered.">    if (isEmpty(url)) {</span>
+<span class="fc" id="L111">      props.set(JDBC_URL.getKey(), buildH2JdbcUrl(JDBC_EMBEDDED_PORT_DEFAULT_VALUE));</span>
+<span class="fc" id="L112">      props.set(JDBC_EMBEDDED_PORT.getKey(), String.valueOf(JDBC_EMBEDDED_PORT_DEFAULT_VALUE));</span>
+<span class="fc" id="L113">      return Provider.H2;</span>
+    }
+
+<span class="fc" id="L116">    Pattern pattern = Pattern.compile(&quot;jdbc:(\\w+):.+&quot;);</span>
+<span class="fc" id="L117">    Matcher matcher = pattern.matcher(url);</span>
+<span class="fc bfc" id="L118" title="All 2 branches covered.">    if (!matcher.find()) {</span>
+<span class="fc" id="L119">      throw new MessageException(format(&quot;Bad format of JDBC URL: %s&quot;, url));</span>
+    }
+<span class="fc" id="L121">    String key = matcher.group(1);</span>
+    try {
+<span class="fc" id="L123">      return Provider.valueOf(StringUtils.upperCase(key));</span>
+<span class="fc" id="L124">    } catch (IllegalArgumentException e) {</span>
+<span class="fc" id="L125">      throw new MessageException(format(&quot;Unsupported JDBC driver provider: %s&quot;, key));</span>
+    }
+  }
+
+  private static String buildH2JdbcUrl(int embeddedDatabasePort) {
+<span class="fc" id="L130">    InetAddress ip = InetAddress.getLoopbackAddress();</span>
+    String host;
+<span class="pc bpc" id="L132" title="1 of 2 branches missed.">    if (ip instanceof Inet6Address) {</span>
+<span class="nc" id="L133">      host = &quot;[&quot; + ip.getHostAddress() + &quot;]&quot;;</span>
+    } else {
+<span class="fc" id="L135">      host = ip.getHostAddress();</span>
+    }
+<span class="fc" id="L137">    return format(&quot;jdbc:h2:tcp://%s:%d/sonar%s&quot;, host, embeddedDatabasePort, IGNORED_KEYWORDS_OPTION);</span>
+  }
+
+  private static void warnIfUrlIsSet(int port, String existing, String expectedUrl) {
+<span class="nc bnc" id="L141" title="All 2 branches missed.">    if (isNotEmpty(existing)) {</span>
+<span class="nc" id="L142">      Logger logger = LoggerFactory.getLogger(JdbcSettings.class);</span>
+<span class="nc bnc" id="L143" title="All 2 branches missed.">      if (expectedUrl.equals(existing)) {</span>
+<span class="nc" id="L144">        logger.warn(&quot;To change H2 database port, only property '&quot; + JDBC_EMBEDDED_PORT +</span>
+          &quot;' should be set (which current value is '{}'). &quot; +
+          &quot;Remove property '&quot; + JDBC_URL + &quot;' from configuration to remove this warning.&quot;,
+<span class="nc" id="L147">          port);</span>
+      } else {
+<span class="nc" id="L149">        logger.warn(&quot;Both '&quot; + JDBC_EMBEDDED_PORT + &quot;' and '&quot; + JDBC_URL + &quot;' properties are set. &quot; +</span>
+          &quot;The value of property '&quot; + JDBC_URL + &quot;' ('{}') is not consistent with the value of property '&quot; +
+          JDBC_EMBEDDED_PORT + &quot;' ('{}'). &quot; +
+          &quot;The value of property '&quot; + JDBC_URL + &quot;' will be ignored and value '{}' will be used instead. &quot; +
+          &quot;To remove this warning, either remove property '&quot; + JDBC_URL +
+          &quot;' if your intent was to use the embedded H2 database, otherwise remove property '&quot; + JDBC_EMBEDDED_PORT
+          + &quot;'.&quot;,
+<span class="nc" id="L156">          existing, port, expectedUrl);</span>
+      }
+    }
+<span class="nc" id="L159">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

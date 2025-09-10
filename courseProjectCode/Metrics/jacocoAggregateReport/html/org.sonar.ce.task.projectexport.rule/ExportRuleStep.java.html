@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ExportRuleStep.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectexport.rule</a> &gt; <span class="el_source">ExportRuleStep.java</span></div><h1>ExportRuleStep.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectexport.rule;
+
+import com.sonarsource.governance.projectdump.protobuf.ProjectDump;
+import org.slf4j.LoggerFactory;
+import org.sonar.ce.task.projectexport.steps.DumpElement;
+import org.sonar.ce.task.projectexport.steps.DumpWriter;
+import org.sonar.ce.task.projectexport.steps.StreamWriter;
+import org.sonar.ce.task.step.ComputationStep;
+
+import static java.lang.String.format;
+
+public class ExportRuleStep implements ComputationStep {
+  private final RuleRepository ruleRepository;
+  private final DumpWriter dumpWriter;
+
+<span class="fc" id="L35">  public ExportRuleStep(RuleRepository ruleRepository, DumpWriter dumpWriter) {</span>
+<span class="fc" id="L36">    this.ruleRepository = ruleRepository;</span>
+<span class="fc" id="L37">    this.dumpWriter = dumpWriter;</span>
+<span class="fc" id="L38">  }</span>
+
+  @Override
+  public String getDescription() {
+<span class="fc" id="L42">    return &quot;Export rules&quot;;</span>
+  }
+
+  @Override
+  public void execute(Context context) {
+<span class="fc" id="L47">    long count = 0;</span>
+<span class="fc" id="L48">    try (StreamWriter&lt;ProjectDump.Rule&gt; writer = dumpWriter.newStreamWriter(DumpElement.RULES)) {</span>
+<span class="fc" id="L49">      ProjectDump.Rule.Builder ruleBuilder = ProjectDump.Rule.newBuilder();</span>
+<span class="fc bfc" id="L50" title="All 2 branches covered.">      for (Rule rule : ruleRepository.getAll()) {</span>
+<span class="fc" id="L51">        ProjectDump.Rule ruleMessage = toRuleMessage(ruleBuilder, rule);</span>
+<span class="fc" id="L52">        writer.write(ruleMessage);</span>
+<span class="fc" id="L53">        count++;</span>
+<span class="fc" id="L54">      }</span>
+<span class="fc" id="L55">      LoggerFactory.getLogger(getClass()).debug(&quot;{} rules exported&quot;, count);</span>
+<span class="fc" id="L56">    } catch (Exception e) {</span>
+<span class="fc" id="L57">      throw new IllegalStateException(format(&quot;Rule Export failed after processing %d rules successfully&quot;, count), e);</span>
+<span class="fc" id="L58">    }</span>
+<span class="fc" id="L59">  }</span>
+
+  private static ProjectDump.Rule toRuleMessage(ProjectDump.Rule.Builder ruleBuilder, Rule rule) {
+<span class="fc" id="L62">    ruleBuilder.clear();</span>
+<span class="fc" id="L63">    return ruleBuilder</span>
+<span class="fc" id="L64">      .setRef(rule.ref())</span>
+<span class="fc" id="L65">      .setKey(rule.key())</span>
+<span class="fc" id="L66">      .setRepository(rule.repository())</span>
+<span class="fc" id="L67">      .build();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

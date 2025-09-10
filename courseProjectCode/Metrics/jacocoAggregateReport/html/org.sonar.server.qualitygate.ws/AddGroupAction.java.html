@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AddGroupAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.qualitygate.ws</a> &gt; <span class="el_source">AddGroupAction.java</span></div><h1>AddGroupAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.qualitygate.ws;
+
+import org.sonar.api.server.ws.WebService;
+import org.sonar.core.util.UuidFactory;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.qualitygate.QualityGateDto;
+import org.sonar.db.qualitygate.QualityGateGroupPermissionsDto;
+import org.sonar.db.user.GroupDto;
+
+import static org.sonar.server.qualitygate.ws.QualityGatesWsParameters.ACTION_ADD_GROUP;
+
+public class AddGroupAction extends AbstractGroupAction {
+  private final UuidFactory uuidFactory;
+
+  public AddGroupAction(DbClient dbClient, UuidFactory uuidFactory, QualityGatesWsSupport wsSupport) {
+<span class="fc" id="L36">    super(dbClient, wsSupport);</span>
+<span class="fc" id="L37">    this.uuidFactory = uuidFactory;</span>
+<span class="fc" id="L38">  }</span>
+
+  @Override
+  public void define(WebService.NewController context) {
+<span class="fc" id="L42">    WebService.NewAction action = context</span>
+<span class="fc" id="L43">      .createAction(ACTION_ADD_GROUP)</span>
+<span class="fc" id="L44">      .setDescription(&quot;Allow a group of users to edit a Quality Gate.&lt;br&gt;&quot; +</span>
+        &quot;Requires one of the following permissions:&quot; +
+        &quot;&lt;ul&gt;&quot; +
+        &quot;  &lt;li&gt;'Administer Quality Gates'&lt;/li&gt;&quot; +
+        &quot;  &lt;li&gt;Edit right on the specified quality gate&lt;/li&gt;&quot; +
+        &quot;&lt;/ul&gt;&quot;)
+<span class="fc" id="L50">      .setHandler(this)</span>
+<span class="fc" id="L51">      .setPost(true)</span>
+<span class="fc" id="L52">      .setSince(&quot;9.2&quot;);</span>
+
+<span class="fc" id="L54">    super.defineGateAndGroupParameters(action);</span>
+<span class="fc" id="L55">  }</span>
+
+  @Override
+  protected void apply(DbSession dbSession, QualityGateDto qualityGate, GroupDto group) {
+<span class="fc bfc" id="L59" title="All 2 branches covered.">    if (dbClient.qualityGateGroupPermissionsDao().exists(dbSession, qualityGate, group)) {</span>
+<span class="fc" id="L60">      return;</span>
+    }
+<span class="fc" id="L62">    dbClient.qualityGateGroupPermissionsDao().insert(dbSession,</span>
+      new QualityGateGroupPermissionsDto()
+<span class="fc" id="L64">        .setUuid(uuidFactory.create())</span>
+<span class="fc" id="L65">        .setGroupUuid(group.getUuid())</span>
+<span class="fc" id="L66">        .setQualityGateUuid(qualityGate.getUuid()),</span>
+<span class="fc" id="L67">      qualityGate.getName(),</span>
+<span class="fc" id="L68">      group.getName());</span>
+<span class="fc" id="L69">    dbSession.commit();</span>
+<span class="fc" id="L70">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

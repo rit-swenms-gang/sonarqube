@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PlatformLevel1.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform.platformlevel</a> &gt; <span class="el_source">PlatformLevel1.java</span></div><h1>PlatformLevel1.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform.platformlevel;
+
+import java.time.Clock;
+import java.util.Properties;
+import org.sonar.api.SonarEdition;
+import org.sonar.api.SonarQubeSide;
+import org.sonar.api.SonarRuntime;
+import org.sonar.api.internal.MetadataLoader;
+import org.sonar.api.internal.SonarRuntimeImpl;
+import org.sonar.api.utils.System2;
+import org.sonar.api.utils.Version;
+import org.sonar.core.config.CorePropertyDefinitions;
+import org.sonar.core.documentation.DefaultDocumentationLinkGenerator;
+import org.sonar.core.extension.CoreExtensionRepositoryImpl;
+import org.sonar.core.extension.CoreExtensionsLoader;
+import org.sonar.core.platform.SonarQubeVersion;
+import org.sonar.core.util.UuidFactoryImpl;
+import org.sonar.db.DBSessionsImpl;
+import org.sonar.db.DaoModule;
+import org.sonar.db.DbClient;
+import org.sonar.db.DefaultDatabase;
+import org.sonar.db.MyBatis;
+import org.sonar.db.StartMyBatis;
+import org.sonar.db.audit.NoOpAuditPersister;
+import org.sonar.db.purge.PurgeProfiler;
+import org.sonar.process.NetworkUtilsImpl;
+import org.sonar.process.logging.LogbackHelper;
+import org.sonar.server.app.ProcessCommandWrapperImpl;
+import org.sonar.server.app.RestartFlagHolderImpl;
+import org.sonar.server.app.WebServerProcessLogging;
+import org.sonar.server.config.ConfigurationProvider;
+import org.sonar.server.es.EsModule;
+import org.sonar.server.issue.index.IssueIndex;
+import org.sonar.server.issue.index.IssueIndexSyncProgressChecker;
+import org.sonar.server.permission.index.WebAuthorizationTypeSupport;
+import org.sonar.server.platform.ContainerSupportImpl;
+import org.sonar.server.platform.DefaultNodeInformation;
+import org.sonar.server.platform.LogServerVersion;
+import org.sonar.server.platform.Platform;
+import org.sonar.server.platform.ServerFileSystemImpl;
+import org.sonar.server.platform.TempFolderProvider;
+import org.sonar.server.platform.UrlSettings;
+import org.sonar.server.platform.WebCoreExtensionsInstaller;
+import org.sonar.server.platform.db.EmbeddedDatabaseFactory;
+import org.sonar.server.rule.index.RuleIndex;
+import org.sonar.server.setting.ThreadLocalSettings;
+import org.sonar.server.user.SystemPasscodeImpl;
+import org.sonar.server.user.ThreadLocalUserSession;
+import org.sonar.server.util.GlobalLockManagerImpl;
+import org.sonar.server.util.OkHttpClientProvider;
+import org.sonar.server.util.Paths2Impl;
+import org.sonar.server.util.TempFolderCleaner;
+
+import static org.sonar.core.extension.CoreExtensionsInstaller.noAdditionalSideFilter;
+import static org.sonar.core.extension.PlatformLevelPredicates.hasPlatformLevel;
+
+public class PlatformLevel1 extends PlatformLevel {
+  private final Platform platform;
+  private final Properties properties;
+  private final Object[] extraRootComponents;
+
+  public PlatformLevel1(Platform platform, Properties properties, Object... extraRootComponents) {
+<span class="fc" id="L82">    super(&quot;level1&quot;);</span>
+<span class="fc" id="L83">    this.platform = platform;</span>
+<span class="fc" id="L84">    this.properties = properties;</span>
+<span class="fc" id="L85">    this.extraRootComponents = extraRootComponents;</span>
+<span class="fc" id="L86">  }</span>
+
+  @Override
+  public void configureLevel() {
+<span class="fc" id="L90">    add(platform, properties);</span>
+<span class="fc" id="L91">    addExtraRootComponents();</span>
+<span class="fc" id="L92">    Version apiVersion = MetadataLoader.loadApiVersion(System2.INSTANCE);</span>
+<span class="fc" id="L93">    Version sqVersion = MetadataLoader.loadSQVersion(System2.INSTANCE);</span>
+<span class="fc" id="L94">    SonarEdition edition = MetadataLoader.loadEdition(System2.INSTANCE);</span>
+<span class="fc" id="L95">    SonarRuntime sonarRuntime = SonarRuntimeImpl.forSonarQube(apiVersion, SonarQubeSide.SERVER, edition);</span>
+
+
+<span class="fc" id="L98">    add(</span>
+      new SonarQubeVersion(sqVersion),
+      sonarRuntime,
+      ThreadLocalSettings.class,
+      ConfigurationProvider.class,
+      LogServerVersion.class,
+      ProcessCommandWrapperImpl.class,
+      RestartFlagHolderImpl.class,
+      UuidFactoryImpl.INSTANCE,
+      NetworkUtilsImpl.INSTANCE,
+      UrlSettings.class,
+      EmbeddedDatabaseFactory.class,
+      LogbackHelper.class,
+      WebServerProcessLogging.class,
+      DefaultDatabase.class,
+      MyBatis.class,
+      StartMyBatis.class,
+      PurgeProfiler.class,
+      ServerFileSystemImpl.class,
+      TempFolderCleaner.class,
+      new TempFolderProvider(),
+      System2.INSTANCE,
+<span class="fc" id="L120">      Paths2Impl.getInstance(),</span>
+      ContainerSupportImpl.class,
+<span class="fc" id="L122">      Clock.systemDefaultZone(),</span>
+
+      // user session
+      ThreadLocalUserSession.class,
+      SystemPasscodeImpl.class,
+
+      // DB
+      DBSessionsImpl.class,
+      DbClient.class,
+      new DaoModule(),
+
+      // Elasticsearch
+      WebAuthorizationTypeSupport.class,
+      new EsModule(),
+
+      // rules/qprofiles
+      RuleIndex.class,
+
+      // issues
+      IssueIndex.class,
+      IssueIndexSyncProgressChecker.class,
+
+      GlobalLockManagerImpl.class,
+
+      DefaultDocumentationLinkGenerator.class,
+
+      new OkHttpClientProvider(),
+
+      NoOpAuditPersister.class
+    );
+<span class="fc" id="L152">    addAll(CorePropertyDefinitions.all());</span>
+
+    // cluster
+<span class="fc" id="L155">    add(DefaultNodeInformation.class);</span>
+
+<span class="fc" id="L157">    addCoreExtensionMechanism(sonarRuntime);</span>
+<span class="fc" id="L158">  }</span>
+
+  private void addExtraRootComponents() {
+<span class="pc bpc" id="L161" title="1 of 2 branches missed.">    if (this.extraRootComponents != null) {</span>
+<span class="pc bpc" id="L162" title="1 of 2 branches missed.">      for (Object extraRootComponent : this.extraRootComponents) {</span>
+<span class="nc" id="L163">        add(extraRootComponent);</span>
+      }
+    }
+<span class="fc" id="L166">  }</span>
+
+  private void addCoreExtensionMechanism(SonarRuntime sonarRuntime) {
+<span class="fc" id="L169">    var coreExtensionRepository = new CoreExtensionRepositoryImpl();</span>
+<span class="fc" id="L170">    var coreExtensionsLoader = new CoreExtensionsLoader(coreExtensionRepository);</span>
+<span class="fc" id="L171">    var webCoreExtensionsInstaller = new WebCoreExtensionsInstaller(sonarRuntime, coreExtensionRepository);</span>
+
+<span class="fc" id="L173">    add(coreExtensionRepository, coreExtensionsLoader, webCoreExtensionsInstaller);</span>
+
+<span class="fc" id="L175">    coreExtensionsLoader.load();</span>
+<span class="fc" id="L176">    webCoreExtensionsInstaller.install(getContainer(), hasPlatformLevel(1), noAdditionalSideFilter());</span>
+<span class="fc" id="L177">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

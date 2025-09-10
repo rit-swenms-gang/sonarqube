@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MediaTypes.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonarqube.ws</a> &gt; <span class="el_source">MediaTypes.java</span></div><h1>MediaTypes.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonarqube.ws;
+
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+
+import static org.sonarqube.ws.WsUtils.isNullOrEmpty;
+
+/**
+ * @since 5.3
+ */
+public final class MediaTypes {
+  public static final String CSV = &quot;text/csv&quot;;
+  public static final String DEFAULT = &quot;application/octet-stream&quot;;
+  public static final String HTML = &quot;text/html&quot;;
+  public static final String JAVASCRIPT = &quot;text/javascript&quot;;
+  public static final String JSON = &quot;application/json&quot;;
+  public static final String PROTOBUF = &quot;application/x-protobuf&quot;;
+  public static final String SVG = &quot;image/svg+xml&quot;;
+  public static final String TXT = &quot;text/plain&quot;;
+  public static final String XML = &quot;application/xml&quot;;
+  public static final String ZIP = &quot;application/zip&quot;;
+  private static final String BMP = &quot;image/bmp&quot;;
+  private static final String CSS = &quot;text/css&quot;;
+  private static final String DTD = &quot;application/xml-dtd&quot;;
+  private static final String GIF = &quot;image/gif&quot;;
+  private static final String ICO = &quot;image/x-icon&quot;;
+  private static final String JAR = &quot;application/java-archive&quot;;
+  private static final String JNLP = &quot;application/jnlp&quot;;
+  private static final String JPEG = &quot;image/jpeg&quot;;
+  private static final String JPG = &quot;image/jpeg&quot;;
+  private static final String PNG = &quot;image/png&quot;;
+  private static final String POSTSCRIPT = &quot;application/postscript&quot;;
+  private static final String PPT = &quot;application/vnd.ms-powerpoint&quot;;
+  private static final String RTF = &quot;text/rtf&quot;;
+  private static final String TAR = &quot;application/x-tar&quot;;
+  private static final String TIFF = &quot;image/tiff&quot;;
+  private static final String TGZ = &quot;application/tgz&quot;;
+  private static final String TSV = &quot;text/tab-separated-values&quot;;
+  private static final String WOFF2 = &quot;application/font-woff2&quot;;
+  private static final String XLS = &quot;application/vnd.ms-excel&quot;;
+  private static final String XSLT = &quot;application/xslt+xml&quot;;
+
+  private static final Map&lt;String, String&gt; MAP;
+  static {
+<span class="fc" id="L65">    MAP = new HashMap&lt;&gt;(27);</span>
+<span class="fc" id="L66">    MAP.put(&quot;js&quot;, JAVASCRIPT);</span>
+<span class="fc" id="L67">    MAP.put(&quot;json&quot;, JSON);</span>
+<span class="fc" id="L68">    MAP.put(&quot;zip&quot;, ZIP);</span>
+<span class="fc" id="L69">    MAP.put(&quot;tgz&quot;, TGZ);</span>
+<span class="fc" id="L70">    MAP.put(&quot;ps&quot;, POSTSCRIPT);</span>
+<span class="fc" id="L71">    MAP.put(&quot;jnlp&quot;, JNLP);</span>
+<span class="fc" id="L72">    MAP.put(&quot;jar&quot;, JAR);</span>
+<span class="fc" id="L73">    MAP.put(&quot;xls&quot;, XLS);</span>
+<span class="fc" id="L74">    MAP.put(&quot;ppt&quot;, PPT);</span>
+<span class="fc" id="L75">    MAP.put(&quot;tar&quot;, TAR);</span>
+<span class="fc" id="L76">    MAP.put(&quot;xml&quot;, XML);</span>
+<span class="fc" id="L77">    MAP.put(&quot;dtd&quot;, DTD);</span>
+<span class="fc" id="L78">    MAP.put(&quot;xslt&quot;, XSLT);</span>
+<span class="fc" id="L79">    MAP.put(&quot;bmp&quot;, BMP);</span>
+<span class="fc" id="L80">    MAP.put(&quot;gif&quot;, GIF);</span>
+<span class="fc" id="L81">    MAP.put(&quot;jpg&quot;, JPG);</span>
+<span class="fc" id="L82">    MAP.put(&quot;jpeg&quot;, JPEG);</span>
+<span class="fc" id="L83">    MAP.put(&quot;tiff&quot;, TIFF);</span>
+<span class="fc" id="L84">    MAP.put(&quot;png&quot;, PNG);</span>
+<span class="fc" id="L85">    MAP.put(&quot;svg&quot;, SVG);</span>
+<span class="fc" id="L86">    MAP.put(&quot;ico&quot;, ICO);</span>
+<span class="fc" id="L87">    MAP.put(&quot;txt&quot;, TXT);</span>
+<span class="fc" id="L88">    MAP.put(&quot;csv&quot;, CSV);</span>
+<span class="fc" id="L89">    MAP.put(&quot;properties&quot;, TXT);</span>
+<span class="fc" id="L90">    MAP.put(&quot;rtf&quot;, RTF);</span>
+<span class="fc" id="L91">    MAP.put(&quot;html&quot;, HTML);</span>
+<span class="fc" id="L92">    MAP.put(&quot;css&quot;, CSS);</span>
+<span class="fc" id="L93">    MAP.put(&quot;tsv&quot;, TSV);</span>
+<span class="fc" id="L94">    MAP.put(&quot;woff2&quot;, WOFF2);</span>
+<span class="fc" id="L95">  }</span>
+
+  private MediaTypes() {
+    // only static methods
+  }
+
+  public static String getByFilename(String filename) {
+<span class="fc" id="L102">    String extension = FilenameUtils.getExtension(filename);</span>
+<span class="fc" id="L103">    String mime = null;</span>
+<span class="fc bfc" id="L104" title="All 2 branches covered.">    if (!isNullOrEmpty(extension)) {</span>
+<span class="fc" id="L105">      mime = MAP.get(extension.toLowerCase(Locale.ENGLISH));</span>
+    }
+<span class="fc bfc" id="L107" title="All 2 branches covered.">    return mime != null ? mime : DEFAULT;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IssueDetectionEventsStep.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.step</a> &gt; <span class="el_source">IssueDetectionEventsStep.java</span></div><h1>IssueDetectionEventsStep.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.step;
+
+import java.util.Collection;
+import java.util.Map;
+import java.util.Optional;
+import org.sonar.api.measures.CoreMetrics;
+import org.sonar.api.resources.Language;
+import org.sonar.ce.task.projectanalysis.analysis.AnalysisMetadataHolder;
+import org.sonar.ce.task.projectanalysis.analysis.ScannerPlugin;
+import org.sonar.ce.task.projectanalysis.component.Component;
+import org.sonar.ce.task.projectanalysis.component.TreeRootHolder;
+import org.sonar.ce.task.projectanalysis.event.Event;
+import org.sonar.ce.task.projectanalysis.event.EventRepository;
+import org.sonar.ce.task.projectanalysis.language.LanguageRepository;
+import org.sonar.ce.task.projectanalysis.measure.Measure;
+import org.sonar.ce.task.projectanalysis.measure.MeasureRepository;
+import org.sonar.ce.task.projectanalysis.metric.Metric;
+import org.sonar.ce.task.projectanalysis.metric.MetricRepository;
+import org.sonar.ce.task.step.ComputationStep;
+import org.sonar.server.qualityprofile.QPMeasureData;
+import org.sonar.server.qualityprofile.QualityProfile;
+
+import static java.lang.String.format;
+import static java.util.Objects.requireNonNull;
+
+/**
+ * Computation of Issue Detection events
+ * As it depends upon {@link CoreMetrics#QUALITY_PROFILES_KEY}, it must be executed after {@link ComputeQProfileMeasureStep}
+ */
+public class IssueDetectionEventsStep implements ComputationStep {
+  private final TreeRootHolder treeRootHolder;
+  private final MetricRepository metricRepository;
+  private final MeasureRepository measureRepository;
+  private final EventRepository eventRepository;
+  private final LanguageRepository languageRepository;
+  private final AnalysisMetadataHolder analysisMetadataHolder;
+
+  public IssueDetectionEventsStep(TreeRootHolder treeRootHolder, MetricRepository metricRepository,
+    MeasureRepository measureRepository, LanguageRepository languageRepository, EventRepository eventRepository,
+<span class="fc" id="L59">    AnalysisMetadataHolder analysisMetadataHolder) {</span>
+<span class="fc" id="L60">    this.treeRootHolder = treeRootHolder;</span>
+<span class="fc" id="L61">    this.metricRepository = metricRepository;</span>
+<span class="fc" id="L62">    this.measureRepository = measureRepository;</span>
+<span class="fc" id="L63">    this.eventRepository = eventRepository;</span>
+<span class="fc" id="L64">    this.languageRepository = languageRepository;</span>
+<span class="fc" id="L65">    this.analysisMetadataHolder = analysisMetadataHolder;</span>
+<span class="fc" id="L66">  }</span>
+
+  @Override
+  public void execute(Context context) {
+<span class="fc" id="L70">    executeForBranch(treeRootHolder.getRoot());</span>
+<span class="fc" id="L71">  }</span>
+
+  private void executeForBranch(Component branchComponent) {
+<span class="fc" id="L74">    Metric qualityProfileMetric = metricRepository.getByKey(CoreMetrics.QUALITY_PROFILES_KEY);</span>
+<span class="fc" id="L75">    Optional&lt;Measure&gt; baseMeasure = measureRepository.getBaseMeasure(branchComponent, qualityProfileMetric);</span>
+<span class="fc bfc" id="L76" title="All 2 branches covered.">    if (baseMeasure.isEmpty()) {</span>
+      // first analysis -&gt; do not generate events
+<span class="fc" id="L78">      return;</span>
+    }
+
+    // Load profiles used in current analysis for which at least one file of the corresponding language exists
+<span class="fc" id="L82">    Optional&lt;Measure&gt; rawMeasure = measureRepository.getRawMeasure(branchComponent, qualityProfileMetric);</span>
+<span class="fc bfc" id="L83" title="All 2 branches covered.">    if (rawMeasure.isEmpty()) {</span>
+      // No qualify profile computed on the project
+<span class="fc" id="L85">      return;</span>
+    }
+<span class="fc" id="L87">    Map&lt;String, QualityProfile&gt; rawProfiles = QPMeasureData.fromJson(rawMeasure.get().getStringValue()).getProfilesByKey();</span>
+<span class="fc" id="L88">    detectIssueCapabilitiesChanged(rawProfiles.values());</span>
+<span class="fc" id="L89">  }</span>
+
+  private void detectIssueCapabilitiesChanged(Collection&lt;QualityProfile&gt; rawProfiles) {
+<span class="fc" id="L92">    Map&lt;String, ScannerPlugin&gt; scannerPluginsByKey = analysisMetadataHolder.getScannerPluginsByKey();</span>
+<span class="fc" id="L93">    long lastAnalysisDate = requireNonNull(analysisMetadataHolder.getBaseAnalysis()).getCreatedAt();</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">    for (QualityProfile profile : rawProfiles) {</span>
+<span class="fc" id="L95">      String languageKey = profile.getLanguageKey();</span>
+<span class="fc" id="L96">      ScannerPlugin scannerPlugin = scannerPluginsByKey.get(languageKey);</span>
+<span class="fc bfc" id="L97" title="All 2 branches covered.">      if (scannerPlugin == null) {</span>
+        // nothing to do as the language is not supported
+<span class="fc" id="L99">        continue;</span>
+      }
+
+<span class="fc bfc" id="L102" title="All 2 branches covered.">      if (scannerPlugin.getUpdatedAt() &gt; lastAnalysisDate) {</span>
+<span class="fc" id="L103">        String languageName = languageRepository.find(languageKey)</span>
+<span class="fc" id="L104">          .map(Language::getName)</span>
+<span class="fc" id="L105">          .orElse(languageKey);</span>
+<span class="fc" id="L106">        Event event = Event.createIssueDetection(format(&quot;Capabilities have been updated (%s)&quot;, languageName));</span>
+<span class="fc" id="L107">        eventRepository.add(event);</span>
+      }
+<span class="fc" id="L109">    }</span>
+<span class="fc" id="L110">  }</span>
+
+  @Override
+  public String getDescription() {
+<span class="nc" id="L114">    return &quot;Generate Issue Detection events&quot;;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

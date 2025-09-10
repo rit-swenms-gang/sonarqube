@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RuleRepositoryDao.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.rule</a> &gt; <span class="el_source">RuleRepositoryDao.java</span></div><h1>RuleRepositoryDao.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.rule;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import javax.annotation.Nullable;
+import org.sonar.api.utils.System2;
+import org.sonar.db.Dao;
+import org.sonar.db.DatabaseUtils;
+import org.sonar.db.DbSession;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static org.apache.commons.lang3.StringUtils.isBlank;
+
+public class RuleRepositoryDao implements Dao {
+
+  private static final String PERCENT_SIGN = &quot;%&quot;;
+
+  private final System2 system2;
+
+<span class="fc" id="L41">  public RuleRepositoryDao(System2 system2) {</span>
+<span class="fc" id="L42">    this.system2 = system2;</span>
+<span class="fc" id="L43">  }</span>
+
+  /**
+   * @return a non-null list ordered by key (as implemented by database, order may
+   * depend on case sensitivity)
+   */
+  public List&lt;RuleRepositoryDto&gt; selectAll(DbSession dbSession) {
+<span class="fc" id="L50">    return dbSession.getMapper(RuleRepositoryMapper.class).selectAll();</span>
+  }
+
+  public Set&lt;String&gt; selectAllKeys(DbSession dbSession) {
+<span class="fc" id="L54">    return dbSession.getMapper(RuleRepositoryMapper.class).selectAllKeys();</span>
+  }
+
+  public List&lt;RuleRepositoryDto&gt; selectByQueryAndLanguage(DbSession dbSession, @Nullable String query, @Nullable String language){
+<span class="fc" id="L58">    String queryUpgraded = toLowerCaseAndSurroundWithPercentSigns(query);</span>
+<span class="fc" id="L59">    return dbSession.getMapper(RuleRepositoryMapper.class).selectByQueryAndLanguage(queryUpgraded,language);</span>
+  }
+
+  public void insert(DbSession dbSession, Collection&lt;RuleRepositoryDto&gt; dtos) {
+<span class="fc" id="L63">    RuleRepositoryMapper mapper = dbSession.getMapper(RuleRepositoryMapper.class);</span>
+<span class="fc" id="L64">    long now = system2.now();</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">    for (RuleRepositoryDto dto : dtos) {</span>
+<span class="fc" id="L66">      mapper.insert(dto, now);</span>
+<span class="fc" id="L67">    }</span>
+<span class="fc" id="L68">  }</span>
+
+  public void update(DbSession dbSession, Collection&lt;RuleRepositoryDto&gt; dtos) {
+<span class="fc" id="L71">    RuleRepositoryMapper mapper = dbSession.getMapper(RuleRepositoryMapper.class);</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">    for (RuleRepositoryDto dto : dtos) {</span>
+<span class="fc" id="L73">      mapper.update(dto);</span>
+<span class="fc" id="L74">    }</span>
+<span class="fc" id="L75">  }</span>
+
+  public void deleteIfKeyNotIn(DbSession dbSession, Collection&lt;String&gt; keys) {
+<span class="fc bfc" id="L78" title="All 2 branches covered.">    checkArgument(keys.size() &lt; DatabaseUtils.PARTITION_SIZE_FOR_ORACLE, &quot;too many rule repositories: %s&quot;, keys.size());</span>
+<span class="fc" id="L79">    dbSession.getMapper(RuleRepositoryMapper.class).deleteIfKeyNotIn(keys);</span>
+<span class="fc" id="L80">  }</span>
+
+  private static String toLowerCaseAndSurroundWithPercentSigns(@Nullable String query) {
+<span class="fc bfc" id="L83" title="All 2 branches covered.">    return isBlank(query) ? PERCENT_SIGN : (PERCENT_SIGN + query.toLowerCase(Locale.ENGLISH) + PERCENT_SIGN);</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

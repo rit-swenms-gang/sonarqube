@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Jenkins.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.ci.vendors</a> &gt; <span class="el_source">Jenkins.java</span></div><h1>Jenkins.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.ci.vendors;
+
+import java.nio.file.Path;
+import java.util.Optional;
+import org.apache.commons.lang3.StringUtils;
+import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.lib.Ref;
+import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.lib.RepositoryBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.batch.fs.internal.DefaultInputProject;
+import org.sonar.api.utils.System2;
+import org.sonar.scanner.ci.CiConfiguration;
+import org.sonar.scanner.ci.CiConfigurationImpl;
+import org.sonar.scanner.ci.CiVendor;
+
+import static org.apache.commons.lang3.StringUtils.isNotBlank;
+
+public class Jenkins implements CiVendor {
+<span class="fc" id="L40">  private static final Logger LOG = LoggerFactory.getLogger(Jenkins.class);</span>
+  private final System2 system;
+  private final DefaultInputProject inputProject;
+
+<span class="fc" id="L44">  public Jenkins(System2 system, DefaultInputProject inputProject) {</span>
+<span class="fc" id="L45">    this.system = system;</span>
+<span class="fc" id="L46">    this.inputProject = inputProject;</span>
+<span class="fc" id="L47">  }</span>
+
+  @Override
+  public String getName() {
+<span class="fc" id="L51">    return &quot;Jenkins&quot;;</span>
+  }
+
+  @Override
+  public boolean isDetected() {
+    // https://wiki.jenkins-ci.org/display/JENKINS/Building+a+software+project
+    // JENKINS_URL is not enough to identify Jenkins. It can be easily used on a non-Jenkins job.
+<span class="fc bfc" id="L58" title="All 4 branches covered.">    return isNotBlank(system.envVariable(&quot;JENKINS_URL&quot;)) &amp;&amp; isNotBlank(system.envVariable(&quot;EXECUTOR_NUMBER&quot;));</span>
+  }
+
+  @Override
+  public CiConfiguration loadConfiguration() {
+    // https://wiki.jenkins-ci.org/display/JENKINS/GitHub+pull+request+builder+plugin#GitHubpullrequestbuilderplugin-EnvironmentVariables
+    // https://wiki.jenkins-ci.org/display/JENKINS/Building+a+software+project
+<span class="fc" id="L65">    String revision = system.envVariable(&quot;ghprbActualCommit&quot;);</span>
+<span class="fc bfc" id="L66" title="All 2 branches covered.">    if (StringUtils.isNotBlank(revision)) {</span>
+<span class="fc" id="L67">      return new CiConfigurationImpl(revision, getName());</span>
+    }
+
+<span class="fc" id="L70">    revision = system.envVariable(&quot;GIT_COMMIT&quot;);</span>
+
+<span class="fc bfc" id="L72" title="All 2 branches covered.">    if (StringUtils.isNotBlank(revision)) {</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">      if (StringUtils.isNotBlank(system.envVariable(&quot;CHANGE_ID&quot;))) {</span>
+<span class="fc" id="L74">        String jenkinsGitPrSha1 = getJenkinsGitPrSha1();</span>
+<span class="fc bfc" id="L75" title="All 2 branches covered.">        if (StringUtils.isNotBlank(jenkinsGitPrSha1)) {</span>
+<span class="fc" id="L76">          return new CiConfigurationImpl(jenkinsGitPrSha1, getName());</span>
+        }
+      }
+<span class="fc" id="L79">      return new CiConfigurationImpl(revision, getName());</span>
+    }
+
+<span class="fc" id="L82">    revision = system.envVariable(&quot;SVN_COMMIT&quot;);</span>
+<span class="fc" id="L83">    return new CiConfigurationImpl(revision, getName());</span>
+  }
+
+  private String getJenkinsGitPrSha1() {
+<span class="fc" id="L87">    String gitBranch = system.envVariable(&quot;GIT_BRANCH&quot;);</span>
+<span class="pc bpc" id="L88" title="1 of 2 branches missed.">    if (StringUtils.isBlank(gitBranch)) {</span>
+<span class="nc" id="L89">      return null;</span>
+    }
+
+<span class="fc" id="L92">    Path baseDir = inputProject.getBaseDir();</span>
+
+<span class="fc" id="L94">    RepositoryBuilder builder = new RepositoryBuilder()</span>
+<span class="fc" id="L95">      .findGitDir(baseDir.toFile())</span>
+<span class="fc" id="L96">      .setMustExist(true);</span>
+
+<span class="fc bfc" id="L98" title="All 2 branches covered.">    if (builder.getGitDir() == null) {</span>
+<span class="fc" id="L99">      return null;</span>
+    }
+
+<span class="fc" id="L102">    String refName = &quot;refs/remotes/origin/&quot; + gitBranch;</span>
+<span class="fc" id="L103">    try (Repository repo = builder.build()) {</span>
+<span class="fc" id="L104">      return Optional.ofNullable(repo.exactRef(refName))</span>
+<span class="fc" id="L105">        .map(Ref::getObjectId)</span>
+<span class="fc" id="L106">        .map(ObjectId::getName)</span>
+<span class="fc" id="L107">        .orElse(null);</span>
+<span class="nc" id="L108">    } catch (Exception e) {</span>
+<span class="nc" id="L109">      LOG.debug(&quot;Couldn't find git sha1 in '{}': {}&quot;, refName, e.getMessage());</span>
+    }
+<span class="nc" id="L111">    return null;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

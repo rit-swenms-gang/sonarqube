@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SecurityReviewMeasuresVisitor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.qualitymodel</a> &gt; <span class="el_source">SecurityReviewMeasuresVisitor.java</span></div><h1>SecurityReviewMeasuresVisitor.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.qualitymodel;
+
+import java.util.Optional;
+import org.sonar.ce.task.projectanalysis.component.Component;
+import org.sonar.ce.task.projectanalysis.component.PathAwareVisitor;
+import org.sonar.ce.task.projectanalysis.component.PathAwareVisitorAdapter;
+import org.sonar.ce.task.projectanalysis.issue.ComponentIssuesRepository;
+import org.sonar.ce.task.projectanalysis.measure.MeasureRepository;
+import org.sonar.ce.task.projectanalysis.measure.RatingMeasures;
+import org.sonar.ce.task.projectanalysis.metric.Metric;
+import org.sonar.ce.task.projectanalysis.metric.MetricRepository;
+
+import static org.sonar.api.measures.CoreMetrics.SECURITY_HOTSPOTS_REVIEWED_KEY;
+import static org.sonar.api.measures.CoreMetrics.SECURITY_HOTSPOTS_REVIEWED_STATUS_KEY;
+import static org.sonar.api.measures.CoreMetrics.SECURITY_HOTSPOTS_TO_REVIEW_STATUS_KEY;
+import static org.sonar.api.measures.CoreMetrics.SECURITY_REVIEW_RATING_KEY;
+import static org.sonar.core.rule.RuleType.SECURITY_HOTSPOT;
+import static org.sonar.ce.task.projectanalysis.component.ComponentVisitor.Order.POST_ORDER;
+import static org.sonar.ce.task.projectanalysis.component.CrawlerDepthLimit.FILE;
+import static org.sonar.ce.task.projectanalysis.measure.Measure.newMeasureBuilder;
+import static org.sonar.server.security.SecurityReviewRating.computePercent;
+import static org.sonar.server.security.SecurityReviewRating.computeRating;
+
+public class SecurityReviewMeasuresVisitor extends PathAwareVisitorAdapter&lt;SecurityReviewCounter&gt; {
+
+  private final ComponentIssuesRepository componentIssuesRepository;
+  private final MeasureRepository measureRepository;
+  private final Metric securityReviewRatingMetric;
+  private final Metric securityHotspotsReviewedMetric;
+  private final Metric securityHotspotsReviewedStatusMetric;
+  private final Metric securityHotspotsToReviewStatusMetric;
+
+  public SecurityReviewMeasuresVisitor(ComponentIssuesRepository componentIssuesRepository, MeasureRepository measureRepository, MetricRepository metricRepository) {
+<span class="fc" id="L53">    super(FILE, POST_ORDER, SecurityReviewMeasuresVisitor.CounterFactory.INSTANCE);</span>
+<span class="fc" id="L54">    this.componentIssuesRepository = componentIssuesRepository;</span>
+<span class="fc" id="L55">    this.measureRepository = measureRepository;</span>
+<span class="fc" id="L56">    this.securityReviewRatingMetric = metricRepository.getByKey(SECURITY_REVIEW_RATING_KEY);</span>
+<span class="fc" id="L57">    this.securityHotspotsReviewedMetric = metricRepository.getByKey(SECURITY_HOTSPOTS_REVIEWED_KEY);</span>
+<span class="fc" id="L58">    this.securityHotspotsReviewedStatusMetric = metricRepository.getByKey(SECURITY_HOTSPOTS_REVIEWED_STATUS_KEY);</span>
+<span class="fc" id="L59">    this.securityHotspotsToReviewStatusMetric = metricRepository.getByKey(SECURITY_HOTSPOTS_TO_REVIEW_STATUS_KEY);</span>
+<span class="fc" id="L60">  }</span>
+
+  @Override
+  public void visitProject(Component project, Path&lt;SecurityReviewCounter&gt; path) {
+<span class="fc" id="L64">    computeMeasure(project, path);</span>
+<span class="fc" id="L65">  }</span>
+
+  @Override
+  public void visitDirectory(Component directory, PathAwareVisitor.Path&lt;SecurityReviewCounter&gt; path) {
+<span class="fc" id="L69">    computeMeasure(directory, path);</span>
+<span class="fc" id="L70">  }</span>
+
+  @Override
+  public void visitFile(Component file, PathAwareVisitor.Path&lt;SecurityReviewCounter&gt; path) {
+<span class="fc" id="L74">    computeMeasure(file, path);</span>
+<span class="fc" id="L75">  }</span>
+
+  private void computeMeasure(Component component, PathAwareVisitor.Path&lt;SecurityReviewCounter&gt; path) {
+<span class="fc" id="L78">    componentIssuesRepository.getIssues(component)</span>
+<span class="fc" id="L79">      .stream()</span>
+<span class="fc" id="L80">      .filter(issue -&gt; issue.type().equals(SECURITY_HOTSPOT))</span>
+<span class="fc" id="L81">      .forEach(issue -&gt; path.current().processHotspot(issue));</span>
+
+<span class="fc" id="L83">    measureRepository.add(component, securityHotspotsReviewedStatusMetric, newMeasureBuilder().create(path.current().getHotspotsReviewed()));</span>
+<span class="fc" id="L84">    measureRepository.add(component, securityHotspotsToReviewStatusMetric, newMeasureBuilder().create(path.current().getHotspotsToReview()));</span>
+<span class="fc" id="L85">    Optional&lt;Double&gt; percent = computePercent(path.current().getHotspotsToReview(), path.current().getHotspotsReviewed());</span>
+<span class="fc" id="L86">    measureRepository.add(component, securityReviewRatingMetric, RatingMeasures.get(computeRating(percent.orElse(null))));</span>
+<span class="fc" id="L87">    percent.ifPresent(p -&gt; measureRepository.add(component, securityHotspotsReviewedMetric, newMeasureBuilder().create(p, securityHotspotsReviewedMetric.getDecimalScale())));</span>
+
+<span class="fc bfc" id="L89" title="All 2 branches covered.">    if (!path.isRoot()) {</span>
+<span class="fc" id="L90">      path.parent().add(path.current());</span>
+    }
+<span class="fc" id="L92">  }</span>
+
+  private static final class CounterFactory extends PathAwareVisitorAdapter.SimpleStackElementFactory&lt;SecurityReviewCounter&gt; {
+<span class="fc" id="L95">    public static final SecurityReviewMeasuresVisitor.CounterFactory INSTANCE = new SecurityReviewMeasuresVisitor.CounterFactory();</span>
+
+    private CounterFactory() {
+      // prevents instantiation
+    }
+
+    @Override
+    public SecurityReviewCounter createForAny(Component component) {
+<span class="fc" id="L103">      return new SecurityReviewCounter();</span>
+    }
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

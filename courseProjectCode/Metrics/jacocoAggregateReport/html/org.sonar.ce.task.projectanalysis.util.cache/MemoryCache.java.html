@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MemoryCache.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.util.cache</a> &gt; <span class="el_source">MemoryCache.java</span></div><h1>MemoryCache.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.util.cache;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import javax.annotation.CheckForNull;
+
+/**
+ * This in-memory cache relies on {@link CacheLoader} to
+ * load missing elements.
+ * Warning - all searches are kept in memory, even when elements are not found.
+ */
+public class MemoryCache&lt;K, V&gt; {
+
+  private final CacheLoader&lt;K, V&gt; loader;
+<span class="fc" id="L36">  private final Map&lt;K, V&gt; map = new HashMap&lt;&gt;();</span>
+
+<span class="fc" id="L38">  public MemoryCache(CacheLoader&lt;K, V&gt; loader) {</span>
+<span class="fc" id="L39">    this.loader = loader;</span>
+<span class="fc" id="L40">  }</span>
+
+  @CheckForNull
+  public V getNullable(K key) {
+<span class="fc" id="L44">    V value = map.get(key);</span>
+<span class="pc bpc" id="L45" title="1 of 4 branches missed.">    if (value == null &amp;&amp; !map.containsKey(key)) {</span>
+<span class="fc" id="L46">      value = loader.load(key);</span>
+<span class="fc" id="L47">      map.put(key, value);</span>
+    }
+<span class="fc" id="L49">    return value;</span>
+  }
+
+  public V get(K key) {
+<span class="fc" id="L53">    V value = getNullable(key);</span>
+<span class="fc bfc" id="L54" title="All 2 branches covered.">    if (value == null) {</span>
+<span class="fc" id="L55">      throw new IllegalStateException(&quot;No cache entry found for key: &quot; + key);</span>
+    }
+<span class="fc" id="L57">    return value;</span>
+  }
+
+  /**
+   * Get values associated with keys. All the requested keys are included
+   * in the Map result. Value is null if the key is not found in cache.
+   */
+  public Map&lt;K, V&gt; getAll(Iterable&lt;K&gt; keys) {
+<span class="fc" id="L65">    List&lt;K&gt; missingKeys = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L66">    Map&lt;K, V&gt; result = new HashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">    for (K key : keys) {</span>
+<span class="fc" id="L68">      V value = map.get(key);</span>
+<span class="fc bfc" id="L69" title="All 4 branches covered.">      if (value == null &amp;&amp; !map.containsKey(key)) {</span>
+<span class="fc" id="L70">        missingKeys.add(key);</span>
+      } else {
+<span class="fc" id="L72">        result.put(key, value);</span>
+      }
+<span class="fc" id="L74">    }</span>
+<span class="pc bpc" id="L75" title="1 of 2 branches missed.">    if (!missingKeys.isEmpty()) {</span>
+<span class="fc" id="L76">      Map&lt;K, V&gt; missingValues = loader.loadAll(missingKeys);</span>
+<span class="fc" id="L77">      map.putAll(missingValues);</span>
+<span class="fc" id="L78">      result.putAll(missingValues);</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">      for (K missingKey : missingKeys) {</span>
+<span class="fc bfc" id="L80" title="All 2 branches covered.">        if (!map.containsKey(missingKey)) {</span>
+<span class="fc" id="L81">          map.put(missingKey, null);</span>
+<span class="fc" id="L82">          result.put(missingKey, null);</span>
+        }
+<span class="fc" id="L84">      }</span>
+    }
+<span class="fc" id="L86">    return result;</span>
+  }
+
+  public void clear() {
+<span class="fc" id="L90">    map.clear();</span>
+<span class="fc" id="L91">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

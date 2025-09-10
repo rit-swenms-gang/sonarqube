@@ -1,0 +1,307 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RuleDao.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.rule</a> &gt; <span class="el_source">RuleDao.java</span></div><h1>RuleDao.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.rule;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import javax.annotation.Nullable;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.api.rules.RuleQuery;
+import org.sonar.core.util.UuidFactory;
+import org.sonar.db.Dao;
+import org.sonar.db.DbSession;
+import org.sonar.db.Pagination;
+import org.sonar.db.RowNotFoundException;
+import org.sonar.db.issue.ImpactDto;
+
+import static com.google.common.base.Preconditions.checkNotNull;
+import static java.util.Collections.emptyList;
+import static java.util.stream.Collectors.toMap;
+import static org.apache.commons.lang3.StringUtils.isBlank;
+import static org.sonar.db.DatabaseUtils.executeLargeInputs;
+import static org.sonar.db.DatabaseUtils.executeLargeInputsWithoutOutput;
+import static org.sonar.db.DatabaseUtils.executeLargeUpdates;
+
+public class RuleDao implements Dao {
+
+  private static final String PERCENT_SIGN = &quot;%&quot;;
+
+  private final UuidFactory uuidFactory;
+
+<span class="fc" id="L56">  public RuleDao(UuidFactory uuidFactory) {</span>
+<span class="fc" id="L57">    this.uuidFactory = uuidFactory;</span>
+<span class="fc" id="L58">  }</span>
+
+  public Optional&lt;RuleDto&gt; selectByKey(DbSession session, RuleKey key) {
+<span class="fc" id="L61">    return Optional.ofNullable(mapper(session).selectByKey(key));</span>
+  }
+
+  public RuleDto selectOrFailByKey(DbSession session, RuleKey key) {
+<span class="fc" id="L65">    return Optional.ofNullable(mapper(session).selectByKey(key))</span>
+<span class="fc" id="L66">      .orElseThrow(() -&gt; new RowNotFoundException(String.format(&quot;Rule with key '%s' does not exist&quot;, key)));</span>
+  }
+
+  public Optional&lt;RuleDto&gt; selectByUuid(String uuid, DbSession session) {
+<span class="fc" id="L70">    return Optional.ofNullable(mapper(session).selectByUuid(uuid));</span>
+  }
+
+  public List&lt;RuleDto&gt; selectByUuids(DbSession session, Collection&lt;String&gt; uuids) {
+<span class="fc bfc" id="L74" title="All 2 branches covered.">    if (uuids.isEmpty()) {</span>
+<span class="fc" id="L75">      return emptyList();</span>
+    }
+<span class="fc" id="L77">    return executeLargeInputs(uuids, chunk -&gt; mapper(session).selectByUuids(chunk));</span>
+  }
+
+  public List&lt;RuleDto&gt; selectByKeys(DbSession session, Collection&lt;RuleKey&gt; keys) {
+<span class="fc bfc" id="L81" title="All 2 branches covered.">    if (keys.isEmpty()) {</span>
+<span class="fc" id="L82">      return emptyList();</span>
+    }
+<span class="fc" id="L84">    return executeLargeInputs(keys, chunk -&gt; mapper(session).selectByKeys(chunk));</span>
+  }
+
+  public List&lt;RuleDto&gt; selectEnabled(DbSession session) {
+<span class="fc" id="L88">    return mapper(session).selectEnabled();</span>
+  }
+
+  public List&lt;RuleDto&gt; selectAll(DbSession session) {
+<span class="fc" id="L92">    return mapper(session).selectAll();</span>
+  }
+
+  public List&lt;RuleDto&gt; selectByTypeAndLanguages(DbSession session, List&lt;Integer&gt; types, List&lt;String&gt; languages) {
+<span class="fc" id="L96">    return executeLargeInputs(languages, chunk -&gt; mapper(session).selectByTypeAndLanguages(types, chunk));</span>
+  }
+
+  public List&lt;RuleDto&gt; selectByHotspotAndSoftwareQualityAndLanguages(DbSession session, String softwareQuality, List&lt;String&gt; languages) {
+<span class="fc" id="L100">    return executeLargeInputs(languages, chunk -&gt; mapper(session).selectByHotspotAndSoftwareQualityAndLanguages(softwareQuality, chunk));</span>
+  }
+
+  public List&lt;RuleDto&gt; selectByLanguage(DbSession session, String language) {
+<span class="fc" id="L104">    return mapper(session).selectByLanguage(language);</span>
+  }
+
+  public List&lt;RuleDto&gt; selectByQuery(DbSession session, RuleQuery ruleQuery) {
+<span class="fc" id="L108">    return mapper(session).selectByQuery(ruleQuery);</span>
+  }
+
+  public void insert(DbSession session, RuleDto ruleDto) {
+<span class="fc" id="L112">    checkNotNull(ruleDto.getUuid(), &quot;RuleDto has no 'uuid'.&quot;);</span>
+<span class="fc" id="L113">    RuleMapper mapper = mapper(session);</span>
+<span class="fc" id="L114">    mapper.insertRule(ruleDto);</span>
+<span class="fc" id="L115">    updateRuleDescriptionSectionDtos(ruleDto, mapper);</span>
+<span class="fc" id="L116">    updateRuleDefaultImpacts(ruleDto, mapper);</span>
+<span class="fc" id="L117">    updateRuleTags(ruleDto, mapper);</span>
+<span class="fc" id="L118">  }</span>
+
+  public void insertShallow(DbSession session, RuleDto ruleDto) {
+<span class="fc" id="L121">    checkNotNull(ruleDto.getUuid(), &quot;RuleDto has no 'uuid'.&quot;);</span>
+<span class="fc" id="L122">    mapper(session).insertRule(ruleDto);</span>
+<span class="fc" id="L123">  }</span>
+
+  public void update(DbSession session, RuleDto ruleDto) {
+<span class="fc" id="L126">    RuleMapper mapper = mapper(session);</span>
+<span class="fc" id="L127">    mapper.updateRule(ruleDto);</span>
+<span class="fc" id="L128">    updateRuleDescriptionSectionDtos(ruleDto, mapper);</span>
+<span class="fc" id="L129">    updateRuleDefaultImpacts(ruleDto, mapper);</span>
+<span class="fc" id="L130">    updateRuleTags(ruleDto, mapper);</span>
+<span class="fc" id="L131">  }</span>
+
+  public List&lt;String&gt; selectTags(DbSession session, @Nullable String query, Pagination pagination) {
+<span class="fc" id="L134">    String queryUpgraded = toLowerCaseAndSurroundWithPercentSigns(query);</span>
+<span class="fc" id="L135">    return mapper(session).selectTags(queryUpgraded, pagination);</span>
+  }
+
+  private static void updateRuleDescriptionSectionDtos(RuleDto ruleDto, RuleMapper mapper) {
+<span class="fc" id="L139">    mapper.deleteRuleDescriptionSection(ruleDto.getUuid());</span>
+<span class="fc" id="L140">    insertRuleDescriptionSectionDtos(ruleDto, mapper);</span>
+<span class="fc" id="L141">  }</span>
+
+  private static void insertRuleDescriptionSectionDtos(RuleDto ruleDto, RuleMapper mapper) {
+<span class="fc" id="L144">    ruleDto.getRuleDescriptionSectionDtos()</span>
+<span class="fc" id="L145">      .forEach(section -&gt; mapper.insertRuleDescriptionSection(ruleDto.getUuid(), section));</span>
+<span class="fc" id="L146">  }</span>
+
+  public void insertRuleDescriptionSections(DbSession session, String ruleUuid, Set&lt;RuleDescriptionSectionDto&gt; sections) {
+<span class="fc" id="L149">    sections</span>
+<span class="fc" id="L150">      .forEach(section -&gt; mapper(session).insertRuleDescriptionSection(ruleUuid, section));</span>
+<span class="fc" id="L151">  }</span>
+
+  private static void updateRuleDefaultImpacts(RuleDto ruleDto, RuleMapper mapper) {
+<span class="fc" id="L154">    mapper.deleteRuleDefaultImpacts(ruleDto.getUuid());</span>
+<span class="fc" id="L155">    insertRuleDefaultImpacts(ruleDto, mapper);</span>
+<span class="fc" id="L156">  }</span>
+
+  private static void updateRuleTags(RuleDto ruleDto, RuleMapper mapper) {
+<span class="fc" id="L159">    mapper.deleteRuleTags(ruleDto.getUuid());</span>
+<span class="fc" id="L160">    insertRuleTags(ruleDto, mapper);</span>
+<span class="fc" id="L161">  }</span>
+
+  private static void insertRuleDefaultImpacts(RuleDto ruleDto, RuleMapper mapper) {
+<span class="fc" id="L164">    ruleDto.getDefaultImpacts()</span>
+<span class="fc" id="L165">      .forEach(impact -&gt; mapper.insertRuleDefaultImpact(ruleDto.getUuid(), impact));</span>
+<span class="fc" id="L166">  }</span>
+
+  public void insertRuleDefaultImpacts(DbSession session, String ruleUuid, Set&lt;ImpactDto&gt; impacts) {
+<span class="fc" id="L169">    impacts</span>
+<span class="fc" id="L170">      .forEach(impact -&gt; mapper(session).insertRuleDefaultImpact(ruleUuid, impact));</span>
+<span class="fc" id="L171">  }</span>
+
+  private static void insertRuleTags(RuleDto ruleDto, RuleMapper mapper) {
+<span class="fc" id="L174">    ruleDto.getSystemTags()</span>
+<span class="fc" id="L175">      .forEach(tag -&gt; mapper.insertRuleTag(ruleDto.getUuid(), tag, true));</span>
+<span class="fc" id="L176">    ruleDto.getTags()</span>
+<span class="fc" id="L177">      .forEach(tag -&gt; mapper.insertRuleTag(ruleDto.getUuid(), tag, false));</span>
+<span class="fc" id="L178">  }</span>
+
+  public void insertRuleTag(DbSession dbSession, String ruleUuid, Set&lt;String&gt; tags, boolean isSystemTag) {
+<span class="fc bfc" id="L181" title="All 2 branches covered.">    for (String tag : tags) {</span>
+<span class="fc" id="L182">      mapper(dbSession).insertRuleTag(ruleUuid, tag, isSystemTag);</span>
+<span class="fc" id="L183">    }</span>
+<span class="fc" id="L184">  }</span>
+
+  public void selectIndexingRulesByKeys(DbSession dbSession, Collection&lt;String&gt; ruleUuids, Consumer&lt;RuleForIndexingDto&gt; consumer) {
+<span class="fc" id="L187">    RuleMapper mapper = mapper(dbSession);</span>
+
+<span class="fc" id="L189">    executeLargeInputsWithoutOutput(ruleUuids,</span>
+      pageOfRuleUuids -&gt; {
+<span class="fc" id="L191">        List&lt;RuleDto&gt; ruleDtos = mapper.selectByUuids(pageOfRuleUuids);</span>
+<span class="fc" id="L192">        processRuleDtos(ruleDtos, consumer, mapper);</span>
+<span class="fc" id="L193">      });</span>
+<span class="fc" id="L194">  }</span>
+
+  public void selectIndexingRules(DbSession dbSession, Consumer&lt;RuleForIndexingDto&gt; consumer) {
+<span class="fc" id="L197">    RuleMapper mapper = mapper(dbSession);</span>
+<span class="fc" id="L198">    executeLargeInputsWithoutOutput(mapper.selectAll(),</span>
+<span class="fc" id="L199">      ruleDtos -&gt; processRuleDtos(ruleDtos, consumer, mapper));</span>
+<span class="fc" id="L200">  }</span>
+
+  private static RuleForIndexingDto toRuleForIndexingDto(RuleDto r, Map&lt;String, RuleDto&gt; templateDtos) {
+<span class="fc" id="L203">    RuleForIndexingDto ruleForIndexingDto = RuleForIndexingDto.fromRuleDto(r);</span>
+<span class="fc bfc" id="L204" title="All 2 branches covered.">    if (templateDtos.containsKey(r.getTemplateUuid())) {</span>
+<span class="fc" id="L205">      ruleForIndexingDto.setTemplateRuleKey(templateDtos.get(r.getTemplateUuid()).getRuleKey());</span>
+<span class="fc" id="L206">      ruleForIndexingDto.setTemplateRepository(templateDtos.get(r.getTemplateUuid()).getRepositoryKey());</span>
+    }
+<span class="fc" id="L208">    return ruleForIndexingDto;</span>
+  }
+
+  private static void processRuleDtos(List&lt;RuleDto&gt; ruleDtos, Consumer&lt;RuleForIndexingDto&gt; consumer, RuleMapper mapper) {
+<span class="fc" id="L212">    List&lt;String&gt; templateRuleUuids = ruleDtos.stream()</span>
+<span class="fc" id="L213">      .map(RuleDto::getTemplateUuid)</span>
+<span class="fc" id="L214">      .filter(Objects::nonNull)</span>
+<span class="fc" id="L215">      .toList();</span>
+
+<span class="fc" id="L217">    Map&lt;String, RuleDto&gt; templateDtos = findTemplateDtos(mapper, templateRuleUuids);</span>
+<span class="fc" id="L218">    ruleDtos.stream().map(r -&gt; toRuleForIndexingDto(r, templateDtos)).forEach(consumer);</span>
+<span class="fc" id="L219">  }</span>
+
+  private static Map&lt;String, RuleDto&gt; findTemplateDtos(RuleMapper mapper, List&lt;String&gt; templateRuleUuids) {
+<span class="fc bfc" id="L222" title="All 2 branches covered.">    if (!templateRuleUuids.isEmpty()) {</span>
+<span class="fc" id="L223">      return mapper.selectByUuids(templateRuleUuids).stream().collect(toMap(RuleDto::getUuid, Function.identity()));</span>
+    } else {
+<span class="fc" id="L225">      return Collections.emptyMap();</span>
+    }
+  }
+
+  private static RuleMapper mapper(DbSession session) {
+<span class="fc" id="L230">    return session.getMapper(RuleMapper.class);</span>
+  }
+
+  /**
+   * RuleParams
+   */
+
+  public List&lt;RuleParamDto&gt; selectRuleParamsByRuleKey(DbSession session, RuleKey key) {
+<span class="fc" id="L238">    return mapper(session).selectParamsByRuleKey(key);</span>
+  }
+
+  public List&lt;RuleParamDto&gt; selectRuleParamsByRuleKeys(DbSession session, Collection&lt;RuleKey&gt; ruleKeys) {
+<span class="fc" id="L242">    return executeLargeInputs(ruleKeys, mapper(session)::selectParamsByRuleKeys);</span>
+  }
+
+  public List&lt;RuleParamDto&gt; selectAllRuleParams(DbSession session) {
+<span class="fc" id="L246">    return mapper(session).selectAllRuleParams();</span>
+  }
+
+  public List&lt;RuleParamDto&gt; selectRuleParamsByRuleUuids(DbSession dbSession, Collection&lt;String&gt; ruleUuids) {
+<span class="fc" id="L250">    return executeLargeInputs(ruleUuids, mapper(dbSession)::selectParamsByRuleUuids);</span>
+  }
+
+  public void insertRuleParam(DbSession session, RuleDto rule, RuleParamDto param) {
+<span class="fc" id="L254">    checkNotNull(rule.getUuid(), &quot;Rule uuid must be set&quot;);</span>
+<span class="fc" id="L255">    param.setRuleUuid(rule.getUuid());</span>
+
+<span class="fc" id="L257">    param.setUuid(uuidFactory.create());</span>
+<span class="fc" id="L258">    mapper(session).insertParameter(param);</span>
+<span class="fc" id="L259">  }</span>
+
+  public RuleParamDto updateRuleParam(DbSession session, RuleDto rule, RuleParamDto param) {
+<span class="fc" id="L262">    checkNotNull(rule.getUuid(), &quot;Rule uuid must be set&quot;);</span>
+<span class="fc" id="L263">    checkNotNull(param.getUuid(), &quot;Rule parameter is not yet persisted must be set&quot;);</span>
+<span class="fc" id="L264">    param.setRuleUuid(rule.getUuid());</span>
+<span class="fc" id="L265">    mapper(session).updateParameter(param);</span>
+<span class="fc" id="L266">    return param;</span>
+  }
+
+  public void deleteRuleParam(DbSession session, String ruleParameterUuid) {
+<span class="fc" id="L270">    mapper(session).deleteParameter(ruleParameterUuid);</span>
+<span class="fc" id="L271">  }</span>
+
+  public Set&lt;DeprecatedRuleKeyDto&gt; selectAllDeprecatedRuleKeys(DbSession session) {
+<span class="fc" id="L274">    return mapper(session).selectAllDeprecatedRuleKeys();</span>
+  }
+
+  public Set&lt;DeprecatedRuleKeyDto&gt; selectDeprecatedRuleKeysByRuleUuids(DbSession session, Collection&lt;String&gt; ruleUuids) {
+<span class="fc" id="L278">    return mapper(session).selectDeprecatedRuleKeysByRuleUuids(ruleUuids);</span>
+  }
+
+  public void deleteDeprecatedRuleKeys(DbSession dbSession, Collection&lt;String&gt; uuids) {
+<span class="fc bfc" id="L282" title="All 2 branches covered.">    if (uuids.isEmpty()) {</span>
+<span class="fc" id="L283">      return;</span>
+    }
+<span class="fc" id="L285">    executeLargeUpdates(uuids, mapper(dbSession)::deleteDeprecatedRuleKeys);</span>
+<span class="fc" id="L286">  }</span>
+
+  public void insert(DbSession dbSession, DeprecatedRuleKeyDto deprecatedRuleKey) {
+<span class="fc" id="L289">    mapper(dbSession).insertDeprecatedRuleKey(deprecatedRuleKey);</span>
+<span class="fc" id="L290">  }</span>
+
+  public long countByLanguage(DbSession dbSession, String language) {
+<span class="fc" id="L293">    return mapper(dbSession).countByLanguage(language);</span>
+  }
+
+  private static String toLowerCaseAndSurroundWithPercentSigns(@Nullable String query) {
+<span class="fc bfc" id="L297" title="All 2 branches covered.">    return isBlank(query) ? PERCENT_SIGN : (PERCENT_SIGN + query.toLowerCase(Locale.ENGLISH) + PERCENT_SIGN);</span>
+  }
+
+  public RuleListResult selectRules(DbSession dbSession, RuleListQuery ruleListQuery, Pagination pagination) {
+<span class="fc" id="L301">    return new RuleListResult(</span>
+<span class="fc" id="L302">      mapper(dbSession).selectRules(ruleListQuery, pagination),</span>
+<span class="fc" id="L303">      mapper(dbSession).countByQuery(ruleListQuery));</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

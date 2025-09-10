@@ -1,0 +1,388 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RulesRegistrant.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.rule.registration</a> &gt; <span class="el_source">RulesRegistrant.java</span></div><h1>RulesRegistrant.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.rule.registration;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.sonar.api.Startable;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.api.rule.RuleStatus;
+import org.sonar.api.server.rule.RulesDefinition;
+import org.sonar.api.utils.System2;
+import org.sonar.api.utils.log.Logger;
+import org.sonar.api.utils.log.Loggers;
+import org.sonar.api.utils.log.Profiler;
+import org.sonar.core.platform.SonarQubeVersion;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.issue.ImpactDto;
+import org.sonar.db.qualityprofile.QProfileChangeDto;
+import org.sonar.db.rule.RuleDescriptionSectionDto;
+import org.sonar.db.rule.RuleDto;
+import org.sonar.db.rule.RuleRepositoryDto;
+import org.sonar.server.es.metadata.MetadataIndex;
+import org.sonar.server.qualityprofile.ActiveRuleChange;
+import org.sonar.server.qualityprofile.QProfileRules;
+import org.sonar.server.qualityprofile.index.ActiveRuleIndexer;
+import org.sonar.server.rule.PluginRuleUpdate;
+import org.sonar.server.rule.RuleDefinitionsLoader;
+import org.sonar.server.rule.WebServerRuleFinder;
+import org.sonar.server.rule.index.RuleIndexer;
+
+import static com.google.common.base.Preconditions.checkNotNull;
+import static java.lang.String.format;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptySet;
+
+/**
+ * Registers rules at server startup
+ */
+public class RulesRegistrant implements Startable {
+
+<span class="fc" id="L69">  private static final Logger LOG = Loggers.get(RulesRegistrant.class);</span>
+
+  private final RuleDefinitionsLoader defLoader;
+  private final QProfileRules qProfileRules;
+  private final DbClient dbClient;
+  private final RuleIndexer ruleIndexer;
+  private final ActiveRuleIndexer activeRuleIndexer;
+  private final System2 system2;
+  private final WebServerRuleFinder webServerRuleFinder;
+  private final MetadataIndex metadataIndex;
+  private final RulesKeyVerifier rulesKeyVerifier;
+  private final StartupRuleUpdater startupRuleUpdater;
+  private final NewRuleCreator newRuleCreator;
+  private final QualityProfileChangesUpdater qualityProfileChangesUpdater;
+  private final SonarQubeVersion sonarQubeVersion;
+  private final ActiveRulesImpactInitializer activeRulesImpactInitializer;
+
+  public RulesRegistrant(RuleDefinitionsLoader defLoader, QProfileRules qProfileRules, DbClient dbClient, RuleIndexer ruleIndexer,
+    ActiveRuleIndexer activeRuleIndexer, System2 system2, WebServerRuleFinder webServerRuleFinder,
+    MetadataIndex metadataIndex, RulesKeyVerifier rulesKeyVerifier, StartupRuleUpdater startupRuleUpdater,
+    NewRuleCreator newRuleCreator, QualityProfileChangesUpdater qualityProfileChangesUpdater, SonarQubeVersion sonarQubeVersion,
+<span class="fc" id="L90">    ActiveRulesImpactInitializer activeRulesImpactInitializer) {</span>
+<span class="fc" id="L91">    this.defLoader = defLoader;</span>
+<span class="fc" id="L92">    this.qProfileRules = qProfileRules;</span>
+<span class="fc" id="L93">    this.dbClient = dbClient;</span>
+<span class="fc" id="L94">    this.ruleIndexer = ruleIndexer;</span>
+<span class="fc" id="L95">    this.activeRuleIndexer = activeRuleIndexer;</span>
+<span class="fc" id="L96">    this.system2 = system2;</span>
+<span class="fc" id="L97">    this.webServerRuleFinder = webServerRuleFinder;</span>
+<span class="fc" id="L98">    this.metadataIndex = metadataIndex;</span>
+<span class="fc" id="L99">    this.rulesKeyVerifier = rulesKeyVerifier;</span>
+<span class="fc" id="L100">    this.startupRuleUpdater = startupRuleUpdater;</span>
+<span class="fc" id="L101">    this.newRuleCreator = newRuleCreator;</span>
+<span class="fc" id="L102">    this.qualityProfileChangesUpdater = qualityProfileChangesUpdater;</span>
+<span class="fc" id="L103">    this.sonarQubeVersion = sonarQubeVersion;</span>
+<span class="fc" id="L104">    this.activeRulesImpactInitializer = activeRulesImpactInitializer;</span>
+<span class="fc" id="L105">  }</span>
+
+  @Override
+  public void start() {
+<span class="fc" id="L109">    Profiler profiler = Profiler.create(LOG).startInfo(&quot;Register rules&quot;);</span>
+<span class="fc" id="L110">    try (DbSession dbSession = dbClient.openSession(true)) {</span>
+<span class="fc" id="L111">      List&lt;RulesDefinition.Repository&gt; repositories = defLoader.load().repositories();</span>
+<span class="fc" id="L112">      RulesRegistrationContext rulesRegistrationContext = RulesRegistrationContext.create(dbClient, dbSession);</span>
+<span class="fc" id="L113">      rulesKeyVerifier.verifyRuleKeyConsistency(repositories, rulesRegistrationContext);</span>
+
+<span class="fc bfc" id="L115" title="All 2 branches covered.">      for (RulesDefinition.Repository repoDef : repositories) {</span>
+<span class="pc bpc" id="L116" title="1 of 2 branches missed.">        if (repoDef.language() == null) {</span>
+<span class="nc" id="L117">          throw new IllegalStateException(&quot;Language is mandatory for repository &quot; + repoDef.key());</span>
+        }
+<span class="fc" id="L119">        Set&lt;PluginRuleUpdate&gt; pluginRuleUpdates = registerRules(rulesRegistrationContext, repoDef.rules(), dbSession);</span>
+<span class="fc bfc" id="L120" title="All 2 branches covered.">        if (!repoDef.isExternal()) {</span>
+          // External rules are not part of quality profiles
+<span class="fc" id="L122">          activeRulesImpactInitializer.createImpactsOnActiveRules(rulesRegistrationContext, repoDef, dbSession);</span>
+<span class="fc" id="L123">          qualityProfileChangesUpdater.createQprofileChangesForRuleUpdates(dbSession, pluginRuleUpdates);</span>
+        }
+<span class="fc" id="L125">        dbSession.commit();</span>
+<span class="fc" id="L126">      }</span>
+<span class="fc" id="L127">      activeRulesImpactInitializer.markInitialPopulationDone();</span>
+<span class="fc" id="L128">      processRemainingDbRules(rulesRegistrationContext, dbSession);</span>
+<span class="fc" id="L129">      List&lt;ActiveRuleChange&gt; changes = removeActiveRulesOnStillExistingRepositories(dbSession, rulesRegistrationContext, repositories);</span>
+<span class="fc" id="L130">      dbSession.commit();</span>
+
+<span class="fc" id="L132">      persistRepositories(dbSession, repositories);</span>
+      // FIXME lack of resiliency, active rules index is corrupted if rule index fails
+      // to be updated. Only a single DB commit should be executed.
+<span class="fc" id="L135">      ruleIndexer.commitAndIndex(dbSession, rulesRegistrationContext.getAllModified().map(RuleDto::getUuid).collect(Collectors.toSet()));</span>
+
+<span class="fc" id="L137">      List&lt;QProfileChangeDto&gt; qProfileChangeDtos = changes.stream()</span>
+<span class="fc" id="L138">        .map(ActiveRuleChange::toSystemChangedDto)</span>
+<span class="fc" id="L139">        .peek(dto -&gt; dto.setSqVersion(sonarQubeVersion.toString()))</span>
+<span class="fc" id="L140">        .toList();</span>
+<span class="fc" id="L141">      dbClient.qProfileChangeDao().bulkInsert(dbSession, qProfileChangeDtos);</span>
+
+<span class="fc" id="L143">      activeRuleIndexer.commitAndIndex(dbSession, changes);</span>
+<span class="fc" id="L144">      rulesRegistrationContext.getRenamed().forEach(e -&gt; LOG.info(&quot;Rule {} re-keyed to {}&quot;, e.getValue(), e.getKey().getKey()));</span>
+<span class="fc" id="L145">      profiler.stopDebug();</span>
+
+<span class="fc bfc" id="L147" title="All 2 branches covered.">      if (!rulesRegistrationContext.hasDbRules()) {</span>
+<span class="fc" id="L148">        Stream.concat(ruleIndexer.getIndexTypes().stream(), activeRuleIndexer.getIndexTypes().stream())</span>
+<span class="fc" id="L149">          .forEach(t -&gt; metadataIndex.setInitialized(t, true));</span>
+      }
+
+<span class="fc" id="L152">      webServerRuleFinder.startCaching();</span>
+    }
+<span class="fc" id="L154">  }</span>
+
+  private void persistRepositories(DbSession dbSession, List&lt;RulesDefinition.Repository&gt; repositories) {
+<span class="fc" id="L157">    List&lt;String&gt; keys = repositories.stream().map(RulesDefinition.Repository::key).toList();</span>
+<span class="fc" id="L158">    Set&lt;String&gt; existingKeys = dbClient.ruleRepositoryDao().selectAllKeys(dbSession);</span>
+
+<span class="fc" id="L160">    Map&lt;Boolean, List&lt;RuleRepositoryDto&gt;&gt; dtos = repositories.stream()</span>
+<span class="fc" id="L161">      .map(r -&gt; new RuleRepositoryDto(r.key(), r.language(), r.name()))</span>
+<span class="fc" id="L162">      .collect(Collectors.groupingBy(i -&gt; existingKeys.contains(i.getKey())));</span>
+
+<span class="fc" id="L164">    dbClient.ruleRepositoryDao().update(dbSession, dtos.getOrDefault(true, emptyList()));</span>
+<span class="fc" id="L165">    dbClient.ruleRepositoryDao().insert(dbSession, dtos.getOrDefault(false, emptyList()));</span>
+<span class="fc" id="L166">    dbClient.ruleRepositoryDao().deleteIfKeyNotIn(dbSession, keys);</span>
+<span class="fc" id="L167">    dbSession.commit();</span>
+<span class="fc" id="L168">  }</span>
+
+  @Override
+  public void stop() {
+    // nothing
+<span class="nc" id="L173">  }</span>
+
+  private Set&lt;PluginRuleUpdate&gt; registerRules(RulesRegistrationContext context, List&lt;RulesDefinition.Rule&gt; ruleDefs, DbSession session) {
+<span class="fc" id="L176">    Map&lt;RulesDefinition.Rule, RuleDto&gt; dtos = new LinkedHashMap&lt;&gt;(ruleDefs.size());</span>
+<span class="fc" id="L177">    Set&lt;PluginRuleUpdate&gt; pluginRuleUpdates = new HashSet&lt;&gt;();</span>
+
+<span class="fc bfc" id="L179" title="All 2 branches covered.">    for (RulesDefinition.Rule ruleDef : ruleDefs) {</span>
+<span class="fc" id="L180">      RuleKey ruleKey = RuleKey.of(ruleDef.repository().key(), ruleDef.key());</span>
+<span class="fc" id="L181">      RuleDto ruleDto = context.getDbRuleFor(ruleDef).orElseGet(() -&gt; newRuleCreator.createNewRule(context, ruleDef));</span>
+<span class="fc" id="L182">      dtos.put(ruleDef, ruleDto);</span>
+
+      // we must detect renaming __before__ we modify the DTO
+<span class="fc bfc" id="L185" title="All 2 branches covered.">      if (!ruleDto.getKey().equals(ruleKey)) {</span>
+<span class="fc" id="L186">        context.renamed(ruleDto);</span>
+<span class="fc" id="L187">        ruleDto.setRuleKey(ruleKey);</span>
+      }
+
+<span class="fc bfc" id="L190" title="All 2 branches covered.">      if (!context.isCreated(ruleDto)) {</span>
+<span class="fc" id="L191">        processRuleUpdates(context, pluginRuleUpdates, ruleDef, ruleDto);</span>
+      }
+
+<span class="fc bfc" id="L194" title="All 6 branches covered.">      if (!context.isUpdated(ruleDto) &amp;&amp; !context.isRenamed(ruleDto) &amp;&amp; !context.isCreated(ruleDto)) {</span>
+<span class="fc" id="L195">        context.unchanged(ruleDto);</span>
+      }
+<span class="fc" id="L197">    }</span>
+
+<span class="fc" id="L199">    persistRules(context, session, dtos);</span>
+<span class="fc" id="L200">    return pluginRuleUpdates;</span>
+  }
+
+  private void persistRules(RulesRegistrationContext context, DbSession session, Map&lt;RulesDefinition.Rule, RuleDto&gt; dtos) {
+<span class="fc" id="L204">    Map&lt;String, Set&lt;String&gt;&gt; systemTags = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L205">    Map&lt;String, Set&lt;String&gt;&gt; tags = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L206">    Map&lt;String, Set&lt;RuleDescriptionSectionDto&gt;&gt; sections = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L207">    Map&lt;String, Set&lt;ImpactDto&gt;&gt; impacts = new HashMap&lt;&gt;();</span>
+
+<span class="fc bfc" id="L209" title="All 2 branches covered.">    for (Map.Entry&lt;RulesDefinition.Rule, RuleDto&gt; entry : dtos.entrySet()) {</span>
+<span class="fc" id="L210">      RulesDefinition.Rule ruleDef = entry.getKey();</span>
+<span class="fc bfc" id="L211" title="All 2 branches covered.">      if (context.getDbRuleFor(ruleDef).isEmpty()) {</span>
+<span class="fc" id="L212">        RuleDto ruleDto = entry.getValue();</span>
+<span class="fc" id="L213">        dbClient.ruleDao().insertShallow(session, ruleDto);</span>
+<span class="fc" id="L214">        systemTags.put(ruleDto.getUuid(), ruleDto.getSystemTags());</span>
+<span class="fc" id="L215">        tags.put(ruleDto.getUuid(), ruleDto.getTags());</span>
+<span class="fc" id="L216">        sections.put(ruleDto.getUuid(), ruleDto.getRuleDescriptionSectionDtos());</span>
+<span class="fc" id="L217">        impacts.put(ruleDto.getUuid(), ruleDto.getDefaultImpacts());</span>
+      }
+<span class="fc" id="L219">    }</span>
+
+<span class="fc bfc" id="L221" title="All 2 branches covered.">    for (Map.Entry&lt;String, Set&lt;String&gt;&gt; entry : systemTags.entrySet()) {</span>
+<span class="fc" id="L222">      dbClient.ruleDao().insertRuleTag(session, entry.getKey(), entry.getValue(), true);</span>
+<span class="fc" id="L223">    }</span>
+
+<span class="fc bfc" id="L225" title="All 2 branches covered.">    for (Map.Entry&lt;String, Set&lt;String&gt;&gt; entry : tags.entrySet()) {</span>
+<span class="fc" id="L226">      dbClient.ruleDao().insertRuleTag(session, entry.getKey(), entry.getValue(), false);</span>
+<span class="fc" id="L227">    }</span>
+
+<span class="fc bfc" id="L229" title="All 2 branches covered.">    for (Map.Entry&lt;String, Set&lt;RuleDescriptionSectionDto&gt;&gt; entry : sections.entrySet()) {</span>
+<span class="fc" id="L230">      dbClient.ruleDao().insertRuleDescriptionSections(session, entry.getKey(), entry.getValue());</span>
+<span class="fc" id="L231">    }</span>
+
+<span class="fc bfc" id="L233" title="All 2 branches covered.">    for (Map.Entry&lt;String, Set&lt;ImpactDto&gt;&gt; entry : impacts.entrySet()) {</span>
+<span class="fc" id="L234">      dbClient.ruleDao().insertRuleDefaultImpacts(session, entry.getKey(), entry.getValue());</span>
+<span class="fc" id="L235">    }</span>
+
+<span class="fc bfc" id="L237" title="All 2 branches covered.">    for (RuleDto ruleDto : dtos.values()) {</span>
+<span class="fc bfc" id="L238" title="All 4 branches covered.">      if (context.isUpdated(ruleDto) || context.isRenamed(ruleDto)) {</span>
+<span class="fc" id="L239">        update(session, ruleDto);</span>
+      }
+<span class="fc" id="L241">    }</span>
+
+<span class="fc bfc" id="L243" title="All 2 branches covered.">    for (Map.Entry&lt;RulesDefinition.Rule, RuleDto&gt; e : dtos.entrySet()) {</span>
+<span class="fc" id="L244">      startupRuleUpdater.mergeParams(context, e.getKey(), e.getValue(), session);</span>
+<span class="fc" id="L245">      startupRuleUpdater.updateDeprecatedKeys(context, e.getKey(), e.getValue(), session);</span>
+<span class="fc" id="L246">    }</span>
+<span class="fc" id="L247">  }</span>
+
+  private void processRuleUpdates(RulesRegistrationContext context, Set&lt;PluginRuleUpdate&gt; pluginRuleUpdates, RulesDefinition.Rule ruleDef, RuleDto ruleDto) {
+<span class="fc" id="L250">    StartupRuleUpdater.RuleChange change = startupRuleUpdater.findChangesAndUpdateRule(ruleDef, ruleDto);</span>
+<span class="fc bfc" id="L251" title="All 2 branches covered.">    if (change.hasRuleDefinitionChanged()) {</span>
+<span class="fc" id="L252">      context.updated(ruleDto);</span>
+<span class="fc bfc" id="L253" title="All 2 branches covered.">      if (change.getPluginRuleUpdate() != null) {</span>
+<span class="fc" id="L254">        pluginRuleUpdates.add(change.getPluginRuleUpdate());</span>
+      }
+    }
+<span class="fc" id="L257">  }</span>
+
+  private void processRemainingDbRules(RulesRegistrationContext recorder, DbSession dbSession) {
+    // custom rules check status of template, so they must be processed at the end
+<span class="fc" id="L261">    List&lt;RuleDto&gt; customRules = new ArrayList&lt;&gt;();</span>
+
+<span class="fc" id="L263">    recorder.getRemaining().forEach(rule -&gt; {</span>
+<span class="fc bfc" id="L264" title="All 2 branches covered.">      if (rule.isCustomRule()) {</span>
+<span class="fc" id="L265">        customRules.add(rule);</span>
+<span class="fc bfc" id="L266" title="All 4 branches covered.">      } else if (!rule.isAdHoc() &amp;&amp; rule.getStatus() != RuleStatus.REMOVED) {</span>
+<span class="fc" id="L267">        removeRule(dbSession, recorder, rule);</span>
+      }
+<span class="fc" id="L269">    });</span>
+
+<span class="fc bfc" id="L271" title="All 2 branches covered.">    for (RuleDto customRule : customRules) {</span>
+<span class="fc" id="L272">      String templateUuid = customRule.getTemplateUuid();</span>
+<span class="fc" id="L273">      checkNotNull(templateUuid, &quot;Template uuid of the custom rule '%s' is null&quot;, customRule);</span>
+<span class="fc" id="L274">      Optional&lt;RuleDto&gt; template = dbClient.ruleDao().selectByUuid(templateUuid, dbSession);</span>
+<span class="pc bpc" id="L275" title="2 of 4 branches missed.">      if (template.isPresent() &amp;&amp; template.get().getStatus() != RuleStatus.REMOVED) {</span>
+<span class="pc bpc" id="L276" title="1 of 2 branches missed.">        if (updateCustomRuleFromTemplateRule(customRule, template.get())) {</span>
+<span class="fc" id="L277">          recorder.updated(customRule);</span>
+<span class="fc" id="L278">          update(dbSession, customRule);</span>
+        }
+      } else {
+<span class="nc" id="L281">        removeRule(dbSession, recorder, customRule);</span>
+      }
+<span class="fc" id="L283">    }</span>
+
+<span class="fc" id="L285">    dbSession.commit();</span>
+<span class="fc" id="L286">  }</span>
+
+  private void removeRule(DbSession session, RulesRegistrationContext recorder, RuleDto rule) {
+<span class="fc" id="L289">    LOG.info(format(&quot;Disable rule %s&quot;, rule.getKey()));</span>
+<span class="fc" id="L290">    rule.setStatus(RuleStatus.REMOVED);</span>
+<span class="fc" id="L291">    rule.setSystemTags(emptySet());</span>
+<span class="fc" id="L292">    update(session, rule);</span>
+    // FIXME resetting the tags for all organizations must be handled a different way
+    // rule.setTags(Collections.emptySet());
+    // update(session, rule.getMetadata());
+<span class="fc" id="L296">    recorder.removed(rule);</span>
+<span class="fc bfc" id="L297" title="All 2 branches covered.">    if (recorder.getRemoved().count() % 100 == 0) {</span>
+<span class="fc" id="L298">      session.commit();</span>
+    }
+<span class="fc" id="L300">  }</span>
+
+  private static boolean updateCustomRuleFromTemplateRule(RuleDto customRule, RuleDto templateRule) {
+<span class="fc" id="L303">    boolean changed = false;</span>
+<span class="pc bpc" id="L304" title="1 of 2 branches missed.">    if (!Objects.equals(customRule.getLanguage(), templateRule.getLanguage())) {</span>
+<span class="nc" id="L305">      customRule.setLanguage(templateRule.getLanguage());</span>
+<span class="nc" id="L306">      changed = true;</span>
+    }
+<span class="pc bpc" id="L308" title="1 of 2 branches missed.">    if (!Objects.equals(customRule.getConfigKey(), templateRule.getConfigKey())) {</span>
+<span class="nc" id="L309">      customRule.setConfigKey(templateRule.getConfigKey());</span>
+<span class="nc" id="L310">      changed = true;</span>
+    }
+<span class="pc bpc" id="L312" title="1 of 2 branches missed.">    if (!Objects.equals(customRule.getPluginKey(), templateRule.getPluginKey())) {</span>
+<span class="fc" id="L313">      customRule.setPluginKey(templateRule.getPluginKey());</span>
+<span class="fc" id="L314">      changed = true;</span>
+    }
+<span class="pc bpc" id="L316" title="1 of 2 branches missed.">    if (!Objects.equals(customRule.getDefRemediationFunction(), templateRule.getDefRemediationFunction())) {</span>
+<span class="nc" id="L317">      customRule.setDefRemediationFunction(templateRule.getDefRemediationFunction());</span>
+<span class="nc" id="L318">      changed = true;</span>
+    }
+<span class="pc bpc" id="L320" title="1 of 2 branches missed.">    if (!Objects.equals(customRule.getDefRemediationGapMultiplier(), templateRule.getDefRemediationGapMultiplier())) {</span>
+<span class="nc" id="L321">      customRule.setDefRemediationGapMultiplier(templateRule.getDefRemediationGapMultiplier());</span>
+<span class="nc" id="L322">      changed = true;</span>
+    }
+<span class="pc bpc" id="L324" title="1 of 2 branches missed.">    if (!Objects.equals(customRule.getDefRemediationBaseEffort(), templateRule.getDefRemediationBaseEffort())) {</span>
+<span class="nc" id="L325">      customRule.setDefRemediationBaseEffort(templateRule.getDefRemediationBaseEffort());</span>
+<span class="nc" id="L326">      changed = true;</span>
+    }
+<span class="pc bpc" id="L328" title="1 of 2 branches missed.">    if (!Objects.equals(customRule.getGapDescription(), templateRule.getGapDescription())) {</span>
+<span class="nc" id="L329">      customRule.setGapDescription(templateRule.getGapDescription());</span>
+<span class="nc" id="L330">      changed = true;</span>
+    }
+<span class="pc bpc" id="L332" title="1 of 2 branches missed.">    if (customRule.getStatus() != templateRule.getStatus()) {</span>
+<span class="fc" id="L333">      customRule.setStatus(templateRule.getStatus());</span>
+<span class="fc" id="L334">      changed = true;</span>
+    }
+<span class="pc bpc" id="L336" title="1 of 2 branches missed.">    if (!Objects.equals(customRule.getSeverityString(), templateRule.getSeverityString())) {</span>
+<span class="fc" id="L337">      customRule.setSeverity(templateRule.getSeverityString());</span>
+<span class="fc" id="L338">      changed = true;</span>
+    }
+<span class="pc bpc" id="L340" title="1 of 2 branches missed.">    if (!Objects.equals(customRule.getRepositoryKey(), templateRule.getRepositoryKey())) {</span>
+<span class="fc" id="L341">      customRule.setRepositoryKey(templateRule.getRepositoryKey());</span>
+<span class="fc" id="L342">      changed = true;</span>
+    }
+<span class="fc" id="L344">    return changed;</span>
+  }
+
+  /**
+   * SONAR-4642
+   * &lt;p/&gt;
+   * Remove active rules on repositories that still exists.
+   * &lt;p/&gt;
+   * For instance, if the javascript repository do not provide anymore some rules, active rules related to this rules will be removed.
+   * But if the javascript repository does not exist anymore, then related active rules will not be removed.
+   * &lt;p/&gt;
+   * The side effect of this approach is that extended repositories will not be managed the same way.
+   * If an extended repository does not exist anymore, then related active rules will be removed.
+   */
+  private List&lt;ActiveRuleChange&gt; removeActiveRulesOnStillExistingRepositories(DbSession dbSession, RulesRegistrationContext recorder, List&lt;RulesDefinition.Repository&gt; context) {
+<span class="fc" id="L359">    Set&lt;String&gt; existingAndRenamedRepositories = getExistingAndRenamedRepositories(recorder, context);</span>
+<span class="fc" id="L360">    List&lt;ActiveRuleChange&gt; changes = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L361">    Profiler profiler = Profiler.create(LOG);</span>
+
+<span class="fc" id="L363">    recorder.getRemoved()</span>
+<span class="fc" id="L364">      .filter(rule -&gt; existingAndRenamedRepositories.contains(rule.getRepositoryKey()))</span>
+<span class="fc" id="L365">      .forEach(rule -&gt; {</span>
+        // SONAR-4642 Remove active rules only when repository still exists
+<span class="fc" id="L367">        profiler.start();</span>
+<span class="fc" id="L368">        changes.addAll(qProfileRules.deleteRule(dbSession, rule));</span>
+<span class="fc" id="L369">        profiler.stopDebug(format(&quot;Remove active rule for rule %s&quot;, rule.getKey()));</span>
+<span class="fc" id="L370">      });</span>
+
+<span class="fc" id="L372">    return changes;</span>
+  }
+
+  private static Set&lt;String&gt; getExistingAndRenamedRepositories(RulesRegistrationContext recorder, Collection&lt;RulesDefinition.Repository&gt; context) {
+<span class="fc" id="L376">    return Stream.concat(</span>
+<span class="fc" id="L377">      context.stream().map(RulesDefinition.ExtendedRepository::key),</span>
+<span class="fc" id="L378">      recorder.getRenamed().map(Map.Entry::getValue).map(RuleKey::repository))</span>
+<span class="fc" id="L379">      .collect(Collectors.toSet());</span>
+  }
+
+  private void update(DbSession session, RuleDto rule) {
+<span class="fc" id="L383">    rule.setUpdatedAt(system2.now());</span>
+<span class="fc" id="L384">    dbClient.ruleDao().update(session, rule);</span>
+<span class="fc" id="L385">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultQualityProfileLoader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.repository</a> &gt; <span class="el_source">DefaultQualityProfileLoader.java</span></div><h1>DefaultQualityProfileLoader.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.repository;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.BinaryOperator;
+import java.util.function.Supplier;
+import org.sonar.api.utils.MessageException;
+import org.sonar.scanner.http.DefaultScannerWsClient;
+import org.sonarqube.ws.Qualityprofiles.SearchWsResponse;
+import org.sonarqube.ws.Qualityprofiles.SearchWsResponse.QualityProfile;
+import org.sonarqube.ws.client.GetRequest;
+import org.sonarqube.ws.client.HttpException;
+
+import static java.util.function.Function.identity;
+import static java.util.stream.Collectors.toMap;
+import static org.sonar.api.impl.utils.ScannerUtils.encodeForUrl;
+
+public class DefaultQualityProfileLoader implements QualityProfileLoader {
+  private static final String WS_URL = &quot;/api/qualityprofiles/search.protobuf&quot;;
+
+  private final DefaultScannerWsClient wsClient;
+
+<span class="fc" id="L46">  public DefaultQualityProfileLoader(DefaultScannerWsClient wsClient) {</span>
+<span class="fc" id="L47">    this.wsClient = wsClient;</span>
+<span class="fc" id="L48">  }</span>
+
+  private List&lt;QualityProfile&gt; loadDefault() {
+<span class="fc" id="L51">    StringBuilder url = new StringBuilder(WS_URL + &quot;?defaults=true&quot;);</span>
+<span class="pc" id="L52">    return handleErrors(url, () -&gt; &quot;Failed to load the default quality profiles&quot;, false);</span>
+  }
+
+  @Override
+  public List&lt;QualityProfile&gt; load(String projectKey) {
+<span class="fc" id="L57">    StringBuilder url = new StringBuilder(WS_URL + &quot;?project=&quot;).append(encodeForUrl(projectKey));</span>
+<span class="pc" id="L58">    return handleErrors(url, () -&gt; String.format(&quot;Failed to load the quality profiles of project '%s'&quot;, projectKey), true);</span>
+  }
+
+  private List&lt;QualityProfile&gt; handleErrors(StringBuilder url, Supplier&lt;String&gt; errorMsg, boolean tryLoadDefault) {
+    try {
+<span class="fc" id="L63">      return doLoad(url);</span>
+<span class="fc" id="L64">    } catch (HttpException e) {</span>
+<span class="pc bpc" id="L65" title="1 of 2 branches missed.">      if (e.code() == 404) {</span>
+<span class="pc bpc" id="L66" title="1 of 2 branches missed.">        if (tryLoadDefault) {</span>
+<span class="fc" id="L67">          return loadDefault();</span>
+        } else {
+<span class="nc" id="L69">          throw MessageException.of(errorMsg.get() + &quot;: &quot; + DefaultScannerWsClient.createErrorMessage(e));</span>
+        }
+      }
+<span class="nc" id="L72">      throw new IllegalStateException(errorMsg.get() + &quot;: &quot; + DefaultScannerWsClient.createErrorMessage(e));</span>
+<span class="fc" id="L73">    } catch (MessageException e) {</span>
+<span class="fc" id="L74">      throw e;</span>
+<span class="nc" id="L75">    } catch (Exception e) {</span>
+<span class="nc" id="L76">      throw new IllegalStateException(errorMsg.get(), e);</span>
+    }
+  }
+
+  private List&lt;QualityProfile&gt; doLoad(StringBuilder url) throws IOException {
+<span class="fc" id="L81">    Map&lt;String, QualityProfile&gt; result = call(url.toString());</span>
+
+<span class="fc bfc" id="L83" title="All 2 branches covered.">    if (result.isEmpty()) {</span>
+<span class="fc" id="L84">      throw MessageException.of(&quot;No quality profiles have been found, you probably don't have any language plugin installed.&quot;);</span>
+    }
+
+<span class="fc" id="L87">    return new ArrayList&lt;&gt;(result.values());</span>
+  }
+
+  private Map&lt;String, QualityProfile&gt; call(String url) throws IOException {
+<span class="fc" id="L91">    GetRequest getRequest = new GetRequest(url);</span>
+<span class="fc" id="L92">    try (InputStream is = wsClient.call(getRequest).contentStream()) {</span>
+<span class="fc" id="L93">      SearchWsResponse profiles = SearchWsResponse.parseFrom(is);</span>
+<span class="fc" id="L94">      List&lt;QualityProfile&gt; profilesList = profiles.getProfilesList();</span>
+<span class="fc" id="L95">      return profilesList.stream().collect(toMap(QualityProfile::getLanguage, identity(), throwingMerger(), LinkedHashMap::new));</span>
+    }
+  }
+
+  private static &lt;T&gt; BinaryOperator&lt;T&gt; throwingMerger() {
+<span class="fc" id="L100">    return (u, v) -&gt; {</span>
+<span class="nc" id="L101">      throw new IllegalStateException(String.format(&quot;Duplicate key %s&quot;, u));</span>
+    };
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

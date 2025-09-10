@@ -1,0 +1,271 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ActiveRuleDto.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.qualityprofile</a> &gt; <span class="el_source">ActiveRuleDto.java</span></div><h1>ActiveRuleDto.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.qualityprofile;
+
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+import java.lang.reflect.Type;
+import java.util.Map;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
+import org.sonar.api.issue.impact.Severity;
+import org.sonar.api.issue.impact.SoftwareQuality;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.db.rule.RuleDto;
+import org.sonar.db.rule.SeverityUtil;
+
+import static java.util.Objects.requireNonNull;
+
+public class ActiveRuleDto {
+
+  public static final String INHERITED = &quot;INHERITED&quot;;
+  public static final String OVERRIDES = &quot;OVERRIDES&quot;;
+<span class="fc" id="L43">  private static final Gson GSON = new Gson();</span>
+<span class="fc" id="L44">  private static final Type TYPE = new TypeToken&lt;Map&lt;SoftwareQuality, Severity&gt;&gt;() {</span>
+<span class="fc" id="L45">  }.getType();</span>
+
+  private String uuid;
+  private String profileUuid;
+  private String ruleUuid;
+  private Integer severity;
+  private String inheritance;
+  private String impacts;
+  private long createdAt;
+  private long updatedAt;
+  private boolean prioritizedRule;
+
+  // These fields do not exist in db, it's only retrieve by joins
+  private String repository;
+  private String ruleField;
+  private String securityStandards;
+  private boolean isExternal;
+
+  private String name;
+  private String configKey;
+  private String templateUuid;
+  private String language;
+
+<span class="fc" id="L68">  public ActiveRuleDto() {</span>
+    // nothing to do here
+<span class="fc" id="L70">  }</span>
+
+  public ActiveRuleDto setKey(ActiveRuleKey key) {
+<span class="fc" id="L73">    this.repository = key.getRuleKey().repository();</span>
+<span class="fc" id="L74">    this.ruleField = key.getRuleKey().rule();</span>
+<span class="fc" id="L75">    this.profileUuid = key.getRuleProfileUuid();</span>
+<span class="fc" id="L76">    return this;</span>
+  }
+
+  public ActiveRuleKey getKey() {
+<span class="fc" id="L80">    return new ActiveRuleKey(profileUuid, RuleKey.of(repository, ruleField));</span>
+  }
+
+  public RuleKey getRuleKey() {
+<span class="fc" id="L84">    return RuleKey.of(repository, ruleField);</span>
+  }
+
+  public String getUuid() {
+<span class="fc" id="L88">    return uuid;</span>
+  }
+
+  public ActiveRuleDto setUuid(String uuid) {
+<span class="fc" id="L92">    this.uuid = uuid;</span>
+<span class="fc" id="L93">    return this;</span>
+  }
+
+  public String getProfileUuid() {
+<span class="fc" id="L97">    return profileUuid;</span>
+  }
+
+  public ActiveRuleDto setProfileUuid(String profileUuid) {
+<span class="fc" id="L101">    this.profileUuid = profileUuid;</span>
+<span class="fc" id="L102">    return this;</span>
+  }
+
+  public String getRuleUuid() {
+<span class="fc" id="L106">    return ruleUuid;</span>
+  }
+
+  public ActiveRuleDto setRuleUuid(String ruleUuid) {
+<span class="fc" id="L110">    this.ruleUuid = ruleUuid;</span>
+<span class="fc" id="L111">    return this;</span>
+  }
+
+  public Integer getSeverity() {
+<span class="fc" id="L115">    return severity;</span>
+  }
+
+  public String getSeverityString() {
+<span class="fc" id="L119">    return SeverityUtil.getSeverityFromOrdinal(severity);</span>
+  }
+
+  public ActiveRuleDto setSeverity(Integer severity) {
+<span class="fc" id="L123">    this.severity = severity;</span>
+<span class="fc" id="L124">    return this;</span>
+  }
+
+  public ActiveRuleDto setSeverity(String severity) {
+<span class="fc" id="L128">    this.severity = SeverityUtil.getOrdinalFromSeverity(severity);</span>
+<span class="fc" id="L129">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getInheritance() {
+<span class="fc" id="L134">    return inheritance;</span>
+  }
+
+  public ActiveRuleDto setInheritance(@Nullable String inheritance) {
+<span class="fc" id="L138">    this.inheritance = inheritance;</span>
+<span class="fc" id="L139">    return this;</span>
+  }
+
+  public boolean isInherited() {
+<span class="nc" id="L143">    return StringUtils.equals(INHERITED, inheritance);</span>
+  }
+
+  public boolean doesOverride() {
+<span class="fc" id="L147">    return StringUtils.equals(OVERRIDES, inheritance);</span>
+  }
+
+  public long getUpdatedAt() {
+<span class="fc" id="L151">    return updatedAt;</span>
+  }
+
+  public ActiveRuleDto setUpdatedAt(long updatedAt) {
+<span class="fc" id="L155">    this.updatedAt = updatedAt;</span>
+<span class="fc" id="L156">    return this;</span>
+  }
+
+  public long getCreatedAt() {
+<span class="fc" id="L160">    return createdAt;</span>
+  }
+
+  public ActiveRuleDto setCreatedAt(long createdAt) {
+<span class="fc" id="L164">    this.createdAt = createdAt;</span>
+<span class="fc" id="L165">    return this;</span>
+  }
+
+  public String getSecurityStandards() {
+<span class="fc" id="L169">    return securityStandards;</span>
+  }
+
+  public ActiveRuleDto setSecurityStandards(String securityStandards) {
+<span class="nc" id="L173">    this.securityStandards = securityStandards;</span>
+<span class="nc" id="L174">    return this;</span>
+  }
+
+  public Map&lt;SoftwareQuality, Severity&gt; getImpacts() {
+<span class="fc bfc" id="L178" title="All 2 branches covered.">    return impacts != null ? GSON.fromJson(impacts, TYPE) : Map.of();</span>
+  }
+
+  public String getImpactsString() {
+<span class="fc" id="L182">    return this.impacts;</span>
+  }
+
+  public ActiveRuleDto setImpactsString(@Nullable String impacts) {
+<span class="fc" id="L186">    this.impacts = impacts;</span>
+<span class="fc" id="L187">    return this;</span>
+  }
+
+  public ActiveRuleDto setImpacts(Map&lt;SoftwareQuality, Severity&gt; impacts) {
+<span class="fc bfc" id="L191" title="All 2 branches covered.">    this.impacts = !impacts.isEmpty() ? GSON.toJson(impacts, TYPE) : null;</span>
+<span class="fc" id="L192">    return this;</span>
+  }
+
+  public boolean isExternal() {
+<span class="fc" id="L196">    return this.isExternal;</span>
+  }
+
+  public ActiveRuleDto setIsExternal(boolean isExternal) {
+<span class="fc" id="L200">    this.isExternal = isExternal;</span>
+<span class="fc" id="L201">    return this;</span>
+  }
+
+  public boolean isPrioritizedRule() {
+<span class="fc" id="L205">    return prioritizedRule;</span>
+  }
+
+  public ActiveRuleDto setPrioritizedRule(boolean prioritizedRule) {
+<span class="fc" id="L209">    this.prioritizedRule = prioritizedRule;</span>
+<span class="fc" id="L210">    return this;</span>
+  }
+
+  public String getName() {
+<span class="fc" id="L214">    return name;</span>
+  }
+
+  public ActiveRuleDto setName(String name) {
+<span class="fc" id="L218">    this.name = name;</span>
+<span class="fc" id="L219">    return this;</span>
+  }
+
+  public String getConfigKey() {
+<span class="fc" id="L223">    return configKey;</span>
+  }
+
+  public ActiveRuleDto setConfigKey(String configKey) {
+<span class="fc" id="L227">    this.configKey = configKey;</span>
+<span class="fc" id="L228">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getTemplateUuid() {
+<span class="fc" id="L233">    return templateUuid;</span>
+  }
+
+  public ActiveRuleDto setTemplateUuid(@Nullable String templateUuid) {
+<span class="fc" id="L237">    this.templateUuid = templateUuid;</span>
+<span class="fc" id="L238">    return this;</span>
+  }
+
+  public String getLanguage() {
+<span class="fc" id="L242">    return language;</span>
+  }
+
+  public ActiveRuleDto setLanguage(String language) {
+<span class="fc" id="L246">    this.language = language;</span>
+<span class="fc" id="L247">    return this;</span>
+  }
+
+  public static ActiveRuleDto createFor(QProfileDto profile, RuleDto ruleDto) {
+<span class="fc" id="L251">    requireNonNull(profile.getRulesProfileUuid(), &quot;Profile is not persisted&quot;);</span>
+<span class="fc" id="L252">    requireNonNull(ruleDto.getUuid(), &quot;Rule is not persisted&quot;);</span>
+<span class="fc" id="L253">    ActiveRuleDto dto = new ActiveRuleDto();</span>
+<span class="fc" id="L254">    dto.setProfileUuid(profile.getRulesProfileUuid());</span>
+<span class="fc" id="L255">    dto.setRuleUuid(ruleDto.getUuid());</span>
+<span class="fc" id="L256">    dto.setKey(ActiveRuleKey.of(profile, ruleDto.getKey()));</span>
+<span class="fc" id="L257">    dto.setName(ruleDto.getName());</span>
+<span class="fc" id="L258">    dto.setConfigKey(ruleDto.getConfigKey());</span>
+<span class="fc" id="L259">    dto.setTemplateUuid(ruleDto.getTemplateUuid());</span>
+<span class="fc" id="L260">    dto.setLanguage(ruleDto.getLanguage());</span>
+<span class="fc" id="L261">    dto.setImpacts(ruleDto.getDefaultImpactsMap());</span>
+<span class="fc" id="L262">    return dto;</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="nc" id="L267">    return new ReflectionToStringBuilder(this, ToStringStyle.SHORT_PREFIX_STYLE).toString();</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ActiveVersionEvaluator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform.ws</a> &gt; <span class="el_source">ActiveVersionEvaluator.java</span></div><h1>ActiveVersionEvaluator.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform.ws;
+
+import java.time.LocalDate;
+import java.util.Calendar;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.SortedSet;
+import org.sonar.api.internal.MetadataLoader;
+import org.sonar.api.utils.System2;
+import org.sonar.core.platform.SonarQubeVersion;
+import org.sonar.updatecenter.common.Product;
+import org.sonar.updatecenter.common.Release;
+import org.sonar.updatecenter.common.UpdateCenter;
+import org.sonar.updatecenter.common.Version;
+
+public class ActiveVersionEvaluator {
+
+<span class="fc" id="L37">  private static final Comparator&lt;Version&gt; COMPARATOR = Comparator.comparingInt((Version v) -&gt; Integer.parseInt(v.getMajor()))</span>
+<span class="fc" id="L38">    .thenComparingInt((Version v) -&gt; Integer.parseInt(v.getMinor()));</span>
+  private final SonarQubeVersion sonarQubeVersion;
+  private final System2 system2;
+
+<span class="fc" id="L42">  public ActiveVersionEvaluator(SonarQubeVersion sonarQubeVersion, System2 system2) {</span>
+<span class="fc" id="L43">    this.sonarQubeVersion = sonarQubeVersion;</span>
+<span class="fc" id="L44">    this.system2 = system2;</span>
+<span class="fc" id="L45">  }</span>
+
+  public boolean evaluateIfActiveVersion(UpdateCenter updateCenter) {
+<span class="fc" id="L48">    Version installedVersion = Version.create(sonarQubeVersion.get().toString());</span>
+<span class="pc bpc" id="L49" title="1 of 2 branches missed.">    if (updateCenter.getInstalledSonarProduct() == Product.SONARQUBE_COMMUNITY_BUILD) {</span>
+<span class="nc" id="L50">      return true;</span>
+    }
+
+<span class="fc bfc" id="L53" title="All 2 branches covered.">    if (compareWithoutPatchVersion(installedVersion, updateCenter.getSonar().getLtaVersion().getVersion()) == 0) {</span>
+<span class="fc" id="L54">      return true;</span>
+    }
+<span class="fc" id="L56">    SortedSet&lt;Release&gt; allReleases = updateCenter.getSonar().getAllReleases(updateCenter.getInstalledSonarProduct());</span>
+<span class="fc bfc" id="L57" title="All 2 branches covered.">    if (compareWithoutPatchVersion(installedVersion, updateCenter.getSonar().getPastLtaVersion().getVersion()) == 0) {</span>
+<span class="fc" id="L58">      Release initialLtaRelease = findInitialVersionOfMajorRelease(allReleases, updateCenter.getSonar().getLtaVersion().getVersion());</span>
+<span class="fc" id="L59">      Date initialLtaReleaseDate = initialLtaRelease.getDate();</span>
+<span class="fc bfc" id="L60" title="All 2 branches covered.">      if (initialLtaReleaseDate == null) {</span>
+<span class="fc" id="L61">        throw new IllegalStateException(&quot;Initial Major release date is missing in releases&quot;);</span>
+      }
+      // date of the latest major release should be within 6 months
+<span class="fc" id="L64">      Calendar c = Calendar.getInstance();</span>
+<span class="fc" id="L65">      c.setTime(new Date(system2.now()));</span>
+<span class="fc" id="L66">      c.add(Calendar.MONTH, -6);</span>
+
+<span class="fc" id="L68">      return initialLtaReleaseDate.after(c.getTime());</span>
+    } else {
+      // if installed version is not LTA or past LTA, check if it is still supported
+<span class="fc" id="L71">      return LocalDate.now().isBefore(LocalDate.parse(MetadataLoader.loadSqVersionEol(system2)));</span>
+    }
+  }
+
+  private static int compareWithoutPatchVersion(Version v1, Version v2) {
+<span class="fc" id="L76">    return COMPARATOR.compare(v1, v2);</span>
+  }
+
+  private static Release findInitialVersionOfMajorRelease(SortedSet&lt;Release&gt; releases, Version referenceVersion) {
+<span class="fc" id="L80">    return releases.stream()</span>
+<span class="fc bfc" id="L81" title="All 2 branches covered.">      .filter(release -&gt; release.getVersion().getMajor().equals(referenceVersion.getMajor())</span>
+<span class="pc bpc" id="L82" title="1 of 2 branches missed.">        &amp;&amp; release.getVersion().getMinor().equals(referenceVersion.getMinor()))</span>
+<span class="fc" id="L83">      .min(Comparator.comparing(r -&gt; Integer.parseInt(r.getVersion().getPatch())))</span>
+<span class="pc" id="L84">      .orElseThrow(() -&gt; new IllegalStateException(&quot;Unable to find initial major release for version &quot; + referenceVersion + &quot; in releases&quot;</span>
+      ));
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

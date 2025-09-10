@@ -1,0 +1,264 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CreateAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.user.ws</a> &gt; <span class="el_source">CreateAction.java</span></div><h1>CreateAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.user.ws;
+
+import java.util.List;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.db.user.UserDto;
+import org.sonar.server.common.management.ManagedInstanceChecker;
+import org.sonar.server.common.user.service.UserCreateRequest;
+import org.sonar.server.common.user.service.UserInformation;
+import org.sonar.server.common.user.service.UserService;
+import org.sonar.server.user.UserSession;
+import org.sonarqube.ws.Users.CreateWsResponse;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Strings.emptyToNull;
+import static com.google.common.base.Strings.isNullOrEmpty;
+import static java.util.Collections.emptyList;
+import static java.util.Optional.ofNullable;
+import static org.sonar.server.user.UserUpdater.EMAIL_MAX_LENGTH;
+import static org.sonar.server.user.UserUpdater.LOGIN_MAX_LENGTH;
+import static org.sonar.server.user.UserUpdater.LOGIN_MIN_LENGTH;
+import static org.sonar.server.user.UserUpdater.NAME_MAX_LENGTH;
+import static org.sonar.server.user.ws.EmailValidator.isValidIfPresent;
+import static org.sonar.server.ws.WsUtils.writeProtobuf;
+import static org.sonarqube.ws.client.user.UsersWsParameters.ACTION_CREATE;
+import static org.sonarqube.ws.client.user.UsersWsParameters.PARAM_EMAIL;
+import static org.sonarqube.ws.client.user.UsersWsParameters.PARAM_LOCAL;
+import static org.sonarqube.ws.client.user.UsersWsParameters.PARAM_LOGIN;
+import static org.sonarqube.ws.client.user.UsersWsParameters.PARAM_NAME;
+import static org.sonarqube.ws.client.user.UsersWsParameters.PARAM_PASSWORD;
+import static org.sonarqube.ws.client.user.UsersWsParameters.PARAM_SCM_ACCOUNT;
+
+public class CreateAction implements UsersWsAction {
+
+  private final UserSession userSession;
+  private final ManagedInstanceChecker managedInstanceChecker;
+  private final UserService userService;
+
+<span class="fc" id="L62">  public CreateAction(UserSession userSession, ManagedInstanceChecker managedInstanceService, UserService userService) {</span>
+<span class="fc" id="L63">    this.userSession = userSession;</span>
+<span class="fc" id="L64">    this.managedInstanceChecker = managedInstanceService;</span>
+<span class="fc" id="L65">    this.userService = userService;</span>
+<span class="fc" id="L66">  }</span>
+
+  @Override
+  public void define(WebService.NewController controller) {
+<span class="fc" id="L70">    WebService.NewAction action = controller.createAction(ACTION_CREATE)</span>
+<span class="fc" id="L71">      .setDescription(&quot;Create a user.&lt;br/&gt;&quot; +</span>
+        &quot;If a deactivated user account exists with the given login, it will be reactivated.&lt;br/&gt;&quot; +
+        &quot;Requires Administer System permission&quot;)
+<span class="fc" id="L74">      .setSince(&quot;3.7&quot;)</span>
+<span class="fc" id="L75">      .setChangelog(</span>
+        new Change(&quot;10.4&quot;, &quot;Deprecated. Use POST api/v2/users-management/users instead&quot;),
+        new Change(&quot;6.3&quot;, &quot;The password is only mandatory when creating local users, and should not be set on non local users&quot;),
+        new Change(&quot;6.3&quot;, &quot;The 'infos' message is no more returned when a user is reactivated&quot;))
+<span class="fc" id="L79">      .setPost(true)</span>
+<span class="fc" id="L80">      .setResponseExample(getClass().getResource(&quot;create-example.json&quot;))</span>
+<span class="fc" id="L81">      .setHandler(this)</span>
+<span class="fc" id="L82">      .setDeprecatedSince(&quot;10.4&quot;);</span>
+
+<span class="fc" id="L84">    action.createParam(PARAM_LOGIN)</span>
+<span class="fc" id="L85">      .setRequired(true)</span>
+<span class="fc" id="L86">      .setMinimumLength(LOGIN_MIN_LENGTH)</span>
+<span class="fc" id="L87">      .setMaximumLength(LOGIN_MAX_LENGTH)</span>
+<span class="fc" id="L88">      .setDescription(&quot;User login&quot;)</span>
+<span class="fc" id="L89">      .setExampleValue(&quot;myuser&quot;);</span>
+
+<span class="fc" id="L91">    action.createParam(PARAM_PASSWORD)</span>
+<span class="fc" id="L92">      .setDescription(&quot;User password. Only mandatory when creating local user, otherwise it should not be set&quot;)</span>
+<span class="fc" id="L93">      .setExampleValue(&quot;mypassword&quot;);</span>
+
+<span class="fc" id="L95">    action.createParam(PARAM_NAME)</span>
+<span class="fc" id="L96">      .setRequired(true)</span>
+<span class="fc" id="L97">      .setMaximumLength(NAME_MAX_LENGTH)</span>
+<span class="fc" id="L98">      .setDescription(&quot;User name&quot;)</span>
+<span class="fc" id="L99">      .setExampleValue(&quot;My Name&quot;);</span>
+
+<span class="fc" id="L101">    action.createParam(PARAM_EMAIL)</span>
+<span class="fc" id="L102">      .setMaximumLength(EMAIL_MAX_LENGTH)</span>
+<span class="fc" id="L103">      .setDescription(&quot;User email&quot;)</span>
+<span class="fc" id="L104">      .setExampleValue(&quot;myname@email.com&quot;);</span>
+
+<span class="fc" id="L106">    action.createParam(PARAM_SCM_ACCOUNT)</span>
+<span class="fc" id="L107">      .setDescription(&quot;List of SCM accounts. To set several values, the parameter must be called once for each value.&quot;)</span>
+<span class="fc" id="L108">      .setExampleValue(&quot;scmAccount=firstValue&amp;scmAccount=secondValue&amp;scmAccount=thirdValue&quot;);</span>
+
+<span class="fc" id="L110">    action.createParam(PARAM_LOCAL)</span>
+<span class="fc" id="L111">      .setDescription(&quot;Specify if the user should be authenticated from SonarQube server or from an external authentication system. &quot; +</span>
+        &quot;Password should not be set when local is set to false.&quot;)
+<span class="fc" id="L113">      .setSince(&quot;6.3&quot;)</span>
+<span class="fc" id="L114">      .setDefaultValue(&quot;true&quot;)</span>
+<span class="fc" id="L115">      .setBooleanPossibleValues();</span>
+<span class="fc" id="L116">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L120">    userSession.checkLoggedIn().checkIsSystemAdministrator();</span>
+<span class="fc" id="L121">    managedInstanceChecker.throwIfInstanceIsManaged();</span>
+
+<span class="fc" id="L123">    UserCreateRequest userCreateRequest = toUserCreateRequest(request);</span>
+<span class="fc" id="L124">    String email = userCreateRequest.getEmail().orElse(null);</span>
+<span class="fc" id="L125">    checkArgument(isValidIfPresent(email), &quot;Email '%s' is not valid&quot;, email);</span>
+
+<span class="fc" id="L127">    writeProtobuf(doHandle(userCreateRequest), request, response);</span>
+<span class="fc" id="L128">  }</span>
+
+  private CreateWsResponse doHandle(UserCreateRequest userCreateRequest) {
+<span class="fc" id="L131">    UserInformation userInformation = userService.createUser(userCreateRequest);</span>
+<span class="fc" id="L132">    return buildResponse(userInformation.userDto());</span>
+  }
+
+  private static CreateWsResponse buildResponse(UserDto userDto) {
+<span class="fc" id="L136">    CreateWsResponse.User.Builder userBuilder = CreateWsResponse.User.newBuilder()</span>
+<span class="fc" id="L137">      .setLogin(userDto.getLogin())</span>
+<span class="fc" id="L138">      .setName(userDto.getName())</span>
+<span class="fc" id="L139">      .setActive(userDto.isActive())</span>
+<span class="fc" id="L140">      .setLocal(userDto.isLocal())</span>
+<span class="fc" id="L141">      .addAllScmAccounts(userDto.getSortedScmAccounts());</span>
+<span class="fc" id="L142">    ofNullable(emptyToNull(userDto.getEmail())).ifPresent(userBuilder::setEmail);</span>
+<span class="fc" id="L143">    return CreateWsResponse.newBuilder().setUser(userBuilder).build();</span>
+  }
+
+  private static UserCreateRequest toUserCreateRequest(Request request) {
+<span class="fc" id="L147">    return UserCreateRequest.builder()</span>
+<span class="fc" id="L148">      .setEmail(request.param(PARAM_EMAIL))</span>
+<span class="fc" id="L149">      .setLocal(request.mandatoryParamAsBoolean(PARAM_LOCAL))</span>
+<span class="fc" id="L150">      .setLogin(request.mandatoryParam(PARAM_LOGIN))</span>
+<span class="fc" id="L151">      .setName(request.mandatoryParam(PARAM_NAME))</span>
+<span class="fc" id="L152">      .setPassword(request.param(PARAM_PASSWORD))</span>
+<span class="fc" id="L153">      .setScmAccounts(parseScmAccounts(request))</span>
+<span class="fc" id="L154">      .build();</span>
+  }
+
+  public static List&lt;String&gt; parseScmAccounts(Request request) {
+<span class="fc bfc" id="L158" title="All 2 branches covered.">    if (request.hasParam(PARAM_SCM_ACCOUNT)) {</span>
+<span class="fc" id="L159">      return request.multiParam(PARAM_SCM_ACCOUNT);</span>
+    }
+<span class="fc" id="L161">    return emptyList();</span>
+  }
+
+  static class CreateRequest {
+
+    private final String login;
+    private final String password;
+    private final String name;
+    private final String email;
+    private final List&lt;String&gt; scmAccounts;
+    private final boolean local;
+
+<span class="fc" id="L173">    private CreateRequest(Builder builder) {</span>
+<span class="fc" id="L174">      this.login = builder.login;</span>
+<span class="fc" id="L175">      this.password = builder.password;</span>
+<span class="fc" id="L176">      this.name = builder.name;</span>
+<span class="fc" id="L177">      this.email = builder.email;</span>
+<span class="fc" id="L178">      this.scmAccounts = builder.scmAccounts;</span>
+<span class="fc" id="L179">      this.local = builder.local;</span>
+<span class="fc" id="L180">    }</span>
+
+    public String getLogin() {
+<span class="fc" id="L183">      return login;</span>
+    }
+
+    @CheckForNull
+    public String getPassword() {
+<span class="fc" id="L188">      return password;</span>
+    }
+
+    public String getName() {
+<span class="fc" id="L192">      return name;</span>
+    }
+
+    @CheckForNull
+    public String getEmail() {
+<span class="fc" id="L197">      return email;</span>
+    }
+
+    public List&lt;String&gt; getScmAccounts() {
+<span class="fc" id="L201">      return scmAccounts;</span>
+    }
+
+    public boolean isLocal() {
+<span class="fc" id="L205">      return local;</span>
+    }
+
+    public static Builder builder() {
+<span class="fc" id="L209">      return new Builder();</span>
+    }
+  }
+
+  static class Builder {
+    private String login;
+    private String password;
+    private String name;
+    private String email;
+<span class="fc" id="L218">    private List&lt;String&gt; scmAccounts = emptyList();</span>
+<span class="fc" id="L219">    private boolean local = true;</span>
+
+<span class="fc" id="L221">    private Builder() {</span>
+      // enforce factory method use
+<span class="fc" id="L223">    }</span>
+
+    public Builder setLogin(String login) {
+<span class="fc" id="L226">      this.login = login;</span>
+<span class="fc" id="L227">      return this;</span>
+    }
+
+    public Builder setPassword(@Nullable String password) {
+<span class="fc" id="L231">      this.password = password;</span>
+<span class="fc" id="L232">      return this;</span>
+    }
+
+    public Builder setName(String name) {
+<span class="fc" id="L236">      this.name = name;</span>
+<span class="fc" id="L237">      return this;</span>
+    }
+
+    public Builder setEmail(@Nullable String email) {
+<span class="fc" id="L241">      this.email = email;</span>
+<span class="fc" id="L242">      return this;</span>
+    }
+
+    public Builder setScmAccounts(List&lt;String&gt; scmAccounts) {
+<span class="fc" id="L246">      this.scmAccounts = scmAccounts;</span>
+<span class="fc" id="L247">      return this;</span>
+    }
+
+    public Builder setLocal(boolean local) {
+<span class="fc" id="L251">      this.local = local;</span>
+<span class="fc" id="L252">      return this;</span>
+    }
+
+    public CreateRequest build() {
+<span class="fc bfc" id="L256" title="All 2 branches covered.">      checkArgument(!isNullOrEmpty(login), &quot;Login is mandatory and must not be empty&quot;);</span>
+<span class="fc bfc" id="L257" title="All 2 branches covered.">      checkArgument(!isNullOrEmpty(name), &quot;Name is mandatory and must not be empty&quot;);</span>
+<span class="fc bfc" id="L258" title="All 4 branches covered.">      checkArgument(!local || !isNullOrEmpty(password), &quot;Password is mandatory and must not be empty&quot;);</span>
+<span class="pc bpc" id="L259" title="1 of 4 branches missed.">      checkArgument(local || isNullOrEmpty(password), &quot;Password should only be set on local user&quot;);</span>
+<span class="fc" id="L260">      return new CreateRequest(this);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

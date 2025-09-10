@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SearchAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.projectlink.ws</a> &gt; <span class="el_source">SearchAction.java</span></div><h1>SearchAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.projectlink.ws;
+
+import java.util.List;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.db.permission.ProjectPermission;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.ProjectLinkDto;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.server.component.ComponentFinder;
+import org.sonar.server.user.UserSession;
+import org.sonarqube.ws.ProjectLinks.Link;
+import org.sonarqube.ws.ProjectLinks.SearchWsResponse;
+
+import static java.util.Optional.ofNullable;
+import static org.sonar.core.util.Uuids.UUID_EXAMPLE_01;
+import static org.sonar.server.projectlink.ws.ProjectLinksWsParameters.ACTION_SEARCH;
+import static org.sonar.server.projectlink.ws.ProjectLinksWsParameters.PARAM_PROJECT_ID;
+import static org.sonar.server.projectlink.ws.ProjectLinksWsParameters.PARAM_PROJECT_KEY;
+import static org.sonar.server.user.AbstractUserSession.insufficientPrivilegesException;
+import static org.sonar.server.ws.KeyExamples.KEY_PROJECT_EXAMPLE_001;
+import static org.sonar.server.ws.WsUtils.writeProtobuf;
+
+public class SearchAction implements ProjectLinksWsAction {
+  private final DbClient dbClient;
+  private final UserSession userSession;
+  private final ComponentFinder componentFinder;
+
+<span class="fc" id="L50">  public SearchAction(DbClient dbClient, UserSession userSession, ComponentFinder componentFinder) {</span>
+<span class="fc" id="L51">    this.dbClient = dbClient;</span>
+<span class="fc" id="L52">    this.userSession = userSession;</span>
+<span class="fc" id="L53">    this.componentFinder = componentFinder;</span>
+<span class="fc" id="L54">  }</span>
+
+  @Override
+  public void define(WebService.NewController context) {
+<span class="fc" id="L58">    WebService.NewAction action = context.createAction(ACTION_SEARCH)</span>
+<span class="fc" id="L59">      .setDescription(&quot;List links of a project.&lt;br&gt;&quot; +</span>
+          &quot;The '%s' or '%s' must be provided.&lt;br&gt;&quot; +
+          &quot;Requires one of the following permissions:&quot; +
+          &quot;&lt;ul&gt;&quot; +
+          &quot;&lt;li&gt;'Administer System'&lt;/li&gt;&quot; +
+          &quot;&lt;li&gt;'Administer' rights on the specified project&lt;/li&gt;&quot; +
+          &quot;&lt;li&gt;'Browse' on the specified project&lt;/li&gt;&quot; +
+          &quot;&lt;/ul&gt;&quot;,
+        PARAM_PROJECT_ID, PARAM_PROJECT_KEY)
+<span class="fc" id="L68">      .setHandler(this)</span>
+<span class="fc" id="L69">      .setResponseExample(getClass().getResource(&quot;search-example.json&quot;))</span>
+<span class="fc" id="L70">      .setSince(&quot;6.1&quot;);</span>
+
+<span class="fc" id="L72">    action.createParam(PARAM_PROJECT_ID)</span>
+<span class="fc" id="L73">      .setDescription(&quot;Project Id&quot;)</span>
+<span class="fc" id="L74">      .setExampleValue(UUID_EXAMPLE_01);</span>
+
+<span class="fc" id="L76">    action.createParam(PARAM_PROJECT_KEY)</span>
+<span class="fc" id="L77">      .setDescription(&quot;Project Key&quot;)</span>
+<span class="fc" id="L78">      .setExampleValue(KEY_PROJECT_EXAMPLE_001);</span>
+<span class="fc" id="L79">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L83">    SearchRequest searchWsRequest = toSearchWsRequest(request);</span>
+<span class="fc" id="L84">    SearchWsResponse searchWsResponse = doHandle(searchWsRequest);</span>
+
+<span class="fc" id="L86">    writeProtobuf(searchWsResponse, request, response);</span>
+<span class="fc" id="L87">  }</span>
+
+  private SearchWsResponse doHandle(SearchRequest searchWsRequest) {
+<span class="fc" id="L90">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L91">      ProjectDto project = getProjectByUuidOrKey(dbSession, searchWsRequest);</span>
+<span class="fc" id="L92">      List&lt;ProjectLinkDto&gt; links = dbClient.projectLinkDao()</span>
+<span class="fc" id="L93">        .selectByProjectUuid(dbSession, project.getUuid());</span>
+<span class="fc" id="L94">      return buildResponse(links);</span>
+    }
+  }
+
+  private static SearchWsResponse buildResponse(List&lt;ProjectLinkDto&gt; links) {
+<span class="fc" id="L99">    return SearchWsResponse.newBuilder()</span>
+<span class="fc" id="L100">      .addAllLinks(links.stream()</span>
+<span class="fc" id="L101">        .map(SearchAction::buildLink)</span>
+<span class="fc" id="L102">        .toList())</span>
+<span class="fc" id="L103">      .build();</span>
+  }
+
+  private static Link buildLink(ProjectLinkDto link) {
+<span class="fc" id="L107">    Link.Builder builder = Link.newBuilder()</span>
+<span class="fc" id="L108">      .setId(String.valueOf(link.getUuid()))</span>
+<span class="fc" id="L109">      .setType(link.getType())</span>
+<span class="fc" id="L110">      .setUrl(link.getHref());</span>
+<span class="fc" id="L111">    ofNullable(link.getName()).ifPresent(builder::setName);</span>
+<span class="fc" id="L112">    return builder.build();</span>
+  }
+
+  private ProjectDto getProjectByUuidOrKey(DbSession dbSession, SearchRequest request) {
+<span class="fc" id="L116">    ProjectDto project = componentFinder.getProjectByUuidOrKey(</span>
+      dbSession,
+<span class="fc" id="L118">      request.getProjectId(),</span>
+<span class="fc" id="L119">      request.getProjectKey(),</span>
+      ComponentFinder.ParamNames.PROJECT_ID_AND_KEY);
+<span class="fc bfc" id="L121" title="All 2 branches covered.">    if (!userSession.hasEntityPermission(ProjectPermission.ADMIN, project) &amp;&amp;</span>
+<span class="fc bfc" id="L122" title="All 2 branches covered.">        !userSession.hasEntityPermission(ProjectPermission.USER, project)) {</span>
+<span class="fc" id="L123">      throw insufficientPrivilegesException();</span>
+    }
+<span class="fc" id="L125">    return project;</span>
+  }
+
+  private static SearchRequest toSearchWsRequest(Request request) {
+<span class="fc" id="L129">    return new SearchRequest()</span>
+<span class="fc" id="L130">      .setProjectId(request.param(PARAM_PROJECT_ID))</span>
+<span class="fc" id="L131">      .setProjectKey(request.param(PARAM_PROJECT_KEY));</span>
+  }
+
+  private static class SearchRequest {
+
+    private String projectId;
+    private String projectKey;
+
+    public SearchRequest setProjectId(String projectId) {
+<span class="fc" id="L140">      this.projectId = projectId;</span>
+<span class="fc" id="L141">      return this;</span>
+    }
+
+    public String getProjectId() {
+<span class="fc" id="L145">      return projectId;</span>
+    }
+
+    public SearchRequest setProjectKey(String projectKey) {
+<span class="fc" id="L149">      this.projectKey = projectKey;</span>
+<span class="fc" id="L150">      return this;</span>
+    }
+
+    public String getProjectKey() {
+<span class="fc" id="L154">      return projectKey;</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

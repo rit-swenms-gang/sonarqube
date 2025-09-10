@@ -1,0 +1,262 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserDao.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.user</a> &gt; <span class="el_source">UserDao.java</span></div><h1>UserDao.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.user;
+
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nonnull;
+import org.apache.commons.lang3.StringUtils;
+import org.sonar.api.utils.System2;
+import org.sonar.core.util.UuidFactory;
+import org.sonar.db.Dao;
+import org.sonar.db.DbSession;
+import org.sonar.db.Pagination;
+import org.sonar.db.audit.AuditPersister;
+import org.sonar.db.audit.model.UserNewValue;
+import org.sonar.db.entity.EntityDto;
+
+import static java.util.Locale.ENGLISH;
+import static java.util.concurrent.TimeUnit.DAYS;
+import static org.sonar.db.DatabaseUtils.executeLargeInputs;
+import static org.sonar.db.DatabaseUtils.executeLargeInputsWithoutOutput;
+
+public class UserDao implements Dao {
+<span class="fc" id="L47">  private static final long WEEK_IN_MS = DAYS.toMillis(7L);</span>
+  private final System2 system2;
+  private final UuidFactory uuidFactory;
+  private final AuditPersister auditPersister;
+
+<span class="fc" id="L52">  public UserDao(System2 system2, UuidFactory uuidFactory, AuditPersister auditPersister) {</span>
+<span class="fc" id="L53">    this.system2 = system2;</span>
+<span class="fc" id="L54">    this.uuidFactory = uuidFactory;</span>
+<span class="fc" id="L55">    this.auditPersister = auditPersister;</span>
+<span class="fc" id="L56">  }</span>
+
+  @CheckForNull
+  public UserDto selectByUuid(DbSession session, String uuid) {
+<span class="fc" id="L60">    return mapper(session).selectByUuid(uuid);</span>
+  }
+
+  @CheckForNull
+  public UserDto selectActiveUserByLogin(DbSession session, String login) {
+<span class="fc" id="L65">    UserMapper mapper = mapper(session);</span>
+<span class="fc" id="L66">    return mapper.selectUserByLogin(login);</span>
+  }
+
+  /**
+   * Select users by logins, including disabled users. An empty list is returned
+   * if list of logins is empty, without any db round trips.
+   */
+  public List&lt;UserDto&gt; selectByLogins(DbSession session, Collection&lt;String&gt; logins) {
+<span class="fc" id="L74">    return executeLargeInputs(logins, mapper(session)::selectByLogins);</span>
+  }
+
+  /**
+   * Select users by uuids, including disabled users. An empty list is returned
+   * if list of uuids is empty, without any db round trips.
+   *
+   * @return a list of users, in the same order as input uuids
+   */
+  public List&lt;UserDto&gt; selectByUuids(DbSession session, Collection&lt;String&gt; uuids) {
+<span class="fc" id="L84">    return executeLargeInputs(uuids, mapper(session)::selectByUuids);</span>
+  }
+
+  /**
+   * Gets a list users by their logins. The result does NOT contain {@code null} values for users not found, so
+   * the size of result may be less than the number of keys.
+   * A single user is returned if input keys contain multiple occurrences of a key.
+   * &lt;p&gt;Contrary to {@link #selectByLogins(DbSession, Collection)}, results are in the same order as input keys.&lt;/p&gt;
+   */
+  public List&lt;UserDto&gt; selectByOrderedLogins(DbSession session, Collection&lt;String&gt; logins) {
+<span class="fc" id="L94">    List&lt;UserDto&gt; unordered = selectByLogins(session, logins);</span>
+<span class="fc" id="L95">    return logins.stream()</span>
+<span class="fc" id="L96">      .map(new LoginToUser(unordered))</span>
+<span class="fc" id="L97">      .filter(Objects::nonNull)</span>
+<span class="fc" id="L98">      .toList();</span>
+  }
+
+  public List&lt;UserDto&gt; selectUsers(DbSession dbSession, UserQuery userQuery) {
+<span class="fc" id="L102">    return selectUsers(dbSession, userQuery, Pagination.all());</span>
+  }
+
+  public List&lt;UserDto&gt; selectUsers(DbSession dbSession, UserQuery userQuery, int offset, int limit) {
+<span class="fc" id="L106">    Pagination pagination = Pagination.forPage(offset).andSize(limit);</span>
+<span class="fc" id="L107">    return selectUsers(dbSession, userQuery, pagination);</span>
+  }
+
+  private static List&lt;UserDto&gt; selectUsers(DbSession dbSession, UserQuery userQuery, Pagination pagination) {
+<span class="fc bfc" id="L111" title="All 2 branches covered.">    if (userQuery.getUserUuids() != null) {</span>
+<span class="fc" id="L112">      return executeLargeInputs(</span>
+<span class="fc" id="L113">        userQuery.getUserUuids(),</span>
+<span class="fc" id="L114">        partialSetOfUsers -&gt; mapper(dbSession).selectUsers(</span>
+<span class="fc" id="L115">          UserQuery.copyWithNewRangeOfUserUuids(userQuery, partialSetOfUsers),</span>
+          pagination));
+    }
+<span class="fc" id="L118">    return mapper(dbSession).selectUsers(userQuery, pagination);</span>
+  }
+
+  public int countUsers(DbSession dbSession, UserQuery userQuery) {
+<span class="fc" id="L122">    return mapper(dbSession).countByQuery(userQuery);</span>
+  }
+
+  public List&lt;UserTelemetryDto&gt; selectUsersForTelemetry(DbSession dbSession) {
+<span class="fc" id="L126">    return mapper(dbSession).selectUsersForTelemetry();</span>
+  }
+
+  public UserDto insert(DbSession session, UserDto dto) {
+<span class="fc" id="L130">    long now = system2.now();</span>
+<span class="fc" id="L131">    mapper(session).insert(dto.setUuid(uuidFactory.create()).setCreatedAt(now).setUpdatedAt(now));</span>
+<span class="fc" id="L132">    insertScmAccounts(session, dto.getUuid(), dto.getSortedScmAccounts());</span>
+<span class="fc" id="L133">    auditPersister.addUser(session, new UserNewValue(dto.getUuid(), dto.getLogin()));</span>
+<span class="fc" id="L134">    return dto;</span>
+  }
+
+  private static void insertScmAccounts(DbSession session, String userUuid, List&lt;String&gt; scmAccounts) {
+<span class="fc" id="L138">    scmAccounts.stream()</span>
+<span class="fc" id="L139">      .filter(StringUtils::isNotBlank)</span>
+<span class="fc" id="L140">      .forEach(scmAccount -&gt; mapper(session).insertScmAccount(userUuid, scmAccount.toLowerCase(ENGLISH)));</span>
+<span class="fc" id="L141">  }</span>
+
+  public UserDto update(DbSession session, UserDto dto) {
+<span class="fc" id="L144">    return update(session, dto, true);</span>
+  }
+
+  public UserDto update(DbSession session, UserDto dto, boolean track) {
+<span class="fc" id="L148">    mapper(session).update(dto.setUpdatedAt(system2.now()));</span>
+<span class="fc" id="L149">    mapper(session).deleteAllScmAccounts(dto.getUuid());</span>
+<span class="fc" id="L150">    insertScmAccounts(session, dto.getUuid(), dto.getSortedScmAccounts());</span>
+<span class="fc bfc" id="L151" title="All 2 branches covered.">    if (track) {</span>
+<span class="fc" id="L152">      auditPersister.updateUser(session, new UserNewValue(dto));</span>
+    }
+<span class="fc" id="L154">    return dto;</span>
+  }
+
+  public void updateSonarlintLastConnectionDate(DbSession session, String login) {
+<span class="fc" id="L158">    mapper(session).updateSonarlintLastConnectionDate(login, system2.now());</span>
+<span class="fc" id="L159">  }</span>
+
+  public void deactivateUser(DbSession dbSession, UserDto user) {
+<span class="fc" id="L162">    mapper(dbSession).deactivateUser(user.getLogin(), system2.now());</span>
+<span class="fc" id="L163">    mapper(dbSession).deleteAllScmAccounts(user.getUuid());</span>
+<span class="fc" id="L164">    auditPersister.deactivateUser(dbSession, new UserNewValue(user.getUuid(), user.getLogin()));</span>
+<span class="fc" id="L165">  }</span>
+
+  public void cleanHomepage(DbSession dbSession, EntityDto entityDto) {
+<span class="fc" id="L168">    mapper(dbSession).clearHomepages(&quot;PROJECT&quot;, entityDto.getUuid(), system2.now());</span>
+<span class="fc" id="L169">  }</span>
+
+  public void cleanHomepage(DbSession dbSession, UserDto user) {
+<span class="fc" id="L172">    mapper(dbSession).clearHomepage(user.getLogin(), system2.now());</span>
+<span class="fc" id="L173">  }</span>
+
+  @CheckForNull
+  public UserDto selectByLogin(DbSession session, String login) {
+<span class="fc" id="L177">    return mapper(session).selectByLogin(login);</span>
+  }
+
+  public List&lt;UserDto&gt; selectByScmAccountOrLoginOrEmail(DbSession session, String scmAccountOrLoginOrEmail) {
+<span class="fc" id="L181">    return mapper(session).selectNullableByScmAccountOrLoginOrEmail(scmAccountOrLoginOrEmail);</span>
+  }
+
+  /**
+   * This method is optimized for the first analysis: we tried to keep performance optimal (&lt;10ms) for projects with large number of contributors
+   */
+  public List&lt;UserIdDto&gt; selectActiveUsersByScmAccountOrLoginOrEmail(DbSession session, String scmAccountOrLoginOrEmail) {
+<span class="fc" id="L188">    return mapper(session).selectActiveUsersByScmAccountOrLoginOrEmail(scmAccountOrLoginOrEmail);</span>
+  }
+
+  /**
+   * Search for an active user with the given emailCaseInsensitive exits in database
+   * Select is case-insensitive. Result for searching 'mail@emailCaseInsensitive.com' or 'Mail@Email.com' is the same
+   */
+  public List&lt;UserDto&gt; selectByEmail(DbSession dbSession, String emailCaseInsensitive) {
+<span class="fc" id="L196">    return mapper(dbSession).selectByEmail(emailCaseInsensitive.toLowerCase(ENGLISH));</span>
+  }
+
+  @CheckForNull
+  public UserDto selectByExternalIdAndIdentityProvider(DbSession dbSession, String externalId, String externalIdentityProvider) {
+<span class="fc" id="L201">    return mapper(dbSession).selectByExternalIdAndIdentityProvider(externalId, externalIdentityProvider);</span>
+  }
+
+  public List&lt;String&gt; selectExternalIdentityProviders(DbSession dbSession) {
+<span class="fc" id="L205">    return mapper(dbSession).selectExternalIdentityProviders();</span>
+  }
+
+  public List&lt;UserDto&gt; selectByExternalIdsAndIdentityProvider(DbSession dbSession, Collection&lt;String&gt; externalIds, String externalIdentityProvider) {
+<span class="fc" id="L209">    return executeLargeInputs(externalIds, e -&gt; mapper(dbSession).selectByExternalIdsAndIdentityProvider(e, externalIdentityProvider));</span>
+  }
+
+  @CheckForNull
+  public UserDto selectByExternalLoginAndIdentityProvider(DbSession dbSession, String externalLogin, String externalIdentityProvider) {
+<span class="fc" id="L214">    return mapper(dbSession).selectByExternalLoginAndIdentityProvider(externalLogin, externalIdentityProvider);</span>
+  }
+
+  public long countSonarlintWeeklyUsers(DbSession dbSession) {
+<span class="fc" id="L218">    long threshold = system2.now() - WEEK_IN_MS;</span>
+<span class="fc" id="L219">    return mapper(dbSession).countActiveSonarlintUsers(threshold);</span>
+  }
+
+  public long countActiveUsers(DbSession dbSession) {
+<span class="fc" id="L223">    return mapper(dbSession).countActiveUsers();</span>
+  }
+
+  public void scrollByUuids(DbSession dbSession, Collection&lt;String&gt; uuids, Consumer&lt;UserDto&gt; consumer) {
+<span class="fc" id="L227">    UserMapper mapper = mapper(dbSession);</span>
+
+<span class="fc" id="L229">    executeLargeInputsWithoutOutput(uuids,</span>
+<span class="fc" id="L230">      pageOfUuids -&gt; mapper</span>
+<span class="fc" id="L231">        .selectByUuids(pageOfUuids)</span>
+<span class="fc" id="L232">        .forEach(consumer));</span>
+<span class="fc" id="L233">  }</span>
+
+  public void scrollAll(DbSession dbSession, Consumer&lt;UserDto&gt; consumer) {
+<span class="fc" id="L236">    mapper(dbSession).scrollAll(context -&gt; {</span>
+<span class="fc" id="L237">      UserDto user = context.getResultObject();</span>
+<span class="fc" id="L238">      consumer.accept(user);</span>
+<span class="fc" id="L239">    });</span>
+<span class="fc" id="L240">  }</span>
+
+  private static UserMapper mapper(DbSession session) {
+<span class="fc" id="L243">    return session.getMapper(UserMapper.class);</span>
+  }
+
+  private static class LoginToUser implements Function&lt;String, UserDto&gt; {
+<span class="fc" id="L247">    private final Map&lt;String, UserDto&gt; map = new HashMap&lt;&gt;();</span>
+
+<span class="fc" id="L249">    private LoginToUser(Collection&lt;UserDto&gt; unordered) {</span>
+<span class="fc bfc" id="L250" title="All 2 branches covered.">      for (UserDto dto : unordered) {</span>
+<span class="fc" id="L251">        map.put(dto.getLogin(), dto);</span>
+<span class="fc" id="L252">      }</span>
+<span class="fc" id="L253">    }</span>
+
+    @Override
+    public UserDto apply(@Nonnull String login) {
+<span class="fc" id="L257">      return map.get(login);</span>
+    }
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

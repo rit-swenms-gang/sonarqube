@@ -1,0 +1,251 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CliCacheService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.sca</a> &gt; <span class="el_source">CliCacheService.java</span></div><h1>CliCacheService.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.sca;
+
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.Reader;
+import java.io.UncheckedIOException;
+import java.lang.reflect.Type;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import org.apache.commons.io.FileUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.internal.apachecommons.lang3.SystemUtils;
+import org.sonar.api.utils.System2;
+import org.sonar.scanner.bootstrap.SonarUserHome;
+import org.sonar.scanner.http.ScannerWsClient;
+import org.sonar.scanner.repository.TelemetryCache;
+import org.sonarqube.ws.client.GetRequest;
+import org.sonarqube.ws.client.WsResponse;
+
+import static java.lang.String.format;
+
+/**
+ * This class is responsible for checking the SQ server for the latest version of the CLI,
+ * caching the CLI for use across different projects, updating the cached CLI to the latest
+ * version, and holding on to the cached CLI's file location so that other service classes
+ * can make use of it.
+ */
+public class CliCacheService {
+  protected static final String CLI_WS_URL = &quot;api/v2/sca/clis&quot;;
+<span class="fc" id="L57">  private static final Logger LOG = LoggerFactory.getLogger(CliCacheService.class);</span>
+  private final SonarUserHome sonarUserHome;
+  private final ScannerWsClient wsClient;
+  private final TelemetryCache telemetryCache;
+  private final System2 system2;
+
+<span class="fc" id="L63">  public CliCacheService(SonarUserHome sonarUserHome, ScannerWsClient wsClient, TelemetryCache telemetryCache, System2 system2) {</span>
+<span class="fc" id="L64">    this.sonarUserHome = sonarUserHome;</span>
+<span class="fc" id="L65">    this.wsClient = wsClient;</span>
+<span class="fc" id="L66">    this.telemetryCache = telemetryCache;</span>
+<span class="fc" id="L67">    this.system2 = system2;</span>
+<span class="fc" id="L68">  }</span>
+
+  static Path newTempFile(Path tempDir) {
+    try {
+<span class="fc" id="L72">      return Files.createTempFile(tempDir, &quot;scaFileCache&quot;, null);</span>
+<span class="nc" id="L73">    } catch (IOException e) {</span>
+<span class="nc" id="L74">      throw new IllegalStateException(&quot;Fail to create temp file in &quot; + tempDir, e);</span>
+    }
+  }
+
+  static void moveFile(Path sourceFile, Path targetFile) {
+    try {
+<span class="fc" id="L80">      Files.move(sourceFile, targetFile, StandardCopyOption.ATOMIC_MOVE);</span>
+<span class="fc" id="L81">    } catch (IOException e1) {</span>
+      // Check if the file was cached by another process during download
+<span class="pc bpc" id="L83" title="1 of 2 branches missed.">      if (!Files.exists(targetFile)) {</span>
+<span class="fc" id="L84">        LOG.warn(&quot;Unable to rename {} to {}&quot;, sourceFile, targetFile);</span>
+<span class="fc" id="L85">        LOG.warn(&quot;A copy/delete will be tempted but with no guarantee of atomicity&quot;);</span>
+        try {
+<span class="nc" id="L87">          Files.move(sourceFile, targetFile);</span>
+<span class="fc" id="L88">        } catch (IOException e2) {</span>
+<span class="fc" id="L89">          throw new IllegalStateException(&quot;Fail to move &quot; + sourceFile + &quot; to &quot; + targetFile, e2);</span>
+<span class="nc" id="L90">        }</span>
+      }
+<span class="fc" id="L92">    }</span>
+<span class="fc" id="L93">  }</span>
+
+  static void mkdir(Path dir) {
+    try {
+<span class="fc" id="L97">      Files.createDirectories(dir);</span>
+<span class="fc" id="L98">    } catch (IOException e) {</span>
+<span class="fc" id="L99">      throw new IllegalStateException(&quot;Fail to create cache directory: &quot; + dir, e);</span>
+<span class="fc" id="L100">    }</span>
+<span class="fc" id="L101">  }</span>
+
+  static void downloadBinaryTo(Path downloadLocation, WsResponse response) {
+<span class="fc" id="L104">    try (InputStream stream = response.contentStream()) {</span>
+<span class="fc" id="L105">      FileUtils.copyInputStreamToFile(stream, downloadLocation.toFile());</span>
+<span class="fc" id="L106">    } catch (IOException e) {</span>
+<span class="fc" id="L107">      throw new IllegalStateException(format(&quot;Fail to download SCA CLI into %s&quot;, downloadLocation), e);</span>
+<span class="fc" id="L108">    }</span>
+<span class="fc" id="L109">  }</span>
+
+  public File cacheCli() {
+<span class="fc" id="L112">    boolean success = false;</span>
+
+<span class="fc" id="L114">    var alternateLocation = system2.envVariable(&quot;TIDELIFT_CLI_LOCATION&quot;);</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">    if (alternateLocation != null) {</span>
+<span class="fc" id="L116">      LOG.info(&quot;Using alternate location for Tidelift CLI: {}&quot;, alternateLocation);</span>
+      // If the TIDELIFT_CLI_LOCATION environment variable is set, we should use that location
+      // instead of trying to download the CLI from the server.
+<span class="fc" id="L119">      File cliFile = new File(alternateLocation);</span>
+<span class="fc bfc" id="L120" title="All 2 branches covered.">      if (!cliFile.exists()) {</span>
+<span class="fc" id="L121">        throw new IllegalStateException(format(&quot;Alternate location for Tidelift CLI has been set but no file was found at %s&quot;, alternateLocation));</span>
+      }
+<span class="fc" id="L123">      return cliFile;</span>
+    }
+
+    try {
+<span class="fc" id="L127">      List&lt;CliMetadataResponse&gt; metadataResponses = getLatestMetadata(apiOsName(), apiArch());</span>
+
+<span class="fc bfc" id="L129" title="All 2 branches covered.">      if (metadataResponses.isEmpty()) {</span>
+<span class="fc" id="L130">        throw new IllegalStateException(format(&quot;Could not find CLI for %s %s&quot;, apiOsName(), apiArch()));</span>
+      }
+
+      // We should only be getting one matching CLI for the OS + Arch combination.
+      // If we have more than one CLI to choose from then I'm not sure which one to choose.
+<span class="fc bfc" id="L135" title="All 2 branches covered.">      if (metadataResponses.size() &gt; 1) {</span>
+<span class="fc" id="L136">        throw new IllegalStateException(&quot;Multiple CLI matches found. Unable to correctly cache CLI.&quot;);</span>
+      }
+
+<span class="fc" id="L139">      CliMetadataResponse metadataResponse = metadataResponses.get(0);</span>
+<span class="fc" id="L140">      String checksum = metadataResponse.sha256();</span>
+      // If we have a matching checksum dir with the existing CLI file, then we are up to date.
+<span class="fc bfc" id="L142" title="All 2 branches covered.">      if (!cachedCliFile(checksum).exists()) {</span>
+<span class="fc" id="L143">        LOG.debug(&quot;SCA CLI update detected&quot;);</span>
+<span class="fc" id="L144">        downloadCli(metadataResponse.id(), checksum);</span>
+<span class="fc" id="L145">        telemetryCache.put(&quot;scanner.sca.get.cli.cache.hit&quot;, &quot;false&quot;);</span>
+      } else {
+<span class="fc" id="L147">        telemetryCache.put(&quot;scanner.sca.get.cli.cache.hit&quot;, &quot;true&quot;);</span>
+      }
+
+<span class="fc" id="L150">      File cliFile = cachedCliFile(checksum);</span>
+<span class="fc" id="L151">      success = true;</span>
+<span class="fc" id="L152">      return cliFile;</span>
+    } finally {
+<span class="fc" id="L154">      telemetryCache.put(&quot;scanner.sca.get.cli.success&quot;, String.valueOf(success));</span>
+    }
+  }
+
+  Path cacheDir() {
+<span class="fc" id="L159">    return sonarUserHome.getPath().resolve(&quot;cache&quot;);</span>
+  }
+
+  private File cachedCliFile(String checksum) {
+<span class="fc" id="L163">    return cacheDir().resolve(checksum).resolve(fileName()).toFile();</span>
+  }
+
+  private String fileName() {
+<span class="pc bpc" id="L167" title="1 of 2 branches missed.">    return system2.isOsWindows() ? &quot;tidelift.exe&quot; : &quot;tidelift&quot;;</span>
+  }
+
+  private List&lt;CliMetadataResponse&gt; getLatestMetadata(String osName, String arch) {
+<span class="fc" id="L171">    LOG.info(&quot;Requesting CLI for OS {} and arch {}&quot;, osName, arch);</span>
+<span class="fc" id="L172">    GetRequest getRequest = new GetRequest(CLI_WS_URL).setParam(&quot;os&quot;, osName).setParam(&quot;arch&quot;, arch);</span>
+<span class="fc" id="L173">    try (WsResponse response = wsClient.call(getRequest)) {</span>
+<span class="fc" id="L174">      try (Reader reader = response.contentReader()) {</span>
+<span class="fc" id="L175">        Type listOfMetadata = new TypeToken&lt;ArrayList&lt;CliMetadataResponse&gt;&gt;() {</span>
+<span class="fc" id="L176">        }.getType();</span>
+<span class="fc" id="L177">        return new Gson().fromJson(reader, listOfMetadata);</span>
+      }
+<span class="nc" id="L179">    } catch (IOException e) {</span>
+<span class="nc" id="L180">      throw new UncheckedIOException(e);</span>
+    }
+  }
+
+  private void downloadCli(String id, String checksum) {
+<span class="fc" id="L185">    LOG.info(&quot;Downloading cli {}&quot;, id);</span>
+<span class="fc" id="L186">    long startTime = system2.now();</span>
+<span class="fc" id="L187">    boolean success = false;</span>
+<span class="fc" id="L188">    GetRequest getRequest = new GetRequest(CLI_WS_URL + &quot;/&quot; + id).setHeader(&quot;Accept&quot;, &quot;application/octet-stream&quot;);</span>
+
+<span class="fc" id="L190">    try (WsResponse response = wsClient.call(getRequest)) {</span>
+      // Download to a temporary file location in case another process is also trying to
+      // create the CLI file in the checksum cache directory. Once the file is downloaded to a temporary
+      // location, do an atomic move to the correct cache location.
+<span class="fc" id="L194">      Path tempDir = createTempDir();</span>
+<span class="fc" id="L195">      Path tempFile = newTempFile(tempDir);</span>
+<span class="fc" id="L196">      downloadBinaryTo(tempFile, response);</span>
+<span class="fc" id="L197">      File destinationFile = cachedCliFile(checksum);</span>
+      // We need to make sure the folder structure exists for the correct cache location before performing the move.
+<span class="fc" id="L199">      mkdir(destinationFile.toPath().getParent());</span>
+<span class="fc" id="L200">      moveFile(tempFile, destinationFile.toPath());</span>
+<span class="pc bpc" id="L201" title="1 of 2 branches missed.">      if (!destinationFile.setExecutable(true, false)) {</span>
+<span class="nc" id="L202">        throw new IllegalStateException(&quot;Unable to mark CLI as executable&quot;);</span>
+      }
+<span class="fc" id="L204">      success = true;</span>
+<span class="nc" id="L205">    } catch (Exception e) {</span>
+<span class="nc" id="L206">      throw new IllegalStateException(&quot;Unable to download CLI executable&quot;, e);</span>
+    } finally {
+<span class="fc" id="L208">      telemetryCache.put(&quot;scanner.sca.download.cli.duration&quot;, String.valueOf(system2.now() - startTime));</span>
+<span class="fc" id="L209">      telemetryCache.put(&quot;scanner.sca.download.cli.success&quot;, String.valueOf(success));</span>
+    }
+<span class="fc" id="L211">  }</span>
+
+  String apiOsName() {
+    // We don't want to send the raw OS name because there could be too many combinations of the OS name
+    // to reliably match up with the correct CLI needed to be downloaded. Instead, we send a subset of
+    // OS names that should match to the correct CLI here.
+<span class="fc bfc" id="L217" title="All 2 branches covered.">    if (system2.isOsWindows()) {</span>
+<span class="fc" id="L218">      return &quot;windows&quot;;</span>
+<span class="fc bfc" id="L219" title="All 2 branches covered.">    } else if (system2.isOsMac()) {</span>
+<span class="fc" id="L220">      return &quot;mac&quot;;</span>
+    } else {
+<span class="fc" id="L222">      return &quot;linux&quot;;</span>
+    }
+  }
+
+  String apiArch() {
+<span class="fc" id="L227">    return SystemUtils.OS_ARCH.toLowerCase(Locale.ENGLISH);</span>
+  }
+
+  Path createTempDir() {
+<span class="fc" id="L231">    Path dir = sonarUserHome.getPath().resolve(&quot;_tmp&quot;);</span>
+    try {
+<span class="fc bfc" id="L233" title="All 2 branches covered.">      if (Files.exists(dir)) {</span>
+<span class="fc" id="L234">        return dir;</span>
+      } else {
+<span class="fc" id="L236">        return Files.createDirectory(dir);</span>
+      }
+<span class="fc" id="L238">    } catch (IOException e) {</span>
+<span class="fc" id="L239">      throw new IllegalStateException(&quot;Unable to create temp directory at &quot; + dir, e);</span>
+    }
+  }
+
+<span class="fc" id="L243">  private record CliMetadataResponse(</span>
+    String id,
+    String filename,
+    String sha256,
+    String os,
+    String arch) {
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

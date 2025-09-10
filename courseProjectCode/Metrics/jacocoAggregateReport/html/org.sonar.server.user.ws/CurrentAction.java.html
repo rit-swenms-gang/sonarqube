@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CurrentAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.user.ws</a> &gt; <span class="el_source">CurrentAction.java</span></div><h1>CurrentAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.user.ws;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService.NewController;
+import org.sonar.core.platform.EditionProvider;
+import org.sonar.core.platform.PlatformEditionProvider;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.BranchDto;
+import org.sonar.db.component.ComponentDto;
+import org.sonar.db.permission.GlobalPermission;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.db.property.PropertyQuery;
+import org.sonar.db.user.UserDto;
+import org.sonar.server.common.avatar.AvatarResolver;
+import org.sonar.server.permission.PermissionService;
+import org.sonar.server.user.UserSession;
+import org.sonarqube.ws.Users.CurrentWsResponse;
+
+import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.base.Strings.emptyToNull;
+import static java.util.Collections.singletonList;
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
+import static java.util.Optional.ofNullable;
+import static org.apache.commons.lang3.StringUtils.EMPTY;
+import static org.sonar.db.permission.ProjectPermission.USER;
+import static org.sonar.server.ws.WsUtils.writeProtobuf;
+import static org.sonarqube.ws.Users.CurrentWsResponse.HomepageType.APPLICATION;
+import static org.sonarqube.ws.Users.CurrentWsResponse.HomepageType.PORTFOLIO;
+import static org.sonarqube.ws.Users.CurrentWsResponse.HomepageType.PROJECT;
+import static org.sonarqube.ws.Users.CurrentWsResponse.Permissions;
+import static org.sonarqube.ws.Users.CurrentWsResponse.newBuilder;
+import static org.sonarqube.ws.client.user.UsersWsParameters.ACTION_CURRENT;
+
+public class CurrentAction implements UsersWsAction {
+  private final UserSession userSession;
+  private final DbClient dbClient;
+  private final AvatarResolver avatarResolver;
+  private final HomepageTypes homepageTypes;
+  private final PlatformEditionProvider editionProvider;
+  private final PermissionService permissionService;
+
+  public CurrentAction(UserSession userSession, DbClient dbClient, AvatarResolver avatarResolver, HomepageTypes homepageTypes,
+<span class="fc" id="L69">    PlatformEditionProvider editionProvider, PermissionService permissionService) {</span>
+<span class="fc" id="L70">    this.userSession = userSession;</span>
+<span class="fc" id="L71">    this.dbClient = dbClient;</span>
+<span class="fc" id="L72">    this.avatarResolver = avatarResolver;</span>
+<span class="fc" id="L73">    this.homepageTypes = homepageTypes;</span>
+<span class="fc" id="L74">    this.editionProvider = editionProvider;</span>
+<span class="fc" id="L75">    this.permissionService = permissionService;</span>
+<span class="fc" id="L76">  }</span>
+
+  @Override
+  public void define(NewController context) {
+<span class="fc" id="L80">    context.createAction(ACTION_CURRENT)</span>
+<span class="fc" id="L81">      .setDescription(&quot;Get the details of the current authenticated user.&quot;)</span>
+<span class="fc" id="L82">      .setSince(&quot;5.2&quot;)</span>
+<span class="fc" id="L83">      .setInternal(true)</span>
+<span class="fc" id="L84">      .setHandler(this)</span>
+<span class="fc" id="L85">      .setResponseExample(getClass().getResource(&quot;current-example.json&quot;))</span>
+<span class="fc" id="L86">      .setChangelog(</span>
+        new Change(&quot;6.5&quot;, &quot;showOnboardingTutorial is now returned in the response&quot;),
+        new Change(&quot;7.1&quot;, &quot;'parameter' is replaced by 'component' and 'organization' in the response&quot;),
+        new Change(&quot;9.2&quot;, &quot;boolean 'usingSonarLintConnectedMode' and 'sonarLintAdSeen' fields are now returned in the response&quot;),
+        new Change(&quot;9.5&quot;, &quot;showOnboardingTutorial is not returned anymore in the response&quot;),
+        new Change(&quot;9.6&quot;, &quot;'sonarLintAdSeen' is removed and replaced by a 'dismissedNotices' map that support multiple values&quot;)
+      );
+<span class="fc" id="L93">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc bfc" id="L97" title="All 2 branches covered.">    if (userSession.isLoggedIn()) {</span>
+<span class="fc" id="L98">      try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L99">        writeProtobuf(toWsResponse(dbSession, userSession.getLogin()), request, response);</span>
+      }
+    } else {
+<span class="fc" id="L102">      writeProtobuf(newBuilder()</span>
+<span class="fc" id="L103">          .setIsLoggedIn(false)</span>
+<span class="fc" id="L104">          .setPermissions(Permissions.newBuilder().addAllGlobal(getGlobalPermissions()).build())</span>
+<span class="fc" id="L105">          .build(),</span>
+        request, response);
+    }
+<span class="fc" id="L108">  }</span>
+
+  private CurrentWsResponse toWsResponse(DbSession dbSession, String userLogin) {
+<span class="fc" id="L111">    UserDto user = dbClient.userDao().selectActiveUserByLogin(dbSession, userLogin);</span>
+<span class="fc bfc" id="L112" title="All 2 branches covered.">    checkState(user != null, &quot;User login '%s' cannot be found&quot;, userLogin);</span>
+<span class="fc" id="L113">    Collection&lt;String&gt; groups = dbClient.groupMembershipDao().selectGroupsByLogins(dbSession, singletonList(userLogin)).get(userLogin);</span>
+
+<span class="fc" id="L115">    CurrentWsResponse.Builder builder = newBuilder()</span>
+<span class="fc" id="L116">      .setIsLoggedIn(true)</span>
+<span class="fc" id="L117">      .setLogin(user.getLogin())</span>
+<span class="fc" id="L118">      .setName(user.getName())</span>
+<span class="fc" id="L119">      .setLocal(user.isLocal())</span>
+<span class="fc" id="L120">      .addAllGroups(groups)</span>
+<span class="fc" id="L121">      .addAllScmAccounts(user.getSortedScmAccounts())</span>
+<span class="fc" id="L122">      .setPermissions(Permissions.newBuilder().addAllGlobal(getGlobalPermissions()).build())</span>
+<span class="fc" id="L123">      .setHomepage(buildHomepage(dbSession, user))</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">      .setUsingSonarLintConnectedMode(user.getLastSonarlintConnectionDate() != null);</span>
+
+<span class="fc" id="L126">    DismissNoticeAction.DismissNotices.getAvailableKeys()</span>
+<span class="fc" id="L127">      .forEach(key -&gt; builder.putDismissedNotices(key, isNoticeDismissed(user, key)));</span>
+    
+<span class="fc" id="L129">    ofNullable(emptyToNull(user.getEmail())).ifPresent(builder::setEmail);</span>
+<span class="fc" id="L130">    ofNullable(emptyToNull(user.getEmail())).ifPresent(u -&gt; builder.setAvatar(avatarResolver.create(user)));</span>
+<span class="fc" id="L131">    ofNullable(user.getExternalLogin()).ifPresent(builder::setExternalIdentity);</span>
+<span class="fc" id="L132">    ofNullable(user.getExternalIdentityProvider()).ifPresent(builder::setExternalProvider);</span>
+<span class="fc" id="L133">    return builder.build();</span>
+  }
+
+  private List&lt;String&gt; getGlobalPermissions() {
+<span class="fc" id="L137">    return permissionService.getGlobalPermissions().stream()</span>
+<span class="fc" id="L138">      .filter(userSession::hasPermission)</span>
+<span class="fc" id="L139">      .map(GlobalPermission::getKey)</span>
+<span class="fc" id="L140">      .toList();</span>
+  }
+
+  private boolean isNoticeDismissed(UserDto user, String noticeName) {
+<span class="fc" id="L144">    String paramKey = DismissNoticeAction.USER_DISMISS_CONSTANT + noticeName;</span>
+<span class="fc" id="L145">    PropertyQuery query = new PropertyQuery.Builder()</span>
+<span class="fc" id="L146">      .setUserUuid(user.getUuid())</span>
+<span class="fc" id="L147">      .setKey(paramKey)</span>
+<span class="fc" id="L148">      .build();</span>
+
+<span class="fc" id="L150">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc bfc" id="L151" title="All 2 branches covered.">      return !dbClient.propertiesDao().selectByQuery(query, dbSession).isEmpty();</span>
+    }
+  }
+
+  private CurrentWsResponse.Homepage buildHomepage(DbSession dbSession, UserDto user) {
+<span class="fc bfc" id="L156" title="All 2 branches covered.">    if (noHomepageSet(user)) {</span>
+<span class="fc" id="L157">      return defaultHomepage();</span>
+    }
+
+<span class="fc" id="L160">    return doBuildHomepage(dbSession, user).orElse(defaultHomepage());</span>
+  }
+
+  private Optional&lt;CurrentWsResponse.Homepage&gt; doBuildHomepage(DbSession dbSession, UserDto user) {
+
+<span class="fc bfc" id="L165" title="All 2 branches covered.">    if (PROJECT.toString().equals(user.getHomepageType())) {</span>
+<span class="fc" id="L166">      return projectHomepage(dbSession, user);</span>
+    }
+
+<span class="fc bfc" id="L169" title="All 4 branches covered.">    if (APPLICATION.toString().equals(user.getHomepageType()) || PORTFOLIO.toString().equals(user.getHomepageType())) {</span>
+<span class="fc" id="L170">      return applicationAndPortfolioHomepage(dbSession, user);</span>
+    }
+
+<span class="fc" id="L173">    return of(CurrentWsResponse.Homepage.newBuilder()</span>
+<span class="fc" id="L174">      .setType(CurrentWsResponse.HomepageType.valueOf(user.getHomepageType()))</span>
+<span class="fc" id="L175">      .build());</span>
+  }
+
+  private Optional&lt;CurrentWsResponse.Homepage&gt; projectHomepage(DbSession dbSession, UserDto user) {
+<span class="fc" id="L179">    Optional&lt;BranchDto&gt; branchOptional = ofNullable(user.getHomepageParameter()).flatMap(p -&gt; dbClient.branchDao().selectByUuid(dbSession, p));</span>
+<span class="fc" id="L180">    Optional&lt;ProjectDto&gt; projectOptional = branchOptional.flatMap(b -&gt; dbClient.projectDao().selectByUuid(dbSession, b.getProjectUuid()));</span>
+<span class="fc bfc" id="L181" title="All 2 branches covered.">    if (shouldCleanProjectHomepage(projectOptional, branchOptional)) {</span>
+<span class="fc" id="L182">      cleanUserHomepageInDb(dbSession, user);</span>
+<span class="fc" id="L183">      return empty();</span>
+    }
+
+<span class="fc" id="L186">    CurrentWsResponse.Homepage.Builder homepage = CurrentWsResponse.Homepage.newBuilder()</span>
+<span class="fc" id="L187">      .setType(CurrentWsResponse.HomepageType.valueOf(user.getHomepageType()))</span>
+<span class="fc" id="L188">      .setComponent(projectOptional.get().getKey());</span>
+
+<span class="pc bpc" id="L190" title="1 of 2 branches missed.">    if (!branchOptional.get().getProjectUuid().equals(branchOptional.get().getUuid())) {</span>
+<span class="fc" id="L191">      homepage.setBranch(branchOptional.get().getKey());</span>
+    }
+<span class="fc" id="L193">    return of(homepage.build());</span>
+  }
+
+  private boolean shouldCleanProjectHomepage(Optional&lt;ProjectDto&gt; projectOptional, Optional&lt;BranchDto&gt; branchOptional) {
+<span class="pc bpc" id="L197" title="1 of 6 branches missed.">    return !projectOptional.isPresent() || !branchOptional.isPresent() || !userSession.hasEntityPermission(USER, projectOptional.get());</span>
+  }
+
+  private Optional&lt;CurrentWsResponse.Homepage&gt; applicationAndPortfolioHomepage(DbSession dbSession, UserDto user) {
+<span class="fc" id="L201">    Optional&lt;ComponentDto&gt; componentOptional = dbClient.componentDao().selectByUuid(dbSession, of(user.getHomepageParameter()).orElse(EMPTY));</span>
+<span class="fc bfc" id="L202" title="All 2 branches covered.">    if (shouldCleanApplicationOrPortfolioHomepage(componentOptional)) {</span>
+<span class="fc" id="L203">      cleanUserHomepageInDb(dbSession, user);</span>
+<span class="fc" id="L204">      return empty();</span>
+    }
+
+<span class="fc" id="L207">    return of(CurrentWsResponse.Homepage.newBuilder()</span>
+<span class="fc" id="L208">      .setType(CurrentWsResponse.HomepageType.valueOf(user.getHomepageType()))</span>
+<span class="fc" id="L209">      .setComponent(componentOptional.get().getKey())</span>
+<span class="fc" id="L210">      .build());</span>
+  }
+
+  private boolean shouldCleanApplicationOrPortfolioHomepage(Optional&lt;ComponentDto&gt; componentOptional) {
+<span class="fc bfc" id="L214" title="All 4 branches covered.">    return !componentOptional.isPresent() || !hasValidEdition()</span>
+<span class="fc bfc" id="L215" title="All 2 branches covered.">      || !userSession.hasComponentPermission(USER, componentOptional.get());</span>
+  }
+
+  private boolean hasValidEdition() {
+<span class="fc" id="L219">    Optional&lt;EditionProvider.Edition&gt; edition = editionProvider.get();</span>
+<span class="fc bfc" id="L220" title="All 2 branches covered.">    if (!edition.isPresent()) {</span>
+<span class="fc" id="L221">      return false;</span>
+    }
+<span class="fc bfc" id="L223" title="All 2 branches covered.">    return switch (edition.get()) {</span>
+<span class="fc" id="L224">      case ENTERPRISE, DATACENTER -&gt; true;</span>
+<span class="fc" id="L225">      default -&gt; false;</span>
+    };
+  }
+
+  private void cleanUserHomepageInDb(DbSession dbSession, UserDto user) {
+<span class="fc" id="L230">    dbClient.userDao().cleanHomepage(dbSession, user);</span>
+<span class="fc" id="L231">  }</span>
+
+  private CurrentWsResponse.Homepage defaultHomepage() {
+<span class="fc" id="L234">    return CurrentWsResponse.Homepage.newBuilder()</span>
+<span class="fc" id="L235">      .setType(CurrentWsResponse.HomepageType.valueOf(homepageTypes.getDefaultType().name()))</span>
+<span class="fc" id="L236">      .build();</span>
+  }
+
+  private static boolean noHomepageSet(UserDto user) {
+<span class="fc bfc" id="L240" title="All 2 branches covered.">    return user.getHomepageType() == null;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

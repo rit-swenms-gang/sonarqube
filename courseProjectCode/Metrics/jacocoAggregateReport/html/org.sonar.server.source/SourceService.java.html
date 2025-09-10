@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SourceService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.source</a> &gt; <span class="el_source">SourceService.java</span></div><h1>SourceService.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.source;
+
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.protobuf.DbFileSources;
+import org.sonar.db.source.FileSourceDto;
+
+import static com.google.common.base.Preconditions.checkArgument;
+
+public class SourceService {
+
+  private final DbClient dbClient;
+  private final HtmlSourceDecorator htmlDecorator;
+  private final Function&lt;DbFileSources.Line, String&gt; lineToHtml;
+
+<span class="fc" id="L38">  public SourceService(DbClient dbClient, HtmlSourceDecorator htmlDecorator) {</span>
+<span class="fc" id="L39">    this.dbClient = dbClient;</span>
+<span class="fc" id="L40">    this.htmlDecorator = htmlDecorator;</span>
+<span class="fc" id="L41">    this.lineToHtml = lineToHtml();</span>
+<span class="fc" id="L42">  }</span>
+
+  /**
+   * Returns a range of lines as raw db data. User permission is not verified.
+   *
+   * @param from        starts from 1
+   * @param toInclusive starts from 1, must be greater than or equal param {@code from}
+   */
+  public Optional&lt;Iterable&lt;DbFileSources.Line&gt;&gt; getLines(DbSession dbSession, String fileUuid, int from, int toInclusive) {
+<span class="fc" id="L51">    return getLines(dbSession, fileUuid, from, toInclusive, Function.identity());</span>
+  }
+
+  public Optional&lt;Iterable&lt;DbFileSources.Line&gt;&gt; getLines(DbSession dbSession, String fileUuid, Set&lt;Integer&gt; lines) {
+<span class="fc" id="L55">    return getLines(dbSession, fileUuid, lines, Function.identity());</span>
+  }
+
+  /**
+   * Returns a range of lines as raw text.
+   *
+   * @see #getLines(DbSession, String, int, int)
+   */
+  public Optional&lt;Iterable&lt;String&gt;&gt; getLinesAsRawText(DbSession dbSession, String fileUuid, int from, int toInclusive) {
+<span class="fc" id="L64">    return getLines(dbSession, fileUuid, from, toInclusive, DbFileSources.Line::getSource);</span>
+  }
+
+  public Optional&lt;Iterable&lt;String&gt;&gt; getLinesAsHtml(DbSession dbSession, String fileUuid, int from, int toInclusive) {
+<span class="fc" id="L68">    return getLines(dbSession, fileUuid, from, toInclusive, lineToHtml);</span>
+  }
+
+  private &lt;E&gt; Optional&lt;Iterable&lt;E&gt;&gt; getLines(DbSession dbSession, String fileUuid, int from, int toInclusive, Function&lt;DbFileSources.Line, E&gt; function) {
+<span class="fc" id="L72">    verifyLine(from);</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">    checkArgument(toInclusive &gt;= from, String.format(&quot;Line number must greater than or equal to %d, got %d&quot;, from, toInclusive));</span>
+<span class="fc" id="L74">    FileSourceDto dto = dbClient.fileSourceDao().selectByFileUuid(dbSession, fileUuid);</span>
+<span class="fc bfc" id="L75" title="All 2 branches covered.">    if (dto == null) {</span>
+<span class="fc" id="L76">      return Optional.empty();</span>
+    }
+<span class="fc" id="L78">    return Optional.of(dto.getSourceData().getLinesList().stream()</span>
+<span class="pc bpc" id="L79" title="1 of 4 branches missed.">      .filter(line -&gt; line.hasLine() &amp;&amp; line.getLine() &gt;= from)</span>
+<span class="fc" id="L80">      .limit((toInclusive - from) + 1L)</span>
+<span class="fc" id="L81">      .map(function)</span>
+<span class="fc" id="L82">      .toList());</span>
+  }
+
+  private &lt;E&gt; Optional&lt;Iterable&lt;E&gt;&gt; getLines(DbSession dbSession, String fileUuid, Set&lt;Integer&gt; lines, Function&lt;DbFileSources.Line, E&gt; function) {
+<span class="fc" id="L86">    FileSourceDto dto = dbClient.fileSourceDao().selectByFileUuid(dbSession, fileUuid);</span>
+<span class="fc bfc" id="L87" title="All 2 branches covered.">    if (dto == null) {</span>
+<span class="fc" id="L88">      return Optional.empty();</span>
+    }
+<span class="fc" id="L90">    return Optional.of(dto.getSourceData().getLinesList().stream()</span>
+<span class="pc bpc" id="L91" title="1 of 4 branches missed.">      .filter(line -&gt; line.hasLine() &amp;&amp; lines.contains(line.getLine()))</span>
+<span class="fc" id="L92">      .map(function)</span>
+<span class="fc" id="L93">      .toList());</span>
+  }
+
+  private static void verifyLine(int line) {
+<span class="fc bfc" id="L97" title="All 2 branches covered.">    checkArgument(line &gt;= 1, String.format(&quot;Line number must start at 1, got %d&quot;, line));</span>
+<span class="fc" id="L98">  }</span>
+
+  private Function&lt;DbFileSources.Line, String&gt; lineToHtml() {
+<span class="fc" id="L101">    return line -&gt; htmlDecorator.getDecoratedSourceAsHtml(line.getSource(), line.getHighlighting(), line.getSymbols());</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

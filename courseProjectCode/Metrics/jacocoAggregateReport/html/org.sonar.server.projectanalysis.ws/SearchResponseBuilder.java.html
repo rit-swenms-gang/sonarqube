@@ -1,0 +1,338 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SearchResponseBuilder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.projectanalysis.ws</a> &gt; <span class="el_source">SearchResponseBuilder.java</span></div><h1>SearchResponseBuilder.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.projectanalysis.ws;
+
+import com.google.common.collect.ListMultimap;
+import com.google.gson.Gson;
+import com.google.gson.JsonSyntaxException;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
+import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.utils.KeyValueFormat;
+import org.sonar.db.component.SnapshotDto;
+import org.sonar.db.event.EventComponentChangeDto;
+import org.sonar.db.event.EventDto;
+import org.sonarqube.ws.ProjectAnalyses;
+import org.sonarqube.ws.ProjectAnalyses.Analysis;
+import org.sonarqube.ws.ProjectAnalyses.Event;
+import org.sonarqube.ws.ProjectAnalyses.QualityGate;
+import org.sonarqube.ws.ProjectAnalyses.QualityProfile;
+import org.sonarqube.ws.ProjectAnalyses.SearchResponse;
+
+import static java.lang.String.format;
+import static java.util.Optional.ofNullable;
+import static org.sonar.api.utils.DateUtils.formatDateTime;
+import static org.sonar.core.util.stream.MoreCollectors.index;
+import static org.sonar.server.projectanalysis.ws.EventCategory.fromLabel;
+
+class SearchResponseBuilder {
+<span class="fc" id="L52">  private static final Logger LOGGER = LoggerFactory.getLogger(SearchResponseBuilder.class);</span>
+
+  private final Analysis.Builder wsAnalysis;
+  private final Event.Builder wsEvent;
+  private final SearchData searchData;
+  private final QualityGate.Builder wsQualityGate;
+  private final QualityProfile.Builder wsQualityProfile;
+  private final ProjectAnalyses.DefinitionChange.Builder wsDefinitionChange;
+
+<span class="fc" id="L61">  SearchResponseBuilder(SearchData searchData) {</span>
+<span class="fc" id="L62">    this.wsAnalysis = Analysis.newBuilder();</span>
+<span class="fc" id="L63">    this.wsEvent = Event.newBuilder();</span>
+<span class="fc" id="L64">    this.wsQualityGate = QualityGate.newBuilder();</span>
+<span class="fc" id="L65">    this.wsQualityProfile = QualityProfile.newBuilder();</span>
+<span class="fc" id="L66">    this.wsDefinitionChange = ProjectAnalyses.DefinitionChange.newBuilder();</span>
+<span class="fc" id="L67">    this.searchData = searchData;</span>
+<span class="fc" id="L68">  }</span>
+
+  SearchResponse build() {
+<span class="fc" id="L71">    SearchResponse.Builder wsResponse = SearchResponse.newBuilder();</span>
+<span class="fc" id="L72">    addAnalyses(wsResponse);</span>
+<span class="fc" id="L73">    addPagination(wsResponse);</span>
+<span class="fc" id="L74">    return wsResponse.build();</span>
+  }
+
+  private void addAnalyses(SearchResponse.Builder wsResponse) {
+<span class="fc" id="L78">    searchData.analyses.stream()</span>
+<span class="fc" id="L79">      .map(this::dbToWsAnalysis)</span>
+<span class="fc" id="L80">      .map(this::attachEvents)</span>
+<span class="fc" id="L81">      .forEach(wsResponse::addAnalyses);</span>
+<span class="fc" id="L82">  }</span>
+
+  private Analysis.Builder dbToWsAnalysis(SnapshotDto dbAnalysis) {
+<span class="fc" id="L85">    var builder = wsAnalysis.clear();</span>
+<span class="fc" id="L86">    builder</span>
+<span class="fc" id="L87">      .setKey(dbAnalysis.getUuid())</span>
+<span class="fc" id="L88">      .setDate(formatDateTime(dbAnalysis.getCreatedAt()))</span>
+<span class="fc" id="L89">      .setManualNewCodePeriodBaseline(searchData.getManualBaseline().filter(dbAnalysis.getUuid()::equals).isPresent());</span>
+<span class="fc" id="L90">    ofNullable(dbAnalysis.getProjectVersion()).ifPresent(builder::setProjectVersion);</span>
+<span class="fc" id="L91">    ofNullable(dbAnalysis.getBuildString()).ifPresent(builder::setBuildString);</span>
+<span class="fc" id="L92">    ofNullable(dbAnalysis.getRevision()).ifPresent(builder::setRevision);</span>
+<span class="fc" id="L93">    ofNullable(searchData.detectedCIs.get(dbAnalysis.getUuid())).ifPresent(builder::setDetectedCI);</span>
+
+<span class="fc" id="L95">    return builder;</span>
+  }
+
+  private Analysis.Builder attachEvents(Analysis.Builder analysis) {
+<span class="fc" id="L99">    searchData.eventsByAnalysis.get(analysis.getKey())</span>
+<span class="fc" id="L100">      .stream()</span>
+<span class="fc" id="L101">      .map(this::dbToWsEvent)</span>
+<span class="fc" id="L102">      .forEach(analysis::addEvents);</span>
+<span class="fc" id="L103">    return analysis;</span>
+  }
+
+  private Event.Builder dbToWsEvent(EventDto dbEvent) {
+<span class="fc" id="L107">    wsEvent.clear().setKey(dbEvent.getUuid());</span>
+<span class="fc" id="L108">    ofNullable(dbEvent.getName()).ifPresent(wsEvent::setName);</span>
+<span class="fc" id="L109">    ofNullable(dbEvent.getDescription()).ifPresent(wsEvent::setDescription);</span>
+<span class="fc" id="L110">    ofNullable(dbEvent.getCategory())</span>
+<span class="fc" id="L111">      .ifPresent(cat -&gt; {</span>
+<span class="fc" id="L112">        wsEvent.setCategory(fromLabel(cat).name());</span>
+<span class="fc bfc" id="L113" title="All 4 branches covered.">        switch (fromLabel(cat)) {</span>
+<span class="fc" id="L114">          case DEFINITION_CHANGE -&gt; addDefinitionChange(dbEvent);</span>
+<span class="fc" id="L115">          case QUALITY_GATE -&gt; addQualityGateInformation(dbEvent);</span>
+<span class="fc" id="L116">          case QUALITY_PROFILE -&gt; addQualityProfileInformation(dbEvent);</span>
+          default -&gt; {
+            //Nothing to do if not one of the previous cases
+          }
+        }
+<span class="fc" id="L121">      });</span>
+<span class="fc" id="L122">    return wsEvent;</span>
+  }
+
+  private void addQualityProfileInformation(EventDto event) {
+<span class="fc" id="L126">    wsQualityProfile.clear();</span>
+
+<span class="fc" id="L128">    Map&lt;String, String&gt; data = KeyValueFormat.parse(event.getData());</span>
+
+<span class="fc" id="L130">    Optional.ofNullable(data.get(&quot;key&quot;)).ifPresent(wsQualityProfile::setKey);</span>
+<span class="fc" id="L131">    Optional.ofNullable(data.get(&quot;name&quot;)).ifPresent(wsQualityProfile::setName);</span>
+<span class="fc" id="L132">    Optional.ofNullable(data.get(&quot;languageKey&quot;)).ifPresent(wsQualityProfile::setLanguageKey);</span>
+
+<span class="fc" id="L134">    wsEvent.setQualityProfile(wsQualityProfile.build());</span>
+<span class="fc" id="L135">  }</span>
+
+  private void addQualityGateInformation(EventDto event) {
+<span class="fc" id="L138">    wsQualityGate.clear();</span>
+<span class="fc" id="L139">    List&lt;EventComponentChangeDto&gt; eventComponentChangeDtos = searchData.componentChangesByEventUuid.get(event.getUuid());</span>
+<span class="fc bfc" id="L140" title="All 2 branches covered.">    if (eventComponentChangeDtos.isEmpty()) {</span>
+<span class="fc" id="L141">      return;</span>
+    }
+
+<span class="pc bpc" id="L144" title="1 of 2 branches missed.">    if (event.getData() != null) {</span>
+      try {
+<span class="fc" id="L146">        Gson gson = new Gson();</span>
+<span class="fc" id="L147">        Data data = gson.fromJson(event.getData(), Data.class);</span>
+
+<span class="fc" id="L149">        wsQualityGate.setStillFailing(data.isStillFailing());</span>
+<span class="fc" id="L150">        wsQualityGate.setStatus(data.getStatus());</span>
+<span class="fc" id="L151">      } catch (JsonSyntaxException ex) {</span>
+<span class="fc" id="L152">        LOGGER.error(&quot;Unable to retrieve data from event uuid=&quot; + event.getUuid(), ex);</span>
+<span class="fc" id="L153">        return;</span>
+<span class="fc" id="L154">      }</span>
+    }
+
+<span class="fc" id="L157">    wsQualityGate.addAllFailing(eventComponentChangeDtos.stream()</span>
+<span class="fc" id="L158">      .map(SearchResponseBuilder::toFailing)</span>
+<span class="fc" id="L159">      .toList());</span>
+<span class="fc" id="L160">    wsEvent.setQualityGate(wsQualityGate.build());</span>
+<span class="fc" id="L161">  }</span>
+
+  private void addDefinitionChange(EventDto event) {
+<span class="fc" id="L164">    wsDefinitionChange.clear();</span>
+<span class="fc" id="L165">    List&lt;EventComponentChangeDto&gt; eventComponentChangeDtos = searchData.componentChangesByEventUuid.get(event.getUuid());</span>
+<span class="pc bpc" id="L166" title="1 of 2 branches missed.">    if (eventComponentChangeDtos.isEmpty()) {</span>
+<span class="nc" id="L167">      return;</span>
+    }
+
+<span class="fc" id="L170">    ListMultimap&lt;String, EventComponentChangeDto&gt; componentChangeByKey = eventComponentChangeDtos.stream()</span>
+<span class="fc" id="L171">      .collect(index(EventComponentChangeDto::getComponentKey));</span>
+
+    try {
+<span class="fc" id="L174">      wsDefinitionChange.addAllProjects(</span>
+<span class="fc" id="L175">        componentChangeByKey.asMap().values().stream()</span>
+<span class="fc" id="L176">          .map(SearchResponseBuilder::addChange)</span>
+<span class="fc" id="L177">          .map(Project::toProject)</span>
+<span class="fc" id="L178">          .toList()</span>
+      );
+<span class="fc" id="L180">      wsEvent.setDefinitionChange(wsDefinitionChange.build());</span>
+<span class="fc" id="L181">    } catch (IllegalStateException e) {</span>
+<span class="fc" id="L182">      LOGGER.error(e.getMessage(), e);</span>
+<span class="fc" id="L183">    }</span>
+<span class="fc" id="L184">  }</span>
+
+  private static Project addChange(Collection&lt;EventComponentChangeDto&gt; changes) {
+<span class="fc bfc" id="L187" title="All 2 branches covered.">    if (changes.size() == 1) {</span>
+<span class="fc" id="L188">      return addSingleChange(changes.iterator().next());</span>
+    } else {
+<span class="fc" id="L190">      return addBranchChange(changes);</span>
+    }
+  }
+
+  private static Project addSingleChange(EventComponentChangeDto componentChange) {
+<span class="fc" id="L195">    Project project = new Project()</span>
+<span class="fc" id="L196">      .setKey(componentChange.getComponentKey())</span>
+<span class="fc" id="L197">      .setName(componentChange.getComponentName())</span>
+<span class="fc" id="L198">      .setBranch(componentChange.getComponentBranchKey());</span>
+
+<span class="fc bfc" id="L200" title="All 3 branches covered.">    switch (componentChange.getCategory()) {</span>
+      case ADDED:
+<span class="fc" id="L202">        project.setChangeType(&quot;ADDED&quot;);</span>
+<span class="fc" id="L203">        break;</span>
+      case REMOVED:
+<span class="fc" id="L205">        project.setChangeType(&quot;REMOVED&quot;);</span>
+<span class="fc" id="L206">        break;</span>
+      default:
+<span class="fc" id="L208">        throw new IllegalStateException(format(&quot;Unknown change %s for eventComponentChange uuid: %s&quot;, componentChange.getCategory(), componentChange.getUuid()));</span>
+    }
+
+<span class="fc" id="L211">    return project;</span>
+  }
+
+  private static Project addBranchChange(Collection&lt;EventComponentChangeDto&gt; changes) {
+<span class="fc bfc" id="L215" title="All 2 branches covered.">    if (changes.size() != 2) {</span>
+<span class="fc" id="L216">      throw new IllegalStateException(format(&quot;Too many changes on same project (%d) for eventComponentChange uuids : %s&quot;,</span>
+<span class="fc" id="L217">        changes.size(),</span>
+<span class="fc" id="L218">        changes.stream().map(EventComponentChangeDto::getUuid).collect(Collectors.joining(&quot;,&quot;))));</span>
+    }
+
+<span class="fc" id="L221">    Optional&lt;EventComponentChangeDto&gt; addedChange = changes.stream().filter(c -&gt; c.getCategory().equals(EventComponentChangeDto.ChangeCategory.ADDED)).findFirst();</span>
+<span class="fc" id="L222">    Optional&lt;EventComponentChangeDto&gt; removedChange = changes.stream().filter(c -&gt; c.getCategory().equals(EventComponentChangeDto.ChangeCategory.REMOVED)).findFirst();</span>
+
+<span class="pc bpc" id="L224" title="2 of 6 branches missed.">    if (!addedChange.isPresent() || !removedChange.isPresent() || addedChange.equals(removedChange)) {</span>
+<span class="fc" id="L225">      Iterator&lt;EventComponentChangeDto&gt; iterator = changes.iterator();</span>
+      // We are missing two different ADDED and REMOVED changes
+<span class="fc" id="L227">      EventComponentChangeDto firstChange = iterator.next();</span>
+<span class="fc" id="L228">      EventComponentChangeDto secondChange = iterator.next();</span>
+<span class="fc" id="L229">      throw new IllegalStateException(format(&quot;Incorrect changes : [uuid=%s change=%s, branch=%s] and [uuid=%s, change=%s, branch=%s]&quot;,</span>
+<span class="fc" id="L230">        firstChange.getUuid(), firstChange.getCategory().name(), firstChange.getComponentBranchKey(),</span>
+<span class="fc" id="L231">        secondChange.getUuid(), secondChange.getCategory().name(), secondChange.getComponentBranchKey()));</span>
+    }
+
+<span class="fc" id="L234">    return new Project()</span>
+<span class="fc" id="L235">      .setName(addedChange.get().getComponentName())</span>
+<span class="fc" id="L236">      .setKey(addedChange.get().getComponentKey())</span>
+<span class="fc" id="L237">      .setChangeType(&quot;BRANCH_CHANGED&quot;)</span>
+<span class="fc" id="L238">      .setNewBranch(addedChange.get().getComponentBranchKey())</span>
+<span class="fc" id="L239">      .setOldBranch(removedChange.get().getComponentBranchKey());</span>
+  }
+
+  private void addPagination(SearchResponse.Builder wsResponse) {
+<span class="fc" id="L243">    wsResponse.getPagingBuilder()</span>
+<span class="fc" id="L244">      .setPageIndex(searchData.paging.pageIndex())</span>
+<span class="fc" id="L245">      .setPageSize(searchData.paging.pageSize())</span>
+<span class="fc" id="L246">      .setTotal(searchData.paging.total())</span>
+<span class="fc" id="L247">      .build();</span>
+<span class="fc" id="L248">  }</span>
+
+  private static ProjectAnalyses.Failing toFailing(EventComponentChangeDto change) {
+<span class="fc" id="L251">    ProjectAnalyses.Failing.Builder builder = ProjectAnalyses.Failing.newBuilder()</span>
+<span class="fc" id="L252">      .setKey(change.getComponentKey())</span>
+<span class="fc" id="L253">      .setName(change.getComponentName());</span>
+<span class="pc bpc" id="L254" title="1 of 2 branches missed.">    if (change.getComponentBranchKey() != null) {</span>
+<span class="fc" id="L255">      builder.setBranch(change.getComponentBranchKey());</span>
+    }
+<span class="fc" id="L257">    return builder.build();</span>
+  }
+
+  private static class Data {
+    private boolean stillFailing;
+    private String status;
+
+<span class="fc" id="L264">    public Data() {</span>
+      // Empty constructor because it's used by GSon
+<span class="fc" id="L266">    }</span>
+
+    boolean isStillFailing() {
+<span class="fc" id="L269">      return stillFailing;</span>
+    }
+
+    public Data setStillFailing(boolean stillFailing) {
+<span class="nc" id="L273">      this.stillFailing = stillFailing;</span>
+<span class="nc" id="L274">      return this;</span>
+    }
+
+    String getStatus() {
+<span class="fc" id="L278">      return status;</span>
+    }
+
+    public Data setStatus(String status) {
+<span class="nc" id="L282">      this.status = status;</span>
+<span class="nc" id="L283">      return this;</span>
+    }
+  }
+
+  private static class Project {
+    private String key;
+    private String name;
+    private String changeType;
+    private String branch;
+    private String oldBranch;
+    private String newBranch;
+
+    public Project setKey(String key) {
+<span class="fc" id="L296">      this.key = key;</span>
+<span class="fc" id="L297">      return this;</span>
+    }
+
+    public Project setName(String name) {
+<span class="fc" id="L301">      this.name = name;</span>
+<span class="fc" id="L302">      return this;</span>
+    }
+
+    public Project setChangeType(String changeType) {
+<span class="fc" id="L306">      this.changeType = changeType;</span>
+<span class="fc" id="L307">      return this;</span>
+    }
+
+    public Project setBranch(@Nullable String branch) {
+<span class="fc" id="L311">      this.branch = branch;</span>
+<span class="fc" id="L312">      return this;</span>
+    }
+
+    public Project setOldBranch(@Nullable String oldBranch) {
+<span class="fc" id="L316">      this.oldBranch = oldBranch;</span>
+<span class="fc" id="L317">      return this;</span>
+    }
+
+    public Project setNewBranch(@Nullable String newBranch) {
+<span class="fc" id="L321">      this.newBranch = newBranch;</span>
+<span class="fc" id="L322">      return this;</span>
+    }
+
+    private ProjectAnalyses.Project toProject() {
+<span class="fc" id="L326">      ProjectAnalyses.Project.Builder builder = ProjectAnalyses.Project.newBuilder();</span>
+<span class="fc" id="L327">      builder</span>
+<span class="fc" id="L328">        .setKey(key)</span>
+<span class="fc" id="L329">        .setName(name)</span>
+<span class="fc" id="L330">        .setChangeType(changeType);</span>
+<span class="fc" id="L331">      ofNullable(branch).ifPresent(builder::setBranch);</span>
+<span class="fc" id="L332">      ofNullable(oldBranch).ifPresent(builder::setOldBranch);</span>
+<span class="fc" id="L333">      ofNullable(newBranch).ifPresent(builder::setNewBranch);</span>
+<span class="fc" id="L334">      return builder.build();</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

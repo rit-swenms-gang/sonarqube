@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WebhooksService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonarqube.ws.client.webhooks</a> &gt; <span class="el_source">WebhooksService.java</span></div><h1>WebhooksService.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonarqube.ws.client.webhooks;
+
+import jakarta.annotation.Generated;
+import org.sonarqube.ws.MediaTypes;
+import org.sonarqube.ws.Webhooks.CreateWsResponse;
+import org.sonarqube.ws.Webhooks.DeliveriesWsResponse;
+import org.sonarqube.ws.Webhooks.DeliveryWsResponse;
+import org.sonarqube.ws.Webhooks.ListResponse;
+import org.sonarqube.ws.client.BaseService;
+import org.sonarqube.ws.client.GetRequest;
+import org.sonarqube.ws.client.PostRequest;
+import org.sonarqube.ws.client.WsConnector;
+
+/**
+ * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/webhooks&quot;&gt;Further information about this web service online&lt;/a&gt;
+ */
+@Generated(&quot;sonar-ws-generator&quot;)
+public class WebhooksService extends BaseService {
+
+  public WebhooksService(WsConnector wsConnector) {
+<span class="fc" id="L40">    super(wsConnector, &quot;api/webhooks&quot;);</span>
+<span class="fc" id="L41">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/webhooks/create&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 7.1
+   */
+  public CreateWsResponse create(CreateRequest request) {
+<span class="nc" id="L51">    return call(</span>
+<span class="nc" id="L52">      new PostRequest(path(&quot;create&quot;))</span>
+<span class="nc" id="L53">        .setParam(&quot;name&quot;, request.getName())</span>
+<span class="nc" id="L54">        .setParam(&quot;project&quot;, request.getProject())</span>
+<span class="nc" id="L55">        .setParam(&quot;secret&quot;, request.getSecret())</span>
+<span class="nc" id="L56">        .setParam(&quot;url&quot;, request.getUrl()),</span>
+<span class="nc" id="L57">      CreateWsResponse.parser());</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/webhooks/delete&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 7.1
+   */
+  public void delete(DeleteRequest request) {
+<span class="nc" id="L68">    call(</span>
+<span class="nc" id="L69">      new PostRequest(path(&quot;delete&quot;))</span>
+<span class="nc" id="L70">        .setParam(&quot;webhook&quot;, request.getWebhook())</span>
+<span class="nc" id="L71">        .setMediaType(MediaTypes.JSON)).content();</span>
+<span class="nc" id="L72">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/webhooks/deliveries&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 6.2
+   */
+  public DeliveriesWsResponse deliveries(DeliveriesRequest request) {
+<span class="nc" id="L82">    return call(</span>
+<span class="nc" id="L83">      new GetRequest(path(&quot;deliveries&quot;))</span>
+<span class="nc" id="L84">        .setParam(&quot;ceTaskId&quot;, request.getCeTaskId())</span>
+<span class="nc" id="L85">        .setParam(&quot;componentKey&quot;, request.getComponentKey())</span>
+<span class="nc" id="L86">        .setParam(&quot;p&quot;, request.getP())</span>
+<span class="nc" id="L87">        .setParam(&quot;ps&quot;, request.getPs())</span>
+<span class="nc" id="L88">        .setParam(&quot;webhook&quot;, request.getWebhook()),</span>
+<span class="nc" id="L89">      DeliveriesWsResponse.parser());</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/webhooks/delivery&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 6.2
+   */
+  public DeliveryWsResponse delivery(DeliveryRequest request) {
+<span class="nc" id="L100">    return call(</span>
+<span class="nc" id="L101">      new GetRequest(path(&quot;delivery&quot;))</span>
+<span class="nc" id="L102">        .setParam(&quot;deliveryId&quot;, request.getDeliveryId()),</span>
+<span class="nc" id="L103">      DeliveryWsResponse.parser());</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/webhooks/list&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 7.1
+   */
+  public ListResponse list(ListRequest request) {
+<span class="nc" id="L114">    return call(</span>
+<span class="nc" id="L115">      new GetRequest(path(&quot;list&quot;))</span>
+<span class="nc" id="L116">        .setParam(&quot;project&quot;, request.getProject()),</span>
+<span class="nc" id="L117">      ListResponse.parser());</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/webhooks/update&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 7.1
+   */
+  public void update(UpdateRequest request) {
+<span class="nc" id="L128">    call(</span>
+<span class="nc" id="L129">      new PostRequest(path(&quot;update&quot;))</span>
+<span class="nc" id="L130">        .setParam(&quot;name&quot;, request.getName())</span>
+<span class="nc" id="L131">        .setParam(&quot;secret&quot;, request.getSecret())</span>
+<span class="nc" id="L132">        .setParam(&quot;url&quot;, request.getUrl())</span>
+<span class="nc" id="L133">        .setParam(&quot;webhook&quot;, request.getWebhook())</span>
+<span class="nc" id="L134">        .setMediaType(MediaTypes.JSON)).content();</span>
+<span class="nc" id="L135">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

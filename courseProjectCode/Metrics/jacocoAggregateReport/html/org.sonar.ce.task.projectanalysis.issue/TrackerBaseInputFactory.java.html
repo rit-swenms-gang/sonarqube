@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TrackerBaseInputFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.issue</a> &gt; <span class="el_source">TrackerBaseInputFactory.java</span></div><h1>TrackerBaseInputFactory.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.issue;
+
+import java.util.Collections;
+import java.util.List;
+import javax.annotation.Nullable;
+import org.sonar.ce.task.projectanalysis.component.Component;
+import org.sonar.ce.task.projectanalysis.filemove.MovedFilesRepository;
+import org.sonar.ce.task.projectanalysis.filemove.MovedFilesRepository.OriginalFile;
+import org.sonar.core.issue.DefaultIssue;
+import org.sonar.core.issue.tracking.Input;
+import org.sonar.db.DbClient;
+
+/**
+ * Factory of {@link Input} of base data for issue tracking. Data are lazy-loaded.
+ */
+public class TrackerBaseInputFactory extends BaseInputFactory {
+
+  private final ComponentIssuesLoader issuesLoader;
+  private final DbClient dbClient;
+  private final MovedFilesRepository movedFilesRepository;
+
+<span class="fc" id="L41">  public TrackerBaseInputFactory(ComponentIssuesLoader issuesLoader, DbClient dbClient, MovedFilesRepository movedFilesRepository) {</span>
+<span class="fc" id="L42">    this.issuesLoader = issuesLoader;</span>
+<span class="fc" id="L43">    this.dbClient = dbClient;</span>
+<span class="fc" id="L44">    this.movedFilesRepository = movedFilesRepository;</span>
+<span class="fc" id="L45">  }</span>
+
+  public Input&lt;DefaultIssue&gt; create(Component component) {
+<span class="pc bpc" id="L48" title="1 of 2 branches missed.">    if (component.getType() == Component.Type.PROJECT) {</span>
+<span class="nc" id="L49">      return new ProjectTrackerBaseLazyInput(dbClient, issuesLoader, component);</span>
+    }
+
+<span class="fc bfc" id="L52" title="All 2 branches covered.">    if (component.getType() == Component.Type.DIRECTORY) {</span>
+      // Folders have no issues
+<span class="fc" id="L54">      return new EmptyTrackerBaseLazyInput(dbClient, component);</span>
+    }
+
+<span class="fc" id="L57">    return new FileTrackerBaseLazyInput(dbClient, component, movedFilesRepository.getOriginalFile(component).orElse(null));</span>
+  }
+
+  private class FileTrackerBaseLazyInput extends BaseLazyInput {
+
+<span class="fc" id="L62">    private FileTrackerBaseLazyInput(DbClient dbClient, Component component, @Nullable OriginalFile originalFile) {</span>
+<span class="fc" id="L63">      super(dbClient, component, originalFile);</span>
+<span class="fc" id="L64">    }</span>
+
+    @Override
+    protected List&lt;DefaultIssue&gt; loadIssues() {
+<span class="fc" id="L68">      return issuesLoader.loadOpenIssues(effectiveUuid);</span>
+    }
+
+  }
+
+  private static class EmptyTrackerBaseLazyInput extends BaseLazyInput {
+
+    private EmptyTrackerBaseLazyInput(DbClient dbClient, Component component) {
+<span class="fc" id="L76">      super(dbClient, component, null);</span>
+<span class="fc" id="L77">    }</span>
+
+    @Override
+    protected List&lt;DefaultIssue&gt; loadIssues() {
+<span class="fc" id="L81">      return Collections.emptyList();</span>
+    }
+
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

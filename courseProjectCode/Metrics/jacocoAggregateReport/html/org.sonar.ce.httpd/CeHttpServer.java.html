@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CeHttpServer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.httpd</a> &gt; <span class="el_source">CeHttpServer.java</span></div><h1>CeHttpServer.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.httpd;
+
+import java.io.File;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.util.List;
+import java.util.Properties;
+import org.apache.http.HttpRequest;
+import org.apache.http.HttpResponse;
+import org.apache.http.HttpStatus;
+import org.apache.http.HttpVersion;
+import org.apache.http.impl.bootstrap.HttpServer;
+import org.apache.http.impl.bootstrap.ServerBootstrap;
+import org.apache.http.protocol.HttpContext;
+import org.apache.http.protocol.HttpRequestHandler;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.Startable;
+import org.sonar.process.sharedmemoryfile.DefaultProcessCommands;
+
+import static java.lang.Integer.parseInt;
+import static org.sonar.process.ProcessEntryPoint.PROPERTY_PROCESS_INDEX;
+import static org.sonar.process.ProcessEntryPoint.PROPERTY_SHARED_PATH;
+
+/**
+ * This HTTP server exports data required for display of System Info page (and the related web service).
+ * It listens on loopback address only, so it does not need to be secure (no HTTPS, no authentication).
+ */
+public class CeHttpServer implements Startable {
+  private final Properties processProps;
+  private final List&lt;HttpAction&gt; actions;
+  private HttpServer httpServer;
+
+<span class="fc" id="L52">  public CeHttpServer(Properties processProps, List&lt;HttpAction&gt; actions) {</span>
+<span class="fc" id="L53">    this.processProps = processProps;</span>
+<span class="fc" id="L54">    this.actions = actions;</span>
+<span class="fc" id="L55">  }</span>
+
+  @Override
+  public void start() {
+    try {
+<span class="fc" id="L60">      this.httpServer = buildHttpServer();</span>
+<span class="fc" id="L61">      httpServer.start();</span>
+<span class="fc" id="L62">      registerServerUrl();</span>
+<span class="nc" id="L63">    } catch (IOException e) {</span>
+<span class="nc" id="L64">      throw new IllegalStateException(&quot;Can not start local HTTP server for System Info monitoring&quot;, e);</span>
+<span class="fc" id="L65">    }</span>
+<span class="fc" id="L66">  }</span>
+
+  private HttpServer buildHttpServer() {
+<span class="fc" id="L69">    ServerBootstrap serverBootstrap = ServerBootstrap.bootstrap();</span>
+<span class="fc" id="L70">    serverBootstrap.setLocalAddress(InetAddress.getLoopbackAddress());</span>
+<span class="fc" id="L71">    actions.forEach(httpAction -&gt; serverBootstrap.registerHandler(httpAction.getContextPath(), httpAction));</span>
+<span class="fc" id="L72">    serverBootstrap.registerHandler(&quot;/*&quot;, new NotFoundHttpRequestHandler());</span>
+<span class="fc" id="L73">    return serverBootstrap.create();</span>
+  }
+
+  private void registerServerUrl() {
+<span class="fc" id="L77">    int processNumber = parseInt(processProps.getProperty(PROPERTY_PROCESS_INDEX));</span>
+<span class="fc" id="L78">    File shareDir = new File(processProps.getProperty(PROPERTY_SHARED_PATH));</span>
+<span class="fc" id="L79">    try (DefaultProcessCommands commands = DefaultProcessCommands.secondary(shareDir, processNumber)) {</span>
+<span class="fc" id="L80">      String url = getUrl();</span>
+<span class="fc" id="L81">      commands.setHttpUrl(url);</span>
+<span class="fc" id="L82">      LoggerFactory.getLogger(getClass()).debug(&quot;System Info HTTP server listening at {}&quot;, url);</span>
+    }
+<span class="fc" id="L84">  }</span>
+
+  @Override
+  public void stop() {
+<span class="fc" id="L88">    this.httpServer.stop();</span>
+<span class="fc" id="L89">  }</span>
+
+  // visible for testing
+  String getUrl() {
+<span class="fc" id="L93">    return &quot;http://&quot; + this.httpServer.getInetAddress().getHostAddress() + &quot;:&quot; + this.httpServer.getLocalPort();</span>
+  }
+
+  private static class NotFoundHttpRequestHandler implements HttpRequestHandler {
+    @Override
+    public void handle(HttpRequest request, HttpResponse response, HttpContext context) {
+<span class="fc" id="L99">      response.setStatusLine(HttpVersion.HTTP_1_1, HttpStatus.SC_NOT_FOUND);</span>
+<span class="fc" id="L100">    }</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

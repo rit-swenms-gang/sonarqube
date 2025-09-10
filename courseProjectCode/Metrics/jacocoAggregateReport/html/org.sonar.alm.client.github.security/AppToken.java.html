@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AppToken.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.alm.client.github.security</a> &gt; <span class="el_source">AppToken.java</span></div><h1>AppToken.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.alm.client.github.security;
+
+import javax.annotation.concurrent.Immutable;
+import org.sonar.auth.github.security.AccessToken;
+
+import static java.util.Objects.requireNonNull;
+
+/**
+ * JWT (Json Web Token) to authenticate API requests on behalf
+ * of the Github App.
+ *
+ * Token expires after {@link #EXPIRATION_PERIOD_IN_MINUTES} minutes.
+ *
+ * IMPORTANT
+ * Rate limit is 5'000 API requests per hour for ALL the clients
+ * of the Github App (all instances of {@link AppToken} from Compute Engines/web servers
+ * and from the other SonarSource services using the App). For example three calls with
+ * three different tokens will consume 3 hits. Remaining quota will be 4'997.
+ * When the token is expired, the rate limit is 60 calls per hour for the public IP
+ * of the machine. BE CAREFUL, THAT SHOULD NEVER OCCUR.
+ *
+ * See https://developer.github.com/apps/building-github-apps/authenticating-with-github-apps/#authenticating-as-a-github-app
+ */
+@Immutable
+public class AppToken implements AccessToken {
+
+  // maximum allowed by GitHub is 10 minutes but we use 9 minutes just in case clocks are not synchronized
+  static final int EXPIRATION_PERIOD_IN_MINUTES = 9;
+
+  private final String jwt;
+
+<span class="fc" id="L51">  public AppToken(String jwt) {</span>
+<span class="fc" id="L52">    this.jwt = requireNonNull(jwt, &quot;jwt can't be null&quot;);</span>
+<span class="fc" id="L53">  }</span>
+
+  @Override
+  public String getValue() {
+<span class="fc" id="L57">    return jwt;</span>
+  }
+
+  @Override
+  public String getAuthorizationHeaderPrefix() {
+<span class="fc" id="L62">    return &quot;Bearer&quot;;</span>
+  }
+
+  @Override
+  public boolean equals(Object o) {
+<span class="fc bfc" id="L67" title="All 2 branches covered.">    if (this == o) {</span>
+<span class="fc" id="L68">      return true;</span>
+    }
+<span class="pc bpc" id="L70" title="2 of 4 branches missed.">    if (o == null || getClass() != o.getClass()) {</span>
+<span class="nc" id="L71">      return false;</span>
+    }
+<span class="fc" id="L73">    AppToken appToken = (AppToken) o;</span>
+<span class="fc" id="L74">    return jwt.equals(appToken.jwt);</span>
+  }
+
+  @Override
+  public int hashCode() {
+<span class="fc" id="L79">    return jwt.hashCode();</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="fc" id="L84">    return jwt;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

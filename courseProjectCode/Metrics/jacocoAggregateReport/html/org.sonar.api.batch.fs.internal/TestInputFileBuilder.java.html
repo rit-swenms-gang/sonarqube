@@ -1,0 +1,297 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TestInputFileBuilder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.api.batch.fs.internal</a> &gt; <span class="el_source">TestInputFileBuilder.java</span></div><h1>TestInputFileBuilder.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.api.batch.fs.internal;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.StringReader;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.api.batch.bootstrap.ProjectDefinition;
+import org.sonar.api.batch.fs.InputFile;
+import org.sonar.api.notifications.AnalysisWarnings;
+import org.sonar.api.utils.PathUtils;
+
+/**
+ * Intended to be used in unit tests that need to create {@link InputFile}s.
+ * An InputFile is unambiguously identified by a &lt;b&gt;module key&lt;/b&gt; and a &lt;b&gt;relative path&lt;/b&gt;, so these parameters are mandatory.
+ * &lt;p&gt;
+ * A module base directory is only needed to construct absolute paths.
+ * &lt;p&gt;
+ * Examples of usage of the constructors:
+ *
+ * &lt;pre&gt;
+ * InputFile file1 = TestInputFileBuilder.create(&quot;module1&quot;, &quot;myfile.java&quot;).build();
+ * InputFile file2 = TestInputFileBuilder.create(&quot;&quot;, fs.baseDir(), myfile).build();
+ * &lt;/pre&gt;
+ * &lt;p&gt;
+ * file1 will have the &quot;module1&quot; as both module key and module base directory.
+ * file2 has an empty string as module key, and a relative path which is the path from the filesystem base directory to myfile.
+ *
+ * @since 6.3
+ */
+public class TestInputFileBuilder {
+<span class="fc" id="L56">  private static int batchId = 1;</span>
+
+  private final int id;
+  private final String relativePath;
+  private String oldRelativePath;
+  private final String projectKey;
+  @CheckForNull
+  private Path projectBaseDir;
+  private Path moduleBaseDir;
+  private String language;
+<span class="fc" id="L66">  private InputFile.Type type = InputFile.Type.MAIN;</span>
+  private InputFile.Status status;
+<span class="fc" id="L68">  private int lines = -1;</span>
+  private Charset charset;
+  private String hash;
+  private int nonBlankLines;
+<span class="fc" id="L72">  private int[] originalLineStartOffsets = new int[0];</span>
+<span class="fc" id="L73">  private int[] originalLineEndOffsets = new int[0];</span>
+<span class="fc" id="L74">  private int lastValidOffset = -1;</span>
+<span class="fc" id="L75">  private boolean publish = true;</span>
+  private String contents;
+<span class="fc" id="L77">  private boolean hidden = false;</span>
+
+  /**
+   * Create a InputFile identified by the given project key and relative path.
+   */
+  public TestInputFileBuilder(String projectKey, String relativePath) {
+<span class="fc" id="L83">    this(projectKey, relativePath, batchId++);</span>
+<span class="fc" id="L84">  }</span>
+
+  /**
+   * Create a InputFile with a given module key and module base directory.
+   * The relative path is generated comparing the file path to the module base directory.
+   * filePath must point to a file that is within the module base directory.
+   */
+<span class="fc" id="L91">  public TestInputFileBuilder(String projectKey, File moduleBaseDir, File filePath) {</span>
+<span class="fc" id="L92">    String relativePathStr = moduleBaseDir.toPath().relativize(filePath.toPath()).toString();</span>
+<span class="fc" id="L93">    this.projectKey = projectKey;</span>
+<span class="fc" id="L94">    setModuleBaseDir(moduleBaseDir.toPath());</span>
+<span class="fc" id="L95">    this.relativePath = PathUtils.sanitize(relativePathStr);</span>
+<span class="fc" id="L96">    this.id = batchId++;</span>
+<span class="fc" id="L97">  }</span>
+
+<span class="fc" id="L99">  public TestInputFileBuilder(String projectKey, String relativePath, int id) {</span>
+<span class="fc" id="L100">    this.projectKey = projectKey;</span>
+<span class="fc" id="L101">    setModuleBaseDir(Paths.get(projectKey));</span>
+<span class="fc" id="L102">    this.relativePath = PathUtils.sanitize(relativePath);</span>
+<span class="fc" id="L103">    this.id = id;</span>
+<span class="fc" id="L104">  }</span>
+
+<span class="fc" id="L106">  public TestInputFileBuilder(String projectKey, String relativePath, String oldRelativePath, int id) {</span>
+<span class="fc" id="L107">    this.projectKey = projectKey;</span>
+<span class="fc" id="L108">    setModuleBaseDir(Paths.get(projectKey));</span>
+<span class="fc" id="L109">    this.relativePath = PathUtils.sanitize(relativePath);</span>
+<span class="fc" id="L110">    this.oldRelativePath = oldRelativePath;</span>
+<span class="fc" id="L111">    this.id = id;</span>
+<span class="fc" id="L112">  }</span>
+
+  public static TestInputFileBuilder create(String moduleKey, File moduleBaseDir, File filePath) {
+<span class="fc" id="L115">    return new TestInputFileBuilder(moduleKey, moduleBaseDir, filePath);</span>
+  }
+
+  public static TestInputFileBuilder create(String moduleKey, String relativePath) {
+<span class="fc" id="L119">    return new TestInputFileBuilder(moduleKey, relativePath);</span>
+  }
+
+  public static int nextBatchId() {
+<span class="fc" id="L123">    return batchId++;</span>
+  }
+
+  public TestInputFileBuilder setProjectBaseDir(Path projectBaseDir) {
+<span class="fc" id="L127">    this.projectBaseDir = normalize(projectBaseDir);</span>
+<span class="fc" id="L128">    return this;</span>
+  }
+
+  public TestInputFileBuilder setModuleBaseDir(Path moduleBaseDir) {
+<span class="fc" id="L132">    this.moduleBaseDir = normalize(moduleBaseDir);</span>
+<span class="fc" id="L133">    return this;</span>
+  }
+
+  private static Path normalize(Path path) {
+    try {
+<span class="fc" id="L138">      return path.normalize().toRealPath(LinkOption.NOFOLLOW_LINKS);</span>
+<span class="fc" id="L139">    } catch (IOException e) {</span>
+<span class="fc" id="L140">      return path.normalize();</span>
+    }
+  }
+
+  public TestInputFileBuilder setLanguage(@Nullable String language) {
+<span class="fc" id="L145">    this.language = language;</span>
+<span class="fc" id="L146">    return this;</span>
+  }
+
+  public TestInputFileBuilder setType(InputFile.Type type) {
+<span class="fc" id="L150">    this.type = type;</span>
+<span class="fc" id="L151">    return this;</span>
+  }
+
+  public TestInputFileBuilder setStatus(InputFile.Status status) {
+<span class="fc" id="L155">    this.status = status;</span>
+<span class="fc" id="L156">    return this;</span>
+  }
+
+  public TestInputFileBuilder setLines(int lines) {
+<span class="fc" id="L160">    this.lines = lines;</span>
+<span class="fc" id="L161">    return this;</span>
+  }
+
+  public TestInputFileBuilder setCharset(Charset charset) {
+<span class="fc" id="L165">    this.charset = charset;</span>
+<span class="fc" id="L166">    return this;</span>
+  }
+
+  public TestInputFileBuilder setHash(String hash) {
+<span class="fc" id="L170">    this.hash = hash;</span>
+<span class="fc" id="L171">    return this;</span>
+  }
+
+  /**
+   * Set contents of the file and calculates metadata from it.
+   * The contents will be returned by {@link InputFile#contents()} and {@link InputFile#inputStream()} and can be
+   * inconsistent with the actual physical file pointed by {@link InputFile#path()}, {@link InputFile#absolutePath()}, etc.
+   */
+  public TestInputFileBuilder setContents(String content) {
+<span class="fc" id="L180">    this.contents = content;</span>
+<span class="fc" id="L181">    initMetadata(content);</span>
+<span class="fc" id="L182">    return this;</span>
+  }
+
+  public TestInputFileBuilder setNonBlankLines(int nonBlankLines) {
+<span class="fc" id="L186">    this.nonBlankLines = nonBlankLines;</span>
+<span class="fc" id="L187">    return this;</span>
+  }
+
+  public TestInputFileBuilder setLastValidOffset(int lastValidOffset) {
+<span class="fc" id="L191">    this.lastValidOffset = lastValidOffset;</span>
+<span class="fc" id="L192">    return this;</span>
+  }
+
+  public TestInputFileBuilder setOriginalLineStartOffsets(int[] originalLineStartOffsets) {
+<span class="fc" id="L196">    this.originalLineStartOffsets = originalLineStartOffsets;</span>
+<span class="fc" id="L197">    return this;</span>
+  }
+
+  public TestInputFileBuilder setOriginalLineEndOffsets(int[] originalLineEndOffsets) {
+<span class="fc" id="L201">    this.originalLineEndOffsets = originalLineEndOffsets;</span>
+<span class="fc" id="L202">    return this;</span>
+  }
+
+  public TestInputFileBuilder setPublish(boolean publish) {
+<span class="fc" id="L206">    this.publish = publish;</span>
+<span class="fc" id="L207">    return this;</span>
+  }
+
+  public TestInputFileBuilder setHidden(boolean isHiddenFile) {
+<span class="fc" id="L211">    this.hidden = isHiddenFile;</span>
+<span class="fc" id="L212">    return this;</span>
+  }
+
+  public TestInputFileBuilder setMetadata(Metadata metadata) {
+<span class="fc" id="L216">    this.setLines(metadata.lines());</span>
+<span class="fc" id="L217">    this.setLastValidOffset(metadata.lastValidOffset());</span>
+<span class="fc" id="L218">    this.setNonBlankLines(metadata.nonBlankLines());</span>
+<span class="fc" id="L219">    this.setHash(metadata.hash());</span>
+<span class="fc" id="L220">    this.setOriginalLineStartOffsets(metadata.originalLineStartOffsets());</span>
+<span class="fc" id="L221">    this.setOriginalLineEndOffsets(metadata.originalLineEndOffsets());</span>
+<span class="fc" id="L222">    return this;</span>
+  }
+
+  public TestInputFileBuilder initMetadata(String content) {
+<span class="pc" id="L226">    AnalysisWarnings analysisWarnings = warning -&gt; {};</span>
+<span class="fc" id="L227">    return setMetadata(new FileMetadata(analysisWarnings).readMetadata(new StringReader(content)));</span>
+  }
+
+  public DefaultInputFile build() {
+<span class="fc" id="L231">    Path absolutePath = moduleBaseDir.resolve(relativePath);</span>
+<span class="fc bfc" id="L232" title="All 2 branches covered.">    if (projectBaseDir == null) {</span>
+<span class="fc" id="L233">      projectBaseDir = moduleBaseDir;</span>
+    }
+<span class="fc" id="L235">    String projectRelativePath = projectBaseDir.relativize(absolutePath).toString();</span>
+<span class="fc" id="L236">    DefaultIndexedFile indexedFile = new DefaultIndexedFile(absolutePath, projectKey, projectRelativePath, relativePath, type, language, id, new SensorStrategy(), oldRelativePath,</span>
+      hidden);
+<span class="fc" id="L238">    DefaultInputFile inputFile = new DefaultInputFile(indexedFile,</span>
+<span class="fc" id="L239">      f -&gt; f.setMetadata(new Metadata(lines, nonBlankLines, hash, originalLineStartOffsets, originalLineEndOffsets, lastValidOffset)),</span>
+<span class="nc" id="L240">      contents, f -&gt; {});</span>
+<span class="fc" id="L241">    inputFile.setStatus(status);</span>
+<span class="fc" id="L242">    inputFile.setCharset(charset);</span>
+<span class="fc" id="L243">    inputFile.setPublished(publish);</span>
+<span class="fc" id="L244">    return inputFile;</span>
+  }
+
+  public static DefaultInputModule newDefaultInputModule(String moduleKey, File baseDir) {
+<span class="fc" id="L248">    ProjectDefinition definition = ProjectDefinition.create()</span>
+<span class="fc" id="L249">      .setKey(moduleKey)</span>
+<span class="fc" id="L250">      .setBaseDir(baseDir)</span>
+<span class="fc" id="L251">      .setWorkDir(new File(baseDir, &quot;.sonar&quot;));</span>
+<span class="fc" id="L252">    return newDefaultInputModule(definition);</span>
+  }
+
+  public static DefaultInputModule newDefaultInputModule(ProjectDefinition projectDefinition) {
+<span class="fc" id="L256">    return new DefaultInputModule(projectDefinition, TestInputFileBuilder.nextBatchId());</span>
+  }
+
+  public static DefaultInputModule newDefaultInputModule(AbstractProjectOrModule parent, String key) throws IOException {
+<span class="nc" id="L260">    Path basedir = parent.getBaseDir().resolve(key);</span>
+<span class="nc" id="L261">    Files.createDirectory(basedir);</span>
+<span class="nc" id="L262">    return newDefaultInputModule(key, basedir.toFile());</span>
+  }
+
+  public static DefaultInputProject newDefaultInputProject(String projectKey, File baseDir) {
+<span class="fc" id="L266">    ProjectDefinition definition = ProjectDefinition.create()</span>
+<span class="fc" id="L267">      .setKey(projectKey)</span>
+<span class="fc" id="L268">      .setBaseDir(baseDir)</span>
+<span class="fc" id="L269">      .setWorkDir(new File(baseDir, &quot;.sonar&quot;));</span>
+<span class="fc" id="L270">    return newDefaultInputProject(definition);</span>
+  }
+
+  public static DefaultInputProject newDefaultInputProject(ProjectDefinition projectDefinition) {
+<span class="fc" id="L274">    return new DefaultInputProject(projectDefinition, TestInputFileBuilder.nextBatchId());</span>
+  }
+
+  public static DefaultInputProject newDefaultInputProject(String key, Path baseDir) throws IOException {
+<span class="nc" id="L278">    Files.createDirectory(baseDir);</span>
+<span class="nc" id="L279">    return newDefaultInputProject(key, baseDir.toFile());</span>
+  }
+
+  public static DefaultInputDir newDefaultInputDir(AbstractProjectOrModule module, String relativePath) throws IOException {
+<span class="nc" id="L283">    Path basedir = module.getBaseDir().resolve(relativePath);</span>
+<span class="nc" id="L284">    Files.createDirectory(basedir);</span>
+<span class="nc" id="L285">    return new DefaultInputDir(module.key(), relativePath)</span>
+<span class="nc" id="L286">      .setModuleBaseDir(module.getBaseDir());</span>
+  }
+
+  public static DefaultInputFile newDefaultInputFile(Path projectBaseDir, AbstractProjectOrModule module, String relativePath) {
+<span class="nc" id="L290">    return new TestInputFileBuilder(module.key(), relativePath)</span>
+<span class="nc" id="L291">      .setStatus(InputFile.Status.SAME)</span>
+<span class="nc" id="L292">      .setProjectBaseDir(projectBaseDir)</span>
+<span class="nc" id="L293">      .setModuleBaseDir(module.getBaseDir())</span>
+<span class="nc" id="L294">      .build();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

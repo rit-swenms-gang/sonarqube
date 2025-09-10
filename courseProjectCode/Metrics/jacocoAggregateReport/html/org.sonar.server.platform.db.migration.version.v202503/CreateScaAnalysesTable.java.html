@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CreateScaAnalysesTable.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform.db.migration.version.v202503</a> &gt; <span class="el_source">CreateScaAnalysesTable.java</span></div><h1>CreateScaAnalysesTable.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform.db.migration.version.v202503;
+
+import java.sql.SQLException;
+import java.util.List;
+import org.sonar.db.Database;
+import org.sonar.server.platform.db.migration.sql.CreateTableBuilder;
+import org.sonar.server.platform.db.migration.step.CreateTableChange;
+
+import static org.sonar.server.platform.db.migration.def.BigIntegerColumnDef.newBigIntegerColumnDefBuilder;
+import static org.sonar.server.platform.db.migration.def.ClobColumnDef.newClobColumnDefBuilder;
+import static org.sonar.server.platform.db.migration.def.VarcharColumnDef.UUID_SIZE;
+import static org.sonar.server.platform.db.migration.def.VarcharColumnDef.newVarcharColumnDefBuilder;
+
+public class CreateScaAnalysesTable extends CreateTableChange {
+  public static final String TABLE_NAME = &quot;sca_analyses&quot;;
+  public static final int STATUS_COLUMN_SIZE = 40;
+  public static final int FAILED_REASON_COLUMN_SIZE = 255;
+
+  protected CreateScaAnalysesTable(Database db) {
+<span class="fc" id="L39">    super(db, TABLE_NAME);</span>
+<span class="fc" id="L40">  }</span>
+
+  @Override
+  public void execute(Context context, String tableName) throws SQLException {
+<span class="fc" id="L44">    List&lt;String&gt; createQuery = new CreateTableBuilder(getDialect(), tableName)</span>
+<span class="fc" id="L45">      .addPkColumn(newVarcharColumnDefBuilder().setColumnName(&quot;uuid&quot;).setIsNullable(false).setLimit(UUID_SIZE).build())</span>
+<span class="fc" id="L46">      .addColumn(newVarcharColumnDefBuilder().setColumnName(&quot;component_uuid&quot;).setIsNullable(false).setLimit(UUID_SIZE).build())</span>
+<span class="fc" id="L47">      .addColumn(newVarcharColumnDefBuilder().setColumnName(&quot;status&quot;).setIsNullable(false).setLimit(STATUS_COLUMN_SIZE).build())</span>
+<span class="fc" id="L48">      .addColumn(newVarcharColumnDefBuilder().setColumnName(&quot;failed_reason&quot;).setIsNullable(true).setLimit(FAILED_REASON_COLUMN_SIZE).build())</span>
+<span class="fc" id="L49">      .addColumn(newClobColumnDefBuilder().setColumnName(&quot;errors&quot;).setIsNullable(false).build())</span>
+<span class="fc" id="L50">      .addColumn(newClobColumnDefBuilder().setColumnName(&quot;parsed_files&quot;).setIsNullable(false).build())</span>
+<span class="fc" id="L51">      .addColumn(newBigIntegerColumnDefBuilder().setColumnName(&quot;created_at&quot;).setIsNullable(false).build())</span>
+<span class="fc" id="L52">      .addColumn(newBigIntegerColumnDefBuilder().setColumnName(&quot;updated_at&quot;).setIsNullable(false).build())</span>
+<span class="fc" id="L53">      .build();</span>
+
+<span class="fc" id="L55">    context.execute(createQuery);</span>
+<span class="fc" id="L56">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

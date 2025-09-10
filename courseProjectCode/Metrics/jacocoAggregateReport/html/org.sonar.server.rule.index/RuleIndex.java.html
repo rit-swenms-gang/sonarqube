@@ -1,0 +1,882 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RuleIndex.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.rule.index</a> &gt; <span class="el_source">RuleIndex.java</span></div><h1>RuleIndex.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.rule.index;
+
+import com.google.common.base.Joiner;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.Operator;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.join.aggregations.JoinAggregationBuilders;
+import org.elasticsearch.join.query.HasParentQueryBuilder;
+import org.elasticsearch.join.query.JoinQueryBuilders;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
+import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortOrder;
+import org.jetbrains.annotations.NotNull;
+import org.sonar.api.config.Configuration;
+import org.sonar.api.issue.impact.SoftwareQuality;
+import org.sonar.api.rule.RuleStatus;
+import org.sonar.api.rule.Severity;
+import org.sonar.core.rule.RuleType;
+import org.sonar.api.utils.System2;
+import org.sonar.db.qualityprofile.QProfileDto;
+import org.sonar.server.es.EsClient;
+import org.sonar.server.es.EsUtils;
+import org.sonar.server.es.SearchIdResult;
+import org.sonar.server.es.SearchOptions;
+import org.sonar.server.es.StickyFacetBuilder;
+import org.sonar.server.es.newindex.DefaultIndexSettings;
+import org.sonar.server.es.textsearch.JavaTokenizer;
+import org.sonar.server.security.SecurityStandards;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.lang.Boolean.FALSE;
+import static java.lang.Boolean.TRUE;
+import static java.util.Collections.emptyList;
+import static java.util.Optional.ofNullable;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.filters;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.reverseNested;
+import static org.sonar.core.rule.RuleType.SECURITY_HOTSPOT;
+import static org.sonar.core.rule.RuleType.VULNERABILITY;
+import static org.sonar.core.config.MQRModeConstants.MULTI_QUALITY_MODE_DEFAULT_VALUE;
+import static org.sonar.core.config.MQRModeConstants.MULTI_QUALITY_MODE_ENABLED;
+import static org.sonar.server.es.EsUtils.SCROLL_TIME_IN_MINUTES;
+import static org.sonar.server.es.EsUtils.optimizeScrollRequest;
+import static org.sonar.server.es.EsUtils.scrollIds;
+import static org.sonar.server.es.IndexType.FIELD_INDEX_TYPE;
+import static org.sonar.server.es.StickyFacetBuilder.FACET_DEFAULT_SIZE;
+import static org.sonar.server.es.newindex.DefaultIndexSettingsElement.ENGLISH_HTML_ANALYZER;
+import static org.sonar.server.es.newindex.DefaultIndexSettingsElement.SEARCH_GRAMS_ANALYZER;
+import static org.sonar.server.es.newindex.DefaultIndexSettingsElement.SEARCH_WORDS_ANALYZER;
+import static org.sonar.server.es.newindex.DefaultIndexSettingsElement.SORTABLE_ANALYZER;
+import static org.sonar.server.issue.index.IssueIndexDefinition.FIELD_ISSUE_IMPACTS;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_ACTIVE_RULE_IMPACTS;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_ACTIVE_RULE_IMPACT_SEVERITY;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_ACTIVE_RULE_INHERITANCE;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_ACTIVE_RULE_PROFILE_UUID;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_ACTIVE_RULE_SEVERITY;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_PRIORITIZED_RULE;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_CLEAN_CODE_ATTRIBUTE_CATEGORY;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_CREATED_AT;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_CWE;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_HTML_DESCRIPTION;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_IMPACTS;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_IMPACT_SEVERITY;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_IMPACT_SOFTWARE_QUALITY;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_INTERNAL_KEY;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_IS_EXTERNAL;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_IS_TEMPLATE;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_KEY;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_LANGUAGE;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_NAME;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_OWASP_MOBILE_TOP_10_2024;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_OWASP_TOP_10;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_OWASP_TOP_10_2021;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_REPOSITORY;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_RULE_KEY;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_SANS_TOP_25;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_SEVERITY;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_SONARSOURCE_SECURITY;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_STATUS;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_TAGS;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_TEMPLATE_KEY;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_TYPE;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_UPDATED_AT;
+import static org.sonar.server.rule.index.RuleIndexDefinition.SUB_FIELD_SEVERITY;
+import static org.sonar.server.rule.index.RuleIndexDefinition.SUB_FIELD_SOFTWARE_QUALITY;
+import static org.sonar.server.rule.index.RuleIndexDefinition.TYPE_ACTIVE_RULE;
+import static org.sonar.server.rule.index.RuleIndexDefinition.TYPE_RULE;
+
+/**
+ * The unique entry-point to interact with Elasticsearch index &quot;rules&quot;.
+ * All the requests are listed here.
+ */
+public class RuleIndex {
+
+  public static final String FACET_LANGUAGES = &quot;languages&quot;;
+  public static final String FACET_TAGS = &quot;tags&quot;;
+  public static final String FACET_REPOSITORIES = &quot;repositories&quot;;
+  public static final String FACET_SEVERITIES = &quot;severities&quot;;
+  public static final String FACET_ACTIVE_SEVERITIES = &quot;active_severities&quot;;
+  public static final String FACET_STATUSES = &quot;statuses&quot;;
+  public static final String FACET_TYPES = &quot;types&quot;;
+  public static final String FACET_OLD_DEFAULT = &quot;true&quot;;
+  public static final String FACET_CWE = &quot;cwe&quot;;
+
+  /**
+   * @deprecated SansTop25 report is outdated, it has been completely deprecated in version 10.0 and will be removed from version 11.0
+   */
+  @Deprecated(since = &quot;10.0&quot;, forRemoval = true)
+  public static final String FACET_SANS_TOP_25 = &quot;sansTop25&quot;;
+  public static final String FACET_OWASP_TOP_10 = &quot;owaspTop10&quot;;
+  public static final String FACET_OWASP_TOP_10_2021 = &quot;owaspTop10-2021&quot;;
+  public static final String FACET_OWASP_MOBILE_TOP_10_2024 = &quot;owaspMobileTop10-2024&quot;;
+  public static final String FACET_SONARSOURCE_SECURITY = &quot;sonarsourceSecurity&quot;;
+  public static final String FACET_CLEAN_CODE_ATTRIBUTE_CATEGORY = &quot;cleanCodeAttributeCategories&quot;;
+  public static final String FACET_IMPACT_SOFTWARE_QUALITY = &quot;impactSoftwareQualities&quot;;
+  public static final String FACET_IMPACT_SEVERITY = &quot;impactSeverities&quot;;
+  public static final String FACET_ACTIVE_IMPACT_SEVERITY = &quot;active_impactSeverities&quot;;
+
+  private static final BoolQueryBuilder SECURITY_IMPACT_AND_HOTSPOT_FILTER =
+<span class="fc" id="L168">    boolQuery()</span>
+<span class="fc" id="L169">      .should(</span>
+<span class="fc" id="L170">        nestedQuery(FIELD_RULE_IMPACTS, termsQuery(FIELD_RULE_IMPACT_SOFTWARE_QUALITY, SoftwareQuality.SECURITY.name()), ScoreMode.Avg))</span>
+<span class="fc" id="L171">      .should(termsQuery(FIELD_RULE_TYPE, SECURITY_HOTSPOT.name()))</span>
+<span class="fc" id="L172">      .minimumShouldMatch(1);</span>
+
+
+  private static final int MAX_FACET_SIZE = 100;
+
+<span class="fc" id="L177">  public static final List&lt;String&gt; ALL_STATUSES_EXCEPT_REMOVED = Arrays.stream(RuleStatus.values())</span>
+<span class="fc bfc" id="L178" title="All 2 branches covered.">    .filter(status -&gt; !RuleStatus.REMOVED.equals(status))</span>
+<span class="fc" id="L179">    .map(RuleStatus::toString)</span>
+<span class="fc" id="L180">    .toList();</span>
+
+  private static final String AGGREGATION_NAME_FOR_TAGS = &quot;tagsAggregation&quot;;
+
+  private final EsClient client;
+  private final System2 system2;
+  private final Configuration config;
+
+
+<span class="fc" id="L189">  public RuleIndex(EsClient client, System2 system2, Configuration config) {</span>
+<span class="fc" id="L190">    this.client = client;</span>
+<span class="fc" id="L191">    this.system2 = system2;</span>
+<span class="fc" id="L192">    this.config = config;</span>
+<span class="fc" id="L193">  }</span>
+
+  public SearchIdResult&lt;String&gt; search(RuleQuery query, SearchOptions options) {
+<span class="fc" id="L196">    SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();</span>
+
+<span class="fc" id="L198">    QueryBuilder qb = buildQuery(query);</span>
+<span class="fc" id="L199">    Map&lt;String, QueryBuilder&gt; filters = buildFilters(query);</span>
+
+<span class="fc bfc" id="L201" title="All 2 branches covered.">    if (!options.getFacets().isEmpty()) {</span>
+<span class="fc bfc" id="L202" title="All 2 branches covered.">      for (AggregationBuilder aggregation : getFacets(query, options, qb, filters).values()) {</span>
+<span class="fc" id="L203">        sourceBuilder.aggregation(aggregation);</span>
+<span class="fc" id="L204">      }</span>
+    }
+
+<span class="fc" id="L207">    setSorting(query, sourceBuilder);</span>
+<span class="fc" id="L208">    setPagination(options, sourceBuilder);</span>
+
+<span class="fc" id="L210">    BoolQueryBuilder fb = boolQuery();</span>
+<span class="fc bfc" id="L211" title="All 2 branches covered.">    for (QueryBuilder filterBuilder : filters.values()) {</span>
+<span class="fc" id="L212">      fb.must(filterBuilder);</span>
+<span class="fc" id="L213">    }</span>
+
+<span class="fc" id="L215">    sourceBuilder.query(boolQuery().must(qb).filter(fb));</span>
+
+<span class="fc" id="L217">    SearchRequest esSearch = EsClient.prepareSearch(TYPE_RULE)</span>
+<span class="fc" id="L218">      .source(sourceBuilder);</span>
+
+<span class="fc" id="L220">    return new SearchIdResult&lt;&gt;(client.search(esSearch), input -&gt; input, system2.getDefaultTimeZone().toZoneId());</span>
+  }
+
+  /**
+   * Return all rule uuids matching the search query, without pagination nor facets
+   */
+  public Iterator&lt;String&gt; searchAll(RuleQuery query) {
+<span class="fc" id="L227">    SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();</span>
+
+<span class="fc" id="L229">    optimizeScrollRequest(sourceBuilder);</span>
+<span class="fc" id="L230">    QueryBuilder qb = buildQuery(query);</span>
+<span class="fc" id="L231">    Map&lt;String, QueryBuilder&gt; filters = buildFilters(query);</span>
+
+<span class="fc" id="L233">    BoolQueryBuilder fb = boolQuery();</span>
+<span class="fc bfc" id="L234" title="All 2 branches covered.">    for (QueryBuilder filterBuilder : filters.values()) {</span>
+<span class="fc" id="L235">      fb.must(filterBuilder);</span>
+<span class="fc" id="L236">    }</span>
+
+<span class="fc" id="L238">    sourceBuilder.query(boolQuery().must(qb).filter(fb));</span>
+
+<span class="fc" id="L240">    SearchRequest esSearch = EsClient.prepareSearch(TYPE_RULE)</span>
+<span class="fc" id="L241">      .scroll(TimeValue.timeValueMinutes(SCROLL_TIME_IN_MINUTES))</span>
+<span class="fc" id="L242">      .source(sourceBuilder);</span>
+
+<span class="fc" id="L244">    SearchResponse response = client.search(esSearch);</span>
+<span class="fc" id="L245">    return scrollIds(client, response, i -&gt; i);</span>
+  }
+
+  /* Build main query (search based) */
+  private static QueryBuilder buildQuery(RuleQuery query) {
+
+    // No contextual query case
+<span class="fc" id="L252">    String queryText = query.getQueryText();</span>
+<span class="fc bfc" id="L253" title="All 2 branches covered.">    if (StringUtils.isEmpty(queryText)) {</span>
+<span class="fc" id="L254">      return matchAllQuery();</span>
+    }
+
+    // Build RuleBased contextual query
+<span class="fc" id="L258">    BoolQueryBuilder qb = boolQuery();</span>
+
+<span class="fc" id="L260">    BoolQueryBuilder textQuery = boolQuery();</span>
+<span class="fc" id="L261">    JavaTokenizer.split(queryText)</span>
+<span class="fc" id="L262">      .stream().map(token -&gt; boolQuery().should(</span>
+<span class="fc" id="L263">        matchQuery(</span>
+<span class="fc" id="L264">          SEARCH_GRAMS_ANALYZER.subField(FIELD_RULE_NAME),</span>
+<span class="fc" id="L265">          StringUtils.left(token, DefaultIndexSettings.MAXIMUM_NGRAM_LENGTH)).boost(20F))</span>
+<span class="fc" id="L266">        .should(</span>
+<span class="fc" id="L267">          matchPhraseQuery(</span>
+<span class="fc" id="L268">            ENGLISH_HTML_ANALYZER.subField(FIELD_RULE_HTML_DESCRIPTION),</span>
+<span class="fc" id="L269">            token).boost(3F)))</span>
+<span class="fc" id="L270">      .forEach(textQuery::must);</span>
+<span class="fc" id="L271">    qb.should(textQuery.boost(20F));</span>
+
+    // Match and partial Match queries
+    // Search by key uses the &quot;sortable&quot; sub-field as it requires to be case-insensitive (lower-case filtering)
+<span class="fc" id="L275">    qb.should(matchQuery(SORTABLE_ANALYZER.subField(FIELD_RULE_KEY), queryText).operator(Operator.AND).boost(30F));</span>
+<span class="fc" id="L276">    qb.should(matchQuery(SORTABLE_ANALYZER.subField(FIELD_RULE_RULE_KEY), queryText).operator(Operator.AND).boost(15F));</span>
+<span class="fc" id="L277">    qb.should(termQuery(FIELD_RULE_LANGUAGE, queryText, 3F));</span>
+<span class="fc" id="L278">    return qb;</span>
+  }
+
+  private static QueryBuilder termQuery(String field, String query, float boost) {
+<span class="fc" id="L282">    return QueryBuilders.multiMatchQuery(query,</span>
+<span class="fc" id="L283">      field, SEARCH_WORDS_ANALYZER.subField(field))</span>
+<span class="fc" id="L284">      .operator(Operator.AND)</span>
+<span class="fc" id="L285">      .boost(boost);</span>
+  }
+
+  /* Build main filter (match based) */
+  private Map&lt;String, QueryBuilder&gt; buildFilters(RuleQuery query) {
+<span class="fc" id="L290">    Map&lt;String, QueryBuilder&gt; filters = new HashMap&lt;&gt;();</span>
+
+    /* Add enforced filter on main type Rule */
+<span class="fc" id="L293">    filters.put(</span>
+      FIELD_INDEX_TYPE,
+<span class="fc" id="L295">      boolQuery().must(QueryBuilders.termsQuery(FIELD_INDEX_TYPE, TYPE_RULE.getType())));</span>
+
+    /* Add enforced filter on rules that are REMOVED */
+<span class="fc" id="L298">    filters.put(FIELD_RULE_STATUS,</span>
+<span class="fc" id="L299">      boolQuery().mustNot(</span>
+<span class="fc" id="L300">        QueryBuilders.termQuery(FIELD_RULE_STATUS,</span>
+<span class="fc" id="L301">          RuleStatus.REMOVED.toString())));</span>
+
+<span class="fc" id="L303">    addFilter(filters, FIELD_RULE_INTERNAL_KEY, query.getInternalKey());</span>
+
+<span class="fc" id="L305">    addFilter(filters, FIELD_RULE_RULE_KEY, query.getRuleKey());</span>
+
+<span class="fc" id="L307">    addFilter(filters, query.getLanguages(), FIELD_RULE_LANGUAGE);</span>
+
+<span class="fc" id="L309">    addFilter(filters, query.getRepositories(), FIELD_RULE_REPOSITORY);</span>
+
+<span class="fc" id="L311">    addFilter(filters, query.getSeverities(), FIELD_RULE_SEVERITY);</span>
+
+<span class="fc" id="L313">    addSecurityStandardFilter(filters, FIELD_RULE_CWE, query.getCwe());</span>
+
+<span class="fc" id="L315">    addSecurityStandardFilter(filters, FIELD_RULE_OWASP_TOP_10, query.getOwaspTop10());</span>
+
+<span class="fc" id="L317">    addSecurityStandardFilter(filters, FIELD_RULE_OWASP_TOP_10_2021, query.getOwaspTop10For2021());</span>
+
+<span class="fc" id="L319">    addSecurityStandardFilter(filters, FIELD_RULE_OWASP_MOBILE_TOP_10_2024, query.getOwaspMobileTop10For2024());</span>
+
+<span class="fc" id="L321">    addSecurityStandardFilter(filters, FIELD_RULE_SANS_TOP_25, query.getSansTop25());</span>
+
+<span class="fc" id="L323">    addSecurityStandardFilter(filters, FIELD_RULE_SONARSOURCE_SECURITY, query.getSonarsourceSecurity());</span>
+
+<span class="fc" id="L325">    addFilter(filters, FIELD_RULE_KEY, query.getKey());</span>
+
+<span class="fc bfc" id="L327" title="All 2 branches covered.">    if (isNotEmpty(query.getTags())) {</span>
+<span class="fc" id="L328">      filters.put(FIELD_RULE_TAGS, buildTagsFilter(query.getTags()));</span>
+    }
+
+<span class="fc" id="L331">    Collection&lt;RuleType&gt; types = query.getTypes();</span>
+<span class="fc bfc" id="L332" title="All 2 branches covered.">    if (isNotEmpty(types)) {</span>
+<span class="fc" id="L333">      List&lt;String&gt; typeNames = types.stream().map(RuleType::toString).toList();</span>
+<span class="fc" id="L334">      filters.put(FIELD_RULE_TYPE,</span>
+<span class="fc" id="L335">        QueryBuilders.termsQuery(FIELD_RULE_TYPE, typeNames));</span>
+    }
+
+<span class="fc bfc" id="L338" title="All 2 branches covered.">    if (query.getAvailableSinceLong() != null) {</span>
+<span class="fc" id="L339">      filters.put(&quot;availableSince&quot;, QueryBuilders.rangeQuery(FIELD_RULE_CREATED_AT)</span>
+<span class="fc" id="L340">        .gte(query.getAvailableSinceLong()));</span>
+    }
+
+<span class="fc bfc" id="L343" title="All 2 branches covered.">    if (isNotEmpty(query.getStatuses())) {</span>
+<span class="fc" id="L344">      Collection&lt;String&gt; stringStatus = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L345" title="All 2 branches covered.">      for (RuleStatus status : query.getStatuses()) {</span>
+<span class="fc" id="L346">        stringStatus.add(status.name());</span>
+<span class="fc" id="L347">      }</span>
+<span class="fc" id="L348">      filters.put(FIELD_RULE_STATUS,</span>
+<span class="fc" id="L349">        QueryBuilders.termsQuery(FIELD_RULE_STATUS, stringStatus));</span>
+    }
+
+<span class="fc" id="L352">    Boolean isTemplate = query.isTemplate();</span>
+<span class="fc bfc" id="L353" title="All 2 branches covered.">    if (isTemplate != null) {</span>
+<span class="fc" id="L354">      filters.put(FIELD_RULE_IS_TEMPLATE,</span>
+<span class="fc" id="L355">        QueryBuilders.termQuery(FIELD_RULE_IS_TEMPLATE, Boolean.toString(isTemplate)));</span>
+    }
+
+<span class="fc" id="L358">    boolean includeExternal = query.includeExternal();</span>
+<span class="fc bfc" id="L359" title="All 2 branches covered.">    if (!includeExternal) {</span>
+<span class="fc" id="L360">      filters.put(FIELD_RULE_IS_EXTERNAL,</span>
+<span class="fc" id="L361">        QueryBuilders.termQuery(FIELD_RULE_IS_EXTERNAL, false));</span>
+    }
+
+<span class="fc" id="L364">    String template = query.templateKey();</span>
+<span class="fc bfc" id="L365" title="All 2 branches covered.">    if (template != null) {</span>
+<span class="fc" id="L366">      filters.put(FIELD_RULE_TEMPLATE_KEY,</span>
+<span class="fc" id="L367">        QueryBuilders.termQuery(FIELD_RULE_TEMPLATE_KEY, template));</span>
+    }
+
+    /* Implementation of activation query */
+<span class="fc" id="L371">    QProfileDto profile = query.getQProfile();</span>
+<span class="fc bfc" id="L372" title="All 4 branches covered.">    if (query.getActivation() != null &amp;&amp; profile != null) {</span>
+<span class="fc" id="L373">      QueryBuilder childQuery = buildActivationFilter(query, profile);</span>
+
+<span class="fc bfc" id="L375" title="All 2 branches covered.">      if (TRUE.equals(query.getActivation())) {</span>
+<span class="fc" id="L376">        filters.put(&quot;activation&quot;,</span>
+<span class="fc" id="L377">          JoinQueryBuilders.hasChildQuery(TYPE_ACTIVE_RULE.getName(),</span>
+            childQuery, ScoreMode.None));
+<span class="pc bpc" id="L379" title="1 of 2 branches missed.">      } else if (FALSE.equals(query.getActivation())) {</span>
+<span class="fc" id="L380">        filters.put(&quot;activation&quot;,</span>
+<span class="fc" id="L381">          boolQuery().mustNot(</span>
+<span class="fc" id="L382">            JoinQueryBuilders.hasChildQuery(TYPE_ACTIVE_RULE.getName(),</span>
+              childQuery, ScoreMode.None)));
+      }
+<span class="fc" id="L385">      QProfileDto compareToQProfile = query.getCompareToQProfile();</span>
+<span class="fc bfc" id="L386" title="All 2 branches covered.">      if (compareToQProfile != null) {</span>
+<span class="fc" id="L387">        filters.put(&quot;comparison&quot;,</span>
+<span class="fc" id="L388">          JoinQueryBuilders.hasChildQuery(</span>
+<span class="fc" id="L389">            TYPE_ACTIVE_RULE.getName(),</span>
+<span class="fc" id="L390">            boolQuery().must(QueryBuilders.termQuery(FIELD_ACTIVE_RULE_PROFILE_UUID, compareToQProfile.getRulesProfileUuid())),</span>
+            ScoreMode.None));
+      }
+    }
+
+<span class="fc bfc" id="L395" title="All 2 branches covered.">    if (query.getCleanCodeAttributesCategories() != null) {</span>
+<span class="fc" id="L396">      addFilter(filters, query.getCleanCodeAttributesCategories(), FIELD_RULE_CLEAN_CODE_ATTRIBUTE_CATEGORY);</span>
+    }
+
+<span class="fc" id="L399">    addImpactFilters(query, filters);</span>
+<span class="fc" id="L400">    return filters;</span>
+  }
+
+  private static void addImpactFilters(RuleQuery query, Map&lt;String, QueryBuilder&gt; allFilters) {
+<span class="fc bfc" id="L404" title="All 4 branches covered.">    if (isEmpty(query.getImpactSoftwareQualities()) &amp;&amp; isEmpty(query.getImpactSeverities())) {</span>
+<span class="fc" id="L405">      return;</span>
+    }
+<span class="fc bfc" id="L407" title="All 4 branches covered.">    if (isNotEmpty(query.getImpactSoftwareQualities()) &amp;&amp; isEmpty(query.getImpactSeverities())) {</span>
+<span class="fc" id="L408">      allFilters.put(</span>
+        FIELD_RULE_IMPACT_SOFTWARE_QUALITY,
+<span class="fc" id="L410">        nestedQuery(</span>
+          FIELD_RULE_IMPACTS,
+<span class="fc" id="L412">          termsQuery(FIELD_RULE_IMPACT_SOFTWARE_QUALITY, query.getImpactSoftwareQualities()),</span>
+          ScoreMode.Avg));
+<span class="fc" id="L414">      return;</span>
+    }
+
+<span class="pc bpc" id="L417" title="1 of 4 branches missed.">    if (isNotEmpty(query.getImpactSeverities()) &amp;&amp; isEmpty(query.getImpactSoftwareQualities())) {</span>
+<span class="fc" id="L418">      allFilters.put(</span>
+        FIELD_RULE_IMPACT_SEVERITY,
+<span class="fc" id="L420">        nestedQuery(</span>
+          FIELD_RULE_IMPACTS,
+<span class="fc" id="L422">          termsQuery(FIELD_RULE_IMPACT_SEVERITY, query.getImpactSeverities()),</span>
+          ScoreMode.Avg));
+<span class="fc" id="L424">      return;</span>
+    }
+<span class="fc" id="L426">    BoolQueryBuilder impactsFilter = boolQuery()</span>
+<span class="fc" id="L427">      .filter(termsQuery(FIELD_RULE_IMPACT_SOFTWARE_QUALITY, query.getImpactSoftwareQualities()))</span>
+<span class="fc" id="L428">      .filter(termsQuery(FIELD_RULE_IMPACT_SEVERITY, query.getImpactSeverities()));</span>
+<span class="fc" id="L429">    allFilters.put(FIELD_RULE_IMPACTS, nestedQuery(FIELD_ISSUE_IMPACTS, impactsFilter, ScoreMode.Avg));</span>
+<span class="fc" id="L430">  }</span>
+
+  private void addSecurityStandardFilter(Map&lt;String, QueryBuilder&gt; filters, String key, Collection&lt;String&gt; values) {
+<span class="fc bfc" id="L433" title="All 2 branches covered.">    if (isNotEmpty(values)) {</span>
+<span class="fc" id="L434">      filters.put(key,</span>
+<span class="fc" id="L435">        boolQuery()</span>
+<span class="fc" id="L436">          .must(QueryBuilders.termsQuery(key, values))</span>
+<span class="fc bfc" id="L437" title="All 2 branches covered.">          .must(isMQRMode() ?</span>
+<span class="fc" id="L438">            SECURITY_IMPACT_AND_HOTSPOT_FILTER :</span>
+<span class="fc" id="L439">            QueryBuilders.termsQuery(FIELD_RULE_TYPE, VULNERABILITY.name(), SECURITY_HOTSPOT.name())));</span>
+    }
+<span class="fc" id="L441">  }</span>
+
+  private static void addFilter(Map&lt;String, QueryBuilder&gt; filters, Collection&lt;String&gt; key, String value) {
+<span class="fc bfc" id="L444" title="All 2 branches covered.">    if (isNotEmpty(key)) {</span>
+<span class="fc" id="L445">      filters.put(value,</span>
+<span class="fc" id="L446">        QueryBuilders.termsQuery(value, key));</span>
+    }
+<span class="fc" id="L448">  }</span>
+
+  private static void addFilter(Map&lt;String, QueryBuilder&gt; filters, String key, String value) {
+<span class="fc bfc" id="L451" title="All 2 branches covered.">    if (StringUtils.isNotEmpty(value)) {</span>
+<span class="fc" id="L452">      filters.put(key,</span>
+<span class="fc" id="L453">        QueryBuilders.termQuery(key, value));</span>
+    }
+<span class="fc" id="L455">  }</span>
+
+  private static BoolQueryBuilder buildTagsFilter(Collection&lt;String&gt; tags) {
+<span class="fc" id="L458">    BoolQueryBuilder q = boolQuery();</span>
+<span class="fc bfc" id="L459" title="All 2 branches covered.">    for (String tag : tags) {</span>
+<span class="fc" id="L460">      q.should(boolQuery().filter(QueryBuilders.termQuery(FIELD_RULE_TAGS, tag)));</span>
+<span class="fc" id="L461">    }</span>
+<span class="fc" id="L462">    return q;</span>
+  }
+
+  private static QueryBuilder buildActivationFilter(RuleQuery query, QProfileDto profile) {
+    // ActiveRule Filter (profile and inheritance)
+<span class="fc" id="L467">    BoolQueryBuilder activeRuleFilter = boolQuery();</span>
+<span class="fc" id="L468">    addTermFilter(activeRuleFilter, FIELD_ACTIVE_RULE_PROFILE_UUID, profile.getRulesProfileUuid());</span>
+<span class="fc" id="L469">    addTermFilter(activeRuleFilter, FIELD_ACTIVE_RULE_INHERITANCE, query.getInheritance());</span>
+<span class="fc" id="L470">    addTermFilter(activeRuleFilter, FIELD_ACTIVE_RULE_SEVERITY, query.getActiveSeverities());</span>
+<span class="fc" id="L471">    addTermFilter(activeRuleFilter, FIELD_PRIORITIZED_RULE, query.getPrioritizedRule());</span>
+<span class="fc" id="L472">    addActiveImpactSeverityFilter(activeRuleFilter, query.getActiveImpactSeverities());</span>
+
+    // ChildQuery
+    QueryBuilder childQuery;
+<span class="pc bpc" id="L476" title="1 of 2 branches missed.">    if (activeRuleFilter.hasClauses()) {</span>
+<span class="fc" id="L477">      childQuery = activeRuleFilter;</span>
+    } else {
+<span class="nc" id="L479">      childQuery = matchAllQuery();</span>
+    }
+<span class="fc" id="L481">    return childQuery;</span>
+  }
+
+  private static BoolQueryBuilder addActiveImpactSeverityFilter(BoolQueryBuilder filter, @Nullable Collection&lt;String&gt; values) {
+<span class="fc bfc" id="L485" title="All 2 branches covered.">    if (isNotEmpty(values)) {</span>
+<span class="fc" id="L486">      BoolQueryBuilder valuesFilter = boolQuery();</span>
+<span class="fc" id="L487">      valuesFilter.must(nestedQuery(FIELD_ACTIVE_RULE_IMPACTS,</span>
+<span class="fc" id="L488">        termsQuery(FIELD_ACTIVE_RULE_IMPACT_SEVERITY, values),</span>
+        ScoreMode.Avg));
+
+<span class="fc" id="L491">      filter.must(valuesFilter);</span>
+    }
+<span class="fc" id="L493">    return filter;</span>
+  }
+
+  private static BoolQueryBuilder addTermFilter(BoolQueryBuilder filter, String field, @Nullable Collection&lt;String&gt; values) {
+<span class="fc bfc" id="L497" title="All 2 branches covered.">    if (isNotEmpty(values)) {</span>
+<span class="fc" id="L498">      BoolQueryBuilder valuesFilter = boolQuery();</span>
+<span class="fc bfc" id="L499" title="All 2 branches covered.">      for (String value : values) {</span>
+<span class="fc" id="L500">        QueryBuilder valueFilter = QueryBuilders.termQuery(field, value);</span>
+<span class="fc" id="L501">        valuesFilter.should(valueFilter);</span>
+<span class="fc" id="L502">      }</span>
+<span class="fc" id="L503">      filter.must(valuesFilter);</span>
+    }
+<span class="fc" id="L505">    return filter;</span>
+  }
+
+  private static BoolQueryBuilder addTermFilter(BoolQueryBuilder filter, String field, @Nullable String value) {
+<span class="pc bpc" id="L509" title="1 of 2 branches missed.">    if (StringUtils.isNotEmpty(value)) {</span>
+<span class="fc" id="L510">      filter.must(QueryBuilders.termQuery(field, value));</span>
+    }
+<span class="fc" id="L512">    return filter;</span>
+  }
+
+  private static BoolQueryBuilder addTermFilter(BoolQueryBuilder filter, String field, @Nullable Boolean value) {
+<span class="pc bpc" id="L516" title="1 of 2 branches missed.">    if (value != null) {</span>
+<span class="nc" id="L517">      filter.must(QueryBuilders.termQuery(field, value));</span>
+    }
+<span class="fc" id="L519">    return filter;</span>
+  }
+
+  private Map&lt;String, AggregationBuilder&gt; getFacets(RuleQuery query, SearchOptions options, QueryBuilder queryBuilder,
+    Map&lt;String, QueryBuilder&gt; filters) {
+<span class="fc" id="L524">    Map&lt;String, AggregationBuilder&gt; aggregations = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L525">    StickyFacetBuilder stickyFacetBuilder = stickyFacetBuilder(queryBuilder, filters);</span>
+
+<span class="fc" id="L527">    addDefaultFacets(query, options, aggregations, stickyFacetBuilder);</span>
+
+<span class="fc" id="L529">    addStatusFacetIfNeeded(options, aggregations, stickyFacetBuilder);</span>
+
+<span class="fc bfc" id="L531" title="All 2 branches covered.">    if (options.getFacets().contains(FACET_SEVERITIES)) {</span>
+<span class="fc" id="L532">      aggregations.put(FACET_SEVERITIES,</span>
+<span class="fc" id="L533">        stickyFacetBuilder.buildStickyFacet(FIELD_RULE_SEVERITY, FACET_SEVERITIES, Severity.ALL.toArray()));</span>
+    }
+
+<span class="fc" id="L536">    addActiveSeverityFacetIfNeeded(query, options, aggregations, stickyFacetBuilder);</span>
+<span class="fc" id="L537">    return aggregations;</span>
+  }
+
+  private void addDefaultFacets(RuleQuery query, SearchOptions options, Map&lt;String, AggregationBuilder&gt; aggregations,
+    StickyFacetBuilder stickyFacetBuilder) {
+<span class="pc bpc" id="L542" title="1 of 4 branches missed.">    if (options.getFacets().contains(FACET_LANGUAGES) || options.getFacets().contains(FACET_OLD_DEFAULT)) {</span>
+<span class="fc" id="L543">      Collection&lt;String&gt; languages = query.getLanguages();</span>
+<span class="fc" id="L544">      aggregations.put(FACET_LANGUAGES,</span>
+<span class="fc" id="L545">        stickyFacetBuilder.buildStickyFacet(FIELD_RULE_LANGUAGE, FACET_LANGUAGES, MAX_FACET_SIZE,</span>
+<span class="fc" id="L546">          toStringArray(languages)));</span>
+    }
+<span class="pc bpc" id="L548" title="1 of 4 branches missed.">    if (options.getFacets().contains(FACET_TAGS) || options.getFacets().contains(FACET_OLD_DEFAULT)) {</span>
+<span class="fc" id="L549">      Collection&lt;String&gt; tags = query.getTags();</span>
+<span class="fc" id="L550">      aggregations.put(FACET_TAGS,</span>
+<span class="fc" id="L551">        stickyFacetBuilder.buildStickyFacet(FIELD_RULE_TAGS, FACET_TAGS, MAX_FACET_SIZE,</span>
+<span class="fc" id="L552">          toStringArray(tags)));</span>
+    }
+<span class="fc bfc" id="L554" title="All 2 branches covered.">    if (options.getFacets().contains(FACET_TYPES)) {</span>
+<span class="fc" id="L555">      Collection&lt;RuleType&gt; types = query.getTypes();</span>
+<span class="fc" id="L556">      aggregations.put(FACET_TYPES,</span>
+<span class="fc" id="L557">        stickyFacetBuilder.buildStickyFacet(FIELD_RULE_TYPE, FACET_TYPES,</span>
+<span class="fc bfc" id="L558" title="All 2 branches covered.">          (types == null) ? (new String[0]) : types.toArray()));</span>
+    }
+<span class="pc bpc" id="L560" title="1 of 4 branches missed.">    if (options.getFacets().contains(FACET_REPOSITORIES) || options.getFacets().contains(FACET_OLD_DEFAULT)) {</span>
+<span class="fc" id="L561">      Collection&lt;String&gt; repositories = query.getRepositories();</span>
+<span class="fc" id="L562">      aggregations.put(FACET_REPOSITORIES,</span>
+<span class="fc" id="L563">        stickyFacetBuilder.buildStickyFacet(FIELD_RULE_REPOSITORY, FACET_REPOSITORIES, MAX_FACET_SIZE,</span>
+<span class="fc" id="L564">          toStringArray(repositories)));</span>
+    }
+<span class="fc bfc" id="L566" title="All 2 branches covered.">    if (options.getFacets().contains(FACET_CLEAN_CODE_ATTRIBUTE_CATEGORY)) {</span>
+<span class="fc" id="L567">      Collection&lt;String&gt; cleanCodeCategories = query.getCleanCodeAttributesCategories();</span>
+<span class="fc" id="L568">      aggregations.put(FACET_CLEAN_CODE_ATTRIBUTE_CATEGORY,</span>
+<span class="fc" id="L569">        stickyFacetBuilder.buildStickyFacet(FIELD_RULE_CLEAN_CODE_ATTRIBUTE_CATEGORY, FACET_CLEAN_CODE_ATTRIBUTE_CATEGORY, MAX_FACET_SIZE,</span>
+<span class="fc" id="L570">          toStringArray(cleanCodeCategories)));</span>
+    }
+
+<span class="fc" id="L573">    addImpactSoftwareQualityFacetIfNeeded(options, query, aggregations, stickyFacetBuilder);</span>
+<span class="fc" id="L574">    addImpactSeverityFacetIfNeeded(options, query, aggregations, stickyFacetBuilder);</span>
+<span class="fc" id="L575">    addActiveRuleImpactSeverityFacetIfNeeded(options, query, aggregations, stickyFacetBuilder);</span>
+
+<span class="fc" id="L577">    addDefaultSecurityFacets(query, options, aggregations, stickyFacetBuilder);</span>
+<span class="fc" id="L578">  }</span>
+
+  private static void addImpactSoftwareQualityFacetIfNeeded(SearchOptions options, RuleQuery query, Map&lt;String, AggregationBuilder&gt; aggregations,
+    StickyFacetBuilder stickyFacetBuilder) {
+<span class="fc bfc" id="L582" title="All 2 branches covered.">    if (!options.getFacets().contains(FACET_IMPACT_SOFTWARE_QUALITY)) {</span>
+<span class="fc" id="L583">      return;</span>
+    }
+
+<span class="fc" id="L586">    Function&lt;String, BoolQueryBuilder&gt; mainQuery = softwareQuality -&gt; boolQuery()</span>
+<span class="fc" id="L587">      .filter(QueryBuilders.termQuery(FIELD_RULE_IMPACT_SOFTWARE_QUALITY, softwareQuality));</span>
+
+<span class="fc" id="L589">    FiltersAggregator.KeyedFilter[] keyedFilters = Arrays.stream(SoftwareQuality.values())</span>
+<span class="fc" id="L590">      .map(softwareQuality -&gt; new FiltersAggregator.KeyedFilter(softwareQuality.name(),</span>
+<span class="fc" id="L591">        buildSoftwareQualityFacetFilter(query, mainQuery, softwareQuality.name())))</span>
+<span class="fc" id="L592">      .toArray(FiltersAggregator.KeyedFilter[]::new);</span>
+
+<span class="fc" id="L594">    NestedAggregationBuilder nestedAggregationBuilder = AggregationBuilders.nested(&quot;nested_&quot; + FACET_IMPACT_SOFTWARE_QUALITY, FIELD_RULE_IMPACTS)</span>
+<span class="fc" id="L595">      .subAggregation(filters(FACET_IMPACT_SOFTWARE_QUALITY, keyedFilters));</span>
+
+<span class="fc" id="L597">    AggregationBuilder aggregationBuilder = stickyFacetBuilder.buildNestedAggregationStickyFacet(FIELD_RULE_IMPACTS, SUB_FIELD_SOFTWARE_QUALITY,</span>
+      FACET_IMPACT_SOFTWARE_QUALITY, nestedAggregationBuilder);
+
+<span class="fc" id="L600">    aggregations.put(FACET_IMPACT_SOFTWARE_QUALITY, aggregationBuilder);</span>
+<span class="fc" id="L601">  }</span>
+
+  private static BoolQueryBuilder buildSoftwareQualityFacetFilter(RuleQuery query, Function&lt;String, BoolQueryBuilder&gt; mainQuery, String value) {
+<span class="fc" id="L604">    BoolQueryBuilder boolQueryBuilder = mainQuery.apply(value);</span>
+<span class="fc bfc" id="L605" title="All 2 branches covered.">    if (isNotEmpty(query.getImpactSeverities())) {</span>
+<span class="fc" id="L606">      return boolQueryBuilder.filter(termsQuery(FIELD_RULE_IMPACT_SEVERITY, query.getImpactSeverities()));</span>
+    }
+<span class="fc" id="L608">    return boolQueryBuilder;</span>
+  }
+
+  private static void addImpactSeverityFacetIfNeeded(SearchOptions options, RuleQuery query, Map&lt;String, AggregationBuilder&gt; aggregations, StickyFacetBuilder stickyFacetBuilder) {
+<span class="fc bfc" id="L612" title="All 2 branches covered.">    if (!options.getFacets().contains(FACET_IMPACT_SEVERITY)) {</span>
+<span class="fc" id="L613">      return;</span>
+    }
+
+<span class="fc" id="L616">    Function&lt;String, BoolQueryBuilder&gt; mainQuery = severity -&gt; boolQuery()</span>
+<span class="fc" id="L617">      .filter(QueryBuilders.termQuery(FIELD_RULE_IMPACT_SEVERITY, severity));</span>
+
+<span class="fc" id="L619">    FiltersAggregator.KeyedFilter[] keyedFilters = getKeyedFilters(query, mainQuery);</span>
+
+<span class="fc" id="L621">    NestedAggregationBuilder nestedAggregationBuilder = AggregationBuilders.nested(&quot;nested_&quot; + FACET_IMPACT_SEVERITY, FIELD_RULE_IMPACTS)</span>
+<span class="fc" id="L622">      .subAggregation(filters(FACET_IMPACT_SEVERITY, keyedFilters).subAggregation(reverseNested(&quot;reverse_nested_&quot; + FIELD_RULE_IMPACT_SEVERITY)));</span>
+
+<span class="fc" id="L624">    AggregationBuilder aggregationBuilder = stickyFacetBuilder.buildNestedAggregationStickyFacet(FIELD_RULE_IMPACTS, SUB_FIELD_SEVERITY,</span>
+      FACET_IMPACT_SEVERITY, nestedAggregationBuilder);
+
+<span class="fc" id="L627">    aggregations.put(FACET_IMPACT_SEVERITY, aggregationBuilder);</span>
+<span class="fc" id="L628">  }</span>
+
+  private static void addActiveRuleImpactSeverityFacetIfNeeded(SearchOptions options, RuleQuery query,
+    Map&lt;String, AggregationBuilder&gt; aggregations, StickyFacetBuilder stickyFacetBuilder) {
+<span class="fc" id="L632">    QProfileDto profile = query.getQProfile();</span>
+<span class="pc bpc" id="L633" title="1 of 4 branches missed.">    if (!options.getFacets().contains(FACET_ACTIVE_IMPACT_SEVERITY) || profile == null) {</span>
+<span class="fc" id="L634">      return;</span>
+    }
+
+    // We are building a children aggregation on active rules
+    // so the rule filter has to be used as parent filter for active rules
+    // from which we remove filters that concern active rules (&quot;activation&quot;)
+<span class="fc" id="L640">    HasParentQueryBuilder ruleFilter = JoinQueryBuilders.hasParentQuery(</span>
+<span class="fc" id="L641">      TYPE_RULE.getType(),</span>
+<span class="fc" id="L642">      stickyFacetBuilder.getStickyFacetFilter(&quot;activation&quot;),</span>
+      false);
+
+    // Rebuilding the active rule filter without impact severities
+<span class="fc" id="L646">    BoolQueryBuilder childrenFilter = boolQuery();</span>
+<span class="fc" id="L647">    addTermFilter(childrenFilter, FIELD_ACTIVE_RULE_PROFILE_UUID, profile.getRulesProfileUuid());</span>
+<span class="fc" id="L648">    addTermFilter(childrenFilter, FIELD_ACTIVE_RULE_SEVERITY, query.getActiveSeverities());</span>
+<span class="fc" id="L649">    RuleIndex.addTermFilter(childrenFilter, FIELD_ACTIVE_RULE_INHERITANCE, query.getInheritance());</span>
+<span class="fc" id="L650">    QueryBuilder activeRuleFilter = childrenFilter.must(ruleFilter);</span>
+
+<span class="fc" id="L652">    Function&lt;String, BoolQueryBuilder&gt; mainQuery = severity -&gt; boolQuery()</span>
+<span class="fc" id="L653">      .filter(QueryBuilders.termQuery(FIELD_ACTIVE_RULE_IMPACT_SEVERITY, severity));</span>
+
+<span class="fc" id="L655">    FiltersAggregator.KeyedFilter[] keyedFilters = getKeyedFilters(query, mainQuery);</span>
+
+<span class="fc" id="L657">    NestedAggregationBuilder nestedAggregationBuilder = AggregationBuilders.nested(&quot;nested_&quot; + FACET_ACTIVE_IMPACT_SEVERITY,</span>
+        FIELD_ACTIVE_RULE_IMPACTS)
+<span class="fc" id="L659">      .subAggregation(filters(FACET_ACTIVE_IMPACT_SEVERITY, keyedFilters)</span>
+<span class="fc" id="L660">        .subAggregation(reverseNested(&quot;reverse_nested_&quot; + FIELD_ACTIVE_RULE_IMPACT_SEVERITY))</span>
+      );
+
+<span class="fc" id="L663">    AggregationBuilder activeSeverities = JoinAggregationBuilders.children(FACET_ACTIVE_IMPACT_SEVERITY + &quot;_children&quot;,</span>
+<span class="fc" id="L664">        TYPE_ACTIVE_RULE.getName())</span>
+<span class="fc" id="L665">      .subAggregation(</span>
+<span class="fc" id="L666">        AggregationBuilders.filter(FACET_ACTIVE_IMPACT_SEVERITY + &quot;_filter&quot;, activeRuleFilter)</span>
+<span class="fc" id="L667">          .subAggregation(nestedAggregationBuilder)</span>
+      );
+
+<span class="fc" id="L670">    aggregations.put(FACET_ACTIVE_IMPACT_SEVERITY,</span>
+<span class="fc" id="L671">      AggregationBuilders.global(FACET_ACTIVE_IMPACT_SEVERITY).subAggregation(activeSeverities));</span>
+<span class="fc" id="L672">  }</span>
+
+  private static FiltersAggregator.KeyedFilter[] getKeyedFilters(RuleQuery query, Function&lt;String, BoolQueryBuilder&gt; mainQuery) {
+<span class="fc" id="L675">    return Arrays.stream(org.sonar.api.issue.impact.Severity.values())</span>
+<span class="fc" id="L676">      .map(severity -&gt; new FiltersAggregator.KeyedFilter(severity.name(),</span>
+<span class="fc" id="L677">        buildSeverityFacetFilter(query, mainQuery, severity.name())))</span>
+<span class="fc" id="L678">      .toArray(FiltersAggregator.KeyedFilter[]::new);</span>
+  }
+
+  private static BoolQueryBuilder buildSeverityFacetFilter(RuleQuery query, Function&lt;String, BoolQueryBuilder&gt; mainQuery, String value) {
+<span class="fc" id="L682">    BoolQueryBuilder boolQueryBuilder = mainQuery.apply(value);</span>
+<span class="fc bfc" id="L683" title="All 2 branches covered.">    if (isNotEmpty(query.getImpactSoftwareQualities())) {</span>
+<span class="fc" id="L684">      return boolQueryBuilder.filter(termsQuery(FIELD_RULE_IMPACT_SOFTWARE_QUALITY, query.getImpactSoftwareQualities()));</span>
+    }
+<span class="fc" id="L686">    return boolQueryBuilder;</span>
+  }
+
+  private Function&lt;TermsAggregationBuilder, AggregationBuilder&gt; filterSecurityCategories() {
+<span class="fc bfc" id="L690" title="All 2 branches covered.">    if (isMQRMode()) {</span>
+<span class="fc" id="L691">      return termsAggregation -&gt; AggregationBuilders.filter(&quot;filter_by_security_impact_&quot; + termsAggregation.getName(),</span>
+<span class="fc" id="L692">        SECURITY_IMPACT_AND_HOTSPOT_FILTER).subAggregation(termsAggregation);</span>
+
+    } else {
+<span class="fc" id="L695">      return termsAggregation -&gt; AggregationBuilders.filter(</span>
+<span class="fc" id="L696">          &quot;filter_by_rule_types_&quot; + termsAggregation.getName(),</span>
+<span class="fc" id="L697">          termsQuery(FIELD_RULE_TYPE, VULNERABILITY.name(), SECURITY_HOTSPOT.name()))</span>
+<span class="fc" id="L698">        .subAggregation(termsAggregation);</span>
+    }
+  }
+
+  private void addDefaultSecurityFacets(RuleQuery query, SearchOptions options, Map&lt;String, AggregationBuilder&gt; aggregations,
+    StickyFacetBuilder stickyFacetBuilder) {
+<span class="fc bfc" id="L704" title="All 2 branches covered.">    if (options.getFacets().contains(FACET_CWE)) {</span>
+<span class="fc" id="L705">      Collection&lt;String&gt; categories = query.getCwe();</span>
+<span class="fc" id="L706">      aggregations.put(FACET_CWE,</span>
+<span class="fc" id="L707">        stickyFacetBuilder.buildStickyFacet(FIELD_RULE_CWE, FACET_CWE,</span>
+<span class="fc" id="L708">          FACET_DEFAULT_SIZE, filterSecurityCategories(),</span>
+<span class="fc" id="L709">          toStringArray(categories)));</span>
+    }
+<span class="fc bfc" id="L711" title="All 2 branches covered.">    if (options.getFacets().contains(FACET_OWASP_TOP_10)) {</span>
+<span class="fc" id="L712">      Collection&lt;String&gt; categories = query.getOwaspTop10();</span>
+<span class="fc" id="L713">      aggregations.put(FACET_OWASP_TOP_10,</span>
+<span class="fc" id="L714">        stickyFacetBuilder.buildStickyFacet(FIELD_RULE_OWASP_TOP_10, FACET_OWASP_TOP_10,</span>
+<span class="fc" id="L715">          FACET_DEFAULT_SIZE, filterSecurityCategories(),</span>
+<span class="fc" id="L716">          toStringArray(categories)));</span>
+    }
+<span class="fc bfc" id="L718" title="All 2 branches covered.">    if (options.getFacets().contains(FACET_OWASP_TOP_10_2021)) {</span>
+<span class="fc" id="L719">      Collection&lt;String&gt; categories = query.getOwaspTop10For2021();</span>
+<span class="fc" id="L720">      aggregations.put(FACET_OWASP_TOP_10_2021,</span>
+<span class="fc" id="L721">        stickyFacetBuilder.buildStickyFacet(FIELD_RULE_OWASP_TOP_10_2021, FACET_OWASP_TOP_10_2021,</span>
+<span class="fc" id="L722">          FACET_DEFAULT_SIZE, filterSecurityCategories(),</span>
+<span class="fc" id="L723">          toStringArray(categories)));</span>
+    }
+<span class="fc bfc" id="L725" title="All 2 branches covered.">    if (options.getFacets().contains(FACET_OWASP_MOBILE_TOP_10_2024)) {</span>
+<span class="fc" id="L726">      Collection&lt;String&gt; categories = query.getOwaspTop10For2021();</span>
+<span class="fc" id="L727">      aggregations.put(FACET_OWASP_MOBILE_TOP_10_2024,</span>
+<span class="fc" id="L728">        stickyFacetBuilder.buildStickyFacet(FIELD_RULE_OWASP_MOBILE_TOP_10_2024, FACET_OWASP_MOBILE_TOP_10_2024,</span>
+<span class="fc" id="L729">          FACET_DEFAULT_SIZE, filterSecurityCategories(),</span>
+<span class="fc" id="L730">          toStringArray(categories)));</span>
+    }
+<span class="fc bfc" id="L732" title="All 2 branches covered.">    if (options.getFacets().contains(FACET_SANS_TOP_25)) {</span>
+<span class="fc" id="L733">      Collection&lt;String&gt; categories = query.getSansTop25();</span>
+<span class="fc" id="L734">      aggregations.put(FACET_SANS_TOP_25,</span>
+<span class="fc" id="L735">        stickyFacetBuilder.buildStickyFacet(FIELD_RULE_SANS_TOP_25, FACET_SANS_TOP_25,</span>
+<span class="fc" id="L736">          FACET_DEFAULT_SIZE, filterSecurityCategories(),</span>
+<span class="fc" id="L737">          toStringArray(categories)));</span>
+    }
+<span class="fc bfc" id="L739" title="All 2 branches covered.">    if (options.getFacets().contains(FACET_SONARSOURCE_SECURITY)) {</span>
+<span class="fc" id="L740">      Collection&lt;String&gt; categories = query.getSonarsourceSecurity();</span>
+<span class="fc" id="L741">      aggregations.put(FACET_SONARSOURCE_SECURITY,</span>
+<span class="fc" id="L742">        stickyFacetBuilder.buildStickyFacet(FIELD_RULE_SONARSOURCE_SECURITY, FACET_SONARSOURCE_SECURITY,</span>
+<span class="fc" id="L743">          SecurityStandards.SQCategory.values().length, filterSecurityCategories(),</span>
+<span class="fc" id="L744">          toStringArray(categories)));</span>
+    }
+<span class="fc" id="L746">  }</span>
+
+  @NotNull
+  private static Object[] toStringArray(@Nullable Collection&lt;String&gt; items) {
+<span class="fc bfc" id="L750" title="All 2 branches covered.">    return (items == null) ? (new String[0]) : items.toArray(new String[0]);</span>
+  }
+
+  private static void addStatusFacetIfNeeded(SearchOptions options, Map&lt;String, AggregationBuilder&gt; aggregations, StickyFacetBuilder stickyFacetBuilder) {
+<span class="fc bfc" id="L754" title="All 2 branches covered.">    if (options.getFacets().contains(FACET_STATUSES)) {</span>
+<span class="fc" id="L755">      BoolQueryBuilder facetFilter = stickyFacetBuilder.getStickyFacetFilter(FIELD_RULE_STATUS);</span>
+<span class="fc" id="L756">      AggregationBuilder statuses = AggregationBuilders.filter(FACET_STATUSES + &quot;_filter&quot;, facetFilter)</span>
+<span class="fc" id="L757">        .subAggregation(</span>
+          AggregationBuilders
+<span class="fc" id="L759">            .terms(FACET_STATUSES)</span>
+<span class="fc" id="L760">            .field(FIELD_RULE_STATUS)</span>
+<span class="fc" id="L761">            .includeExclude(new IncludeExclude(Joiner.on('|').join(ALL_STATUSES_EXCEPT_REMOVED), RuleStatus.REMOVED.toString()))</span>
+<span class="fc" id="L762">            .size(ALL_STATUSES_EXCEPT_REMOVED.size()));</span>
+
+<span class="fc" id="L764">      aggregations.put(FACET_STATUSES, AggregationBuilders.global(FACET_STATUSES).subAggregation(statuses));</span>
+    }
+<span class="fc" id="L766">  }</span>
+
+  private static void addActiveSeverityFacetIfNeeded(RuleQuery query, SearchOptions options, Map&lt;String, AggregationBuilder&gt; aggregations,
+    StickyFacetBuilder stickyFacetBuilder) {
+<span class="fc" id="L770">    QProfileDto profile = query.getQProfile();</span>
+<span class="fc bfc" id="L771" title="All 4 branches covered.">    if (options.getFacets().contains(FACET_ACTIVE_SEVERITIES) &amp;&amp; profile != null) {</span>
+      // We are building a children aggregation on active rules
+      // so the rule filter has to be used as parent filter for active rules
+      // from which we remove filters that concern active rules (&quot;activation&quot;)
+<span class="fc" id="L775">      HasParentQueryBuilder ruleFilter = JoinQueryBuilders.hasParentQuery(</span>
+<span class="fc" id="L776">        TYPE_RULE.getType(),</span>
+<span class="fc" id="L777">        stickyFacetBuilder.getStickyFacetFilter(&quot;activation&quot;),</span>
+        false);
+
+      // Rebuilding the active rule filter without severities
+<span class="fc" id="L781">      BoolQueryBuilder childrenFilter = boolQuery();</span>
+<span class="fc" id="L782">      addTermFilter(childrenFilter, FIELD_ACTIVE_RULE_PROFILE_UUID, profile.getRulesProfileUuid());</span>
+<span class="fc" id="L783">      addActiveImpactSeverityFilter(childrenFilter, query.getActiveImpactSeverities());</span>
+<span class="fc" id="L784">      RuleIndex.addTermFilter(childrenFilter, FIELD_ACTIVE_RULE_INHERITANCE, query.getInheritance());</span>
+<span class="fc" id="L785">      QueryBuilder activeRuleFilter = childrenFilter.must(ruleFilter);</span>
+
+<span class="fc" id="L787">      AggregationBuilder activeSeverities = JoinAggregationBuilders.children(FACET_ACTIVE_SEVERITIES + &quot;_children&quot;, TYPE_ACTIVE_RULE.getName())</span>
+<span class="fc" id="L788">        .subAggregation(</span>
+<span class="fc" id="L789">          AggregationBuilders.filter(FACET_ACTIVE_SEVERITIES + &quot;_filter&quot;, activeRuleFilter)</span>
+<span class="fc" id="L790">            .subAggregation(</span>
+              AggregationBuilders
+<span class="fc" id="L792">                .terms(FACET_ACTIVE_SEVERITIES)</span>
+<span class="fc" id="L793">                .field(FIELD_ACTIVE_RULE_SEVERITY)</span>
+<span class="fc" id="L794">                .includeExclude(new IncludeExclude(Joiner.on('|').join(Severity.ALL), null))</span>
+<span class="fc" id="L795">                .size(Severity.ALL.size())));</span>
+
+<span class="fc" id="L797">      aggregations.put(FACET_ACTIVE_SEVERITIES, AggregationBuilders.global(FACET_ACTIVE_SEVERITIES).subAggregation(activeSeverities));</span>
+    }
+<span class="fc" id="L799">  }</span>
+
+  private static StickyFacetBuilder stickyFacetBuilder(QueryBuilder query, Map&lt;String, QueryBuilder&gt; filters) {
+<span class="fc" id="L802">    return new StickyFacetBuilder(query, filters, null, BucketOrder.compound(BucketOrder.count(false), BucketOrder.key(true)));</span>
+  }
+
+  private static void setSorting(RuleQuery query, SearchSourceBuilder esSearch) {
+    /* integrate Query Sort */
+<span class="fc" id="L807">    String queryText = query.getQueryText();</span>
+<span class="fc bfc" id="L808" title="All 2 branches covered.">    if (query.getSortField() != null) {</span>
+<span class="fc" id="L809">      FieldSortBuilder sort = SortBuilders.fieldSort(appendSortSuffixIfNeeded(query.getSortField()));</span>
+<span class="fc bfc" id="L810" title="All 2 branches covered.">      if (query.isAscendingSort()) {</span>
+<span class="fc" id="L811">        sort.order(SortOrder.ASC);</span>
+      } else {
+<span class="fc" id="L813">        sort.order(SortOrder.DESC);</span>
+      }
+<span class="fc" id="L815">      esSearch.sort(sort);</span>
+<span class="fc bfc" id="L816" title="All 2 branches covered.">    } else if (StringUtils.isNotEmpty(queryText)) {</span>
+<span class="fc" id="L817">      esSearch.sort(SortBuilders.scoreSort());</span>
+    } else {
+<span class="fc" id="L819">      esSearch.sort(appendSortSuffixIfNeeded(FIELD_RULE_UPDATED_AT), SortOrder.DESC);</span>
+      // deterministic sort when exactly the same updated_at (same millisecond)
+<span class="fc" id="L821">      esSearch.sort(appendSortSuffixIfNeeded(FIELD_RULE_KEY), SortOrder.ASC);</span>
+    }
+<span class="fc" id="L823">  }</span>
+
+  private static String appendSortSuffixIfNeeded(String field) {
+<span class="fc" id="L826">    return field +</span>
+<span class="fc bfc" id="L827" title="All 4 branches covered.">      ((field.equals(FIELD_RULE_NAME) || field.equals(FIELD_RULE_KEY))</span>
+<span class="fc" id="L828">        ? (&quot;.&quot; + SORTABLE_ANALYZER.getSubFieldSuffix())</span>
+<span class="fc" id="L829">        : &quot;&quot;);</span>
+  }
+
+  private static void setPagination(SearchOptions options, SearchSourceBuilder esSearch) {
+<span class="fc" id="L833">    esSearch.from(options.getOffset());</span>
+<span class="fc" id="L834">    esSearch.size(options.getLimit());</span>
+<span class="fc" id="L835">  }</span>
+
+  public List&lt;String&gt; listTags(@Nullable String query, int size) {
+<span class="fc" id="L838">    int maxPageSize = 500;</span>
+<span class="fc bfc" id="L839" title="All 2 branches covered.">    checkArgument(size &lt;= maxPageSize, &quot;Page size must be lower than or equals to &quot; + maxPageSize);</span>
+<span class="pc bpc" id="L840" title="1 of 2 branches missed.">    if (size &lt;= 0) {</span>
+<span class="nc" id="L841">      return emptyList();</span>
+    }
+
+<span class="fc" id="L844">    TermsAggregationBuilder termsAggregation = AggregationBuilders.terms(AGGREGATION_NAME_FOR_TAGS)</span>
+<span class="fc" id="L845">      .field(FIELD_RULE_TAGS)</span>
+<span class="fc" id="L846">      .size(size)</span>
+<span class="fc" id="L847">      .order(BucketOrder.key(true))</span>
+<span class="fc" id="L848">      .minDocCount(1);</span>
+<span class="fc" id="L849">    ofNullable(query)</span>
+<span class="fc" id="L850">      .map(EsUtils::escapeSpecialRegexChars)</span>
+<span class="pc" id="L851">      .map(queryString -&gt; &quot;.*&quot; + queryString + &quot;.*&quot;)</span>
+<span class="pc" id="L852">      .map(s -&gt; new IncludeExclude(s, null))</span>
+<span class="fc" id="L853">      .ifPresent(termsAggregation::includeExclude);</span>
+
+<span class="fc" id="L855">    SearchRequest request = EsClient.prepareSearch(TYPE_RULE.getMainType())</span>
+<span class="fc" id="L856">      .source(new SearchSourceBuilder()</span>
+<span class="fc" id="L857">        .query(matchAllQuery())</span>
+<span class="fc" id="L858">        .size(0)</span>
+<span class="fc" id="L859">        .aggregation(termsAggregation));</span>
+
+<span class="fc" id="L861">    SearchResponse esResponse = client.search(request);</span>
+<span class="fc" id="L862">    return EsUtils.termsKeys(esResponse.getAggregations().get(AGGREGATION_NAME_FOR_TAGS));</span>
+  }
+
+  @CheckForNull
+  private static QueryBuilder createTermsFilter(String field, Collection&lt;?&gt; values) {
+<span class="nc bnc" id="L867" title="All 2 branches missed.">    return values.isEmpty() ? null : termsQuery(field, values);</span>
+  }
+
+  private static boolean isNotEmpty(@Nullable Collection&lt;?&gt; list) {
+<span class="fc bfc" id="L871" title="All 4 branches covered.">    return list != null &amp;&amp; !list.isEmpty();</span>
+  }
+
+  private static boolean isEmpty(@Nullable Collection&lt;?&gt; list) {
+<span class="pc bpc" id="L875" title="1 of 4 branches missed.">    return list == null || list.isEmpty();</span>
+  }
+
+  private boolean isMQRMode() {
+<span class="fc" id="L879">    return config.getBoolean(MULTI_QUALITY_MODE_ENABLED).orElse(MULTI_QUALITY_MODE_DEFAULT_VALUE);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

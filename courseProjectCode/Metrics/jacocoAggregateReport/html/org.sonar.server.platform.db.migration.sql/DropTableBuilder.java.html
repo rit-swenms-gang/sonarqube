@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DropTableBuilder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform.db.migration.sql</a> &gt; <span class="el_source">DropTableBuilder.java</span></div><h1>DropTableBuilder.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform.db.migration.sql;
+
+import java.util.List;
+import org.sonar.db.dialect.Dialect;
+import org.sonar.db.dialect.H2;
+import org.sonar.db.dialect.MsSql;
+import org.sonar.db.dialect.Oracle;
+import org.sonar.db.dialect.PostgreSql;
+
+import static java.util.Arrays.asList;
+import static java.util.Collections.singletonList;
+import static java.util.Objects.requireNonNull;
+import static org.sonar.server.platform.db.migration.def.Validations.validateTableName;
+
+public class DropTableBuilder {
+
+  private final Dialect dialect;
+  private final String tableName;
+
+<span class="fc" id="L39">  public DropTableBuilder(Dialect dialect, String tableName) {</span>
+<span class="fc" id="L40">    this.dialect = requireNonNull(dialect, &quot;dialect can't be null&quot;);</span>
+<span class="fc" id="L41">    this.tableName = validateTableName(tableName);</span>
+<span class="fc" id="L42">  }</span>
+
+  public List&lt;String&gt; build() {
+<span class="pc bpc" id="L45" title="1 of 4 branches missed.">    return switch (dialect.getId()) {</span>
+<span class="fc" id="L46">      case Oracle.ID -&gt; forOracle(tableName);</span>
+<span class="fc" id="L47">      case H2.ID, PostgreSql.ID -&gt; singletonList(&quot;drop table if exists &quot; + tableName);</span>
+      case MsSql.ID -&gt;
+        // &quot;if exists&quot; is supported only since MSSQL 2016.
+<span class="fc" id="L50">        singletonList(&quot;drop table &quot; + tableName);</span>
+<span class="nc" id="L51">      default -&gt; throw new IllegalStateException(&quot;Unsupported DB: &quot; + dialect.getId());</span>
+    };
+  }
+
+  private static List&lt;String&gt; forOracle(String tableName) {
+<span class="fc" id="L56">    return asList(</span>
+<span class="fc" id="L57">      dropIfExistsOnOracle(&quot;DROP SEQUENCE &quot; + tableName + &quot;_seq&quot;, -2289),</span>
+<span class="fc" id="L58">      dropIfExistsOnOracle(&quot;DROP TRIGGER &quot; + tableName + &quot;_idt&quot;, -4080),</span>
+<span class="fc" id="L59">      dropIfExistsOnOracle(&quot;DROP TABLE &quot; + tableName, -942));</span>
+  }
+
+  private static String dropIfExistsOnOracle(String command, int codeIfNotExists) {
+<span class="fc" id="L63">    return &quot;BEGIN\n&quot; +</span>
+      &quot;EXECUTE IMMEDIATE '&quot; + command + &quot;';\n&quot; +
+      &quot;EXCEPTION\n&quot; +
+      &quot;WHEN OTHERS THEN\n&quot; +
+      &quot;  IF SQLCODE != &quot; + codeIfNotExists + &quot; THEN\n&quot; +
+      &quot;  RAISE;\n&quot; +
+      &quot;  END IF;\n&quot; +
+      &quot;END;&quot;;
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ProfilingPreparedStatementHandler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.profiling</a> &gt; <span class="el_source">ProfilingPreparedStatementHandler.java</span></div><h1>ProfilingPreparedStatementHandler.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.profiling;
+
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.sql.PreparedStatement;
+import org.sonar.api.utils.log.Profiler;
+
+class ProfilingPreparedStatementHandler implements InvocationHandler {
+
+  private final PreparedStatement statement;
+  private final String sql;
+  private final Object[] sqlParams;
+
+<span class="fc" id="L33">  ProfilingPreparedStatementHandler(PreparedStatement statement, String sql) {</span>
+<span class="fc" id="L34">    this.statement = statement;</span>
+<span class="fc" id="L35">    this.sql = sql;</span>
+<span class="fc" id="L36">    sqlParams = new Object[SqlLogFormatter.countArguments(sql)];</span>
+<span class="fc" id="L37">  }</span>
+
+  @Override
+  public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+<span class="fc bfc" id="L41" title="All 2 branches covered.">    if (method.getName().startsWith(&quot;execute&quot;)) {</span>
+<span class="fc" id="L42">      Profiler profiler = Profiler.create(ProfiledDataSource.SQL_LOGGER).start();</span>
+      Object result;
+      try {
+<span class="fc" id="L45">        result = InvocationUtils.invokeQuietly(statement, method, args);</span>
+      } finally {
+<span class="fc" id="L47">        profiler.addContext(&quot;sql&quot;, SqlLogFormatter.reformatSql(sql));</span>
+<span class="fc bfc" id="L48" title="All 2 branches covered.">        if (sqlParams.length &gt; 0) {</span>
+<span class="fc" id="L49">          profiler.addContext(&quot;params&quot;, SqlLogFormatter.reformatParams(sqlParams));</span>
+        }
+<span class="fc" id="L51">        profiler.stopTrace(&quot;&quot;);</span>
+      }
+<span class="fc" id="L53">      return result;</span>
+<span class="pc bpc" id="L54" title="1 of 4 branches missed.">    } else if (method.getName().startsWith(&quot;set&quot;) &amp;&amp; args.length &gt; 1) {</span>
+<span class="fc" id="L55">      sqlParams[(int) args[0] - 1] = args[1];</span>
+<span class="fc" id="L56">      return InvocationUtils.invokeQuietly(statement, method, args);</span>
+    } else {
+<span class="fc" id="L58">      return InvocationUtils.invokeQuietly(statement, method, args);</span>
+    }
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

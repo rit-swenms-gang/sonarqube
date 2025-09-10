@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TelemetryMQRModePropertyProvider.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform.telemetry</a> &gt; <span class="el_source">TelemetryMQRModePropertyProvider.java</span></div><h1>TelemetryMQRModePropertyProvider.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform.telemetry;
+
+import java.util.Optional;
+import org.sonar.db.DbClient;
+import org.sonar.db.property.PropertyDto;
+import org.sonar.telemetry.core.Dimension;
+import org.sonar.telemetry.core.Granularity;
+import org.sonar.telemetry.core.TelemetryDataProvider;
+import org.sonar.telemetry.core.TelemetryDataType;
+
+import static org.sonar.core.config.MQRModeConstants.MULTI_QUALITY_MODE_ENABLED;
+import static org.sonar.telemetry.core.Dimension.INSTALLATION;
+import static org.sonar.telemetry.core.Granularity.WEEKLY;
+import static org.sonar.telemetry.core.TelemetryDataType.BOOLEAN;
+
+public class TelemetryMQRModePropertyProvider implements TelemetryDataProvider&lt;Boolean&gt; {
+  private final DbClient dbClient;
+
+<span class="fc" id="L38">  public TelemetryMQRModePropertyProvider(DbClient dbClient) {</span>
+<span class="fc" id="L39">    this.dbClient = dbClient;</span>
+<span class="fc" id="L40">  }</span>
+
+  @Override
+  public String getMetricKey() {
+<span class="fc" id="L44">    return &quot;multi_quality_rule_mode_enabled&quot;;</span>
+  }
+
+  @Override
+  public Dimension getDimension() {
+<span class="fc" id="L49">    return INSTALLATION;</span>
+  }
+
+  @Override
+  public Granularity getGranularity() {
+<span class="fc" id="L54">    return WEEKLY;</span>
+  }
+
+  @Override
+  public TelemetryDataType getType() {
+<span class="fc" id="L59">    return BOOLEAN;</span>
+  }
+
+  @Override
+  public Optional&lt;Boolean&gt; getValue() {
+<span class="fc" id="L64">    PropertyDto property = dbClient.propertiesDao().selectGlobalProperty(MULTI_QUALITY_MODE_ENABLED);</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">    return property == null ? Optional.of(true) : Optional.of(Boolean.valueOf(property.getValue()));</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

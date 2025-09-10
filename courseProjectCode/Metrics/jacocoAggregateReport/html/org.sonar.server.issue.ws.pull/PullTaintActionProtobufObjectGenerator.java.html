@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PullTaintActionProtobufObjectGenerator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.issue.ws.pull</a> &gt; <span class="el_source">PullTaintActionProtobufObjectGenerator.java</span></div><h1>PullTaintActionProtobufObjectGenerator.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.issue.ws.pull;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.sonar.api.rules.CleanCodeAttribute;
+import org.sonar.api.server.ServerSide;
+import org.sonar.core.rule.ImpactFormatter;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.ComponentDto;
+import org.sonar.db.issue.IssueDto;
+import org.sonar.db.protobuf.DbIssues;
+import org.sonar.db.rule.RuleDto;
+import org.sonar.server.user.UserSession;
+import org.sonar.server.ws.MessageFormattingUtils;
+import org.sonarqube.ws.Common;
+import org.sonarqube.ws.Issues;
+
+import static org.sonar.db.protobuf.DbIssues.Locations;
+import static org.sonarqube.ws.Issues.TaintVulnerabilityLite;
+import static org.sonarqube.ws.Issues.TaintVulnerabilityPullQueryTimestamp;
+
+@ServerSide
+public class PullTaintActionProtobufObjectGenerator implements ProtobufObjectGenerator {
+  private final DbClient dbClient;
+  private final UserSession userSession;
+  private Map&lt;String, ComponentDto&gt; componentsMap;
+
+<span class="fc" id="L53">  public PullTaintActionProtobufObjectGenerator(DbClient dbClient, UserSession userSession) {</span>
+<span class="fc" id="L54">    this.dbClient = dbClient;</span>
+<span class="fc" id="L55">    this.userSession = userSession;</span>
+<span class="fc" id="L56">  }</span>
+
+  @Override
+  public TaintVulnerabilityPullQueryTimestamp generateTimestampMessage(long timestamp) {
+<span class="fc" id="L60">    refreshComponents();</span>
+<span class="fc" id="L61">    TaintVulnerabilityPullQueryTimestamp.Builder responseBuilder = TaintVulnerabilityPullQueryTimestamp.newBuilder();</span>
+<span class="fc" id="L62">    responseBuilder.setQueryTimestamp(timestamp);</span>
+<span class="fc" id="L63">    return responseBuilder.build();</span>
+  }
+
+  @Override
+  public TaintVulnerabilityLite generateIssueMessage(IssueDto issueDto, RuleDto ruleDto) {
+<span class="fc" id="L68">    TaintVulnerabilityLite.Builder taintBuilder = TaintVulnerabilityLite.newBuilder();</span>
+<span class="fc" id="L69">    Locations locations = issueDto.parseLocations();</span>
+
+<span class="fc bfc" id="L71" title="All 2 branches covered.">    if (componentsMap == null) {</span>
+<span class="fc" id="L72">      refreshComponents();</span>
+    }
+
+<span class="fc" id="L75">    Issues.Location.Builder locationBuilder = Issues.Location.newBuilder();</span>
+<span class="fc bfc" id="L76" title="All 2 branches covered.">    if (issueDto.getMessage() != null) {</span>
+<span class="fc" id="L77">      locationBuilder.setMessage(issueDto.getMessage());</span>
+<span class="fc" id="L78">      locationBuilder.addAllMessageFormattings(MessageFormattingUtils.dbMessageFormattingToWs(issueDto.parseMessageFormattings()));</span>
+    }
+<span class="pc bpc" id="L80" title="1 of 2 branches missed.">    if (issueDto.getFilePath() != null) {</span>
+<span class="fc" id="L81">      locationBuilder.setFilePath(issueDto.getFilePath());</span>
+    }
+<span class="fc bfc" id="L83" title="All 2 branches covered.">    if (locations != null) {</span>
+<span class="fc" id="L84">      Issues.TextRange textRange = buildTextRange(locations);</span>
+<span class="fc" id="L85">      locationBuilder.setTextRange(textRange);</span>
+<span class="fc" id="L86">      getFlows(taintBuilder, locations, issueDto);</span>
+    }
+
+<span class="fc bfc" id="L89" title="All 2 branches covered.">    taintBuilder.setAssignedToSubscribedUser(issueDto.getAssigneeUuid() != null &amp;&amp;</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">      issueDto.getAssigneeUuid().equals(userSession.getUuid()));</span>
+
+<span class="fc" id="L92">    taintBuilder.setKey(issueDto.getKey());</span>
+<span class="fc bfc" id="L93" title="All 2 branches covered.">    if (issueDto.getIssueCreationTime() != null) {</span>
+<span class="fc" id="L94">      taintBuilder.setCreationDate(issueDto.getIssueCreationTime());</span>
+    }
+<span class="fc" id="L96">    taintBuilder.setResolved(issueDto.getStatus().equals(org.sonar.api.issue.Issue.STATUS_RESOLVED));</span>
+<span class="fc" id="L97">    taintBuilder.setRuleKey(issueDto.getRuleKey().toString());</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">    if (issueDto.getSeverity() != null) {</span>
+<span class="fc" id="L99">      taintBuilder.setSeverity(Common.Severity.valueOf(issueDto.getSeverity()));</span>
+    }
+<span class="fc" id="L101">    taintBuilder.setType(Common.RuleType.forNumber(issueDto.getType()));</span>
+<span class="fc" id="L102">    CleanCodeAttribute cleanCodeAttribute = issueDto.getEffectiveCleanCodeAttribute();</span>
+<span class="fc bfc" id="L103" title="All 2 branches covered.">    String cleanCodeAttributeString = cleanCodeAttribute != null ? cleanCodeAttribute.name() : null;</span>
+<span class="fc bfc" id="L104" title="All 2 branches covered.">    String cleanCodeAttributeCategoryString = cleanCodeAttribute != null ? cleanCodeAttribute.getAttributeCategory().name() : null;</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">    if (cleanCodeAttributeString != null) {</span>
+<span class="fc" id="L106">      taintBuilder.setCleanCodeAttribute(Common.CleanCodeAttribute.valueOf(cleanCodeAttributeString));</span>
+<span class="fc" id="L107">      taintBuilder.setCleanCodeAttributeCategory(Common.CleanCodeAttributeCategory.valueOf(cleanCodeAttributeCategoryString));</span>
+    }
+<span class="fc" id="L109">    taintBuilder.addAllImpacts(issueDto.getEffectiveImpacts().entrySet()</span>
+<span class="fc" id="L110">      .stream().map(entry -&gt; Common.Impact.newBuilder()</span>
+<span class="fc" id="L111">        .setSoftwareQuality(Common.SoftwareQuality.valueOf(entry.getKey().name()))</span>
+<span class="fc" id="L112">        .setSeverity(ImpactFormatter.mapImpactSeverity(entry.getValue()))</span>
+<span class="fc" id="L113">        .build())</span>
+<span class="fc" id="L114">      .toList());</span>
+
+<span class="fc" id="L116">    taintBuilder.setClosed(false);</span>
+<span class="fc" id="L117">    taintBuilder.setMainLocation(locationBuilder.build());</span>
+<span class="fc" id="L118">    issueDto.getOptionalRuleDescriptionContextKey().ifPresent(taintBuilder::setRuleDescriptionContextKey);</span>
+
+<span class="fc" id="L120">    return taintBuilder.build();</span>
+  }
+
+  @Override
+  public TaintVulnerabilityLite generateClosedIssueMessage(String uuid) {
+<span class="fc" id="L125">    TaintVulnerabilityLite.Builder taintBuilder = TaintVulnerabilityLite.newBuilder();</span>
+<span class="fc" id="L126">    taintBuilder.setKey(uuid);</span>
+<span class="fc" id="L127">    taintBuilder.setClosed(true);</span>
+<span class="fc" id="L128">    return taintBuilder.build();</span>
+  }
+
+  private void getFlows(TaintVulnerabilityLite.Builder taintBuilder, Locations locations, IssueDto issueDto) {
+<span class="fc" id="L132">    List&lt;Issues.Flow&gt; flows = new ArrayList&lt;&gt;();</span>
+
+<span class="fc bfc" id="L134" title="All 2 branches covered.">    for (DbIssues.Flow f : locations.getFlowList()) {</span>
+<span class="fc" id="L135">      Set&lt;String&gt; componentUuids = new HashSet&lt;&gt;();</span>
+
+<span class="fc" id="L137">      Issues.Flow.Builder builder = Issues.Flow.newBuilder();</span>
+<span class="fc" id="L138">      List&lt;Issues.Location&gt; flowLocations = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L139">      getComponentUuids(f, componentUuids);</span>
+
+<span class="fc bfc" id="L141" title="All 2 branches covered.">      for (DbIssues.Location l : f.getLocationList()) {</span>
+        Issues.Location.Builder flowLocationBuilder = Issues.Location
+<span class="fc" id="L143">          .newBuilder()</span>
+<span class="fc" id="L144">          .setMessage(l.getMsg())</span>
+<span class="fc" id="L145">          .setTextRange(buildTextRange(l));</span>
+<span class="pc bpc" id="L146" title="1 of 4 branches missed.">        if (l.hasComponentId() &amp;&amp; componentsMap.containsKey(l.getComponentId())) {</span>
+<span class="nc" id="L147">          flowLocationBuilder.setFilePath(componentsMap.get(l.getComponentId()).path());</span>
+        } else {
+<span class="fc" id="L149">          flowLocationBuilder.setFilePath(issueDto.getFilePath());</span>
+        }
+<span class="fc" id="L151">        flowLocations.add(flowLocationBuilder.build());</span>
+<span class="fc" id="L152">      }</span>
+<span class="fc" id="L153">      builder.addAllLocations(flowLocations);</span>
+<span class="fc" id="L154">      flows.add(builder.build());</span>
+
+<span class="fc" id="L156">      taintBuilder.addAllFlows(flows);</span>
+<span class="fc" id="L157">    }</span>
+<span class="fc" id="L158">  }</span>
+
+  private void getComponentUuids(DbIssues.Flow f, Set&lt;String&gt; componentUuids) {
+<span class="fc bfc" id="L161" title="All 2 branches covered.">    for (DbIssues.Location l : f.getLocationList()) {</span>
+<span class="pc bpc" id="L162" title="1 of 4 branches missed.">      if (l.hasComponentId() &amp;&amp; !componentsMap.containsKey(l.getComponentId())) {</span>
+<span class="fc" id="L163">        componentUuids.add(l.getComponentId());</span>
+      }
+<span class="fc" id="L165">    }</span>
+
+<span class="fc bfc" id="L167" title="All 2 branches covered.">    if (!componentUuids.isEmpty()) {</span>
+<span class="fc" id="L168">      componentsMap.putAll(getLocationComponents(componentUuids));</span>
+    }
+<span class="fc" id="L170">  }</span>
+
+  private static Issues.TextRange buildTextRange(DbIssues.Location location) {
+<span class="fc" id="L173">    int startLine = location.getTextRange().getStartLine();</span>
+<span class="fc" id="L174">    int endLine = location.getTextRange().getEndLine();</span>
+<span class="fc" id="L175">    int startOffset = location.getTextRange().getStartOffset();</span>
+<span class="fc" id="L176">    int endOffset = location.getTextRange().getEndOffset();</span>
+
+<span class="fc" id="L178">    return Issues.TextRange.newBuilder()</span>
+<span class="fc" id="L179">      .setHash(location.getChecksum())</span>
+<span class="fc" id="L180">      .setStartLine(startLine)</span>
+<span class="fc" id="L181">      .setEndLine(endLine)</span>
+<span class="fc" id="L182">      .setStartLineOffset(startOffset)</span>
+<span class="fc" id="L183">      .setEndLineOffset(endOffset).build();</span>
+  }
+
+  private void refreshComponents() {
+<span class="fc" id="L187">    componentsMap = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L188">  }</span>
+
+  private Map&lt;String, ComponentDto&gt; getLocationComponents(Set&lt;String&gt; components) {
+<span class="fc" id="L191">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L192">      return dbClient.componentDao().selectByUuids(dbSession, components)</span>
+<span class="pc" id="L193">        .stream().collect(Collectors.toMap(ComponentDto::uuid, c -&gt; c));</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

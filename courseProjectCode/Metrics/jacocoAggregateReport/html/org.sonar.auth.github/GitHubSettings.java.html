@@ -1,0 +1,290 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GitHubSettings.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.auth.github</a> &gt; <span class="el_source">GitHubSettings.java</span></div><h1>GitHubSettings.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.auth.github;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.Set;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.api.PropertyType;
+import org.sonar.api.ce.ComputeEngineSide;
+import org.sonar.api.config.Configuration;
+import org.sonar.api.config.PropertyDefinition;
+import org.sonar.api.server.ServerSide;
+import org.sonar.auth.DevOpsPlatformSettings;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.alm.setting.ALM;
+import org.sonar.server.property.InternalProperties;
+
+import static java.lang.String.format;
+import static java.lang.String.valueOf;
+import static org.apache.commons.lang3.StringUtils.isNotBlank;
+import static org.sonar.api.PropertyType.BOOLEAN;
+import static org.sonar.api.PropertyType.PASSWORD;
+import static org.sonar.api.PropertyType.STRING;
+import static org.sonar.api.utils.Preconditions.checkState;
+import static org.sonar.db.ce.CeTaskTypes.GITHUB_PROJECT_PERMISSIONS_PROVISIONING;
+
+@ServerSide
+@ComputeEngineSide
+public class GitHubSettings implements DevOpsPlatformSettings {
+
+  public static final String GITHUB_CLIENT_ID = &quot;sonar.auth.github.clientId.secured&quot;;
+  public static final String GITHUB_CLIENT_SECRET = &quot;sonar.auth.github.clientSecret.secured&quot;;
+  public static final String GITHUB_APP_ID = &quot;sonar.auth.github.appId&quot;;
+  public static final String GITHUB_PRIVATE_KEY = &quot;sonar.auth.github.privateKey.secured&quot;;
+  public static final String GITHUB_ENABLED = &quot;sonar.auth.github.enabled&quot;;
+  public static final String GITHUB_ALLOW_USERS_TO_SIGN_UP = &quot;sonar.auth.github.allowUsersToSignUp&quot;;
+  public static final String GITHUB_GROUPS_SYNC = &quot;sonar.auth.github.groupsSync&quot;;
+  public static final String GITHUB_API_URL = &quot;sonar.auth.github.apiUrl&quot;;
+  public static final String DEFAULT_API_URL = &quot;https://api.github.com/&quot;;
+  public static final String GITHUB_WEB_URL = &quot;sonar.auth.github.webUrl&quot;;
+  public static final String DEFAULT_WEB_URL = &quot;https://github.com/&quot;;
+  public static final String GITHUB_ORGANIZATIONS = &quot;sonar.auth.github.organizations&quot;;
+  public static final String GITHUB_PROVISIONING = &quot;provisioning.github.enabled&quot;;
+  public static final String GITHUB_PROVISION_PROJECT_VISIBILITY = &quot;provisioning.github.project.visibility.enabled&quot;;
+  public static final String GITHUB_USER_CONSENT_FOR_PERMISSIONS_REQUIRED_AFTER_UPGRADE = &quot;sonar.auth.github.userConsentForPermissionProvisioningRequired&quot;;
+
+  private static final String CATEGORY = &quot;authentication&quot;;
+  private static final String SUBCATEGORY = &quot;github&quot;;
+
+  private final Configuration configuration;
+
+  private final InternalProperties internalProperties;
+  private final DbClient dbClient;
+
+<span class="fc" id="L75">  public GitHubSettings(Configuration configuration, InternalProperties internalProperties, DbClient dbClient) {</span>
+<span class="fc" id="L76">    this.configuration = configuration;</span>
+<span class="fc" id="L77">    this.internalProperties = internalProperties;</span>
+<span class="fc" id="L78">    this.dbClient = dbClient;</span>
+<span class="fc" id="L79">  }</span>
+
+  public String clientId() {
+<span class="fc" id="L82">    return configuration.get(GITHUB_CLIENT_ID).orElse(&quot;&quot;);</span>
+  }
+
+  public String clientSecret() {
+<span class="fc" id="L86">    return configuration.get(GITHUB_CLIENT_SECRET).orElse(&quot;&quot;);</span>
+  }
+
+  public String appId() {
+<span class="fc" id="L90">    return configuration.get(GITHUB_APP_ID).orElse(&quot;&quot;);</span>
+  }
+
+  public String privateKey() {
+<span class="fc" id="L94">    return configuration.get(GITHUB_PRIVATE_KEY).orElse(&quot;&quot;);</span>
+  }
+
+  public boolean isEnabled() {
+<span class="fc bfc" id="L98" title="All 6 branches covered.">    return configuration.getBoolean(GITHUB_ENABLED).orElse(false) &amp;&amp; !clientId().isEmpty() &amp;&amp; !clientSecret().isEmpty();</span>
+  }
+
+  public boolean allowUsersToSignUp() {
+<span class="fc" id="L102">    return configuration.getBoolean(GITHUB_ALLOW_USERS_TO_SIGN_UP).orElse(false);</span>
+  }
+
+  public boolean syncGroups() {
+<span class="fc" id="L106">    return configuration.getBoolean(GITHUB_GROUPS_SYNC).orElse(false);</span>
+  }
+
+  @CheckForNull
+  String webURL() {
+<span class="fc" id="L111">    return urlWithEndingSlash(configuration.get(GITHUB_WEB_URL).orElse(&quot;&quot;));</span>
+  }
+
+  @CheckForNull
+  public String apiURL() {
+<span class="fc" id="L116">    return urlWithEndingSlash(configuration.get(GITHUB_API_URL).orElse(&quot;&quot;));</span>
+  }
+
+  public String apiURLOrDefault() {
+<span class="nc" id="L120">    return configuration.get(GITHUB_API_URL).map(GitHubSettings::urlWithEndingSlash).orElse(DEFAULT_API_URL);</span>
+  }
+
+  public Set&lt;String&gt; getOrganizations() {
+<span class="fc" id="L124">    return Set.of(configuration.getStringArray(GITHUB_ORGANIZATIONS));</span>
+  }
+
+  @CheckForNull
+  private static String urlWithEndingSlash(@Nullable String url) {
+<span class="pc bpc" id="L129" title="1 of 4 branches missed.">    if (url != null &amp;&amp; !url.endsWith(&quot;/&quot;)) {</span>
+<span class="fc" id="L130">      return url + &quot;/&quot;;</span>
+    }
+<span class="fc" id="L132">    return url;</span>
+  }
+
+  public void setProvisioning(boolean enableProvisioning) {
+<span class="fc bfc" id="L136" title="All 2 branches covered.">    if (enableProvisioning) {</span>
+<span class="fc" id="L137">      checkGithubConfigIsCompleteForProvisioning();</span>
+    } else {
+<span class="fc" id="L139">      removeExternalGroupsForGithub();</span>
+    }
+<span class="fc" id="L141">    internalProperties.write(GITHUB_PROVISIONING, String.valueOf(enableProvisioning));</span>
+<span class="fc" id="L142">  }</span>
+
+  private void removeExternalGroupsForGithub() {
+<span class="fc" id="L145">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L146">      dbClient.externalGroupDao().deleteByExternalIdentityProvider(dbSession, GitHubIdentityProvider.KEY);</span>
+<span class="fc" id="L147">      dbClient.githubOrganizationGroupDao().deleteAll(dbSession);</span>
+<span class="fc" id="L148">      dbSession.commit();</span>
+    }
+<span class="fc" id="L150">  }</span>
+
+  private void checkGithubConfigIsCompleteForProvisioning() {
+<span class="fc" id="L153">    checkState(isEnabled(), getErrorMessage(&quot;GitHub authentication must be enabled&quot;));</span>
+<span class="fc" id="L154">    checkState(isNotBlank(appId()), getErrorMessage(&quot;Application ID must be provided&quot;));</span>
+<span class="fc" id="L155">    checkState(isNotBlank(privateKey()), getErrorMessage(&quot;Private key must be provided&quot;));</span>
+<span class="fc" id="L156">  }</span>
+
+  private static String getErrorMessage(String prefix) {
+<span class="fc" id="L159">    return format(&quot;%s to enable GitHub provisioning.&quot;, prefix);</span>
+  }
+
+  @Override
+  public String getDevOpsPlatform() {
+<span class="nc" id="L164">    return ALM.GITHUB.getId();</span>
+  }
+
+  @Override
+  public boolean isProvisioningEnabled() {
+<span class="fc bfc" id="L169" title="All 4 branches covered.">    return isEnabled() &amp;&amp; internalProperties.read(GITHUB_PROVISIONING).map(Boolean::parseBoolean).orElse(false);</span>
+  }
+
+  @Override
+  public boolean isUserConsentRequiredAfterUpgrade() {
+<span class="fc" id="L174">    return configuration.get(GITHUB_USER_CONSENT_FOR_PERMISSIONS_REQUIRED_AFTER_UPGRADE).isPresent();</span>
+  }
+
+  @Override
+  public String getProjectsPermissionsProvisioningTaskName() {
+<span class="fc" id="L179">    return GITHUB_PROJECT_PERMISSIONS_PROVISIONING;</span>
+  }
+
+  @Override
+  public boolean isProjectVisibilitySynchronizationActivated() {
+<span class="fc" id="L184">    return configuration.getBoolean(GITHUB_PROVISION_PROJECT_VISIBILITY).orElse(true);</span>
+  }
+
+  public static List&lt;PropertyDefinition&gt; definitions() {
+<span class="fc" id="L188">    int index = 1;</span>
+<span class="fc" id="L189">    return Arrays.asList(</span>
+<span class="fc" id="L190">      PropertyDefinition.builder(GITHUB_ENABLED)</span>
+<span class="fc" id="L191">        .name(&quot;Enabled&quot;)</span>
+<span class="fc" id="L192">        .description(&quot;Enable GitHub users to login. Value is ignored if client ID and secret are not defined.&quot;)</span>
+<span class="fc" id="L193">        .category(CATEGORY)</span>
+<span class="fc" id="L194">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L195">        .type(BOOLEAN)</span>
+<span class="fc" id="L196">        .defaultValue(valueOf(false))</span>
+<span class="fc" id="L197">        .index(index++)</span>
+<span class="fc" id="L198">        .build(),</span>
+<span class="fc" id="L199">      PropertyDefinition.builder(GITHUB_CLIENT_ID)</span>
+<span class="fc" id="L200">        .name(&quot;Client ID&quot;)</span>
+<span class="fc" id="L201">        .description(&quot;Client ID provided by GitHub when registering the application.&quot;)</span>
+<span class="fc" id="L202">        .category(CATEGORY)</span>
+<span class="fc" id="L203">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L204">        .index(index++)</span>
+<span class="fc" id="L205">        .build(),</span>
+<span class="fc" id="L206">      PropertyDefinition.builder(GITHUB_CLIENT_SECRET)</span>
+<span class="fc" id="L207">        .name(&quot;Client Secret&quot;)</span>
+<span class="fc" id="L208">        .description(&quot;Client password provided by GitHub when registering the application.&quot;)</span>
+<span class="fc" id="L209">        .category(CATEGORY)</span>
+<span class="fc" id="L210">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L211">        .type(PASSWORD)</span>
+<span class="fc" id="L212">        .index(index++)</span>
+<span class="fc" id="L213">        .build(),</span>
+<span class="fc" id="L214">      PropertyDefinition.builder(GITHUB_APP_ID)</span>
+<span class="fc" id="L215">        .name(&quot;App ID&quot;)</span>
+<span class="fc" id="L216">        .description(&quot;The App ID is found on your GitHub App's page on GitHub at Settings &gt; Developer Settings &gt; GitHub Apps.&quot;)</span>
+<span class="fc" id="L217">        .category(CATEGORY)</span>
+<span class="fc" id="L218">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L219">        .type(STRING)</span>
+<span class="fc" id="L220">        .index(index++)</span>
+<span class="fc" id="L221">        .build(),</span>
+<span class="fc" id="L222">      PropertyDefinition.builder(GITHUB_PRIVATE_KEY)</span>
+<span class="fc" id="L223">        .name(&quot;Private Key&quot;)</span>
+<span class="fc" id="L224">        .description(&quot;&quot;&quot;</span>
+          Your GitHub App's private key. You can generate a .pem file from your GitHub App's page under Private keys.
+          Copy and paste the whole contents of the file here.&quot;&quot;&quot;)
+<span class="fc" id="L227">        .category(CATEGORY)</span>
+<span class="fc" id="L228">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L229">        .type(PropertyType.TEXT)</span>
+<span class="fc" id="L230">        .index(index++)</span>
+<span class="fc" id="L231">        .build(),</span>
+<span class="fc" id="L232">      PropertyDefinition.builder(GITHUB_ALLOW_USERS_TO_SIGN_UP)</span>
+<span class="fc" id="L233">        .name(&quot;Allow users to sign up&quot;)</span>
+<span class="fc" id="L234">        .description(&quot;Allow new users to authenticate. When set to disabled, only existing users will be able to authenticate to the server.&quot;)</span>
+<span class="fc" id="L235">        .category(CATEGORY)</span>
+<span class="fc" id="L236">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L237">        .type(BOOLEAN)</span>
+<span class="fc" id="L238">        .defaultValue(valueOf(true))</span>
+<span class="fc" id="L239">        .index(index++)</span>
+<span class="fc" id="L240">        .build(),</span>
+<span class="fc" id="L241">      PropertyDefinition.builder(GITHUB_GROUPS_SYNC)</span>
+<span class="fc" id="L242">        .name(&quot;Synchronize teams as groups&quot;)</span>
+<span class="fc" id="L243">        .description(&quot;Synchronize GitHub team with SonarQube group memberships when users log in to SonarQube.&quot;</span>
+          + &quot; For each GitHub team they belong to, users will be associated to a group of the same name if it exists in SonarQube.&quot;)
+<span class="fc" id="L245">        .category(CATEGORY)</span>
+<span class="fc" id="L246">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L247">        .type(BOOLEAN)</span>
+<span class="fc" id="L248">        .defaultValue(valueOf(false))</span>
+<span class="fc" id="L249">        .index(index++)</span>
+<span class="fc" id="L250">        .build(),</span>
+<span class="fc" id="L251">      PropertyDefinition.builder(GITHUB_API_URL)</span>
+<span class="fc" id="L252">        .name(&quot;The API url for a GitHub instance.&quot;)</span>
+<span class="fc" id="L253">        .description(String.format(&quot;The API url for a GitHub instance. %s for Github.com, https://github.company.com/api/v3/ when using Github Enterprise&quot;, DEFAULT_API_URL))</span>
+<span class="fc" id="L254">        .category(CATEGORY)</span>
+<span class="fc" id="L255">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L256">        .type(STRING)</span>
+<span class="fc" id="L257">        .defaultValue(DEFAULT_API_URL)</span>
+<span class="fc" id="L258">        .index(index++)</span>
+<span class="fc" id="L259">        .build(),</span>
+<span class="fc" id="L260">      PropertyDefinition.builder(GITHUB_WEB_URL)</span>
+<span class="fc" id="L261">        .name(&quot;The WEB url for a GitHub instance.&quot;)</span>
+<span class="fc" id="L262">        .description(String.format(&quot;The WEB url for a GitHub instance. %s for Github.com, https://github.company.com/ when using GitHub Enterprise.&quot;, DEFAULT_WEB_URL))</span>
+<span class="fc" id="L263">        .category(CATEGORY)</span>
+<span class="fc" id="L264">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L265">        .type(STRING)</span>
+<span class="fc" id="L266">        .defaultValue(DEFAULT_WEB_URL)</span>
+<span class="fc" id="L267">        .index(index++)</span>
+<span class="fc" id="L268">        .build(),</span>
+<span class="fc" id="L269">      PropertyDefinition.builder(GITHUB_ORGANIZATIONS)</span>
+<span class="fc" id="L270">        .name(&quot;Organizations&quot;)</span>
+<span class="fc" id="L271">        .description(&quot;Only members of these organizations will be able to authenticate to the server. &quot;</span>
+          + &quot;⚠ if not set, users from any organization where the GitHub App is installed will be able to login to this SonarQube instance.&quot;)
+<span class="fc" id="L273">        .multiValues(true)</span>
+<span class="fc" id="L274">        .category(CATEGORY)</span>
+<span class="fc" id="L275">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L276">        .index(index)</span>
+<span class="fc" id="L277">        .build(),</span>
+<span class="fc" id="L278">      PropertyDefinition.builder(GITHUB_PROVISION_PROJECT_VISIBILITY)</span>
+<span class="fc" id="L279">        .name(&quot;Provision project visibility&quot;)</span>
+<span class="fc" id="L280">        .description(&quot;Change project visibility based on GitHub repository visibility. If disabled, every provisioned project will be private in SonarQube and visible only&quot;</span>
+          + &quot; to users with explicit GitHub permissions for the corresponding repository. Changes take effect at the next synchronization.&quot;)
+<span class="fc" id="L282">        .type(BOOLEAN)</span>
+<span class="fc" id="L283">        .category(CATEGORY)</span>
+<span class="fc" id="L284">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L285">        .defaultValue(valueOf(true))</span>
+<span class="fc" id="L286">        .index(index)</span>
+<span class="fc" id="L287">        .build());</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MeasureImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.api.measurecomputer</a> &gt; <span class="el_source">MeasureImpl.java</span></div><h1>MeasureImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.api.measurecomputer;
+
+import java.util.EnumSet;
+import java.util.Locale;
+import javax.annotation.concurrent.Immutable;
+import org.sonar.api.ce.measure.Measure;
+
+import static com.google.common.base.Preconditions.checkState;
+import static java.lang.String.format;
+import static java.util.Objects.requireNonNull;
+import static org.sonar.ce.task.projectanalysis.measure.ValueType.BOOLEAN;
+import static org.sonar.ce.task.projectanalysis.measure.ValueType.DOUBLE;
+import static org.sonar.ce.task.projectanalysis.measure.ValueType.INT;
+import static org.sonar.ce.task.projectanalysis.measure.ValueType.LONG;
+import static org.sonar.ce.task.projectanalysis.measure.ValueType.STRING;
+
+@Immutable
+public class MeasureImpl implements Measure {
+
+<span class="fc" id="L39">  private static final EnumSet&lt;org.sonar.ce.task.projectanalysis.measure.ValueType&gt; ALLOWED_VALUE_TYPES = EnumSet.of(INT, LONG, DOUBLE, STRING, BOOLEAN);</span>
+
+  private final org.sonar.ce.task.projectanalysis.measure.Measure measure;
+
+<span class="fc" id="L43">  public MeasureImpl(org.sonar.ce.task.projectanalysis.measure.Measure measure) {</span>
+<span class="fc" id="L44">    this.measure = requireNonNull(measure, &quot;Measure couldn't be null&quot;);</span>
+<span class="fc" id="L45">    checkState(ALLOWED_VALUE_TYPES.contains(measure.getValueType()), &quot;Only following types are allowed %s&quot;, ALLOWED_VALUE_TYPES);</span>
+<span class="fc" id="L46">  }</span>
+
+  @Override
+  public int getIntValue() {
+<span class="fc" id="L50">    checkValueType(INT);</span>
+<span class="fc" id="L51">    return measure.getIntValue();</span>
+  }
+
+  @Override
+  public long getLongValue() {
+<span class="fc" id="L56">    checkValueType(LONG);</span>
+<span class="fc" id="L57">    return measure.getLongValue();</span>
+  }
+
+  @Override
+  public double getDoubleValue() {
+<span class="fc" id="L62">    checkValueType(DOUBLE);</span>
+<span class="fc" id="L63">    return measure.getDoubleValue();</span>
+  }
+
+  @Override
+  public String getStringValue() {
+<span class="fc" id="L68">    checkValueType(STRING);</span>
+<span class="fc" id="L69">    return measure.getStringValue();</span>
+  }
+
+  @Override
+  public boolean getBooleanValue() {
+<span class="fc" id="L74">    checkValueType(BOOLEAN);</span>
+<span class="fc" id="L75">    return measure.getBooleanValue();</span>
+  }
+
+  private void checkValueType(org.sonar.ce.task.projectanalysis.measure.ValueType expected) {
+<span class="fc bfc" id="L79" title="All 2 branches covered.">    if (measure.getValueType() != expected) {</span>
+<span class="fc" id="L80">      throw new IllegalStateException(format(&quot;Value can not be converted to %s because current value type is a %s&quot;,</span>
+<span class="fc" id="L81">        expected.toString().toLowerCase(Locale.US),</span>
+<span class="fc" id="L82">        measure.getValueType()));</span>
+    }
+<span class="fc" id="L84">  }</span>
+
+  @Override
+  public String toString() {
+<span class="nc" id="L88">    return &quot;MeasureImpl{&quot; +</span>
+      &quot;measure=&quot; + measure +
+      '}';
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ComponentType.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.component</a> &gt; <span class="el_source">ComponentType.java</span></div><h1>ComponentType.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.component;
+
+import java.util.HashMap;
+import java.util.Map;
+import javax.annotation.Nullable;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.util.Objects.requireNonNull;
+import static org.apache.commons.lang3.StringUtils.isEmpty;
+
+/**
+ * &lt;p&gt;Extension to declare custom types of components.
+ * &lt;p&gt;
+ * ComponentType object can declare properties that give information about the capabilities of the
+ * component type. Those properties may be used, of instance, to adapt the Web UI according to the type of
+ * the resource being displayed.
+ * &lt;br&gt;
+ * Currently, the following properties can be defined:
+ * &lt;ul&gt;
+ * &lt;li&gt;&quot;deletable&quot;: if set to &quot;true&quot;, then this resource can be deleted/purged.&lt;/li&gt;
+ * &lt;li&gt;&quot;supportsMeasureFilters&quot;: if set to &quot;true&quot;, then this resource can be displayed in measure filters&lt;/li&gt;
+ * &lt;li&gt;&quot;modifiable_history&quot;: if set to &quot;true&quot;, then the history of this resource may be modified (deletion of snapshots, modification of events, ...)&lt;/li&gt;
+ * &lt;li&gt;&quot;updatable_key&quot; (since 3.2): if set to &quot;true&quot;, then it is possible to update the key of this resource&lt;/li&gt;
+ * &lt;li&gt;&quot;supportsGlobalDashboards&quot; (since 3.2): if true, this resource can be displayed in global dashboards&lt;/li&gt;
+ * &lt;li&gt;&quot;hasRolePolicy&quot; : if true, roles configuration is available in sidebar&lt;/li&gt;
+ * &lt;li&gt;&quot;comparable&quot; (since 3.4) : if true, the resource can be compared to other resources&lt;/li&gt;
+ * &lt;li&gt;&quot;configurable&quot; (since 3.6) : if true, the settings page can be displayed on the resource&lt;/li&gt;
+ * &lt;/ul&gt;
+ */
+public class ComponentType {
+
+  private final String qualifier;
+  private final String iconPath;
+  private final boolean hasSourceCode;
+  private final Map&lt;String, String&gt; properties;
+
+<span class="fc" id="L56">  private ComponentType(Builder builder) {</span>
+<span class="fc" id="L57">    this.qualifier = builder.qualifier;</span>
+<span class="fc" id="L58">    this.iconPath = builder.iconPath;</span>
+<span class="fc" id="L59">    this.hasSourceCode = builder.hasSourceCode;</span>
+<span class="fc" id="L60">    this.properties = new HashMap&lt;&gt;(builder.properties);</span>
+<span class="fc" id="L61">  }</span>
+
+  /**
+   * Qualifier is the unique key.
+   *
+   * @return the qualifier
+   */
+  public String getQualifier() {
+<span class="fc" id="L69">    return qualifier;</span>
+  }
+
+  /**
+   * Returns the relative path of the icon used to represent the resource type
+   *
+   * @return the relative path.
+   */
+  public String getIconPath() {
+<span class="fc" id="L78">    return iconPath;</span>
+  }
+
+  /**
+   * Tells whether resources of this type has source code or not.
+   *
+   * @return true if the type has source code
+   */
+  public boolean hasSourceCode() {
+<span class="fc" id="L87">    return hasSourceCode;</span>
+  }
+
+  public boolean hasProperty(String key) {
+<span class="fc" id="L91">    requireNonNull(key);</span>
+<span class="fc" id="L92">    return properties.containsKey(key);</span>
+  }
+
+  /**
+   * Returns the value of the property for this resource type.
+   *
+   * @return the String value of the property, or NULL if the property hasn't been set.
+   */
+  public String getStringProperty(String key) {
+<span class="fc" id="L101">    requireNonNull(key);</span>
+<span class="fc" id="L102">    return properties.get(key);</span>
+  }
+
+  /**
+   * Returns the value of the property for this resource type.
+   *
+   * @return the Boolean value of the property. If the property hasn't been set, False is returned.
+   */
+  public boolean getBooleanProperty(String key) {
+<span class="fc" id="L111">    requireNonNull(key);</span>
+<span class="fc" id="L112">    String value = properties.get(key);</span>
+<span class="fc bfc" id="L113" title="All 4 branches covered.">    return value != null &amp;&amp; Boolean.parseBoolean(value);</span>
+  }
+
+  @Override
+  public boolean equals(Object o) {
+<span class="fc bfc" id="L118" title="All 2 branches covered.">    if (this == o) {</span>
+<span class="fc" id="L119">      return true;</span>
+    }
+<span class="pc bpc" id="L121" title="2 of 4 branches missed.">    if (o == null || getClass() != o.getClass()) {</span>
+<span class="nc" id="L122">      return false;</span>
+    }
+
+<span class="fc" id="L125">    ComponentType that = (ComponentType) o;</span>
+<span class="fc" id="L126">    return qualifier.equals(that.qualifier);</span>
+  }
+
+  @Override
+  public int hashCode() {
+<span class="fc" id="L131">    return qualifier.hashCode();</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="nc" id="L136">    return qualifier;</span>
+  }
+
+  /**
+   * Creates a new {@link Builder}
+   */
+  public static Builder builder(String qualifier) {
+<span class="fc" id="L143">    requireNonNull(qualifier);</span>
+<span class="fc bfc" id="L144" title="All 2 branches covered.">    checkArgument(qualifier.length() &lt;= 10, &quot;Qualifier is limited to 10 characters&quot;);</span>
+<span class="fc" id="L145">    return new Builder(qualifier);</span>
+  }
+
+  /**
+   * Builder used to create {@link ComponentType} objects.
+   */
+  public static class Builder {
+    private final String qualifier;
+    private String iconPath;
+<span class="fc" id="L154">    private boolean hasSourceCode = false;</span>
+<span class="fc" id="L155">    private final Map&lt;String, String&gt; properties = new HashMap&lt;&gt;();</span>
+
+    /**
+     * Creates a new {@link Builder}
+     */
+<span class="fc" id="L160">    public Builder(String qualifier) {</span>
+<span class="fc" id="L161">      this.qualifier = qualifier;</span>
+<span class="fc" id="L162">    }</span>
+
+    /**
+     * Relative path of the icon used to represent the resource type.
+     *
+     * @param iconPath path to icon, relative to context of web-application (e.g. &quot;/images/q/DIR.png&quot;)
+     */
+    public Builder setIconPath(@Nullable String iconPath) {
+<span class="fc" id="L170">      this.iconPath = iconPath;</span>
+<span class="fc" id="L171">      return this;</span>
+    }
+
+    /**
+     * Tells that the resources of this type will have source code.
+     */
+    public Builder hasSourceCode() {
+<span class="fc" id="L178">      this.hasSourceCode = true;</span>
+<span class="fc" id="L179">      return this;</span>
+    }
+
+    /**
+     * Sets a property on the resource type. See the description of {@link ComponentType} class for more information.
+     */
+    public Builder setProperty(String key, String value) {
+<span class="fc" id="L186">      requireNonNull(key);</span>
+<span class="fc" id="L187">      requireNonNull(value);</span>
+<span class="fc" id="L188">      properties.put(key, value);</span>
+<span class="fc" id="L189">      return this;</span>
+    }
+
+    public Builder setProperty(String key, boolean value) {
+<span class="fc" id="L193">      return setProperty(key, String.valueOf(value));</span>
+    }
+
+    /**
+     * Creates an instance of {@link ComponentType} based on all information given to the builder.
+     */
+    public ComponentType build() {
+<span class="fc bfc" id="L200" title="All 2 branches covered.">      if (isEmpty(iconPath)) {</span>
+<span class="fc" id="L201">        iconPath = &quot;/images/q/&quot; + qualifier + &quot;.png&quot;;</span>
+      }
+<span class="fc" id="L203">      return new ComponentType(this);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

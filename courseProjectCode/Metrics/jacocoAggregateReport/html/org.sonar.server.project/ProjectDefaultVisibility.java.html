@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ProjectDefaultVisibility.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.project</a> &gt; <span class="el_source">ProjectDefaultVisibility.java</span></div><h1>ProjectDefaultVisibility.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.project;
+
+import java.util.Optional;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.property.PropertyDto;
+
+public class ProjectDefaultVisibility {
+  private static final String PROJECTS_DEFAULT_VISIBILITY_PROPERTY_NAME = &quot;projects.default.visibility&quot;;
+  private final DbClient dbClient;
+
+<span class="fc" id="L31">  public ProjectDefaultVisibility(DbClient dbClient) {</span>
+<span class="fc" id="L32">    this.dbClient = dbClient;</span>
+<span class="fc" id="L33">  }</span>
+
+  public Visibility get(DbSession dbSession) {
+<span class="fc" id="L36">    PropertyDto defaultProjectVisibility = Optional</span>
+<span class="fc" id="L37">      .ofNullable(dbClient.propertiesDao().selectGlobalProperty(dbSession, PROJECTS_DEFAULT_VISIBILITY_PROPERTY_NAME))</span>
+<span class="fc" id="L38">      .orElseThrow(() -&gt; new IllegalStateException(&quot;Could not find default project visibility setting&quot;));</span>
+<span class="fc" id="L39">    return Visibility.parseVisibility(defaultProjectVisibility.getValue());</span>
+  }
+
+  public void set(DbSession dbSession, String visibilityLabel) {
+<span class="fc" id="L43">    set(dbSession, Visibility.parseVisibility(visibilityLabel));</span>
+<span class="fc" id="L44">  }</span>
+
+  public void set(DbSession dbSession, Visibility visibility) {
+<span class="fc" id="L47">    dbClient.propertiesDao().saveProperty(dbSession, new PropertyDto()</span>
+<span class="fc" id="L48">      .setKey(PROJECTS_DEFAULT_VISIBILITY_PROPERTY_NAME)</span>
+<span class="fc" id="L49">      .setValue(visibility.getLabel()));</span>
+<span class="fc" id="L50">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

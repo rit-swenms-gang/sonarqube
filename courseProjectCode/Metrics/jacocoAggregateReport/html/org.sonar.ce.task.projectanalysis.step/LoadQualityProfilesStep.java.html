@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LoadQualityProfilesStep.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.step</a> &gt; <span class="el_source">LoadQualityProfilesStep.java</span></div><h1>LoadQualityProfilesStep.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.step;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
+import org.sonar.api.issue.impact.Severity;
+import org.sonar.api.issue.impact.SoftwareQuality;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.api.rule.RuleStatus;
+import org.sonar.ce.common.scanner.ScannerReportReader;
+import org.sonar.ce.task.projectanalysis.issue.ImpactMapper;
+import org.sonar.ce.task.projectanalysis.issue.Rule;
+import org.sonar.ce.task.projectanalysis.issue.RuleRepository;
+import org.sonar.ce.task.projectanalysis.qualityprofile.ActiveRule;
+import org.sonar.ce.task.projectanalysis.qualityprofile.ActiveRulesHolderImpl;
+import org.sonar.ce.task.step.ComputationStep;
+import org.sonar.core.util.CloseableIterator;
+import org.sonar.scanner.protocol.output.ScannerReport;
+
+public class LoadQualityProfilesStep implements ComputationStep {
+
+  private final ScannerReportReader scannerReportReader;
+  private final ActiveRulesHolderImpl activeRulesHolder;
+  private final RuleRepository ruleRepository;
+
+<span class="fc" id="L48">  public LoadQualityProfilesStep(ScannerReportReader scannerReportReader, ActiveRulesHolderImpl activeRulesHolder, RuleRepository ruleRepository) {</span>
+<span class="fc" id="L49">    this.scannerReportReader = scannerReportReader;</span>
+<span class="fc" id="L50">    this.activeRulesHolder = activeRulesHolder;</span>
+<span class="fc" id="L51">    this.ruleRepository = ruleRepository;</span>
+<span class="fc" id="L52">  }</span>
+
+  @Override
+  public void execute(ComputationStep.Context context) {
+<span class="fc" id="L56">    List&lt;ActiveRule&gt; activeRules = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L57">    try (CloseableIterator&lt;ScannerReport.ActiveRule&gt; batchActiveRules = scannerReportReader.readActiveRules()) {</span>
+<span class="fc bfc" id="L58" title="All 2 branches covered.">      while (batchActiveRules.hasNext()) {</span>
+<span class="fc" id="L59">        ScannerReport.ActiveRule scannerReportActiveRule = batchActiveRules.next();</span>
+<span class="fc" id="L60">        Optional&lt;Rule&gt; rule = ruleRepository.findByKey(RuleKey.of(scannerReportActiveRule.getRuleRepository(), scannerReportActiveRule.getRuleKey()));</span>
+<span class="pc bpc" id="L61" title="1 of 6 branches missed.">        if (rule.isPresent() &amp;&amp; rule.get().getStatus() != RuleStatus.REMOVED &amp;&amp; !rule.get().isExternal()) {</span>
+<span class="fc" id="L62">          activeRules.add(convert(scannerReportActiveRule, rule.get()));</span>
+        }
+<span class="fc" id="L64">      }</span>
+    }
+
+<span class="fc" id="L67">    activeRulesHolder.set(activeRules);</span>
+<span class="fc" id="L68">  }</span>
+
+  @Override
+  public String getDescription() {
+<span class="nc" id="L72">    return &quot;Load quality profiles&quot;;</span>
+  }
+
+  private static ActiveRule convert(ScannerReport.ActiveRule input, Rule rule) {
+<span class="fc" id="L76">    RuleKey key = RuleKey.of(input.getRuleRepository(), input.getRuleKey());</span>
+<span class="fc" id="L77">    Map&lt;String, String&gt; params = new HashMap&lt;&gt;(input.getParamsByKeyMap());</span>
+<span class="fc" id="L78">    Map&lt;SoftwareQuality, Severity&gt; impacts = input.getImpactsList().stream()</span>
+<span class="fc" id="L79">      .collect(Collectors.toMap(</span>
+<span class="fc" id="L80">        i -&gt; SoftwareQuality.valueOf(i.getSoftwareQuality().name()),</span>
+<span class="fc" id="L81">        i -&gt; ImpactMapper.mapImpactSeverity(i.getSeverity())));</span>
+<span class="fc" id="L82">    return new ActiveRule(key, input.getSeverity().name(), params, input.getUpdatedAt(), rule.getPluginKey(), input.getQProfileKey(), impacts);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

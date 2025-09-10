@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EventValidator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.projectanalysis.ws</a> &gt; <span class="el_source">EventValidator.java</span></div><h1>EventValidator.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.projectanalysis.ws;
+
+import com.google.common.base.Joiner;
+import com.google.common.collect.ImmutableSet;
+import java.util.Set;
+import java.util.function.Consumer;
+import javax.annotation.Nullable;
+import org.sonar.db.component.SnapshotDto;
+import org.sonar.db.event.EventDto;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static org.sonar.server.projectanalysis.ws.EventCategory.OTHER;
+import static org.sonar.server.projectanalysis.ws.EventCategory.VERSION;
+import static org.sonar.server.projectanalysis.ws.EventCategory.fromLabel;
+
+class EventValidator {
+<span class="fc" id="L36">  private static final Set&lt;String&gt; AUTHORIZED_CATEGORIES = ImmutableSet.of(VERSION.name(), OTHER.name());</span>
+<span class="fc" id="L37">  private static final String AUTHORIZED_CATEGORIES_INLINED = Joiner.on(&quot;, &quot;).join(AUTHORIZED_CATEGORIES);</span>
+
+  private EventValidator() {
+    // prevent instantiation
+  }
+
+  static Consumer&lt;EventDto&gt; checkModifiable() {
+<span class="fc" id="L44">    return event -&gt; checkArgument(AUTHORIZED_CATEGORIES.contains(fromLabel(event.getCategory()).name()),</span>
+      &quot;Event of category '%s' cannot be modified. Authorized categories: %s&quot;,
+<span class="fc" id="L46">      EventCategory.fromLabel(event.getCategory()), AUTHORIZED_CATEGORIES_INLINED);</span>
+  }
+
+  static void checkVersionName(EventCategory category, @Nullable String name) {
+<span class="fc" id="L50">    checkVersionName(category.getLabel(), name);</span>
+<span class="fc" id="L51">  }</span>
+
+  static void checkVersionName(@Nullable String category, @Nullable String name) {
+<span class="pc bpc" id="L54" title="1 of 4 branches missed.">    if (VERSION.getLabel().equals(category) &amp;&amp; name != null) {</span>
+      // check against max version length defined on SnapshotDto to enforce consistency between version events and snapshot versions
+<span class="fc bfc" id="L56" title="All 2 branches covered.">      checkArgument(name.length() &lt;= SnapshotDto.MAX_VERSION_LENGTH,</span>
+<span class="fc" id="L57">        &quot;Event name length (%s) is longer than the maximum authorized (%s). '%s' was provided.&quot;, name.length(), SnapshotDto.MAX_VERSION_LENGTH, name);</span>
+    }
+<span class="fc" id="L59">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

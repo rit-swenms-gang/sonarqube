@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserLastConnectionDatesUpdaterImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.authentication</a> &gt; <span class="el_source">UserLastConnectionDatesUpdaterImpl.java</span></div><h1>UserLastConnectionDatesUpdaterImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.authentication;
+
+import javax.annotation.Nullable;
+import org.sonar.api.utils.System2;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.user.UserDto;
+import org.sonar.db.user.UserTokenDto;
+
+public class UserLastConnectionDatesUpdaterImpl implements UserLastConnectionDatesUpdater {
+
+  private static final long ONE_HOUR_IN_MILLISECONDS = 60 * 60 * 1000L;
+
+  private final DbClient dbClient;
+  private final System2 system2;
+
+<span class="fc" id="L36">  public UserLastConnectionDatesUpdaterImpl(DbClient dbClient, System2 system2) {</span>
+<span class="fc" id="L37">    this.dbClient = dbClient;</span>
+<span class="fc" id="L38">    this.system2 = system2;</span>
+<span class="fc" id="L39">  }</span>
+
+  @Override
+  public void updateLastConnectionDateIfNeeded(UserDto user) {
+<span class="fc" id="L43">    Long lastConnectionDate = user.getLastConnectionDate();</span>
+<span class="fc" id="L44">    long now = system2.now();</span>
+<span class="fc bfc" id="L45" title="All 2 branches covered.">    if (doesNotRequireUpdate(lastConnectionDate, now)) {</span>
+<span class="fc" id="L46">      return;</span>
+    }
+<span class="fc" id="L48">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L49">      dbClient.userDao().update(dbSession, user.setLastConnectionDate(now), false);</span>
+<span class="fc" id="L50">      dbSession.commit();</span>
+    }
+<span class="fc" id="L52">  }</span>
+
+  @Override
+  public void updateLastConnectionDateIfNeeded(UserTokenDto userToken) {
+<span class="fc" id="L56">    Long lastConnectionDate = userToken.getLastConnectionDate();</span>
+<span class="fc" id="L57">    long now = system2.now();</span>
+<span class="fc bfc" id="L58" title="All 2 branches covered.">    if (doesNotRequireUpdate(lastConnectionDate, now)) {</span>
+<span class="fc" id="L59">      return;</span>
+    }
+<span class="fc" id="L61">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L62">      dbClient.userTokenDao().updateWithoutAudit(dbSession, userToken.setLastConnectionDate(now));</span>
+<span class="fc" id="L63">      userToken.setLastConnectionDate(now);</span>
+<span class="fc" id="L64">      dbSession.commit();</span>
+    }
+<span class="fc" id="L66">  }</span>
+
+  private static boolean doesNotRequireUpdate(@Nullable Long lastConnectionDate, long now) {
+    // Update date only once per hour in order to decrease pressure on DB
+<span class="fc bfc" id="L70" title="All 4 branches covered.">    return lastConnectionDate != null &amp;&amp; (now - lastConnectionDate) &lt; ONE_HOUR_IN_MILLISECONDS;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

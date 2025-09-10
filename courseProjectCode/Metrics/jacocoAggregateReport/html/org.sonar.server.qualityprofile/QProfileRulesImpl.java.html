@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>QProfileRulesImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.qualityprofile</a> &gt; <span class="el_source">QProfileRulesImpl.java</span></div><h1>QProfileRulesImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.qualityprofile;
+
+import com.google.common.collect.Sets;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Set;
+import java.util.function.BiFunction;
+import java.util.stream.Collectors;
+import javax.annotation.Nullable;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.qualityprofile.QProfileDto;
+import org.sonar.db.rule.RuleDto;
+import org.sonar.server.exceptions.BadRequestException;
+import org.sonar.server.pushapi.qualityprofile.QualityProfileChangeEventService;
+import org.sonar.server.qualityprofile.builtin.RuleActivationContext;
+import org.sonar.server.qualityprofile.builtin.RuleActivator;
+import org.sonar.server.qualityprofile.index.ActiveRuleIndexer;
+import org.sonar.server.rule.index.RuleIndex;
+import org.sonar.server.rule.index.RuleQuery;
+
+import static com.google.common.base.Preconditions.checkArgument;
+
+public class QProfileRulesImpl implements QProfileRules {
+
+  private final DbClient db;
+  private final RuleActivator ruleActivator;
+  private final RuleIndex ruleIndex;
+  private final ActiveRuleIndexer activeRuleIndexer;
+  private final QualityProfileChangeEventService qualityProfileChangeEventService;
+
+  public QProfileRulesImpl(DbClient db, RuleActivator ruleActivator, RuleIndex ruleIndex, ActiveRuleIndexer activeRuleIndexer,
+<span class="fc" id="L53">    QualityProfileChangeEventService qualityProfileChangeEventService) {</span>
+<span class="fc" id="L54">    this.db = db;</span>
+<span class="fc" id="L55">    this.ruleActivator = ruleActivator;</span>
+<span class="fc" id="L56">    this.ruleIndex = ruleIndex;</span>
+<span class="fc" id="L57">    this.activeRuleIndexer = activeRuleIndexer;</span>
+<span class="fc" id="L58">    this.qualityProfileChangeEventService = qualityProfileChangeEventService;</span>
+<span class="fc" id="L59">  }</span>
+
+  @Override
+  public List&lt;ActiveRuleChange&gt; activateAndCommit(DbSession dbSession, QProfileDto profile, Collection&lt;RuleActivation&gt; activations) {
+<span class="fc" id="L63">    verifyNotBuiltIn(profile);</span>
+
+<span class="fc" id="L65">    Set&lt;String&gt; ruleUuids = activations.stream().map(RuleActivation::getRuleUuid).collect(Collectors.toSet());</span>
+<span class="fc" id="L66">    RuleActivationContext context = ruleActivator.createContextForUserProfile(dbSession, profile, ruleUuids);</span>
+
+<span class="fc" id="L68">    List&lt;ActiveRuleChange&gt; changes = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L69" title="All 2 branches covered.">    for (RuleActivation activation : activations) {</span>
+<span class="fc" id="L70">      changes.addAll(ruleActivator.activate(dbSession, activation, context));</span>
+<span class="fc" id="L71">    }</span>
+<span class="fc" id="L72">    qualityProfileChangeEventService.distributeRuleChangeEvent(List.of(profile), changes, profile.getLanguage());</span>
+<span class="fc" id="L73">    activeRuleIndexer.commitAndIndex(dbSession, changes);</span>
+<span class="fc" id="L74">    return changes;</span>
+  }
+
+  @Override
+  public BulkChangeResult bulkActivateAndCommit(DbSession dbSession, QProfileDto profile, RuleQuery ruleQuery, @Nullable String severity,
+    @Nullable Boolean prioritizedRule) {
+<span class="fc" id="L80">    verifyNotBuiltIn(profile);</span>
+<span class="fc" id="L81">    BulkChangeResult bulkChangeResult = doBulk(dbSession, profile, ruleQuery, (context, ruleDto) -&gt; {</span>
+<span class="fc" id="L82">      RuleActivation activation = RuleActivation.create(ruleDto.getUuid(), severity, prioritizedRule, null);</span>
+<span class="fc" id="L83">      return ruleActivator.activate(dbSession, activation, context);</span>
+    });
+<span class="fc" id="L85">    qualityProfileChangeEventService.distributeRuleChangeEvent(List.of(profile), bulkChangeResult.getChanges(), profile.getLanguage());</span>
+<span class="fc" id="L86">    return bulkChangeResult;</span>
+  }
+
+  @Override
+  public List&lt;ActiveRuleChange&gt; deactivateAndCommit(DbSession dbSession, QProfileDto profile, Collection&lt;String&gt; ruleUuids) {
+<span class="fc" id="L91">    verifyNotBuiltIn(profile);</span>
+<span class="fc" id="L92">    RuleActivationContext context = ruleActivator.createContextForUserProfile(dbSession, profile, ruleUuids);</span>
+
+<span class="fc" id="L94">    List&lt;ActiveRuleChange&gt; changes = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">    for (String ruleUuid : ruleUuids) {</span>
+<span class="fc" id="L96">      changes.addAll(ruleActivator.deactivate(dbSession, context, ruleUuid, false));</span>
+<span class="fc" id="L97">    }</span>
+
+<span class="fc" id="L99">    qualityProfileChangeEventService.distributeRuleChangeEvent(List.of(profile), changes, profile.getLanguage());</span>
+
+<span class="fc" id="L101">    activeRuleIndexer.commitAndIndex(dbSession, changes);</span>
+<span class="fc" id="L102">    return changes;</span>
+  }
+
+  @Override
+  public BulkChangeResult bulkDeactivateAndCommit(DbSession dbSession, QProfileDto profile, RuleQuery ruleQuery) {
+<span class="fc" id="L107">    verifyNotBuiltIn(profile);</span>
+<span class="fc" id="L108">    BulkChangeResult bulkChangeResult = doBulk(dbSession, profile, ruleQuery, (context, ruleDto) -&gt; ruleActivator.deactivate(dbSession, context, ruleDto.getUuid(), false));</span>
+
+<span class="fc" id="L110">    qualityProfileChangeEventService.distributeRuleChangeEvent(List.of(profile), bulkChangeResult.getChanges(), profile.getLanguage());</span>
+
+<span class="fc" id="L112">    return bulkChangeResult;</span>
+  }
+
+  @Override
+  public List&lt;ActiveRuleChange&gt; deleteRule(DbSession dbSession, RuleDto rule) {
+<span class="fc" id="L117">    List&lt;ActiveRuleChange&gt; changes = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L118">    List&lt;String&gt; activeRuleUuids = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L119">    db.activeRuleDao().selectByRuleUuid(dbSession, rule.getUuid()).forEach(ar -&gt; {</span>
+<span class="fc" id="L120">      activeRuleUuids.add(ar.getUuid());</span>
+<span class="fc" id="L121">      changes.add(new ActiveRuleChange(ActiveRuleChange.Type.DEACTIVATED, ar, rule));</span>
+<span class="fc" id="L122">    });</span>
+
+<span class="fc" id="L124">    db.activeRuleDao().deleteByUuids(dbSession, activeRuleUuids);</span>
+<span class="fc" id="L125">    db.activeRuleDao().deleteParamsByActiveRuleUuids(dbSession, activeRuleUuids);</span>
+
+<span class="fc" id="L127">    return changes;</span>
+  }
+
+  private static void verifyNotBuiltIn(QProfileDto profile) {
+<span class="fc bfc" id="L131" title="All 2 branches covered.">    checkArgument(!profile.isBuiltIn(), &quot;The built-in profile %s is read-only and can't be updated&quot;, profile.getName());</span>
+<span class="fc" id="L132">  }</span>
+
+  private BulkChangeResult doBulk(DbSession dbSession, QProfileDto profile, RuleQuery ruleQuery, BiFunction&lt;RuleActivationContext, RuleDto, List&lt;ActiveRuleChange&gt;&gt; fn) {
+<span class="fc" id="L135">    BulkChangeResult result = new BulkChangeResult();</span>
+<span class="fc" id="L136">    Collection&lt;String&gt; ruleUuids = Sets.newHashSet(ruleIndex.searchAll(ruleQuery));</span>
+<span class="fc" id="L137">    RuleActivationContext context = ruleActivator.createContextForUserProfile(dbSession, profile, ruleUuids);</span>
+
+<span class="fc bfc" id="L139" title="All 2 branches covered.">    for (String ruleUuid : ruleUuids) {</span>
+      try {
+<span class="fc" id="L141">        context.reset(ruleUuid);</span>
+<span class="fc" id="L142">        RuleDto ruleDto = context.getRule().get();</span>
+<span class="fc" id="L143">        List&lt;ActiveRuleChange&gt; changes = fn.apply(context, ruleDto);</span>
+<span class="fc" id="L144">        result.addChanges(changes);</span>
+<span class="pc bpc" id="L145" title="1 of 2 branches missed.">        if (!changes.isEmpty()) {</span>
+<span class="fc" id="L146">          result.incrementSucceeded();</span>
+        }
+<span class="nc" id="L148">      } catch (BadRequestException e) {</span>
+        // other exceptions stop the bulk activation
+<span class="nc" id="L150">        result.incrementFailed();</span>
+<span class="nc" id="L151">        result.getErrors().addAll(e.errors());</span>
+<span class="fc" id="L152">      }</span>
+<span class="fc" id="L153">    }</span>
+<span class="fc" id="L154">    activeRuleIndexer.commitAndIndex(dbSession, result.getChanges());</span>
+<span class="fc" id="L155">    return result;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

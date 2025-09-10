@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AnticipatedTransitionsAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.issue.ws.anticipatedtransition</a> &gt; <span class="el_source">AnticipatedTransitionsAction.java</span></div><h1>AnticipatedTransitionsAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.issue.ws.anticipatedtransition;
+
+import java.io.BufferedReader;
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.server.issue.ws.IssuesWsAction;
+import org.sonarqube.ws.client.issue.IssuesWsParameters;
+
+import static java.net.HttpURLConnection.HTTP_ACCEPTED;
+import static org.sonar.server.issue.workflow.codequalityissue.CodeQualityIssueWorkflowTransition.ACCEPT;
+import static org.sonar.server.issue.workflow.codequalityissue.CodeQualityIssueWorkflowTransition.WONT_FIX;
+
+public class AnticipatedTransitionsAction implements IssuesWsAction {
+
+  private static final String PARAM_PROJECT_KEY = &quot;projectKey&quot;;
+  private final AnticipatedTransitionsActionValidator validator;
+  private final AnticipatedTransitionHandler anticipatedTransitionHandler;
+
+<span class="fc" id="L41">  public AnticipatedTransitionsAction(AnticipatedTransitionsActionValidator validator, AnticipatedTransitionHandler anticipatedTransitionHandler) {</span>
+<span class="fc" id="L42">    this.validator = validator;</span>
+<span class="fc" id="L43">    this.anticipatedTransitionHandler = anticipatedTransitionHandler;</span>
+<span class="fc" id="L44">  }</span>
+
+
+  @Override
+  public void define(WebService.NewController controller) {
+<span class="fc" id="L49">    WebService.NewAction action = controller</span>
+<span class="fc" id="L50">      .createAction(IssuesWsParameters.ACTION_ANTICIPATED_TRANSITIONS)</span>
+<span class="fc" id="L51">      .setChangelog(</span>
+<span class="fc" id="L52">        new Change(&quot;10.4&quot;, &quot;Transition '%s' is now deprecated. Use '%s' instead.&quot;.formatted(WONT_FIX, ACCEPT)),</span>
+<span class="fc" id="L53">        new Change(&quot;10.4&quot;, &quot;Transition '%s' has been added.&quot;.formatted(ACCEPT))</span>
+      )
+<span class="fc" id="L55">      .setDescription(&quot;&quot;&quot;</span>
+      Receive a list of anticipated transitions that can be applied to not yet discovered issues on a specific project.&lt;br&gt;
+      Requires the following permission: 'Administer Issues' on the specified project.&lt;br&gt;
+      Only &lt;code&gt;falsepositive&lt;/code&gt;, &lt;code&gt;wontfix&lt;/code&gt; and &lt;code&gt;accept&lt;/code&gt; transitions are supported.&lt;br&gt;
+      Upon successful execution, the HTTP status code returned is 202 (Accepted).&lt;br&gt;&lt;br&gt;
+      Request example:
+      &lt;pre&gt;&lt;code&gt;[
+        {
+          &quot;ruleKey&quot;: &quot;squid:S0001&quot;,
+          &quot;issueMessage&quot;: &quot;issueMessage1&quot;,
+          &quot;filePath&quot;: &quot;filePath1&quot;,
+          &quot;line&quot;: 1,
+          &quot;lineHash&quot;: &quot;lineHash1&quot;,
+          &quot;transition&quot;: &quot;falsepositive&quot;,
+          &quot;comment&quot;: &quot;comment1&quot;
+        },
+        {
+          &quot;ruleKey&quot;: &quot;squid:S0002&quot;,
+          &quot;issueMessage&quot;: &quot;issueMessage2&quot;,
+          &quot;filePath&quot;: &quot;filePath2&quot;,
+          &quot;line&quot;: 2,
+          &quot;lineHash&quot;: &quot;lineHash2&quot;,
+          &quot;transition&quot;: &quot;wontfix&quot;,
+          &quot;comment&quot;: &quot;comment2&quot;
+        }
+      ]&lt;/code&gt;&lt;/pre&gt;&quot;&quot;&quot;)
+<span class="fc" id="L81">      .setSince(&quot;10.2&quot;)</span>
+<span class="fc" id="L82">      .setHandler(this)</span>
+<span class="fc" id="L83">      .setInternal(true)</span>
+<span class="fc" id="L84">      .setPost(true);</span>
+
+<span class="fc" id="L86">    action.createParam(PARAM_PROJECT_KEY)</span>
+<span class="fc" id="L87">      .setDescription(&quot;Project key&quot;)</span>
+<span class="fc" id="L88">      .setRequired(true)</span>
+<span class="fc" id="L89">      .setDescription(&quot;The key of the project&quot;)</span>
+<span class="fc" id="L90">      .setExampleValue(&quot;my_project&quot;)</span>
+<span class="fc" id="L91">      .setSince(&quot;10.2&quot;);</span>
+
+<span class="fc" id="L93">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+    // validation
+<span class="fc" id="L98">    String userUuid = validator.validateUserLoggedIn();</span>
+<span class="fc" id="L99">    ProjectDto projectDto = validator.validateProjectKey(request.mandatoryParam(PARAM_PROJECT_KEY));</span>
+<span class="fc" id="L100">    validator.validateUserHasAdministerIssuesPermission(projectDto.getUuid());</span>
+
+<span class="fc" id="L102">    String requestBody = getRequestBody(request);</span>
+<span class="fc" id="L103">    anticipatedTransitionHandler.handleRequestBody(requestBody, userUuid, projectDto);</span>
+
+<span class="fc" id="L105">    response.stream().setStatus(HTTP_ACCEPTED);</span>
+<span class="fc" id="L106">  }</span>
+
+  private static String getRequestBody(Request request) {
+<span class="fc" id="L109">    BufferedReader reader = request.getReader();</span>
+<span class="fc" id="L110">    StringBuilder sb = new StringBuilder();</span>
+<span class="fc" id="L111">    reader.lines().forEach(sb::append);</span>
+<span class="fc" id="L112">    return sb.toString();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

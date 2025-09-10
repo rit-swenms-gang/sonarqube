@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HazelcastMemberBuilder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.process.cluster.hz</a> &gt; <span class="el_source">HazelcastMemberBuilder.java</span></div><h1>HazelcastMemberBuilder.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.process.cluster.hz;
+
+import com.google.common.net.HostAndPort;
+import com.hazelcast.config.Config;
+import com.hazelcast.config.JoinConfig;
+import com.hazelcast.config.MemberAttributeConfig;
+import com.hazelcast.config.NetworkConfig;
+import com.hazelcast.core.Hazelcast;
+import java.util.List;
+import java.util.stream.Stream;
+import org.jetbrains.annotations.NotNull;
+import org.sonar.process.ProcessId;
+import org.sonar.process.cluster.hz.HazelcastMember.Attribute;
+
+import static java.util.Collections.singletonList;
+import static java.util.Objects.requireNonNull;
+import static org.sonar.process.ProcessProperties.Property.CLUSTER_NODE_HZ_PORT;
+import static org.sonar.process.cluster.hz.JoinConfigurationType.KUBERNETES;
+
+public class HazelcastMemberBuilder {
+  private String nodeName;
+  private int port;
+  private ProcessId processId;
+  private String networkInterface;
+  private String members;
+  private final JoinConfigurationType type;
+
+<span class="fc" id="L47">  public HazelcastMemberBuilder(JoinConfigurationType type) {</span>
+<span class="fc" id="L48">    this.type = type;</span>
+<span class="fc" id="L49">  }</span>
+
+  public HazelcastMemberBuilder setNodeName(String s) {
+<span class="fc" id="L52">    this.nodeName = s;</span>
+<span class="fc" id="L53">    return this;</span>
+  }
+
+  public HazelcastMemberBuilder setProcessId(ProcessId p) {
+<span class="fc bfc" id="L57" title="All 2 branches covered.">    if (p == ProcessId.ELASTICSEARCH) {</span>
+<span class="fc" id="L58">      throw new IllegalArgumentException(&quot;Hazelcast must not be enabled on Elasticsearch node&quot;);</span>
+    }
+<span class="fc" id="L60">    this.processId = p;</span>
+<span class="fc" id="L61">    return this;</span>
+  }
+
+  public HazelcastMemberBuilder setPort(int i) {
+<span class="fc" id="L65">    this.port = i;</span>
+<span class="fc" id="L66">    return this;</span>
+  }
+
+  public HazelcastMemberBuilder setNetworkInterface(String s) {
+<span class="fc" id="L70">    this.networkInterface = s;</span>
+<span class="fc" id="L71">    return this;</span>
+  }
+
+  /**
+   * Adds references to cluster members
+   */
+  public HazelcastMemberBuilder setMembers(String members) {
+<span class="fc" id="L78">    this.members = members;</span>
+<span class="fc" id="L79">    return this;</span>
+  }
+
+  public HazelcastMember build() {
+<span class="fc" id="L83">    Config config = new Config();</span>
+    // do not use the value defined by property sonar.cluster.name.
+    // Hazelcast does not fail when joining a cluster with different name.
+    // Apparently this behavior exists since Hazelcast 3.8.2 (see note
+    // at http://docs.hazelcast.org/docs/3.8.6/manual/html-single/index.html#creating-cluster-groups)
+<span class="fc" id="L88">    config.setClusterName(&quot;SonarQube&quot;);</span>
+
+    // Configure network
+<span class="fc" id="L91">    NetworkConfig netConfig = config.getNetworkConfig();</span>
+<span class="fc" id="L92">    netConfig</span>
+<span class="fc" id="L93">      .setPort(port)</span>
+<span class="fc" id="L94">      .setPortAutoIncrement(false)</span>
+<span class="fc" id="L95">      .setReuseAddress(true);</span>
+<span class="fc" id="L96">    netConfig.getInterfaces()</span>
+<span class="fc" id="L97">      .setEnabled(true)</span>
+<span class="fc" id="L98">      .setInterfaces(provideNetworkInterfaceForHazelcastConfig());</span>
+
+<span class="fc" id="L100">    JoinConfig joinConfig = netConfig.getJoin();</span>
+<span class="fc" id="L101">    joinConfig.getAwsConfig().setEnabled(false);</span>
+<span class="fc" id="L102">    joinConfig.getMulticastConfig().setEnabled(false);</span>
+
+<span class="fc" id="L104">    final int defaultHzNodePort = Integer.parseInt(CLUSTER_NODE_HZ_PORT.getDefaultValue());</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">    if (KUBERNETES.equals(type)) {</span>
+<span class="fc" id="L106">      joinConfig.getKubernetesConfig().setEnabled(true)</span>
+<span class="fc" id="L107">        .setProperty(&quot;service-dns&quot;, requireNonNull(members, &quot;Service DNS is missing&quot;))</span>
+<span class="fc" id="L108">        .setProperty(&quot;service-port&quot;, String.valueOf(defaultHzNodePort));</span>
+    } else {
+<span class="fc" id="L110">      List&lt;String&gt; addressesWithDefaultPorts = Stream.of(this.members.split(&quot;,&quot;))</span>
+<span class="pc bpc" id="L111" title="1 of 2 branches missed.">        .filter(host -&gt; !host.isBlank())</span>
+<span class="fc" id="L112">        .map(String::trim)</span>
+<span class="fc" id="L113">        .map(HostAndPort::fromString)</span>
+<span class="fc" id="L114">        .map(parsedHost -&gt; parsedHost.withDefaultPort(defaultHzNodePort))</span>
+<span class="fc" id="L115">        .map(HostAndPort::toString)</span>
+<span class="fc" id="L116">        .toList();</span>
+<span class="fc" id="L117">      joinConfig.getTcpIpConfig().setEnabled(true);</span>
+<span class="fc" id="L118">      joinConfig.getTcpIpConfig().setMembers(requireNonNull(addressesWithDefaultPorts, &quot;Members are missing&quot;));</span>
+    }
+
+    // We are not using the partition group of Hazelcast, so disabling it
+<span class="fc" id="L122">    config.getPartitionGroupConfig().setEnabled(false);</span>
+
+    // Tweak HazelCast configuration
+<span class="fc" id="L125">    config</span>
+      // Increase the number of tries
+<span class="fc" id="L127">      .setProperty(&quot;hazelcast.tcp.join.port.try.count&quot;, &quot;10&quot;)</span>
+      // Don't bind on all interfaces
+<span class="fc" id="L129">      .setProperty(&quot;hazelcast.socket.bind.any&quot;, &quot;false&quot;)</span>
+      // Don't phone home
+<span class="fc" id="L131">      .setProperty(&quot;hazelcast.phone.home.enabled&quot;, &quot;false&quot;)</span>
+      // Use slf4j for logging
+<span class="fc" id="L133">      .setProperty(&quot;hazelcast.logging.type&quot;, &quot;slf4j&quot;)</span>
+      // support ip v6
+<span class="fc" id="L135">      .setProperty(&quot;hazelcast.prefer.ipv4.stack&quot;, &quot;false&quot;)</span>
+<span class="fc" id="L136">      .setProperty(&quot;hazelcast.partial.member.disconnection.resolution.heartbeat.count&quot;, &quot;5&quot;);</span>
+
+<span class="fc" id="L138">    MemberAttributeConfig attributes = config.getMemberAttributeConfig();</span>
+<span class="fc" id="L139">    attributes.setAttribute(Attribute.NODE_NAME.getKey(), requireNonNull(nodeName, &quot;Node name is missing&quot;));</span>
+<span class="fc" id="L140">    attributes.setAttribute(Attribute.PROCESS_KEY.getKey(), requireNonNull(processId, &quot;Process key is missing&quot;).getKey());</span>
+
+<span class="fc" id="L142">    return new HazelcastMemberImpl(Hazelcast.newHazelcastInstance(config));</span>
+  }
+
+  /**
+   * Hazelcast doesn't recognize IPv6 address in the square brackets so we remove in case user provided us with the IP with square brackets
+   */
+  @NotNull
+  private List&lt;String&gt; provideNetworkInterfaceForHazelcastConfig() {
+<span class="fc" id="L150">    String hazelcastNetworkInterface = requireNonNull(networkInterface, &quot;Network interface is missing&quot;);</span>
+<span class="pc bpc" id="L151" title="1 of 4 branches missed.">    if (hazelcastNetworkInterface.startsWith(&quot;[&quot;) &amp;&amp; hazelcastNetworkInterface.endsWith(&quot;]&quot;)) {</span>
+<span class="fc" id="L152">      hazelcastNetworkInterface = hazelcastNetworkInterface.replace(&quot;[&quot;, &quot;&quot;).replace(&quot;]&quot;, &quot;&quot;);</span>
+    }
+<span class="fc" id="L154">    return singletonList(hazelcastNetworkInterface);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

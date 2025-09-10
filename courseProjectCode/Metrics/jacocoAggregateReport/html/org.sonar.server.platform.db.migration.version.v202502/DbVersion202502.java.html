@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DbVersion202502.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform.db.migration.version.v202502</a> &gt; <span class="el_source">DbVersion202502.java</span></div><h1>DbVersion202502.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform.db.migration.version.v202502;
+
+import org.sonar.server.platform.db.migration.step.MigrationStepRegistry;
+import org.sonar.server.platform.db.migration.version.DbVersion;
+
+// ignoring bad number formatting, as it's indented that we align the migration numbers to SQ versions
+@SuppressWarnings(&quot;java:S3937&quot;)
+<span class="fc" id="L27">public class DbVersion202502 implements DbVersion {</span>
+
+  /**
+   * We use the start of the 10.X cycle as an opportunity to align migration numbers with the SQ version number.
+   * Please follow this pattern:
+   * 2025_02_000
+   * 2025_02_001
+   * 2025_02_002
+   */
+  @Override
+  public void addSteps(MigrationStepRegistry registry) {
+<span class="fc" id="L38">    registry</span>
+<span class="fc" id="L39">      .add(2025_02_000, &quot;Drop 'issues_dependency' table&quot;, DropIssuesDependencyTable.class)</span>
+<span class="fc" id="L40">      .add(2025_02_001, &quot;Drop 'cve_cwe' table&quot;, DropCveCweTable.class)</span>
+<span class="fc" id="L41">      .add(2025_02_002, &quot;Drop 'cves' table&quot;, DropCvesTable.class)</span>
+<span class="fc" id="L42">      .add(2025_02_003, &quot;Create table for SCA releases&quot;, CreateScaReleasesTable.class)</span>
+<span class="fc" id="L43">      .add(2025_02_004, &quot;Create index for SCA releases component&quot;, CreateIndexOnScaReleasesComponent.class)</span>
+<span class="fc" id="L44">      .add(2025_02_005, &quot;Create table for SCA dependencies&quot;, CreateScaDependenciesTable.class)</span>
+<span class="fc" id="L45">      .add(2025_02_006, &quot;Create index for SCA dependencies to releases&quot;, CreateIndexOnScaDependenciesRelease.class)</span>
+<span class="fc" id="L46">      .add(2025_02_007, &quot;Create table for SCA issues&quot;, CreateScaIssuesTable.class)</span>
+<span class="fc" id="L47">      .add(2025_02_008, &quot;Create unique index on SCA issues&quot;, CreateUniqueIndexOnScaIssues.class)</span>
+<span class="fc" id="L48">      .add(2025_02_009, &quot;Create table for vulnerability subtype of SCA issues&quot;, CreateScaVulnerabilityIssuesTable.class)</span>
+<span class="fc" id="L49">      .add(2025_02_010, &quot;Create table for SCA issues to releases&quot;, CreateScaIssuesReleasesTable.class)</span>
+<span class="fc" id="L50">      .add(2025_02_011, &quot;Create index for SCA issues to releases to SCA issues&quot;, CreateIndexOnScaIssuesReleasesScaIssueUuid.class)</span>
+<span class="fc" id="L51">      .add(2025_02_012, &quot;Create index for SCA issues to releases to SCA releases&quot;, CreateIndexOnScaIssuesReleasesScaReleaseUuid.class)</span>
+<span class="fc" id="L52">      .add(2025_02_013, &quot;Create unique index for SCA issues to releases&quot;, CreateUniqueIndexOnScaIssuesReleases.class)</span>
+<span class="fc" id="L53">      .add(2025_02_014, &quot;Add new_in_pull_request column to SCA releases&quot;, AddNewInPullRequestToScaReleasesTable.class)</span>
+<span class="fc" id="L54">      .add(2025_02_015, &quot;Add new_in_pull_request column to SCA dependencies&quot;, AddNewInPullRequestToScaDependenciesTable.class)</span>
+<span class="fc" id="L55">      .add(2025_02_016, &quot;Insert default AI Codefix provider key and modelKey properties&quot;, InsertDefaultAiSuggestionProviderKeyAndModelKeyProperties.class)</span>
+<span class="fc" id="L56">      .add(2025_02_017, &quot;Add table 'architecture_graphs'&quot;, CreateArchitectureGraphsTable.class)</span>
+<span class="fc" id="L57">      .add(2025_02_018, &quot;Drop 'sca_releases_comp_uuid' index&quot;, DropIndexOnScaReleasesComponent.class)</span>
+<span class="fc" id="L58">      .add(2025_02_019, &quot;Create 'sca_releases_comp_uuid_uuid' index&quot;, CreateIndexOnScaReleasesComponentUuid.class)</span>
+<span class="fc" id="L59">      .add(2025_02_020, &quot;Add 'sca_dependencies.production_scope' column&quot;, AddProductionScopeToScaDependenciesTable.class)</span>
+<span class="fc" id="L60">      .add(2025_02_021, &quot;Add declared_license_expression to SCA releases&quot;, AddDeclaredLicenseExpressionToScaReleasesTable.class)</span>
+<span class="fc" id="L61">      .add(2025_02_022, &quot;Create 'uq_idx_ag_branch_type_source' for architecture graphs&quot;, CreateUniqueIndexOnArchitectureGraphs.class);</span>
+<span class="fc" id="L62">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

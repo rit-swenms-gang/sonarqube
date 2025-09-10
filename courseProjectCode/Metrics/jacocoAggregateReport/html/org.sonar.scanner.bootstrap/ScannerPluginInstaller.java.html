@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ScannerPluginInstaller.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.bootstrap</a> &gt; <span class="el_source">ScannerPluginInstaller.java</span></div><h1>ScannerPluginInstaller.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.bootstrap;
+
+import com.google.gson.Gson;
+import java.io.File;
+import java.io.Reader;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Predicate;
+import javax.annotation.Nullable;
+import org.sonar.api.utils.log.Logger;
+import org.sonar.api.utils.log.Loggers;
+import org.sonar.api.utils.log.Profiler;
+import org.sonar.core.platform.PluginInfo;
+import org.sonar.core.plugin.PluginType;
+import org.sonar.scanner.http.DefaultScannerWsClient;
+import org.sonar.scanner.mediumtest.LocalPlugin;
+import org.sonarqube.ws.client.GetRequest;
+
+import static java.lang.String.format;
+
+/**
+ * Downloads the plugins installed on server and stores them in a local user cache
+ */
+public class ScannerPluginInstaller implements PluginInstaller {
+
+<span class="fc" id="L50">  private static final Logger LOG = Loggers.get(ScannerPluginInstaller.class);</span>
+  private static final String PLUGINS_WS_URL = &quot;api/plugins/installed&quot;;
+
+  private final PluginFiles pluginFiles;
+  private final DefaultScannerWsClient wsClient;
+
+  private List&lt;InstalledPlugin&gt; availablePlugins;
+
+<span class="fc" id="L58">  public ScannerPluginInstaller(PluginFiles pluginFiles, DefaultScannerWsClient wsClient) {</span>
+<span class="fc" id="L59">    this.pluginFiles = pluginFiles;</span>
+<span class="fc" id="L60">    this.wsClient = wsClient;</span>
+<span class="fc" id="L61">  }</span>
+
+  @Override
+  public Map&lt;String, ScannerPlugin&gt; installAllPlugins() {
+<span class="fc" id="L65">    LOG.info(&quot;Loading all plugins&quot;);</span>
+<span class="fc" id="L66">    return installPlugins(p -&gt; true).installedPluginsByKey;</span>
+  }
+
+  @Override
+  public Map&lt;String, ScannerPlugin&gt; installRequiredPlugins() {
+<span class="fc" id="L71">    LOG.info(&quot;Loading required plugins&quot;);</span>
+<span class="fc bfc" id="L72" title="All 4 branches covered.">    InstallResult result = installPlugins(p -&gt; p.getRequiredForLanguages() == null || p.getRequiredForLanguages().isEmpty());</span>
+
+<span class="fc" id="L74">    LOG.debug(&quot;Plugins not loaded because they are optional: {}&quot;, result.skippedPlugins);</span>
+
+<span class="fc" id="L76">    return result.installedPluginsByKey;</span>
+  }
+
+  @Override
+  public Map&lt;String, ScannerPlugin&gt; installPluginsForLanguages(Set&lt;String&gt; languageKeys) {
+<span class="fc" id="L81">    LOG.info(&quot;Loading plugins for detected languages&quot;);</span>
+<span class="fc" id="L82">    LOG.debug(&quot;Detected languages: {}&quot;, languageKeys);</span>
+<span class="fc" id="L83">    InstallResult result = installPlugins(</span>
+<span class="pc bpc" id="L84" title="1 of 4 branches missed.">      p -&gt; p.getRequiredForLanguages() != null &amp;&amp; !Collections.disjoint(p.getRequiredForLanguages(), languageKeys)</span>
+    );
+
+<span class="fc" id="L87">    List&lt;InstalledPlugin&gt; skippedLanguagePlugins = result.skippedPlugins.stream()</span>
+<span class="pc bpc" id="L88" title="2 of 4 branches missed.">      .filter(p -&gt; p.getRequiredForLanguages() != null &amp;&amp; !p.getRequiredForLanguages().isEmpty()).toList();</span>
+<span class="fc" id="L89">    LOG.debug(&quot;Optional language-specific plugins not loaded: {}&quot;, skippedLanguagePlugins);</span>
+
+<span class="fc" id="L91">    return result.installedPluginsByKey;</span>
+  }
+
+  private InstallResult installPlugins(Predicate&lt;InstalledPlugin&gt; pluginFilter) {
+<span class="fc bfc" id="L95" title="All 2 branches covered.">    if (this.availablePlugins == null) {</span>
+<span class="fc" id="L96">      this.availablePlugins = listInstalledPlugins();</span>
+    }
+
+<span class="fc" id="L99">    Profiler profiler = Profiler.create(LOG).startInfo(&quot;Load/download plugins&quot;);</span>
+    try {
+<span class="fc" id="L101">      InstallResult result = new InstallResult();</span>
+<span class="fc" id="L102">      Loaded loaded = loadPlugins(result, pluginFilter);</span>
+<span class="fc bfc" id="L103" title="All 2 branches covered.">      if (!loaded.ok) {</span>
+        // retry once, a plugin may have been uninstalled during downloads
+<span class="fc" id="L105">        this.availablePlugins = listInstalledPlugins();</span>
+<span class="fc" id="L106">        result.installedPluginsByKey.clear();</span>
+<span class="fc" id="L107">        loaded = loadPlugins(result, pluginFilter);</span>
+<span class="fc bfc" id="L108" title="All 2 branches covered.">        if (!loaded.ok) {</span>
+<span class="fc" id="L109">          throw new IllegalStateException(format(&quot;Fail to download plugin [%s]. Not found.&quot;, loaded.notFoundPlugin));</span>
+        }
+      }
+<span class="fc" id="L112">      return result;</span>
+    } finally {
+<span class="fc" id="L114">      profiler.stopInfo();</span>
+    }
+  }
+
+  private Loaded loadPlugins(InstallResult result, Predicate&lt;InstalledPlugin&gt; pluginFilter) {
+<span class="fc" id="L119">    List&lt;InstalledPlugin&gt; pluginsToInstall = availablePlugins.stream()</span>
+<span class="fc" id="L120">      .filter(pluginFilter).toList();</span>
+
+<span class="fc bfc" id="L122" title="All 2 branches covered.">    for (InstalledPlugin plugin : pluginsToInstall) {</span>
+<span class="fc" id="L123">      Optional&lt;File&gt; jarFile = pluginFiles.get(plugin);</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">      if (jarFile.isEmpty()) {</span>
+<span class="fc" id="L125">        return new Loaded(false, plugin.key);</span>
+      }
+
+<span class="fc" id="L128">      PluginInfo info = PluginInfo.create(jarFile.get());</span>
+<span class="fc" id="L129">      result.installedPluginsByKey.put(info.getKey(), new ScannerPlugin(plugin.key, plugin.updatedAt, PluginType.valueOf(plugin.type), info));</span>
+<span class="fc" id="L130">    }</span>
+
+<span class="fc" id="L132">    result.skippedPlugins = availablePlugins.stream()</span>
+<span class="fc" id="L133">      .filter(Predicate.not(pluginFilter)).toList();</span>
+
+<span class="fc" id="L135">    return new Loaded(true, null);</span>
+  }
+
+  /**
+   * Returns empty on purpose. This method is used only by medium tests.
+   */
+  @Override
+  public List&lt;LocalPlugin&gt; installLocals() {
+<span class="fc" id="L143">    return Collections.emptyList();</span>
+  }
+
+  /**
+   * Returns empty on purpose. This method is used only by medium tests.
+   */
+  @Override
+  public List&lt;LocalPlugin&gt; installOptionalLocals(Set&lt;String&gt; languageKeys) {
+<span class="fc" id="L151">    return Collections.emptyList();</span>
+  }
+
+  /**
+   * Gets information about the plugins installed on server (filename, checksum)
+   */
+  private List&lt;InstalledPlugin&gt; listInstalledPlugins() {
+<span class="fc" id="L158">    Profiler profiler = Profiler.create(LOG).startInfo(&quot;Load plugins index&quot;);</span>
+<span class="fc" id="L159">    GetRequest getRequest = new GetRequest(PLUGINS_WS_URL);</span>
+    InstalledPlugins installedPlugins;
+<span class="fc" id="L161">    try (Reader reader = wsClient.call(getRequest).contentReader()) {</span>
+<span class="fc" id="L162">      installedPlugins = new Gson().fromJson(reader, InstalledPlugins.class);</span>
+<span class="fc" id="L163">    } catch (Exception e) {</span>
+<span class="fc" id="L164">      throw new IllegalStateException(&quot;Fail to parse response of &quot; + PLUGINS_WS_URL, e);</span>
+<span class="fc" id="L165">    }</span>
+
+<span class="fc" id="L167">    profiler.stopInfo();</span>
+<span class="fc" id="L168">    return installedPlugins.plugins;</span>
+  }
+
+<span class="fc" id="L171">  private static class InstallResult {</span>
+<span class="fc" id="L172">    Map&lt;String, ScannerPlugin&gt; installedPluginsByKey = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L173">    List&lt;InstalledPlugin&gt; skippedPlugins = new ArrayList&lt;&gt;();</span>
+  }
+
+  private static class InstalledPlugins {
+    List&lt;InstalledPlugin&gt; plugins;
+
+<span class="fc" id="L179">    public InstalledPlugins() {</span>
+      // http://stackoverflow.com/a/18645370/229031
+<span class="fc" id="L181">    }</span>
+  }
+
+  static class InstalledPlugin {
+    String key;
+    String hash;
+    long updatedAt;
+    String type;
+    private Set&lt;String&gt; requiredForLanguages;
+
+<span class="fc" id="L191">    public InstalledPlugin() {</span>
+      // http://stackoverflow.com/a/18645370/229031
+<span class="fc" id="L193">    }</span>
+
+    public Set&lt;String&gt; getRequiredForLanguages() {
+<span class="fc" id="L196">      return requiredForLanguages;</span>
+    }
+
+    @Override
+    public String toString() {
+<span class="nc" id="L201">      return key;</span>
+    }
+
+  }
+
+  private static class Loaded {
+    private final boolean ok;
+    @Nullable
+    private final String notFoundPlugin;
+
+<span class="fc" id="L211">    private Loaded(boolean ok, @Nullable String notFoundPlugin) {</span>
+<span class="fc" id="L212">      this.ok = ok;</span>
+<span class="fc" id="L213">      this.notFoundPlugin = notFoundPlugin;</span>
+<span class="fc" id="L214">    }</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ScannerReportWriter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.protocol.output</a> &gt; <span class="el_source">ScannerReportWriter.java</span></div><h1>ScannerReportWriter.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.protocol.output;
+
+import com.google.protobuf.AbstractMessageLite;
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import javax.annotation.concurrent.Immutable;
+import org.apache.commons.io.FileUtils;
+import org.sonar.core.util.ContextException;
+import org.sonar.core.util.Protobuf;
+
+@Immutable
+public class ScannerReportWriter {
+  private final FileStructure fileStructure;
+
+<span class="fc" id="L37">  public ScannerReportWriter(FileStructure fileStructure) {</span>
+<span class="fc" id="L38">    this.fileStructure = fileStructure;</span>
+<span class="fc" id="L39">  }</span>
+
+  public FileStructure getFileStructure() {
+<span class="fc" id="L42">    return fileStructure;</span>
+  }
+
+  public boolean hasComponentData(FileStructure.Domain domain, int componentRef) {
+<span class="fc" id="L46">    File file = fileStructure.fileFor(domain, componentRef);</span>
+<span class="pc bpc" id="L47" title="1 of 4 branches missed.">    return file.exists() &amp;&amp; file.isFile();</span>
+  }
+
+  /**
+   * Metadata is mandatory
+   */
+  public File writeMetadata(ScannerReport.Metadata metadata) {
+<span class="fc" id="L54">    Protobuf.write(metadata, fileStructure.metadataFile());</span>
+<span class="fc" id="L55">    return fileStructure.metadataFile();</span>
+  }
+
+  public File writeActiveRules(Iterable&lt;ScannerReport.ActiveRule&gt; activeRules) {
+<span class="fc" id="L59">    Protobuf.writeStream(activeRules, fileStructure.activeRules(), false);</span>
+<span class="fc" id="L60">    return fileStructure.metadataFile();</span>
+  }
+
+  public File writeComponent(ScannerReport.Component component) {
+<span class="fc" id="L64">    File file = fileStructure.fileFor(FileStructure.Domain.COMPONENT, component.getRef());</span>
+<span class="fc" id="L65">    Protobuf.write(component, file);</span>
+<span class="fc" id="L66">    return file;</span>
+  }
+
+  public File writeComponentIssues(int componentRef, Iterable&lt;ScannerReport.Issue&gt; issues) {
+<span class="fc" id="L70">    File file = fileStructure.fileFor(FileStructure.Domain.ISSUES, componentRef);</span>
+<span class="fc" id="L71">    Protobuf.writeStream(issues, file, false);</span>
+<span class="fc" id="L72">    return file;</span>
+  }
+
+  public File writeComponentSignificantCode(int componentRef, Iterable&lt;ScannerReport.LineSgnificantCode&gt; lineSignificantCode) {
+<span class="fc" id="L76">    File file = fileStructure.fileFor(FileStructure.Domain.SGNIFICANT_CODE, componentRef);</span>
+<span class="fc" id="L77">    Protobuf.writeStream(lineSignificantCode, file, false);</span>
+<span class="fc" id="L78">    return file;</span>
+  }
+
+  public void appendComponentIssue(int componentRef, ScannerReport.Issue issue) {
+<span class="fc" id="L82">    File file = fileStructure.fileFor(FileStructure.Domain.ISSUES, componentRef);</span>
+<span class="fc" id="L83">    appendDelimitedTo(file, issue, &quot;issue&quot;);</span>
+<span class="fc" id="L84">  }</span>
+
+  public File writeComponentChangedLines(int componentRef, ScannerReport.ChangedLines changedLines) {
+<span class="fc" id="L87">    File file = fileStructure.fileFor(FileStructure.Domain.CHANGED_LINES, componentRef);</span>
+<span class="fc" id="L88">    Protobuf.write(changedLines, file);</span>
+<span class="fc" id="L89">    return file;</span>
+  }
+
+  public void appendComponentExternalIssue(int componentRef, ScannerReport.ExternalIssue issue) {
+<span class="fc" id="L93">    File file = fileStructure.fileFor(FileStructure.Domain.EXTERNAL_ISSUES, componentRef);</span>
+<span class="fc" id="L94">    appendDelimitedTo(file, issue, &quot;external issue&quot;);</span>
+<span class="fc" id="L95">  }</span>
+
+  public void appendAdHocRule(ScannerReport.AdHocRule adHocRule) {
+<span class="fc" id="L98">    File file = fileStructure.adHocRules();</span>
+<span class="fc" id="L99">    appendDelimitedTo(file, adHocRule, &quot;ad hoc rule&quot;);</span>
+<span class="fc" id="L100">  }</span>
+
+  public void appendComponentMeasure(int componentRef, ScannerReport.Measure measure) {
+<span class="fc" id="L103">    File file = fileStructure.fileFor(FileStructure.Domain.MEASURES, componentRef);</span>
+<span class="fc" id="L104">    appendDelimitedTo(file, measure, &quot;measure&quot;);</span>
+<span class="fc" id="L105">  }</span>
+
+  private static void appendDelimitedTo(File file, AbstractMessageLite&lt;?, ?&gt; msg, String msgName) {
+<span class="fc" id="L108">    try (OutputStream out = new BufferedOutputStream(new FileOutputStream(file, true))) {</span>
+<span class="fc" id="L109">      msg.writeDelimitedTo(out);</span>
+<span class="nc" id="L110">    } catch (Exception e) {</span>
+<span class="nc" id="L111">      throw ContextException.of(&quot;Unable to write &quot; + msgName, e).addContext(&quot;file&quot;, file);</span>
+<span class="fc" id="L112">    }</span>
+<span class="fc" id="L113">  }</span>
+
+  public File writeComponentChangesets(ScannerReport.Changesets changesets) {
+<span class="fc" id="L116">    File file = fileStructure.fileFor(FileStructure.Domain.CHANGESETS, changesets.getComponentRef());</span>
+<span class="fc" id="L117">    Protobuf.write(changesets, file);</span>
+<span class="fc" id="L118">    return file;</span>
+  }
+
+  public File writeComponentDuplications(int componentRef, Iterable&lt;ScannerReport.Duplication&gt; duplications) {
+<span class="fc" id="L122">    File file = fileStructure.fileFor(FileStructure.Domain.DUPLICATIONS, componentRef);</span>
+<span class="fc" id="L123">    Protobuf.writeStream(duplications, file, false);</span>
+<span class="fc" id="L124">    return file;</span>
+  }
+
+  public File writeCpdTextBlocks(int componentRef, Iterable&lt;ScannerReport.CpdTextBlock&gt; blocks) {
+<span class="fc" id="L128">    File file = fileStructure.fileFor(FileStructure.Domain.CPD_TEXT_BLOCKS, componentRef);</span>
+<span class="fc" id="L129">    Protobuf.writeStream(blocks, file, false);</span>
+<span class="fc" id="L130">    return file;</span>
+  }
+
+  public File writeComponentSymbols(int componentRef, Iterable&lt;ScannerReport.Symbol&gt; symbols) {
+<span class="fc" id="L134">    File file = fileStructure.fileFor(FileStructure.Domain.SYMBOLS, componentRef);</span>
+<span class="fc" id="L135">    Protobuf.writeStream(symbols, file, false);</span>
+<span class="fc" id="L136">    return file;</span>
+  }
+
+  public File writeComponentSyntaxHighlighting(int componentRef, Iterable&lt;ScannerReport.SyntaxHighlightingRule&gt; syntaxHighlightingRules) {
+<span class="fc" id="L140">    File file = fileStructure.fileFor(FileStructure.Domain.SYNTAX_HIGHLIGHTINGS, componentRef);</span>
+<span class="fc" id="L141">    Protobuf.writeStream(syntaxHighlightingRules, file, false);</span>
+<span class="fc" id="L142">    return file;</span>
+  }
+
+  public File writeComponentCoverage(int componentRef, Iterable&lt;ScannerReport.LineCoverage&gt; coverageList) {
+<span class="fc" id="L146">    File file = fileStructure.fileFor(FileStructure.Domain.COVERAGES, componentRef);</span>
+<span class="fc" id="L147">    Protobuf.writeStream(coverageList, file, false);</span>
+<span class="fc" id="L148">    return file;</span>
+  }
+
+  public File writeContextProperties(Iterable&lt;ScannerReport.ContextProperty&gt; properties) {
+<span class="fc" id="L152">    File file = fileStructure.contextProperties();</span>
+<span class="fc" id="L153">    Protobuf.writeStream(properties, file, false);</span>
+<span class="fc" id="L154">    return file;</span>
+  }
+
+  public File writeAnalysisWarnings(Iterable&lt;ScannerReport.AnalysisWarning&gt; analysisWarnings) {
+<span class="fc" id="L158">    File file = fileStructure.analysisWarnings();</span>
+<span class="fc" id="L159">    Protobuf.writeStream(analysisWarnings, file, false);</span>
+<span class="fc" id="L160">    return file;</span>
+  }
+
+  public File writeTelemetry(Iterable&lt;ScannerReport.TelemetryEntry&gt; telemetryEntries) {
+<span class="fc" id="L164">    File file = fileStructure.telemetryEntries();</span>
+<span class="fc" id="L165">    Protobuf.writeStream(telemetryEntries, file, false);</span>
+<span class="fc" id="L166">    return file;</span>
+  }
+
+  public File appendAnalysisData(ScannerReport.AnalysisData analysisData) {
+<span class="fc" id="L170">    File file = fileStructure.analysisData();</span>
+<span class="fc" id="L171">    appendDelimitedTo(file, analysisData, &quot;analysis data for &quot; + analysisData.getKey());</span>
+<span class="fc" id="L172">    return file;</span>
+  }
+
+  public File getSourceFile(int componentRef) {
+<span class="fc" id="L176">    return fileStructure.fileFor(FileStructure.Domain.SOURCE, componentRef);</span>
+  }
+
+  public void writeScaFile(File scaFile) {
+<span class="fc" id="L180">    File sca = fileStructure.scaDir();</span>
+    try {
+<span class="fc" id="L182">      FileUtils.copyFileToDirectory(scaFile, sca);</span>
+<span class="fc" id="L183">    } catch (IOException e) {</span>
+<span class="fc" id="L184">      throw new IllegalStateException(String.format(&quot;Unable to copy sca file '%s' to sca folder&quot;, scaFile), e);</span>
+<span class="fc" id="L185">    }</span>
+<span class="fc" id="L186">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

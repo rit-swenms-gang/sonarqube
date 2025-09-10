@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TomcatHttpConnectorFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.app</a> &gt; <span class="el_source">TomcatHttpConnectorFactory.java</span></div><h1>TomcatHttpConnectorFactory.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.app;
+
+import org.apache.catalina.connector.Connector;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.process.Props;
+
+import static java.lang.String.format;
+import static org.sonar.process.ProcessProperties.Property.WEB_HOST;
+import static org.sonar.process.ProcessProperties.Property.WEB_HTTP_ACCEPT_COUNT;
+import static org.sonar.process.ProcessProperties.Property.WEB_HTTP_KEEP_ALIVE_TIMEOUT;
+import static org.sonar.process.ProcessProperties.Property.WEB_HTTP_MAX_THREADS;
+import static org.sonar.process.ProcessProperties.Property.WEB_HTTP_MIN_THREADS;
+import static org.sonar.process.ProcessProperties.Property.WEB_PORT;
+
+<span class="fc" id="L35">public class TomcatHttpConnectorFactory {</span>
+
+<span class="fc" id="L37">  private static final Logger LOGGER = LoggerFactory.getLogger(TomcatHttpConnectorFactory.class);</span>
+
+  static final String HTTP_PROTOCOL = &quot;HTTP/1.1&quot;;
+  // Max HTTP headers size must be 48kb to accommodate the authentication token used for negotiate protocol of windows authentication.
+  static final int MAX_HTTP_HEADER_SIZE_BYTES = 48 * 1024;
+  private static final int MAX_POST_SIZE = -1;
+
+  public Connector createConnector(Props props) {
+<span class="fc" id="L45">    Connector connector = new Connector(HTTP_PROTOCOL);</span>
+<span class="fc" id="L46">    connector.setURIEncoding(&quot;UTF-8&quot;);</span>
+<span class="fc" id="L47">    connector.setProperty(&quot;address&quot;, props.value(WEB_HOST.getKey(), &quot;0.0.0.0&quot;));</span>
+<span class="fc" id="L48">    connector.setProperty(&quot;socket.soReuseAddress&quot;, &quot;true&quot;);</span>
+    // See Tomcat configuration reference: https://tomcat.apache.org/tomcat-9.0-doc/config/http.html
+<span class="fc" id="L50">    connector.setProperty(&quot;relaxedQueryChars&quot;, &quot;\&quot;&lt;&gt;[\\]^`{|}&quot;);</span>
+<span class="fc" id="L51">    connector.setProperty(&quot;maxHttpHeaderSize&quot;, String.valueOf(MAX_HTTP_HEADER_SIZE_BYTES));</span>
+<span class="fc" id="L52">    connector.setMaxPostSize(MAX_POST_SIZE);</span>
+<span class="fc" id="L53">    configurePort(connector, props);</span>
+<span class="fc" id="L54">    configurePool(props, connector);</span>
+<span class="fc" id="L55">    configureCompression(connector);</span>
+<span class="fc" id="L56">    return connector;</span>
+  }
+
+  private static void configurePort(Connector connector, Props props) {
+<span class="fc" id="L60">    int port = props.valueAsInt(WEB_PORT.getKey(), 9000);</span>
+<span class="fc bfc" id="L61" title="All 2 branches covered.">    if (port &lt; 0) {</span>
+<span class="fc" id="L62">      throw new IllegalStateException(format(&quot;HTTP port %s is invalid&quot;, port));</span>
+    }
+<span class="fc" id="L64">    connector.setPort(port);</span>
+<span class="fc" id="L65">    LOGGER.info(&quot;Starting Tomcat on port {}&quot;, connector.getPort());</span>
+<span class="fc" id="L66">  }</span>
+
+  private static void configurePool(Props props, Connector connector) {
+<span class="fc" id="L69">    connector.setProperty(&quot;minSpareThreads&quot;, String.valueOf(props.valueAsInt(WEB_HTTP_MIN_THREADS.getKey(), 5)));</span>
+<span class="fc" id="L70">    connector.setProperty(&quot;maxThreads&quot;, String.valueOf(props.valueAsInt(WEB_HTTP_MAX_THREADS.getKey(), 50)));</span>
+<span class="fc" id="L71">    connector.setProperty(&quot;acceptCount&quot;, String.valueOf(props.valueAsInt(WEB_HTTP_ACCEPT_COUNT.getKey(), 25)));</span>
+<span class="fc" id="L72">    connector.setProperty(&quot;keepAliveTimeout&quot;, String.valueOf(props.valueAsInt(WEB_HTTP_KEEP_ALIVE_TIMEOUT.getKey(), 60000)));</span>
+<span class="fc" id="L73">  }</span>
+
+  private static void configureCompression(Connector connector) {
+<span class="fc" id="L76">    connector.setProperty(&quot;compression&quot;, &quot;on&quot;);</span>
+<span class="fc" id="L77">    connector.setProperty(&quot;compressionMinSize&quot;, &quot;1024&quot;);</span>
+<span class="fc" id="L78">    connector.setProperty(&quot;compressibleMimeType&quot;, &quot;text/html,text/xml,text/plain,text/css,application/json,application/javascript,text/javascript&quot;);</span>
+<span class="fc" id="L79">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ConditionEvaluator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.qualitygate</a> &gt; <span class="el_source">ConditionEvaluator.java</span></div><h1>ConditionEvaluator.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.qualitygate;
+
+import java.util.EnumSet;
+import java.util.Optional;
+import java.util.Set;
+import javax.annotation.CheckForNull;
+import org.sonar.api.measures.Metric.ValueType;
+import org.sonar.server.qualitygate.EvaluatedCondition.EvaluationStatus;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.lang.String.format;
+import static java.util.Optional.of;
+import static org.sonar.api.measures.Metric.ValueType.FLOAT;
+import static org.sonar.api.measures.Metric.ValueType.INT;
+import static org.sonar.api.measures.Metric.ValueType.MILLISEC;
+import static org.sonar.api.measures.Metric.ValueType.PERCENT;
+import static org.sonar.api.measures.Metric.ValueType.RATING;
+import static org.sonar.api.measures.Metric.ValueType.WORK_DUR;
+
+class ConditionEvaluator {
+
+<span class="fc" id="L41">  private static final Set&lt;ValueType&gt; NUMERICAL_TYPES = EnumSet.of(INT, RATING, FLOAT, MILLISEC, PERCENT, WORK_DUR);</span>
+
+  private ConditionEvaluator() {
+    // prevent instantiation
+  }
+
+  /**
+   * Evaluates the condition for the specified measure
+   */
+  static EvaluatedCondition evaluate(Condition condition, QualityGateEvaluator.Measures measures) {
+<span class="fc" id="L51">    Optional&lt;QualityGateEvaluator.Measure&gt; measure = measures.get(condition.getMetricKey());</span>
+<span class="fc bfc" id="L52" title="All 2 branches covered.">    if (measure.isEmpty()) {</span>
+<span class="fc" id="L53">      return new EvaluatedCondition(condition, EvaluationStatus.OK, null, true);</span>
+    }
+
+<span class="fc" id="L56">    Optional&lt;Comparable&gt; value = getMeasureValue(condition, measure.get());</span>
+<span class="fc bfc" id="L57" title="All 2 branches covered.">    if (value.isEmpty()) {</span>
+<span class="fc" id="L58">      return new EvaluatedCondition(condition, EvaluationStatus.OK, null);</span>
+    }
+
+<span class="fc" id="L61">    ValueType type = measure.get().getType();</span>
+<span class="fc" id="L62">    return evaluateCondition(condition, type, value.get())</span>
+<span class="fc" id="L63">      .orElseGet(() -&gt; new EvaluatedCondition(condition, EvaluationStatus.OK, value.get().toString()));</span>
+  }
+
+  /**
+   * Evaluates the error condition. Returns empty if threshold or measure value is not defined.
+   */
+  private static Optional&lt;EvaluatedCondition&gt; evaluateCondition(Condition condition, ValueType type, Comparable value) {
+<span class="fc" id="L70">    Comparable threshold = getThreshold(condition, type);</span>
+
+<span class="fc bfc" id="L72" title="All 2 branches covered.">    if (reachThreshold(value, threshold, condition)) {</span>
+<span class="fc" id="L73">      return of(new EvaluatedCondition(condition, EvaluationStatus.ERROR, value.toString()));</span>
+    }
+<span class="fc" id="L75">    return Optional.empty();</span>
+  }
+
+  private static Comparable getThreshold(Condition condition, ValueType valueType) {
+<span class="fc" id="L79">    String valString = condition.getErrorThreshold();</span>
+    try {
+<span class="pc bpc" id="L81" title="2 of 5 branches missed.">      return switch (valueType) {</span>
+<span class="fc" id="L82">        case INT, RATING -&gt; parseInteger(valString);</span>
+<span class="fc" id="L83">        case MILLISEC, WORK_DUR -&gt; Long.parseLong(valString);</span>
+<span class="fc" id="L84">        case FLOAT, PERCENT -&gt; Double.parseDouble(valString);</span>
+<span class="nc" id="L85">        case LEVEL -&gt; valueType;</span>
+<span class="nc" id="L86">        default -&gt; throw new IllegalArgumentException(format(&quot;Unsupported value type %s. Cannot convert condition value&quot;, valueType));</span>
+      };
+<span class="fc" id="L88">    } catch (NumberFormatException badValueFormat) {</span>
+<span class="fc" id="L89">      throw new IllegalArgumentException(format(</span>
+<span class="fc" id="L90">        &quot;Quality Gate: unable to parse threshold '%s' to compare against %s&quot;, valString, condition.getMetricKey()));</span>
+    }
+  }
+
+  private static Optional&lt;Comparable&gt; getMeasureValue(Condition condition, QualityGateEvaluator.Measure measure) {
+<span class="fc bfc" id="L95" title="All 2 branches covered.">    if (condition.isOnLeakPeriod()) {</span>
+<span class="fc" id="L96">      return Optional.ofNullable(getLeakValue(measure));</span>
+    }
+
+<span class="fc" id="L99">    return Optional.ofNullable(getValue(measure));</span>
+  }
+
+  @CheckForNull
+  private static Comparable getValue(QualityGateEvaluator.Measure measure) {
+<span class="pc bpc" id="L104" title="1 of 2 branches missed.">    if (NUMERICAL_TYPES.contains(measure.getType())) {</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">      return measure.getValue().isPresent() ? getNumericValue(measure.getType(), measure.getValue().getAsDouble()) : null;</span>
+    }
+
+<span class="nc" id="L108">    checkArgument(ValueType.LEVEL.equals(measure.getType()), &quot;Condition is not allowed for type %s&quot;, measure.getType());</span>
+<span class="nc" id="L109">    return measure.getStringValue().orElse(null);</span>
+
+  }
+
+  @CheckForNull
+  private static Comparable getLeakValue(QualityGateEvaluator.Measure measure) {
+<span class="pc bpc" id="L115" title="1 of 2 branches missed.">    if (NUMERICAL_TYPES.contains(measure.getType())) {</span>
+<span class="pc bpc" id="L116" title="1 of 2 branches missed.">      return measure.getValue().isPresent() ? getNumericValue(measure.getType(), measure.getValue().getAsDouble()) : null;</span>
+    }
+
+<span class="nc" id="L119">    throw new IllegalArgumentException(&quot;Condition on leak period is not allowed for type &quot; + measure.getType());</span>
+  }
+
+  private static Comparable getNumericValue(ValueType type, double value) {
+<span class="pc bpc" id="L123" title="1 of 4 branches missed.">    return switch (type) {</span>
+<span class="fc" id="L124">      case INT, RATING -&gt; (int) value;</span>
+<span class="fc" id="L125">      case FLOAT, PERCENT -&gt; value;</span>
+<span class="fc" id="L126">      case MILLISEC, WORK_DUR -&gt; (long) value;</span>
+<span class="nc" id="L127">      default -&gt; throw new IllegalArgumentException(&quot;Condition on numeric value is not allowed for type &quot; + type);</span>
+    };
+  }
+
+  private static int parseInteger(String value) {
+<span class="pc bpc" id="L132" title="1 of 2 branches missed.">    return value.contains(&quot;.&quot;) ? Integer.parseInt(value.substring(0, value.indexOf('.'))) : Integer.parseInt(value);</span>
+  }
+
+  private static boolean reachThreshold(Comparable measureValue, Comparable threshold, Condition condition) {
+<span class="fc" id="L136">    int comparison = measureValue.compareTo(threshold);</span>
+<span class="pc bpc" id="L137" title="1 of 3 branches missed.">    switch (condition.getOperator()) {</span>
+      case GREATER_THAN:
+<span class="fc bfc" id="L139" title="All 2 branches covered.">        return comparison &gt; 0;</span>
+      case LESS_THAN:
+<span class="fc bfc" id="L141" title="All 2 branches covered.">        return comparison &lt; 0;</span>
+      default:
+<span class="nc" id="L143">        throw new IllegalArgumentException(format(&quot;Unsupported operator '%s'&quot;, condition.getOperator()));</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

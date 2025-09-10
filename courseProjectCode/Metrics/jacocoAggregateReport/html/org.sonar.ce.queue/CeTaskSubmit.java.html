@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CeTaskSubmit.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.queue</a> &gt; <span class="el_source">CeTaskSubmit.java</span></div><h1>CeTaskSubmit.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.queue;
+
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
+import org.sonar.db.component.BranchDto;
+import org.sonar.db.portfolio.PortfolioDto;
+
+import static com.google.common.base.Strings.emptyToNull;
+import static com.google.common.base.Strings.nullToEmpty;
+import static java.util.Collections.unmodifiableMap;
+import static java.util.Objects.requireNonNull;
+
+@Immutable
+public final class CeTaskSubmit {
+
+  private final String uuid;
+  private final String type;
+  private final Component component;
+  private final String submitterUuid;
+  private final Map&lt;String, String&gt; characteristics;
+
+<span class="fc" id="L45">  private CeTaskSubmit(Builder builder) {</span>
+<span class="fc" id="L46">    this.uuid = requireNonNull(builder.uuid);</span>
+<span class="fc" id="L47">    this.type = requireNonNull(builder.type);</span>
+<span class="fc" id="L48">    this.component = builder.component;</span>
+<span class="fc" id="L49">    this.submitterUuid = builder.submitterUuid;</span>
+<span class="fc" id="L50">    this.characteristics = unmodifiableMap(builder.characteristics);</span>
+<span class="fc" id="L51">  }</span>
+
+  public String getType() {
+<span class="fc" id="L54">    return type;</span>
+  }
+
+  public String getUuid() {
+<span class="fc" id="L58">    return uuid;</span>
+  }
+
+  public Optional&lt;Component&gt; getComponent() {
+<span class="fc" id="L62">    return Optional.ofNullable(component);</span>
+  }
+
+  @CheckForNull
+  public String getSubmitterUuid() {
+<span class="fc" id="L67">    return submitterUuid;</span>
+  }
+
+  public Map&lt;String, String&gt; getCharacteristics() {
+<span class="fc" id="L71">    return characteristics;</span>
+  }
+
+  public static final class Builder {
+    private final String uuid;
+    private String type;
+    private Component component;
+    private String submitterUuid;
+<span class="fc" id="L79">    private Map&lt;String, String&gt; characteristics = null;</span>
+
+<span class="fc" id="L81">    public Builder(String uuid) {</span>
+<span class="fc" id="L82">      this.uuid = emptyToNull(uuid);</span>
+<span class="fc" id="L83">    }</span>
+
+    public String getUuid() {
+<span class="fc" id="L86">      return uuid;</span>
+    }
+
+    public Builder setType(String s) {
+<span class="fc" id="L90">      this.type = emptyToNull(s);</span>
+<span class="fc" id="L91">      return this;</span>
+    }
+
+    public Builder setComponent(@Nullable Component component) {
+<span class="fc" id="L95">      this.component = component;</span>
+<span class="fc" id="L96">      return this;</span>
+    }
+
+    public Builder setSubmitterUuid(@Nullable String s) {
+<span class="fc" id="L100">      this.submitterUuid = s;</span>
+<span class="fc" id="L101">      return this;</span>
+    }
+
+    public Builder setCharacteristics(Map&lt;String, String&gt; m) {
+<span class="fc" id="L105">      this.characteristics = m;</span>
+<span class="fc" id="L106">      return this;</span>
+    }
+
+    public CeTaskSubmit build() {
+<span class="fc" id="L110">      requireNonNull(uuid, &quot;uuid can't be null&quot;);</span>
+<span class="fc" id="L111">      requireNonNull(type, &quot;type can't be null&quot;);</span>
+<span class="fc" id="L112">      requireNonNull(characteristics, &quot;characteristics can't be null&quot;);</span>
+<span class="fc" id="L113">      return new CeTaskSubmit(this);</span>
+    }
+  }
+
+  public static class Component {
+    private final String uuid;
+    private final String entityUuid;
+
+<span class="fc" id="L121">    public Component(String uuid, String entityUuid) {</span>
+<span class="fc" id="L122">      this.uuid = requireNonNull(nullToEmpty(uuid), &quot;uuid can't be null&quot;);</span>
+<span class="fc" id="L123">      this.entityUuid = requireNonNull(nullToEmpty(entityUuid), &quot;mainComponentUuid can't be null&quot;);</span>
+<span class="fc" id="L124">    }</span>
+
+    public static Component fromDto(String componentUuid, String entityUuid) {
+<span class="fc" id="L127">      return new Component(componentUuid, entityUuid);</span>
+    }
+
+    public static Component fromDto(PortfolioDto dto) {
+<span class="nc" id="L131">      return new Component(dto.getUuid(), dto.getUuid());</span>
+    }
+
+    public static Component fromDto(BranchDto dto) {
+<span class="fc" id="L135">      return new Component(dto.getUuid(), dto.getProjectUuid());</span>
+    }
+
+    public String getUuid() {
+<span class="fc" id="L139">      return uuid;</span>
+    }
+
+    public String getEntityUuid() {
+<span class="fc" id="L143">      return entityUuid;</span>
+    }
+
+    @Override
+    public String toString() {
+<span class="nc" id="L148">      return &quot;Component{&quot; +</span>
+        &quot;uuid='&quot; + uuid + '\'' +
+        &quot;, entityUuid='&quot; + entityUuid + '\'' +
+        '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+<span class="nc bnc" id="L156" title="All 2 branches missed.">      if (this == o) {</span>
+<span class="nc" id="L157">        return true;</span>
+      }
+<span class="nc bnc" id="L159" title="All 4 branches missed.">      if (o == null || getClass() != o.getClass()) {</span>
+<span class="nc" id="L160">        return false;</span>
+      }
+<span class="nc" id="L162">      Component component = (Component) o;</span>
+<span class="nc bnc" id="L163" title="All 4 branches missed.">      return uuid.equals(component.uuid) &amp;&amp; entityUuid.equals(component.entityUuid);</span>
+    }
+
+    @Override
+    public int hashCode() {
+<span class="nc" id="L168">      return Objects.hash(uuid, entityUuid);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

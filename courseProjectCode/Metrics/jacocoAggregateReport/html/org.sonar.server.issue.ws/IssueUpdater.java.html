@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IssueUpdater.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.issue.ws</a> &gt; <span class="el_source">IssueUpdater.java</span></div><h1>IssueUpdater.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.issue.ws;
+
+import java.util.Date;
+import java.util.List;
+import java.util.Optional;
+import javax.annotation.Nullable;
+import org.sonar.api.issue.IssueStatus;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.api.rule.RuleStatus;
+import org.sonar.core.rule.RuleType;
+import org.sonar.core.issue.DefaultIssue;
+import org.sonar.core.issue.IssueChangeContext;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.BranchDto;
+import org.sonar.db.component.ComponentDto;
+import org.sonar.db.issue.IssueDto;
+import org.sonar.db.rule.RuleDto;
+import org.sonar.db.user.UserDto;
+import org.sonar.server.issue.IssueChangePostProcessor;
+import org.sonar.server.issue.WebIssueStorage;
+import org.sonar.server.issue.notification.IssuesChangesNotificationBuilder;
+import org.sonar.server.issue.notification.IssuesChangesNotificationBuilder.ChangedIssue;
+import org.sonar.server.issue.notification.IssuesChangesNotificationBuilder.Project;
+import org.sonar.server.issue.notification.IssuesChangesNotificationBuilder.Rule;
+import org.sonar.server.issue.notification.IssuesChangesNotificationBuilder.User;
+import org.sonar.server.issue.notification.IssuesChangesNotificationBuilder.UserChange;
+import org.sonar.server.issue.notification.IssuesChangesNotificationSerializer;
+import org.sonar.server.notification.NotificationManager;
+
+import static com.google.common.base.Preconditions.checkState;
+import static java.util.Collections.singleton;
+import static java.util.Collections.singletonList;
+import static java.util.Optional.ofNullable;
+import static org.apache.commons.lang3.StringUtils.isNotEmpty;
+import static org.sonar.db.component.BranchType.PULL_REQUEST;
+
+public class IssueUpdater {
+
+  private final DbClient dbClient;
+  private final WebIssueStorage issueStorage;
+  private final NotificationManager notificationService;
+  private final IssueChangePostProcessor issueChangePostProcessor;
+  private final IssuesChangesNotificationSerializer notificationSerializer;
+
+  public IssueUpdater(DbClient dbClient, WebIssueStorage issueStorage, NotificationManager notificationService,
+<span class="fc" id="L66">    IssueChangePostProcessor issueChangePostProcessor, IssuesChangesNotificationSerializer notificationSerializer) {</span>
+<span class="fc" id="L67">    this.dbClient = dbClient;</span>
+<span class="fc" id="L68">    this.issueStorage = issueStorage;</span>
+<span class="fc" id="L69">    this.notificationService = notificationService;</span>
+<span class="fc" id="L70">    this.issueChangePostProcessor = issueChangePostProcessor;</span>
+<span class="fc" id="L71">    this.notificationSerializer = notificationSerializer;</span>
+<span class="fc" id="L72">  }</span>
+
+  public SearchResponseData saveIssueAndPreloadSearchResponseData(DbSession dbSession, IssueDto originalIssue, DefaultIssue newIssue, IssueChangeContext context) {
+<span class="fc" id="L75">    BranchDto branch = getBranch(dbSession, newIssue);</span>
+<span class="fc" id="L76">    return saveIssueAndPreloadSearchResponseData(dbSession, originalIssue, newIssue, context, branch);</span>
+  }
+
+  public SearchResponseData saveIssueAndPreloadSearchResponseData(DbSession dbSession, IssueDto originalIssue,
+    DefaultIssue newIssue, IssueChangeContext context, BranchDto branch) {
+<span class="fc" id="L81">    Optional&lt;RuleDto&gt; rule = getRuleByKey(dbSession, newIssue.getRuleKey());</span>
+<span class="fc" id="L82">    ComponentDto branchComponent = dbClient.componentDao().selectOrFailByUuid(dbSession, newIssue.projectUuid());</span>
+<span class="fc" id="L83">    ComponentDto component = getComponent(dbSession, newIssue, newIssue.componentUuid());</span>
+<span class="fc" id="L84">    IssueDto issueDto = doSaveIssue(dbSession, originalIssue, newIssue, context, rule.orElse(null), branchComponent, branch);</span>
+
+<span class="fc" id="L86">    SearchResponseData result = new SearchResponseData(issueDto);</span>
+<span class="fc" id="L87">    rule.ifPresent(r -&gt; result.addRules(singletonList(r)));</span>
+<span class="fc" id="L88">    result.addComponents(singleton(branchComponent));</span>
+<span class="fc" id="L89">    result.addComponents(singleton(component));</span>
+
+<span class="fc bfc" id="L91" title="All 2 branches covered.">    if (context.refreshMeasures()) {</span>
+<span class="fc" id="L92">      List&lt;DefaultIssue&gt; changedIssues = result.getIssues().stream().map(IssueDto::toDefaultIssue).toList();</span>
+<span class="fc" id="L93">      boolean isChangeFromWebhook = isNotEmpty(context.getWebhookSource());</span>
+<span class="fc" id="L94">      issueChangePostProcessor.process(dbSession, changedIssues, singleton(component), isChangeFromWebhook);</span>
+    }
+
+<span class="fc" id="L97">    return result;</span>
+  }
+
+  public BranchDto getBranch(DbSession dbSession, DefaultIssue issue) {
+<span class="fc" id="L101">    String issueKey = issue.key();</span>
+<span class="fc" id="L102">    String componentUuid = issue.componentUuid();</span>
+<span class="pc bpc" id="L103" title="1 of 2 branches missed.">    checkState(componentUuid != null, &quot;Component uuid for issue key '%s' cannot be null&quot;, issueKey);</span>
+<span class="fc" id="L104">    Optional&lt;ComponentDto&gt; componentDto = dbClient.componentDao().selectByUuid(dbSession, componentUuid);</span>
+<span class="fc" id="L105">    checkState(componentDto.isPresent(), &quot;Component not found for issue with key '%s'&quot;, issueKey);</span>
+<span class="fc" id="L106">    BranchDto branchDto = dbClient.branchDao().selectByUuid(dbSession, componentDto.get().branchUuid()).orElse(null);</span>
+<span class="pc bpc" id="L107" title="1 of 2 branches missed.">    checkState(branchDto != null, &quot;Branch not found for issue with key '%s'&quot;, issueKey);</span>
+<span class="fc" id="L108">    return branchDto;</span>
+  }
+
+  private IssueDto doSaveIssue(DbSession session, IssueDto originalIssue, DefaultIssue issue, IssueChangeContext context,
+    @Nullable RuleDto ruleDto, ComponentDto project, BranchDto branchDto) {
+<span class="fc" id="L113">    IssueDto issueDto = issueStorage.save(session, singletonList(issue)).iterator().next();</span>
+<span class="fc" id="L114">    Date updateDate = issue.updateDate();</span>
+<span class="pc bpc" id="L115" title="1 of 4 branches missed.">    if (</span>
+      // since this method is called after an update of the issue, date should never be null
+      updateDate == null
+      // name of rule is displayed in notification, rule must therefor be present
+      || ruleDto == null
+      // notification are not supported on PRs
+<span class="fc bfc" id="L121" title="All 2 branches covered.">      || !hasNotificationSupport(branchDto)</span>
+<span class="pc bpc" id="L122" title="1 of 2 branches missed.">      || context.getWebhookSource() != null) {</span>
+<span class="fc" id="L123">      return issueDto;</span>
+    }
+
+<span class="fc" id="L126">    Optional&lt;UserDto&gt; assignee = ofNullable(issue.assignee())</span>
+<span class="fc" id="L127">      .map(assigneeUuid -&gt; dbClient.userDao().selectByUuid(session, assigneeUuid));</span>
+<span class="fc" id="L128">    UserDto author = ofNullable(context.userUuid())</span>
+<span class="fc" id="L129">      .map(authorUuid -&gt; dbClient.userDao().selectByUuid(session, authorUuid))</span>
+<span class="pc" id="L130">      .orElseThrow(() -&gt; new IllegalStateException(&quot;Can not find dto for change author &quot; + context.userUuid()));</span>
+<span class="fc" id="L131">    IssuesChangesNotificationBuilder notificationBuilder = new IssuesChangesNotificationBuilder(singleton(</span>
+<span class="fc" id="L132">      new ChangedIssue.Builder(issue.key())</span>
+<span class="fc" id="L133">        .setNewStatus(issue.status())</span>
+<span class="fc" id="L134">        .setNewIssueStatus(IssueStatus.of(issue.status(), issue.resolution()))</span>
+<span class="fc" id="L135">        .setOldIssueStatus(originalIssue.getIssueStatus())</span>
+<span class="fc" id="L136">        .setAssignee(assignee.map(assigneeDto -&gt; new User(assigneeDto.getUuid(), assigneeDto.getLogin(), assigneeDto.getName())).orElse(null))</span>
+<span class="fc" id="L137">        .setRule(new Rule(ruleDto.getKey(), RuleType.valueOfNullable(ruleDto.getType()), ruleDto.getName()))</span>
+<span class="fc" id="L138">        .setProject(new Project.Builder(project.uuid())</span>
+<span class="fc" id="L139">          .setKey(project.getKey())</span>
+<span class="fc" id="L140">          .setProjectName(project.name())</span>
+<span class="fc bfc" id="L141" title="All 2 branches covered.">          .setBranchName(branchDto.isMain() ? null : branchDto.getKey())</span>
+<span class="fc" id="L142">          .build())</span>
+<span class="fc" id="L143">        .build()),</span>
+<span class="fc" id="L144">      new UserChange(updateDate.getTime(), new User(author.getUuid(), author.getLogin(), author.getName())));</span>
+<span class="fc" id="L145">    notificationService.scheduleForSending(notificationSerializer.serialize(notificationBuilder));</span>
+<span class="fc" id="L146">    return issueDto;</span>
+  }
+
+  private static boolean hasNotificationSupport(BranchDto branch) {
+<span class="fc bfc" id="L150" title="All 2 branches covered.">    return branch.getBranchType() != PULL_REQUEST;</span>
+  }
+
+  private ComponentDto getComponent(DbSession dbSession, DefaultIssue issue, @Nullable String componentUuid) {
+<span class="fc" id="L154">    String issueKey = issue.key();</span>
+<span class="pc bpc" id="L155" title="1 of 2 branches missed.">    checkState(componentUuid != null, &quot;Issue '%s' has no component&quot;, issueKey);</span>
+<span class="fc" id="L156">    ComponentDto component = dbClient.componentDao().selectByUuid(dbSession, componentUuid).orElse(null);</span>
+<span class="pc bpc" id="L157" title="1 of 2 branches missed.">    checkState(component != null, &quot;Component uuid '%s' for issue key '%s' cannot be found&quot;, componentUuid, issueKey);</span>
+<span class="fc" id="L158">    return component;</span>
+  }
+
+  private Optional&lt;RuleDto&gt; getRuleByKey(DbSession session, RuleKey ruleKey) {
+<span class="fc" id="L162">    Optional&lt;RuleDto&gt; rule = dbClient.ruleDao().selectByKey(session, ruleKey);</span>
+<span class="pc bpc" id="L163" title="1 of 4 branches missed.">    return (rule.isPresent() &amp;&amp; rule.get().getStatus() != RuleStatus.REMOVED) ? rule : Optional.empty();</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

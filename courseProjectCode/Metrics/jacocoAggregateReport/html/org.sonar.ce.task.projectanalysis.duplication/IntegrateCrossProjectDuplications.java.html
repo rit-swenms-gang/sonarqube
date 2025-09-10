@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IntegrateCrossProjectDuplications.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.duplication</a> &gt; <span class="el_source">IntegrateCrossProjectDuplications.java</span></div><h1>IntegrateCrossProjectDuplications.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.duplication;
+
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import javax.annotation.Nonnull;
+import org.sonar.api.config.Configuration;
+import org.sonar.api.utils.System2;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.ce.task.log.CeTaskMessages;
+import org.sonar.ce.task.projectanalysis.component.Component;
+import org.sonar.duplications.block.Block;
+import org.sonar.duplications.detector.suffixtree.SuffixTreeCloneDetectionAlgorithm;
+import org.sonar.duplications.index.CloneGroup;
+import org.sonar.duplications.index.CloneIndex;
+import org.sonar.duplications.index.ClonePart;
+import org.sonar.duplications.index.PackedMemoryCloneIndex;
+
+/**
+ * Transform a list of duplication blocks into clone groups, then add these clone groups into the duplication repository.
+ */
+public class IntegrateCrossProjectDuplications {
+
+<span class="fc" id="L47">  private static final Logger LOGGER = LoggerFactory.getLogger(IntegrateCrossProjectDuplications.class);</span>
+  private static final String JAVA_KEY = &quot;java&quot;;
+  private static final String DEPRECATED_WARNING = &quot;This analysis uses the deprecated cross-project duplication feature.&quot;;
+  private static final String DEPRECATED_WARNING_DASHBOARD = &quot;This project uses the deprecated cross-project duplication feature.&quot;;
+
+  private static final int MAX_CLONE_GROUP_PER_FILE = 100;
+  private static final int MAX_CLONE_PART_PER_GROUP = 100;
+
+  private final Configuration config;
+  private final DuplicationRepository duplicationRepository;
+
+<span class="fc" id="L58">  private final Map&lt;String, NumberOfUnitsNotLessThan&gt; numberOfUnitsByLanguage = new HashMap&lt;&gt;();</span>
+
+  public IntegrateCrossProjectDuplications(CrossProjectDuplicationStatusHolder crossProjectDuplicationStatusHolder, Configuration config,
+<span class="fc" id="L61">    DuplicationRepository duplicationRepository, CeTaskMessages ceTaskMessages, System2 system) {</span>
+<span class="fc" id="L62">    this.config = config;</span>
+<span class="fc" id="L63">    this.duplicationRepository = duplicationRepository;</span>
+<span class="fc bfc" id="L64" title="All 2 branches covered.">    if (crossProjectDuplicationStatusHolder.isEnabled()) {</span>
+<span class="fc" id="L65">      LOGGER.warn(DEPRECATED_WARNING);</span>
+<span class="fc" id="L66">      ceTaskMessages.add(new CeTaskMessages.Message(DEPRECATED_WARNING_DASHBOARD, system.now()));</span>
+    }
+<span class="fc" id="L68">  }</span>
+
+  public void computeCpd(Component component, Collection&lt;Block&gt; originBlocks, Collection&lt;Block&gt; duplicationBlocks) {
+<span class="fc" id="L71">    CloneIndex duplicationIndex = new PackedMemoryCloneIndex();</span>
+<span class="fc" id="L72">    populateIndex(duplicationIndex, originBlocks);</span>
+<span class="fc" id="L73">    populateIndex(duplicationIndex, duplicationBlocks);</span>
+
+<span class="fc" id="L75">    List&lt;CloneGroup&gt; duplications = SuffixTreeCloneDetectionAlgorithm.detect(duplicationIndex, originBlocks);</span>
+<span class="fc" id="L76">    Iterable&lt;CloneGroup&gt; filtered = duplications.stream()</span>
+<span class="fc" id="L77">      .filter(getNumberOfUnitsNotLessThan(component.getFileAttributes().getLanguageKey()))</span>
+<span class="fc" id="L78">      .toList();</span>
+<span class="fc" id="L79">    addDuplications(component, filtered);</span>
+<span class="fc" id="L80">  }</span>
+
+  private static void populateIndex(CloneIndex duplicationIndex, Collection&lt;Block&gt; duplicationBlocks) {
+<span class="fc bfc" id="L83" title="All 2 branches covered.">    for (Block block : duplicationBlocks) {</span>
+<span class="fc" id="L84">      duplicationIndex.insert(block);</span>
+<span class="fc" id="L85">    }</span>
+<span class="fc" id="L86">  }</span>
+
+  private void addDuplications(Component file, Iterable&lt;CloneGroup&gt; duplications) {
+<span class="fc" id="L89">    int cloneGroupCount = 0;</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">    for (CloneGroup duplication : duplications) {</span>
+<span class="fc" id="L91">      cloneGroupCount++;</span>
+<span class="fc bfc" id="L92" title="All 2 branches covered.">      if (cloneGroupCount &gt; MAX_CLONE_GROUP_PER_FILE) {</span>
+<span class="fc" id="L93">        LOGGER.warn(&quot;Too many duplication groups on file {}. Keeping only the first {} groups.&quot;, file.getKey(), MAX_CLONE_GROUP_PER_FILE);</span>
+<span class="fc" id="L94">        break;</span>
+      }
+<span class="fc" id="L96">      addDuplication(file, duplication);</span>
+<span class="fc" id="L97">    }</span>
+<span class="fc" id="L98">  }</span>
+
+  private void addDuplication(Component file, CloneGroup duplication) {
+<span class="fc" id="L101">    ClonePart originPart = duplication.getOriginPart();</span>
+<span class="fc" id="L102">    List&lt;Duplicate&gt; duplicates = convertClonePartsToDuplicates(file, duplication);</span>
+<span class="fc bfc" id="L103" title="All 2 branches covered.">    if (!duplicates.isEmpty()) {</span>
+<span class="fc" id="L104">      duplicationRepository.add(</span>
+        file,
+<span class="fc" id="L106">        new Duplication(new TextBlock(originPart.getStartLine(), originPart.getEndLine()), duplicates));</span>
+    }
+<span class="fc" id="L108">  }</span>
+
+  private static List&lt;Duplicate&gt; convertClonePartsToDuplicates(final Component file, CloneGroup duplication) {
+<span class="fc" id="L111">    final ClonePart originPart = duplication.getOriginPart();</span>
+<span class="fc" id="L112">    return duplication.getCloneParts().stream()</span>
+<span class="fc" id="L113">      .filter(new DoesNotMatchSameComponentKey(originPart.getResourceId()))</span>
+<span class="fc" id="L114">      .filter(new DuplicateLimiter(file, originPart))</span>
+<span class="fc" id="L115">      .map(ClonePartToCrossProjectDuplicate.INSTANCE)</span>
+<span class="fc" id="L116">      .toList();</span>
+  }
+
+  private NumberOfUnitsNotLessThan getNumberOfUnitsNotLessThan(String language) {
+<span class="fc" id="L120">    NumberOfUnitsNotLessThan numberOfUnitsNotLessThan = numberOfUnitsByLanguage.get(language);</span>
+<span class="pc bpc" id="L121" title="1 of 2 branches missed.">    if (numberOfUnitsNotLessThan == null) {</span>
+<span class="fc" id="L122">      numberOfUnitsNotLessThan = new NumberOfUnitsNotLessThan(getMinimumTokens(language));</span>
+<span class="fc" id="L123">      numberOfUnitsByLanguage.put(language, numberOfUnitsNotLessThan);</span>
+    }
+<span class="fc" id="L125">    return numberOfUnitsNotLessThan;</span>
+  }
+
+  private int getMinimumTokens(String languageKey) {
+    // The java language is an exception : it doesn't compute tokens but statement, so the settings could not be used.
+<span class="fc bfc" id="L130" title="All 2 branches covered.">    if (languageKey.equalsIgnoreCase(JAVA_KEY)) {</span>
+<span class="fc" id="L131">      return 0;</span>
+    }
+<span class="fc" id="L133">    return config.getInt(&quot;sonar.cpd.&quot; + languageKey + &quot;.minimumTokens&quot;).orElse(100);</span>
+  }
+
+  private static class NumberOfUnitsNotLessThan implements Predicate&lt;CloneGroup&gt; {
+    private final int min;
+
+<span class="fc" id="L139">    NumberOfUnitsNotLessThan(int min) {</span>
+<span class="fc" id="L140">      this.min = min;</span>
+<span class="fc" id="L141">    }</span>
+
+    @Override
+    public boolean test(@Nonnull CloneGroup input) {
+<span class="fc bfc" id="L145" title="All 2 branches covered.">      return input.getLengthInUnits() &gt;= min;</span>
+    }
+  }
+
+  private static class DoesNotMatchSameComponentKey implements Predicate&lt;ClonePart&gt; {
+    private final String componentKey;
+
+<span class="fc" id="L152">    private DoesNotMatchSameComponentKey(String componentKey) {</span>
+<span class="fc" id="L153">      this.componentKey = componentKey;</span>
+<span class="fc" id="L154">    }</span>
+
+    @Override
+    public boolean test(@Nonnull ClonePart part) {
+<span class="fc bfc" id="L158" title="All 2 branches covered.">      return !part.getResourceId().equals(componentKey);</span>
+    }
+  }
+
+  private static class DuplicateLimiter implements Predicate&lt;ClonePart&gt; {
+    private final Component file;
+    private final ClonePart originPart;
+<span class="fc" id="L165">    private int counter = 0;</span>
+
+<span class="fc" id="L167">    DuplicateLimiter(Component file, ClonePart originPart) {</span>
+<span class="fc" id="L168">      this.file = file;</span>
+<span class="fc" id="L169">      this.originPart = originPart;</span>
+<span class="fc" id="L170">    }</span>
+
+    @Override
+    public boolean test(@Nonnull ClonePart input) {
+<span class="fc bfc" id="L174" title="All 2 branches covered.">      if (counter == MAX_CLONE_PART_PER_GROUP) {</span>
+<span class="fc" id="L175">        LOGGER.warn(&quot;Too many duplication references on file {} for block at line {}. Keeping only the first {} references.&quot;,</span>
+<span class="fc" id="L176">          file.getKey(), originPart.getStartLine(), MAX_CLONE_PART_PER_GROUP);</span>
+      }
+<span class="fc bfc" id="L178" title="All 2 branches covered.">      boolean res = counter &lt; MAX_CLONE_GROUP_PER_FILE;</span>
+<span class="fc" id="L179">      counter++;</span>
+<span class="fc" id="L180">      return res;</span>
+    }
+  }
+
+<span class="fc" id="L184">  private enum ClonePartToCrossProjectDuplicate implements Function&lt;ClonePart, Duplicate&gt; {</span>
+<span class="fc" id="L185">    INSTANCE;</span>
+
+    @Override
+    @Nonnull
+    public Duplicate apply(@Nonnull ClonePart input) {
+<span class="fc" id="L190">      return new CrossProjectDuplicate(</span>
+<span class="fc" id="L191">        input.getResourceId(),</span>
+<span class="fc" id="L192">        new TextBlock(input.getStartLine(), input.getEndLine()));</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

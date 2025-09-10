@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>QualityProfileChangesUpdater.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.rule.registration</a> &gt; <span class="el_source">QualityProfileChangesUpdater.java</span></div><h1>QualityProfileChangesUpdater.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.rule.registration;
+
+import com.google.common.collect.Sets;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.jetbrains.annotations.NotNull;
+import org.sonar.api.issue.impact.SoftwareQuality;
+import org.sonar.core.platform.SonarQubeVersion;
+import org.sonar.core.util.UuidFactory;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.qualityprofile.ActiveRuleDto;
+import org.sonar.db.qualityprofile.QProfileChangeDto;
+import org.sonar.db.rule.RuleChangeDto;
+import org.sonar.db.rule.RuleImpactChangeDto;
+import org.sonar.server.rule.PluginRuleUpdate;
+
+public class QualityProfileChangesUpdater {
+
+  private final DbClient dbClient;
+  private final UuidFactory uuidFactory;
+  private final SonarQubeVersion sonarQubeVersion;
+
+<span class="fc" id="L47">  public QualityProfileChangesUpdater(DbClient dbClient, UuidFactory uuidFactory, SonarQubeVersion sonarQubeVersion) {</span>
+<span class="fc" id="L48">    this.dbClient = dbClient;</span>
+<span class="fc" id="L49">    this.uuidFactory = uuidFactory;</span>
+<span class="fc" id="L50">    this.sonarQubeVersion = sonarQubeVersion;</span>
+<span class="fc" id="L51">  }</span>
+
+  public void createQprofileChangesForRuleUpdates(DbSession dbSession, Set&lt;PluginRuleUpdate&gt; pluginRuleUpdates) {
+<span class="fc" id="L54">    List&lt;QProfileChangeDto&gt; changesToPersist = pluginRuleUpdates.stream()</span>
+<span class="fc" id="L55">      .flatMap(pluginRuleUpdate -&gt; {</span>
+<span class="fc" id="L56">        RuleChangeDto ruleChangeDto = createNewRuleChange(pluginRuleUpdate);</span>
+
+<span class="fc bfc" id="L58" title="All 2 branches covered.">        if (!hasChanges(ruleChangeDto)) {</span>
+<span class="fc" id="L59">          return Stream.empty();</span>
+        }
+<span class="fc" id="L61">        insertRuleChange(dbSession, ruleChangeDto);</span>
+<span class="fc" id="L62">        return findQualityProfilesForRule(dbSession, pluginRuleUpdate.getRuleUuid()).stream()</span>
+<span class="fc" id="L63">          .map(qualityProfileUuid -&gt; buildQprofileChangeDtoForRuleChange(qualityProfileUuid, ruleChangeDto));</span>
+<span class="fc" id="L64">      }).toList();</span>
+
+<span class="fc bfc" id="L66" title="All 2 branches covered.">    if (!changesToPersist.isEmpty()) {</span>
+<span class="fc" id="L67">      dbClient.qProfileChangeDao().bulkInsert(dbSession, changesToPersist);</span>
+    }
+<span class="fc" id="L69">  }</span>
+
+  private static boolean hasChanges(RuleChangeDto ruleChangeDto) {
+<span class="pc bpc" id="L72" title="1 of 4 branches missed.">    return ruleChangeDto.getNewCleanCodeAttribute() != ruleChangeDto.getOldCleanCodeAttribute() || !ruleChangeDto.getRuleImpactChanges().isEmpty();</span>
+  }
+
+  private RuleChangeDto createNewRuleChange(PluginRuleUpdate pluginRuleUpdate) {
+<span class="fc" id="L76">    RuleChangeDto ruleChangeDto = new RuleChangeDto();</span>
+<span class="fc" id="L77">    ruleChangeDto.setUuid(uuidFactory.create());</span>
+<span class="fc" id="L78">    ruleChangeDto.setRuleUuid(pluginRuleUpdate.getRuleUuid());</span>
+<span class="fc" id="L79">    ruleChangeDto.setOldCleanCodeAttribute(pluginRuleUpdate.getOldCleanCodeAttribute());</span>
+<span class="fc" id="L80">    ruleChangeDto.setNewCleanCodeAttribute(pluginRuleUpdate.getNewCleanCodeAttribute());</span>
+
+<span class="fc" id="L82">    ruleChangeDto.setRuleImpactChanges(createRuleImpactChanges(pluginRuleUpdate, ruleChangeDto));</span>
+<span class="fc" id="L83">    return ruleChangeDto;</span>
+  }
+
+  private Set&lt;String&gt; findQualityProfilesForRule(DbSession dbSession, String ruleUuid) {
+<span class="fc" id="L87">    return dbClient.activeRuleDao().selectByRuleUuid(dbSession, ruleUuid)</span>
+<span class="fc" id="L88">      .stream()</span>
+<span class="fc" id="L89">      .map(ActiveRuleDto::getProfileUuid)</span>
+<span class="fc" id="L90">      .collect(Collectors.toSet());</span>
+  }
+
+  private void insertRuleChange(DbSession dbSession, RuleChangeDto ruleChangeDto) {
+<span class="fc" id="L94">    dbClient.ruleChangeDao().insert(dbSession, ruleChangeDto);</span>
+<span class="fc" id="L95">  }</span>
+
+  private static Set&lt;RuleImpactChangeDto&gt; createRuleImpactChanges(PluginRuleUpdate pluginRuleUpdate, RuleChangeDto ruleChangeDto) {
+<span class="fc" id="L98">    Set&lt;RuleImpactChangeDto&gt; ruleImpactChangeDtos = new HashSet&lt;&gt;();</span>
+
+<span class="fc" id="L100">    Iterator&lt;SoftwareQuality&gt; removedIterator = (Sets.difference(pluginRuleUpdate.getOldImpacts().keySet(), pluginRuleUpdate.getMatchingSoftwareQualities())).iterator();</span>
+<span class="fc" id="L101">    Iterator&lt;SoftwareQuality&gt; addedIterator = (Sets.difference(pluginRuleUpdate.getNewImpacts().keySet(), pluginRuleUpdate.getMatchingSoftwareQualities())).iterator();</span>
+<span class="pc bpc" id="L102" title="1 of 4 branches missed.">    while (removedIterator.hasNext() || addedIterator.hasNext()) {</span>
+<span class="fc" id="L103">      RuleImpactChangeDto ruleImpactChangeDto = new RuleImpactChangeDto();</span>
+<span class="fc" id="L104">      ruleImpactChangeDto.setRuleChangeUuid(ruleChangeDto.getUuid());</span>
+<span class="pc bpc" id="L105" title="1 of 2 branches missed.">      if (removedIterator.hasNext()) {</span>
+<span class="fc" id="L106">        var removedSoftwareQuality = removedIterator.next();</span>
+<span class="fc" id="L107">        ruleImpactChangeDto.setOldSoftwareQuality(removedSoftwareQuality);</span>
+<span class="fc" id="L108">        ruleImpactChangeDto.setOldSeverity(pluginRuleUpdate.getOldImpacts().get(removedSoftwareQuality));</span>
+      }
+<span class="pc bpc" id="L110" title="1 of 2 branches missed.">      if (addedIterator.hasNext()) {</span>
+<span class="fc" id="L111">        var addedSoftwareQuality = addedIterator.next();</span>
+<span class="fc" id="L112">        ruleImpactChangeDto.setNewSoftwareQuality(addedSoftwareQuality);</span>
+<span class="fc" id="L113">        ruleImpactChangeDto.setNewSeverity(pluginRuleUpdate.getNewImpacts().get(addedSoftwareQuality));</span>
+      }
+<span class="fc" id="L115">      ruleImpactChangeDtos.add(ruleImpactChangeDto);</span>
+<span class="fc" id="L116">    }</span>
+
+<span class="fc" id="L118">    return ruleImpactChangeDtos;</span>
+  }
+
+  @NotNull
+  private QProfileChangeDto buildQprofileChangeDtoForRuleChange(String qualityProfileUuid, RuleChangeDto ruleChangeDto) {
+<span class="fc" id="L123">    QProfileChangeDto qProfileChangeDto = new QProfileChangeDto();</span>
+<span class="fc" id="L124">    qProfileChangeDto.setUuid(uuidFactory.create());</span>
+<span class="fc" id="L125">    qProfileChangeDto.setChangeType(&quot;UPDATED&quot;);</span>
+<span class="fc" id="L126">    qProfileChangeDto.setRuleChange(ruleChangeDto);</span>
+<span class="fc" id="L127">    qProfileChangeDto.setRulesProfileUuid(qualityProfileUuid);</span>
+<span class="fc" id="L128">    qProfileChangeDto.setSqVersion(sonarQubeVersion.toString());</span>
+<span class="fc" id="L129">    return qProfileChangeDto;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

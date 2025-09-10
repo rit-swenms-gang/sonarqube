@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WebhookQGChangeEventListener.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.webhook</a> &gt; <span class="el_source">WebhookQGChangeEventListener.java</span></div><h1>WebhookQGChangeEventListener.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.webhook;
+
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import javax.annotation.Nullable;
+import org.sonar.api.measures.Metric;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.AnalysisPropertyDto;
+import org.sonar.db.component.BranchDto;
+import org.sonar.db.component.SnapshotDto;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.server.qualitygate.EvaluatedQualityGate;
+import org.sonar.server.qualitygate.changeevent.QGChangeEvent;
+import org.sonar.server.qualitygate.changeevent.QGChangeEventListener;
+import org.sonar.server.webhook.Branch.Type;
+
+public class WebhookQGChangeEventListener implements QGChangeEventListener {
+  private final WebHooks webhooks;
+  private final WebhookPayloadFactory webhookPayloadFactory;
+  private final DbClient dbClient;
+
+<span class="fc" id="L44">  public WebhookQGChangeEventListener(WebHooks webhooks, WebhookPayloadFactory webhookPayloadFactory, DbClient dbClient) {</span>
+<span class="fc" id="L45">    this.webhooks = webhooks;</span>
+<span class="fc" id="L46">    this.webhookPayloadFactory = webhookPayloadFactory;</span>
+<span class="fc" id="L47">    this.dbClient = dbClient;</span>
+<span class="fc" id="L48">  }</span>
+
+  @Override
+  public void onIssueChanges(QGChangeEvent qualityGateEvent, Set&lt;ChangedIssue&gt; changedIssues) {
+
+<span class="fc bfc" id="L53" title="All 2 branches covered.">    if (!webhooks.isEnabled(qualityGateEvent.getProject())) {</span>
+<span class="fc" id="L54">      return;</span>
+    }
+<span class="fc" id="L56">    Optional&lt;EvaluatedQualityGate&gt; evaluatedQualityGate = qualityGateEvent.getQualityGateSupplier().get();</span>
+<span class="fc bfc" id="L57" title="All 2 branches covered.">    if (isQGStatusUnchanged(qualityGateEvent, evaluatedQualityGate)) {</span>
+<span class="fc" id="L58">      return;</span>
+    }
+
+<span class="fc" id="L61">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L62">      callWebhook(dbSession, qualityGateEvent, evaluatedQualityGate.orElse(null));</span>
+    }
+<span class="fc" id="L64">  }</span>
+
+  private static boolean isQGStatusUnchanged(QGChangeEvent qualityGateEvent, Optional&lt;EvaluatedQualityGate&gt; evaluatedQualityGate) {
+<span class="fc" id="L67">    Optional&lt;Metric.Level&gt; previousStatus = qualityGateEvent.getPreviousStatus();</span>
+<span class="pc bpc" id="L68" title="1 of 4 branches missed.">    if (!previousStatus.isPresent() &amp;&amp; !evaluatedQualityGate.isPresent()) {</span>
+<span class="fc" id="L69">      return true;</span>
+    }
+
+<span class="fc" id="L72">    return previousStatus</span>
+<span class="fc" id="L73">      .map(previousQGStatus -&gt; evaluatedQualityGate</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">        .filter(newQualityGate -&gt; newQualityGate.getStatus() == previousQGStatus)</span>
+<span class="fc" id="L75">        .isPresent())</span>
+<span class="fc" id="L76">      .orElse(false);</span>
+  }
+
+  private void callWebhook(DbSession dbSession, QGChangeEvent event, @Nullable EvaluatedQualityGate evaluatedQualityGate) {
+<span class="fc" id="L80">    webhooks.sendProjectAnalysisUpdate(</span>
+<span class="fc" id="L81">      new WebHooks.Analysis(event.getProject().getUuid(), event.getAnalysis().getUuid(), null),</span>
+<span class="fc" id="L82">      () -&gt; buildWebHookPayload(dbSession, event, evaluatedQualityGate));</span>
+<span class="fc" id="L83">  }</span>
+
+  private WebhookPayload buildWebHookPayload(DbSession dbSession, QGChangeEvent event, @Nullable EvaluatedQualityGate evaluatedQualityGate) {
+<span class="fc" id="L86">    ProjectDto project = event.getProject();</span>
+<span class="fc" id="L87">    BranchDto branch = event.getBranch();</span>
+<span class="fc" id="L88">    SnapshotDto analysis = event.getAnalysis();</span>
+<span class="fc" id="L89">    Map&lt;String, String&gt; analysisProperties = dbClient.analysisPropertiesDao().selectByAnalysisUuid(dbSession, analysis.getUuid())</span>
+<span class="fc" id="L90">      .stream()</span>
+<span class="fc" id="L91">      .collect(Collectors.toMap(AnalysisPropertyDto::getKey, AnalysisPropertyDto::getValue));</span>
+<span class="fc" id="L92">    ProjectAnalysis projectAnalysis = new ProjectAnalysis(</span>
+<span class="fc" id="L93">      new Project(project.getUuid(), project.getKey(), project.getName()),</span>
+      null,
+<span class="fc" id="L95">      new Analysis(analysis.getUuid(), analysis.getCreatedAt(), analysis.getRevision()),</span>
+<span class="fc" id="L96">      new Branch(branch.isMain(), branch.getKey(), Type.valueOf(branch.getBranchType().name())),</span>
+      evaluatedQualityGate,
+      null,
+      analysisProperties);
+<span class="fc" id="L100">    return webhookPayloadFactory.create(projectAnalysis);</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

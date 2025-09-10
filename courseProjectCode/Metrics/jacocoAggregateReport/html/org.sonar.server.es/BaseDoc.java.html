@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BaseDoc.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.es</a> &gt; <span class="el_source">BaseDoc.java</span></div><h1>BaseDoc.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.es;
+
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.elasticsearch.action.index.IndexRequest;
+import org.sonar.server.es.IndexType.IndexMainType;
+import org.sonar.server.es.IndexType.IndexRelationType;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkState;
+import static org.sonar.server.es.IndexType.FIELD_INDEX_TYPE;
+
+/**
+ * Base implementation for business objects based on elasticsearch document
+ */
+public abstract class BaseDoc {
+
+  private static final String SETPARENT_NOT_CALLED = &quot;parent must be set on a doc associated to a IndexRelationType (see BaseDoc#setParent(String))&quot;;
+  private final IndexType indexType;
+<span class="fc" id="L43">  private String parentId = null;</span>
+  protected final Map&lt;String, Object&gt; fields;
+
+  protected BaseDoc(IndexType indexType) {
+<span class="fc" id="L47">    this(indexType, new HashMap&lt;&gt;());</span>
+<span class="fc" id="L48">  }</span>
+
+<span class="fc" id="L50">  protected BaseDoc(IndexType indexType, Map&lt;String, Object&gt; fields) {</span>
+<span class="fc" id="L51">    this.indexType = indexType;</span>
+<span class="fc" id="L52">    this.fields = fields;</span>
+<span class="fc bfc" id="L53" title="All 4 branches covered.">    if (indexType instanceof IndexMainType mainType &amp;&amp; mainType.getIndex().acceptsRelations()) {</span>
+<span class="fc" id="L54">      setField(mainType.getIndex().getJoinField(), Map.of(&quot;name&quot;, mainType.getType()));</span>
+<span class="fc" id="L55">      setField(FIELD_INDEX_TYPE, mainType.getType());</span>
+    }
+<span class="fc" id="L57">  }</span>
+
+  protected void setParent(String parentId) {
+<span class="fc" id="L60">    checkState(this.indexType instanceof IndexRelationType, &quot;Doc must be associated to a IndexRelationType to set a parent&quot;);</span>
+<span class="pc bpc" id="L61" title="2 of 4 branches missed.">    checkArgument(parentId != null &amp;&amp; !parentId.isEmpty(), &quot;parentId can't be null nor empty&quot;);</span>
+<span class="fc" id="L62">    this.parentId = parentId;</span>
+<span class="fc" id="L63">    IndexRelationType indexRelationType = (IndexRelationType) this.indexType;</span>
+<span class="fc" id="L64">    setField(indexRelationType.getMainType().getIndex().getJoinField(), Map.of(&quot;name&quot;, indexRelationType.getName(), &quot;parent&quot;, parentId));</span>
+<span class="fc" id="L65">    setField(FIELD_INDEX_TYPE, indexRelationType.getName());</span>
+<span class="fc" id="L66">  }</span>
+
+  public abstract String getId();
+
+  public Optional&lt;String&gt; getRouting() {
+    // when using relations, routing MUST be defined and MUST be the id of the parent
+<span class="fc bfc" id="L72" title="All 2 branches covered.">    if (this.indexType instanceof IndexRelationType) {</span>
+<span class="fc" id="L73">      ensureSetParentCalled();</span>
+<span class="fc" id="L74">      return Optional.of(this.parentId);</span>
+    }
+<span class="pc bpc" id="L76" title="1 of 4 branches missed.">    if (this.indexType instanceof IndexMainType &amp;&amp; indexType.getMainType().getIndex().acceptsRelations()) {</span>
+<span class="fc" id="L77">      return Optional.of(getId());</span>
+    }
+<span class="fc" id="L79">    return getSimpleMainTypeRouting();</span>
+  }
+
+  /**
+   * Intended to be overridden by subclass which wants to define a routing and which indexType is a {@link IndexMainType}
+   * (if not a {@link IndexMainType}, this method will never be called).
+   */
+  protected Optional&lt;String&gt; getSimpleMainTypeRouting() {
+<span class="fc" id="L87">    return Optional.empty();</span>
+  }
+
+  /**
+   * Use this method when field value can be null. See warning in {@link #getField(String)}
+   */
+  @CheckForNull
+  public &lt;K&gt; K getNullableField(String key) {
+<span class="fc bfc" id="L95" title="All 2 branches covered.">    if (!fields.containsKey(key)) {</span>
+<span class="fc" id="L96">      throw new IllegalStateException(String.format(&quot;Field %s not specified in query options&quot;, key));</span>
+    }
+<span class="fc" id="L98">    return (K) fields.get(key);</span>
+  }
+
+  @CheckForNull
+  public Date getNullableFieldAsDate(String key) {
+<span class="fc" id="L103">    Object val = getNullableField(key);</span>
+<span class="fc bfc" id="L104" title="All 2 branches covered.">    if (val != null) {</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">      if (val instanceof Date date) {</span>
+<span class="fc" id="L106">        return date;</span>
+      }
+<span class="pc bpc" id="L108" title="1 of 2 branches missed.">      if (val instanceof Number number) {</span>
+<span class="nc" id="L109">        return epochSecondsToDate(number);</span>
+      }
+<span class="fc" id="L111">      return EsUtils.parseDateTime((String) val);</span>
+    }
+<span class="fc" id="L113">    return null;</span>
+  }
+
+  /**
+   * Use this method when you are sure that the value can't be null in ES document.
+   * &lt;p/&gt;
+   * Warning with numbers - even if mapping declares long field, value can be an Integer
+   * instead of an expected Long. The reason is that ES delegates the deserialization of JSON
+   * to Jackson, which doesn't know the field type declared in mapping. See
+   * https://groups.google.com/forum/#!searchin/elasticsearch/getsource$20integer$20long/elasticsearch/jxIY22TmA8U/PyqZPPyYQ0gJ
+   * for more details. Workaround is to cast to java.lang.Number and then to call {@link Number#longValue()}
+   */
+  public &lt;K&gt; K getField(String key) {
+<span class="fc" id="L126">    K value = getNullableField(key);</span>
+<span class="pc bpc" id="L127" title="1 of 2 branches missed.">    if (value == null) {</span>
+<span class="nc" id="L128">      throw new IllegalStateException(&quot;Value of index field is null: &quot; + key);</span>
+    }
+<span class="fc" id="L130">    return value;</span>
+  }
+
+  public Date getFieldAsDate(String key) {
+<span class="fc" id="L134">    Object value = getField(key);</span>
+<span class="fc bfc" id="L135" title="All 2 branches covered.">    if (value instanceof Date date) {</span>
+<span class="fc" id="L136">      return date;</span>
+    }
+<span class="pc bpc" id="L138" title="1 of 2 branches missed.">    if (value instanceof Number number) {</span>
+<span class="nc" id="L139">      return epochSecondsToDate(number);</span>
+    }
+<span class="fc" id="L141">    return EsUtils.parseDateTime((String) value);</span>
+  }
+
+  public void setField(String key, @Nullable Object value) {
+<span class="fc" id="L145">    fields.put(key, value);</span>
+<span class="fc" id="L146">  }</span>
+
+  public final Map&lt;String, Object&gt; getFields() {
+<span class="fc bfc" id="L149" title="All 2 branches covered.">    if (indexType instanceof IndexRelationType) {</span>
+<span class="fc" id="L150">      ensureSetParentCalled();</span>
+    }
+<span class="fc" id="L152">    return fields;</span>
+  }
+
+  private void ensureSetParentCalled() {
+<span class="fc bfc" id="L156" title="All 2 branches covered.">    checkState(this.parentId != null, SETPARENT_NOT_CALLED);</span>
+<span class="fc" id="L157">  }</span>
+
+  public IndexRequest toIndexRequest() {
+<span class="fc" id="L160">    IndexMainType mainType = this.indexType.getMainType();</span>
+<span class="fc" id="L161">    return new IndexRequest(mainType.getIndex().getName())</span>
+<span class="fc" id="L162">      .id(getId())</span>
+<span class="fc" id="L163">      .routing(getRouting().orElse(null))</span>
+<span class="fc" id="L164">      .source(getFields());</span>
+  }
+
+  private static Date epochSecondsToDate(Number value) {
+<span class="nc" id="L168">    return new Date(value.longValue() * 1000L);</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

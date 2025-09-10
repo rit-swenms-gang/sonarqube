@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ReportingDescriptorReference.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.sarif.pojo</a> &gt; <span class="el_source">ReportingDescriptorReference.java</span></div><h1>ReportingDescriptorReference.java</h1><pre class="source lang-java linenums">
+package org.sonar.sarif.pojo;
+
+import javax.annotation.Nullable;
+import javax.annotation.processing.Generated;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonPropertyDescription;
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+
+
+/**
+ * Information about how to locate a relevant reporting descriptor.
+ * 
+ */
+@JsonInclude(JsonInclude.Include.NON_DEFAULT)
+@JsonPropertyOrder({
+    &quot;id&quot;,
+    &quot;index&quot;,
+    &quot;guid&quot;,
+    &quot;toolComponent&quot;,
+    &quot;properties&quot;
+})
+@Generated(&quot;jsonschema2pojo&quot;)
+<span class="nc" id="L25">public class ReportingDescriptorReference {</span>
+
+    /**
+     * The id of the descriptor.
+     * (Can be null)
+     * 
+     */
+    @Nullable
+    @JsonProperty(&quot;id&quot;)
+    @JsonPropertyDescription(&quot;The id of the descriptor.&quot;)
+    private String id;
+    /**
+     * The index into an array of descriptors in toolComponent.ruleDescriptors, toolComponent.notificationDescriptors, or toolComponent.taxonomyDescriptors, depending on context.
+     * (Can be null)
+     * 
+     */
+    @Nullable
+    @JsonProperty(&quot;index&quot;)
+    @JsonPropertyDescription(&quot;The index into an array of descriptors in toolComponent.ruleDescriptors, toolComponent.notificationDescriptors, or toolComponent.taxonomyDescriptors, depending on context.&quot;)
+    private Integer index;
+    /**
+     * A guid that uniquely identifies the descriptor.
+     * (Can be null)
+     * 
+     */
+    @Nullable
+    @JsonProperty(&quot;guid&quot;)
+    @JsonPropertyDescription(&quot;A guid that uniquely identifies the descriptor.&quot;)
+    private String guid;
+    /**
+     * Identifies a particular toolComponent object, either the driver or an extension.
+     * (Can be null)
+     * 
+     */
+    @Nullable
+    @JsonProperty(&quot;toolComponent&quot;)
+    @JsonPropertyDescription(&quot;Identifies a particular toolComponent object, either the driver or an extension.&quot;)
+    private ToolComponentReference toolComponent;
+    /**
+     * Key/value pairs that provide additional information about the object.
+     * (Can be null)
+     * 
+     */
+    @Nullable
+    @JsonProperty(&quot;properties&quot;)
+    @JsonPropertyDescription(&quot;Key/value pairs that provide additional information about the object.&quot;)
+    private PropertyBag properties;
+
+    /**
+     * The id of the descriptor.
+     * 
+     */
+    @JsonProperty(&quot;id&quot;)
+    public String getId() {
+<span class="nc" id="L79">        return id;</span>
+    }
+
+    /**
+     * The id of the descriptor.
+     * 
+     */
+    @JsonProperty(&quot;id&quot;)
+    public void setId(String id) {
+<span class="nc" id="L88">        this.id = id;</span>
+<span class="nc" id="L89">    }</span>
+
+    public ReportingDescriptorReference withId(String id) {
+<span class="nc" id="L92">        this.id = id;</span>
+<span class="nc" id="L93">        return this;</span>
+    }
+
+    /**
+     * The index into an array of descriptors in toolComponent.ruleDescriptors, toolComponent.notificationDescriptors, or toolComponent.taxonomyDescriptors, depending on context.
+     * 
+     */
+    @JsonProperty(&quot;index&quot;)
+    public Integer getIndex() {
+<span class="nc" id="L102">        return index;</span>
+    }
+
+    /**
+     * The index into an array of descriptors in toolComponent.ruleDescriptors, toolComponent.notificationDescriptors, or toolComponent.taxonomyDescriptors, depending on context.
+     * 
+     */
+    @JsonProperty(&quot;index&quot;)
+    public void setIndex(Integer index) {
+<span class="nc" id="L111">        this.index = index;</span>
+<span class="nc" id="L112">    }</span>
+
+    public ReportingDescriptorReference withIndex(Integer index) {
+<span class="nc" id="L115">        this.index = index;</span>
+<span class="nc" id="L116">        return this;</span>
+    }
+
+    /**
+     * A guid that uniquely identifies the descriptor.
+     * 
+     */
+    @JsonProperty(&quot;guid&quot;)
+    public String getGuid() {
+<span class="nc" id="L125">        return guid;</span>
+    }
+
+    /**
+     * A guid that uniquely identifies the descriptor.
+     * 
+     */
+    @JsonProperty(&quot;guid&quot;)
+    public void setGuid(String guid) {
+<span class="nc" id="L134">        this.guid = guid;</span>
+<span class="nc" id="L135">    }</span>
+
+    public ReportingDescriptorReference withGuid(String guid) {
+<span class="nc" id="L138">        this.guid = guid;</span>
+<span class="nc" id="L139">        return this;</span>
+    }
+
+    /**
+     * Identifies a particular toolComponent object, either the driver or an extension.
+     * 
+     */
+    @JsonProperty(&quot;toolComponent&quot;)
+    public ToolComponentReference getToolComponent() {
+<span class="nc" id="L148">        return toolComponent;</span>
+    }
+
+    /**
+     * Identifies a particular toolComponent object, either the driver or an extension.
+     * 
+     */
+    @JsonProperty(&quot;toolComponent&quot;)
+    public void setToolComponent(ToolComponentReference toolComponent) {
+<span class="nc" id="L157">        this.toolComponent = toolComponent;</span>
+<span class="nc" id="L158">    }</span>
+
+    public ReportingDescriptorReference withToolComponent(ToolComponentReference toolComponent) {
+<span class="nc" id="L161">        this.toolComponent = toolComponent;</span>
+<span class="nc" id="L162">        return this;</span>
+    }
+
+    /**
+     * Key/value pairs that provide additional information about the object.
+     * 
+     */
+    @JsonProperty(&quot;properties&quot;)
+    public PropertyBag getProperties() {
+<span class="nc" id="L171">        return properties;</span>
+    }
+
+    /**
+     * Key/value pairs that provide additional information about the object.
+     * 
+     */
+    @JsonProperty(&quot;properties&quot;)
+    public void setProperties(PropertyBag properties) {
+<span class="nc" id="L180">        this.properties = properties;</span>
+<span class="nc" id="L181">    }</span>
+
+    public ReportingDescriptorReference withProperties(PropertyBag properties) {
+<span class="nc" id="L184">        this.properties = properties;</span>
+<span class="nc" id="L185">        return this;</span>
+    }
+
+    @Override
+    public String toString() {
+<span class="nc" id="L190">        StringBuilder sb = new StringBuilder();</span>
+<span class="nc" id="L191">        sb.append(ReportingDescriptorReference.class.getName()).append('@').append(Integer.toHexString(System.identityHashCode(this))).append('[');</span>
+<span class="nc" id="L192">        sb.append(&quot;id&quot;);</span>
+<span class="nc" id="L193">        sb.append('=');</span>
+<span class="nc bnc" id="L194" title="All 2 branches missed.">        sb.append(((this.id == null)?&quot;&lt;null&gt;&quot;:this.id));</span>
+<span class="nc" id="L195">        sb.append(',');</span>
+<span class="nc" id="L196">        sb.append(&quot;index&quot;);</span>
+<span class="nc" id="L197">        sb.append('=');</span>
+<span class="nc bnc" id="L198" title="All 2 branches missed.">        sb.append(((this.index == null)?&quot;&lt;null&gt;&quot;:this.index));</span>
+<span class="nc" id="L199">        sb.append(',');</span>
+<span class="nc" id="L200">        sb.append(&quot;guid&quot;);</span>
+<span class="nc" id="L201">        sb.append('=');</span>
+<span class="nc bnc" id="L202" title="All 2 branches missed.">        sb.append(((this.guid == null)?&quot;&lt;null&gt;&quot;:this.guid));</span>
+<span class="nc" id="L203">        sb.append(',');</span>
+<span class="nc" id="L204">        sb.append(&quot;toolComponent&quot;);</span>
+<span class="nc" id="L205">        sb.append('=');</span>
+<span class="nc bnc" id="L206" title="All 2 branches missed.">        sb.append(((this.toolComponent == null)?&quot;&lt;null&gt;&quot;:this.toolComponent));</span>
+<span class="nc" id="L207">        sb.append(',');</span>
+<span class="nc" id="L208">        sb.append(&quot;properties&quot;);</span>
+<span class="nc" id="L209">        sb.append('=');</span>
+<span class="nc bnc" id="L210" title="All 2 branches missed.">        sb.append(((this.properties == null)?&quot;&lt;null&gt;&quot;:this.properties));</span>
+<span class="nc" id="L211">        sb.append(',');</span>
+<span class="nc bnc" id="L212" title="All 2 branches missed.">        if (sb.charAt((sb.length()- 1)) == ',') {</span>
+<span class="nc" id="L213">            sb.setCharAt((sb.length()- 1), ']');</span>
+        } else {
+<span class="nc" id="L215">            sb.append(']');</span>
+        }
+<span class="nc" id="L217">        return sb.toString();</span>
+    }
+
+    @Override
+    public int hashCode() {
+<span class="nc" id="L222">        int result = 1;</span>
+<span class="nc bnc" id="L223" title="All 2 branches missed.">        result = ((result* 31)+((this.index == null)? 0 :this.index.hashCode()));</span>
+<span class="nc bnc" id="L224" title="All 2 branches missed.">        result = ((result* 31)+((this.guid == null)? 0 :this.guid.hashCode()));</span>
+<span class="nc bnc" id="L225" title="All 2 branches missed.">        result = ((result* 31)+((this.toolComponent == null)? 0 :this.toolComponent.hashCode()));</span>
+<span class="nc bnc" id="L226" title="All 2 branches missed.">        result = ((result* 31)+((this.id == null)? 0 :this.id.hashCode()));</span>
+<span class="nc bnc" id="L227" title="All 2 branches missed.">        result = ((result* 31)+((this.properties == null)? 0 :this.properties.hashCode()));</span>
+<span class="nc" id="L228">        return result;</span>
+    }
+
+    @Override
+    public boolean equals(Object other) {
+<span class="nc bnc" id="L233" title="All 2 branches missed.">        if (other == this) {</span>
+<span class="nc" id="L234">            return true;</span>
+        }
+<span class="nc bnc" id="L236" title="All 2 branches missed.">        if ((other instanceof ReportingDescriptorReference) == false) {</span>
+<span class="nc" id="L237">            return false;</span>
+        }
+<span class="nc" id="L239">        ReportingDescriptorReference rhs = ((ReportingDescriptorReference) other);</span>
+<span class="nc bnc" id="L240" title="All 30 branches missed.">        return ((((((this.index == rhs.index)||((this.index!= null)&amp;&amp;this.index.equals(rhs.index)))&amp;&amp;((this.guid == rhs.guid)||((this.guid!= null)&amp;&amp;this.guid.equals(rhs.guid))))&amp;&amp;((this.toolComponent == rhs.toolComponent)||((this.toolComponent!= null)&amp;&amp;this.toolComponent.equals(rhs.toolComponent))))&amp;&amp;((this.id == rhs.id)||((this.id!= null)&amp;&amp;this.id.equals(rhs.id))))&amp;&amp;((this.properties == rhs.properties)||((this.properties!= null)&amp;&amp;this.properties.equals(rhs.properties))));</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

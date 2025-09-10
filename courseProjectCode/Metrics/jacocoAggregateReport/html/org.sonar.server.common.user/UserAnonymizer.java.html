@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserAnonymizer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.common.user</a> &gt; <span class="el_source">UserAnonymizer.java</span></div><h1>UserAnonymizer.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.common.user;
+
+import java.util.function.Supplier;
+import jakarta.inject.Inject;
+import org.apache.commons.lang3.RandomStringUtils;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.user.UserDto;
+import org.sonar.server.user.ExternalIdentity;
+
+public class UserAnonymizer {
+  private static final int LOGIN_RANDOM_LENGTH = 6;
+
+  private final DbClient dbClient;
+  private final Supplier&lt;String&gt; randomNameGenerator;
+
+  @Inject
+  public UserAnonymizer(DbClient dbClient) {
+<span class="fc" id="L38">    this(dbClient, () -&gt; &quot;sq-removed-&quot; + RandomStringUtils.secure().nextAlphanumeric(LOGIN_RANDOM_LENGTH));</span>
+<span class="fc" id="L39">  }</span>
+
+<span class="fc" id="L41">  public UserAnonymizer(DbClient dbClient, Supplier&lt;String&gt; randomNameGenerator) {</span>
+<span class="fc" id="L42">    this.dbClient = dbClient;</span>
+<span class="fc" id="L43">    this.randomNameGenerator = randomNameGenerator;</span>
+<span class="fc" id="L44">  }</span>
+
+  public void anonymize(DbSession session, UserDto user) {
+<span class="fc" id="L47">    String newLogin = generateAnonymousLogin(session);</span>
+<span class="fc" id="L48">    user</span>
+<span class="fc" id="L49">      .setLogin(newLogin)</span>
+<span class="fc" id="L50">      .setName(newLogin)</span>
+<span class="fc" id="L51">      .setExternalIdentityProvider(ExternalIdentity.SQ_AUTHORITY)</span>
+<span class="fc" id="L52">      .setLocal(true)</span>
+<span class="fc" id="L53">      .setExternalId(newLogin)</span>
+<span class="fc" id="L54">      .setExternalLogin(newLogin);</span>
+<span class="fc" id="L55">  }</span>
+
+  private String generateAnonymousLogin(DbSession session) {
+<span class="pc bpc" id="L58" title="1 of 2 branches missed.">    for (int i = 0; i &lt; 10; i++) {</span>
+<span class="fc" id="L59">      String candidate = randomNameGenerator.get();</span>
+<span class="fc bfc" id="L60" title="All 2 branches covered.">      if (dbClient.userDao().selectByLogin(session, candidate) == null) {</span>
+<span class="fc" id="L61">        return candidate;</span>
+      }
+    }
+<span class="nc" id="L64">    throw new IllegalStateException(&quot;Could not find a unique login&quot;);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

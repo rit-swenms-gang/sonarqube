@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TimeoutCeTaskInterrupter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.taskprocessor</a> &gt; <span class="el_source">TimeoutCeTaskInterrupter.java</span></div><h1>TimeoutCeTaskInterrupter.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.taskprocessor;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.utils.System2;
+import org.sonar.ce.task.CeTask;
+import org.sonar.ce.task.CeTaskInterruptedException;
+import org.sonar.ce.task.CeTaskTimeoutException;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkState;
+import static java.lang.String.format;
+
+/**
+ * An implementation of {@link org.sonar.ce.task.CeTaskInterrupter} which interrupts the processing of the task
+ * if:
+ * &lt;ul&gt;
+ *   &lt;li&gt;the thread has been interrupted&lt;/li&gt;
+ *   &lt;li&gt;it's been running for more than a certain, configurable, amount of time&lt;/li&gt;
+ * &lt;/ul&gt;
+ */
+public class TimeoutCeTaskInterrupter extends SimpleCeTaskInterrupter {
+<span class="fc" id="L45">  private static final Logger LOG = LoggerFactory.getLogger(TimeoutCeTaskInterrupter.class);</span>
+  private final long taskTimeoutThreshold;
+  private final CeWorkerController ceWorkerController;
+  private final System2 system2;
+<span class="fc" id="L49">  private final Map&lt;String, Long&gt; startTimestampByCeTaskUuid = new HashMap&lt;&gt;();</span>
+
+<span class="fc" id="L51">  public TimeoutCeTaskInterrupter(long taskTimeoutThreshold, CeWorkerController ceWorkerController, System2 system2) {</span>
+<span class="fc bfc" id="L52" title="All 2 branches covered.">    checkArgument(taskTimeoutThreshold &gt;= 1, &quot;threshold must be &gt;= 1&quot;);</span>
+<span class="fc" id="L53">    LOG.info(&quot;Compute Engine Task timeout enabled: {} ms&quot;, taskTimeoutThreshold);</span>
+
+<span class="fc" id="L55">    this.taskTimeoutThreshold = taskTimeoutThreshold;</span>
+<span class="fc" id="L56">    this.ceWorkerController = ceWorkerController;</span>
+<span class="fc" id="L57">    this.system2 = system2;</span>
+<span class="fc" id="L58">  }</span>
+
+  @Override
+  public void check(Thread currentThread) throws CeTaskInterruptedException {
+<span class="fc" id="L62">    super.check(currentThread);</span>
+
+<span class="fc" id="L64">    computeTimeOutOf(taskOf(currentThread))</span>
+<span class="fc" id="L65">      .ifPresent(timeout -&gt; {</span>
+<span class="fc" id="L66">        throw new CeTaskTimeoutException(format(&quot;Execution of task timed out after %s ms&quot;, timeout));</span>
+      });
+<span class="fc" id="L68">  }</span>
+
+  private Optional&lt;Long&gt; computeTimeOutOf(CeTask ceTask) {
+<span class="fc" id="L71">    Long startTimestamp = startTimestampByCeTaskUuid.get(ceTask.getUuid());</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">    checkState(startTimestamp != null, &quot;No start time recorded for task %s&quot;, ceTask.getUuid());</span>
+
+<span class="fc" id="L74">    long duration = system2.now() - startTimestamp;</span>
+<span class="fc" id="L75">    return Optional.of(duration)</span>
+<span class="fc bfc" id="L76" title="All 2 branches covered.">      .filter(t -&gt; t &gt; taskTimeoutThreshold);</span>
+  }
+
+  private CeTask taskOf(Thread currentThread) {
+<span class="fc" id="L80">    return ceWorkerController.getCeWorkerIn(currentThread)</span>
+<span class="fc" id="L81">      .flatMap(CeWorker::getCurrentTask)</span>
+<span class="fc" id="L82">      .orElseThrow(() -&gt; new IllegalStateException(format(&quot;Could not find the CeTask being executed in thread '%s'&quot;, currentThread.getName())));</span>
+  }
+
+  @Override
+  public void onStart(CeTask ceTask) {
+<span class="fc" id="L87">    long now = system2.now();</span>
+<span class="fc" id="L88">    Long existingTimestamp = startTimestampByCeTaskUuid.put(ceTask.getUuid(), now);</span>
+<span class="pc bpc" id="L89" title="1 of 2 branches missed.">    if (existingTimestamp != null) {</span>
+<span class="nc" id="L90">      LOG.warn(</span>
+        &quot;Notified of start of execution of task {} but start had already been recorded at {}. Recording new start at {}&quot;,
+<span class="nc" id="L92">        ceTask.getUuid(),</span>
+        existingTimestamp,
+<span class="nc" id="L94">        now);</span>
+    }
+<span class="fc" id="L96">  }</span>
+
+  @Override
+  public void onEnd(CeTask ceTask) {
+<span class="fc" id="L100">    Long startTimestamp = startTimestampByCeTaskUuid.remove(ceTask.getUuid());</span>
+<span class="pc bpc" id="L101" title="1 of 2 branches missed.">    if (startTimestamp == null) {</span>
+<span class="nc" id="L102">      LOG.warn(&quot;Notified of end of execution of task {} but start wasn't recorded&quot;, ceTask.getUuid());</span>
+    }
+<span class="fc" id="L104">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

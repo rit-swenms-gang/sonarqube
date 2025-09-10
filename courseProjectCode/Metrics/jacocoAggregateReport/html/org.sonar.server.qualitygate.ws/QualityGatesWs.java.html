@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>QualityGatesWs.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.qualitygate.ws</a> &gt; <span class="el_source">QualityGatesWs.java</span></div><h1>QualityGatesWs.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.qualitygate.ws;
+
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.server.qualitygate.Condition;
+
+import static org.sonar.server.qualitygate.QualityGateConditionsUpdater.INVALID_METRIC_KEYS;
+import static org.sonar.server.qualitygate.ws.QualityGatesWsParameters.CONTROLLER_QUALITY_GATES;
+import static org.sonar.server.qualitygate.ws.QualityGatesWsParameters.PARAM_ERROR;
+import static org.sonar.server.qualitygate.ws.QualityGatesWsParameters.PARAM_METRIC;
+import static org.sonar.server.qualitygate.ws.QualityGatesWsParameters.PARAM_OPERATOR;
+
+public class QualityGatesWs implements WebService {
+
+  private static final int CONDITION_MAX_LENGTH = 64;
+  private final QualityGatesWsAction[] actions;
+
+<span class="nc" id="L39">  public QualityGatesWs(QualityGatesWsAction... actions) {</span>
+<span class="nc" id="L40">    this.actions = actions;</span>
+<span class="nc" id="L41">  }</span>
+
+  @Override
+  public void define(Context context) {
+<span class="nc" id="L45">    NewController controller = context.createController(CONTROLLER_QUALITY_GATES)</span>
+<span class="nc" id="L46">      .setSince(&quot;4.3&quot;)</span>
+<span class="nc" id="L47">      .setDescription(&quot;Manage quality gates, including conditions and project association.&quot;);</span>
+
+<span class="nc bnc" id="L49" title="All 2 branches missed.">    for (QualityGatesWsAction action : actions) {</span>
+<span class="nc" id="L50">      action.define(controller);</span>
+    }
+
+<span class="nc" id="L53">    controller.done();</span>
+<span class="nc" id="L54">  }</span>
+
+  static void addConditionParams(NewAction action) {
+<span class="fc" id="L57">    action</span>
+<span class="fc" id="L58">      .createParam(PARAM_METRIC)</span>
+<span class="fc" id="L59">      .setDescription(&quot;Condition metric.&lt;br/&gt;&quot; +</span>
+        &quot; Only metric of the following types are allowed:&quot; +
+        &quot;&lt;ul&gt;&quot; +
+        &quot;&lt;li&gt;INT&lt;/li&gt;&quot; +
+        &quot;&lt;li&gt;MILLISEC&lt;/li&gt;&quot; +
+        &quot;&lt;li&gt;RATING&lt;/li&gt;&quot; +
+        &quot;&lt;li&gt;WORK_DUR&lt;/li&gt;&quot; +
+        &quot;&lt;li&gt;FLOAT&lt;/li&gt;&quot; +
+        &quot;&lt;li&gt;PERCENT&lt;/li&gt;&quot; +
+        &quot;&lt;li&gt;LEVEL&lt;/li&gt;&lt;/ul&gt;&quot; +
+        &quot;Following metrics are forbidden:&quot; +
+<span class="fc" id="L70">        &quot;&lt;ul&gt;&quot; + getInvalidMetrics() + &quot;&lt;/ul&gt;&quot;)</span>
+<span class="fc" id="L71">      .setRequired(true)</span>
+<span class="fc" id="L72">      .setExampleValue(&quot;blocker_violations, vulnerabilities, new_code_smells&quot;);</span>
+
+<span class="fc" id="L74">    action.createParam(PARAM_OPERATOR)</span>
+<span class="fc" id="L75">      .setDescription(&quot;Condition operator:&lt;br/&gt;&quot; +</span>
+        &quot;&lt;ul&gt;&quot; +
+        &quot;&lt;li&gt;LT = is lower than&lt;/li&gt;&quot; +
+        &quot;&lt;li&gt;GT = is greater than&lt;/li&gt;&lt;/ul&gt;&quot;)
+<span class="fc" id="L79">      .setExampleValue(Condition.Operator.GREATER_THAN.getDbValue())</span>
+<span class="fc" id="L80">      .setPossibleValues(getPossibleOperators());</span>
+
+<span class="fc" id="L82">    action.createParam(PARAM_ERROR)</span>
+<span class="fc" id="L83">      .setMaximumLength(CONDITION_MAX_LENGTH)</span>
+<span class="fc" id="L84">      .setDescription(&quot;Condition error threshold&quot;)</span>
+<span class="fc" id="L85">      .setRequired(true)</span>
+<span class="fc" id="L86">      .setExampleValue(&quot;10&quot;);</span>
+<span class="fc" id="L87">  }</span>
+
+  private static String getInvalidMetrics() {
+<span class="fc" id="L90">    return INVALID_METRIC_KEYS.stream().map(s -&gt; &quot;&lt;li&gt;&quot; + s + &quot;&lt;/li&gt;&quot;)</span>
+<span class="fc" id="L91">      .collect(Collectors.joining());</span>
+  }
+
+  private static Set&lt;String&gt; getPossibleOperators() {
+<span class="fc" id="L95">    return Stream.of(Condition.Operator.values())</span>
+<span class="fc" id="L96">      .map(Condition.Operator::getDbValue)</span>
+<span class="fc" id="L97">      .collect(Collectors.toSet());</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

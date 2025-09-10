@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Block.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.duplications.block</a> &gt; <span class="el_source">Block.java</span></div><h1>Block.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.duplications.block;
+
+/**
+ * Represents part of source code between two lines.
+ * If two blocks have the same {@link #getBlockHash() hash}, then we assume that there is a duplication in a code, which they represent.
+ */
+public final class Block {
+
+  private final String resourceId;
+  private final ByteArray blockHash;
+  private final int indexInFile;
+
+  private final int startLine;
+  private final int endLine;
+
+  private final int startUnit;
+  private final int endUnit;
+
+  /**
+   * Cache for hash code.
+   */
+  private int hash;
+
+<span class="fc" id="L43">  private Block(Builder builder) {</span>
+<span class="fc" id="L44">    this.resourceId = builder.resourceId;</span>
+<span class="fc" id="L45">    this.blockHash = builder.blockHash;</span>
+<span class="fc" id="L46">    this.indexInFile = builder.indexInFile;</span>
+
+<span class="fc" id="L48">    this.startLine = builder.startLine;</span>
+<span class="fc" id="L49">    this.endLine = builder.endLine;</span>
+
+<span class="fc" id="L51">    this.startUnit = builder.startUnit;</span>
+<span class="fc" id="L52">    this.endUnit = builder.endUnit;</span>
+<span class="fc" id="L53">  }</span>
+
+  /**
+   * @since 2.14
+   */
+  public static Builder builder() {
+<span class="fc" id="L59">    return new Builder();</span>
+  }
+
+  /**
+   * &lt;p&gt;Instances can be reused - it is safe to call {@link #build}
+   * multiple times to build multiple blocks in series.&lt;/p&gt;
+   *
+   * @since 2.14
+   */
+<span class="fc" id="L68">  public static final class Builder {</span>
+
+    private String resourceId;
+    private ByteArray blockHash;
+    private int indexInFile;
+
+    private int startLine;
+    private int endLine;
+
+    private int startUnit;
+    private int endUnit;
+
+    public Builder setResourceId(String resourceId) {
+<span class="fc" id="L81">      this.resourceId = resourceId;</span>
+<span class="fc" id="L82">      return this;</span>
+    }
+
+    public Builder setBlockHash(ByteArray blockHash) {
+<span class="fc" id="L86">      this.blockHash = blockHash;</span>
+<span class="fc" id="L87">      return this;</span>
+    }
+
+    public Builder setIndexInFile(int index) {
+<span class="fc" id="L91">      this.indexInFile = index;</span>
+<span class="fc" id="L92">      return this;</span>
+    }
+
+    public Builder setLines(int start, int end) {
+<span class="fc" id="L96">      this.startLine = start;</span>
+<span class="fc" id="L97">      this.endLine = end;</span>
+<span class="fc" id="L98">      return this;</span>
+    }
+
+    public Builder setUnit(int start, int end) {
+<span class="fc" id="L102">      this.startUnit = start;</span>
+<span class="fc" id="L103">      this.endUnit = end;</span>
+<span class="fc" id="L104">      return this;</span>
+    }
+
+    public Block build() {
+<span class="fc" id="L108">      return new Block(this);</span>
+    }
+  }
+
+  public String getHashHex() {
+<span class="nc" id="L113">    return getBlockHash().toString();</span>
+  }
+
+  public String getResourceId() {
+<span class="fc" id="L117">    return resourceId;</span>
+  }
+
+  public ByteArray getBlockHash() {
+<span class="fc" id="L121">    return blockHash;</span>
+  }
+
+  public int getIndexInFile() {
+<span class="fc" id="L125">    return indexInFile;</span>
+  }
+
+  public int getStartLine() {
+<span class="fc" id="L129">    return startLine;</span>
+  }
+
+  public int getEndLine() {
+<span class="fc" id="L133">    return endLine;</span>
+  }
+
+  /**
+   * @since 2.14
+   */
+  public int getStartUnit() {
+<span class="fc" id="L140">    return startUnit;</span>
+  }
+
+  /**
+   * @since 2.14
+   */
+  public int getEndUnit() {
+<span class="fc" id="L147">    return endUnit;</span>
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+<span class="pc bpc" id="L152" title="1 of 2 branches missed.">    if (!(obj instanceof Block)) {</span>
+<span class="nc" id="L153">      return false;</span>
+    }
+<span class="fc" id="L155">    Block other = (Block) obj;</span>
+<span class="pc bpc" id="L156" title="1 of 2 branches missed.">    return resourceId.equals(other.resourceId)</span>
+<span class="pc bpc" id="L157" title="4 of 8 branches missed.">      &amp;&amp; blockHash.equals(other.blockHash)</span>
+      &amp;&amp; indexInFile == other.indexInFile
+      &amp;&amp; startLine == other.startLine
+      &amp;&amp; endLine == other.endLine;
+  }
+
+  @Override
+  public int hashCode() {
+<span class="nc" id="L165">    int h = hash;</span>
+<span class="nc bnc" id="L166" title="All 2 branches missed.">    if (h == 0) {</span>
+<span class="nc" id="L167">      h = resourceId.hashCode();</span>
+<span class="nc" id="L168">      h = 31 * h + blockHash.hashCode();</span>
+<span class="nc" id="L169">      h = 31 * h + indexInFile;</span>
+<span class="nc" id="L170">      h = 31 * h + startLine;</span>
+<span class="nc" id="L171">      h = 31 * h + endLine;</span>
+<span class="nc" id="L172">      hash = h;</span>
+    }
+<span class="nc" id="L174">    return h;</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="nc" id="L179">    return &quot;'&quot; + resourceId + &quot;'[&quot; + indexInFile + &quot;|&quot; + startLine + &quot;-&quot; + endLine + &quot;]:&quot; + blockHash;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

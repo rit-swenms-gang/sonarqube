@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>State.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.issue.workflow.statemachine</a> &gt; <span class="el_source">State.java</span></div><h1>State.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.issue.workflow.statemachine;
+
+import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import javax.annotation.CheckForNull;
+
+/**
+ *
+ * @param &lt;E&gt; The entity the workflow is applied on. Conditions are applied on it.
+ * @param &lt;A&gt; The actions that the workflow can trigger during a transition.
+ */
+public class State&lt;E, A&gt; {
+  private final String key;
+  private final List&lt;Transition&lt;E, A&gt;&gt; outTransitions;
+
+<span class="fc" id="L38">  public State(String key, List&lt;Transition&lt;E, A&gt;&gt; outTransitions) {</span>
+<span class="fc bfc" id="L39" title="All 2 branches covered.">    Preconditions.checkArgument(!Strings.isNullOrEmpty(key), &quot;State key must be set&quot;);</span>
+<span class="fc" id="L40">    checkDuplications(outTransitions, key);</span>
+
+<span class="fc" id="L42">    this.key = key;</span>
+<span class="fc" id="L43">    this.outTransitions = outTransitions;</span>
+<span class="fc" id="L44">  }</span>
+
+  private void checkDuplications(List&lt;Transition&lt;E, A&gt;&gt; transitions, String stateKey) {
+<span class="fc" id="L47">    Set&lt;String&gt; keys = new HashSet&lt;&gt;();</span>
+
+<span class="fc" id="L49">    transitions.stream()</span>
+<span class="fc bfc" id="L50" title="All 2 branches covered.">      .filter(transition -&gt; !keys.add(transition.key()))</span>
+<span class="fc" id="L51">      .findAny()</span>
+<span class="fc" id="L52">      .ifPresent(transition -&gt; {</span>
+<span class="fc" id="L53">        throw new IllegalArgumentException(&quot;Transition '&quot; + transition.key() +</span>
+          &quot;' is declared several times from the originating state '&quot; + stateKey + &quot;'&quot;);
+      });
+<span class="fc" id="L56">  }</span>
+
+  public List&lt;Transition&lt;E, A&gt;&gt; outManualTransitions(E entity) {
+<span class="fc" id="L59">    return outTransitions.stream()</span>
+<span class="fc bfc" id="L60" title="All 2 branches covered.">      .filter(transition -&gt; !transition.automatic())</span>
+<span class="fc" id="L61">      .filter(transition -&gt; transition.supports(entity))</span>
+<span class="fc" id="L62">      .toList();</span>
+  }
+
+  @CheckForNull
+  public Transition&lt;E, A&gt; outAutomaticTransition(E entity) {
+<span class="fc" id="L67">    List&lt;Transition&lt;E, A&gt;&gt; transitions = outTransitions.stream()</span>
+<span class="fc" id="L68">      .filter(Transition::automatic)</span>
+<span class="fc" id="L69">      .filter(t -&gt; t.supports(entity))</span>
+<span class="fc" id="L70">      .toList();</span>
+<span class="pc bpc" id="L71" title="1 of 2 branches missed.">    if (transitions.size() &gt; 1) {</span>
+<span class="nc" id="L72">      throw new IllegalArgumentException(&quot;Several automatic transitions are available for entity: &quot; + entity);</span>
+    }
+<span class="fc bfc" id="L74" title="All 2 branches covered.">    return transitions.size() == 1 ? transitions.get(0) : null;</span>
+  }
+
+  public Transition&lt;E, A&gt; transition(String transitionKey) {
+<span class="fc" id="L78">    return outTransitions.stream()</span>
+<span class="fc" id="L79">      .filter(transition -&gt; transitionKey.equals(transition.key()))</span>
+<span class="fc" id="L80">      .findAny()</span>
+<span class="fc" id="L81">      .orElseThrow(() -&gt; new IllegalArgumentException(&quot;Transition from state &quot; + key + &quot; does not exist: &quot; + transitionKey));</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

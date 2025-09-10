@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SourceLinesRepositoryImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.source</a> &gt; <span class="el_source">SourceLinesRepositoryImpl.java</span></div><h1>SourceLinesRepositoryImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.source;
+
+import java.util.Optional;
+import org.sonar.ce.common.scanner.ScannerReportReader;
+import org.sonar.ce.task.projectanalysis.component.Component;
+import org.sonar.core.util.CloseableIterator;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkState;
+import static java.util.Objects.requireNonNull;
+import static org.sonar.ce.task.projectanalysis.component.Component.Type.FILE;
+
+public class SourceLinesRepositoryImpl implements SourceLinesRepository {
+
+  private final ScannerReportReader reportReader;
+
+<span class="fc" id="L36">  public SourceLinesRepositoryImpl(ScannerReportReader reportReader) {</span>
+<span class="fc" id="L37">    this.reportReader = reportReader;</span>
+<span class="fc" id="L38">  }</span>
+
+  @Override
+  public CloseableIterator&lt;String&gt; readLines(Component file) {
+<span class="fc" id="L42">    requireNonNull(file, &quot;Component should not be null&quot;);</span>
+<span class="fc bfc" id="L43" title="All 2 branches covered.">    checkArgument(file.getType() == FILE, &quot;Component '%s' is not a file&quot;, file);</span>
+
+<span class="fc" id="L45">    Optional&lt;CloseableIterator&lt;String&gt;&gt; linesIteratorOptional = reportReader.readFileSource(file.getReportAttributes().getRef());</span>
+
+<span class="fc" id="L47">    checkState(linesIteratorOptional.isPresent(), &quot;File '%s' has no source code&quot;, file);</span>
+<span class="fc" id="L48">    CloseableIterator&lt;String&gt; lineIterator = linesIteratorOptional.get();</span>
+
+<span class="fc" id="L50">    return new ComponentLinesCloseableIterator(file, lineIterator, file.getFileAttributes().getLines());</span>
+  }
+
+  private static class ComponentLinesCloseableIterator extends CloseableIterator&lt;String&gt; {
+    private static final String EXTRA_END_LINE = &quot;&quot;;
+
+    private final Component file;
+    private final CloseableIterator&lt;String&gt; delegate;
+    private final int numberOfLines;
+<span class="fc" id="L59">    private int currentLine = 0;</span>
+
+<span class="fc" id="L61">    private ComponentLinesCloseableIterator(Component file, CloseableIterator&lt;String&gt; lineIterator, int numberOfLines) {</span>
+<span class="fc" id="L62">      this.file = file;</span>
+<span class="fc" id="L63">      this.delegate = lineIterator;</span>
+<span class="fc" id="L64">      this.numberOfLines = numberOfLines;</span>
+<span class="fc" id="L65">    }</span>
+
+    @Override
+    public boolean hasNext() {
+<span class="fc bfc" id="L69" title="All 2 branches covered.">      if (delegate.hasNext()) {</span>
+<span class="fc bfc" id="L70" title="All 2 branches covered.">        checkState(currentLine &lt; numberOfLines, &quot;Source of file '%s' has at least one more line than the expected number (%s)&quot;, file, numberOfLines);</span>
+<span class="fc" id="L71">        return true;</span>
+      }
+<span class="fc bfc" id="L73" title="All 2 branches covered.">      checkState((currentLine + 1) &gt;= numberOfLines, &quot;Source of file '%s' has less lines (%s) than the expected number (%s)&quot;, file, currentLine, numberOfLines);</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">      return currentLine &lt; numberOfLines;</span>
+    }
+
+    @Override
+    public String next() {
+<span class="pc bpc" id="L79" title="1 of 2 branches missed.">      if (!hasNext()) {</span>
+        // will throw NoSuchElementException
+<span class="nc" id="L81">        return delegate.next();</span>
+      }
+
+<span class="fc" id="L84">      currentLine++;</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">      if (delegate.hasNext()) {</span>
+<span class="fc" id="L86">        return delegate.next();</span>
+      }
+<span class="fc" id="L88">      return EXTRA_END_LINE;</span>
+    }
+
+    @Override
+    protected String doNext() {
+<span class="nc" id="L93">      throw new UnsupportedOperationException(&quot;Not implemented because hasNext() and next() are overridden&quot;);</span>
+    }
+
+    @Override
+    protected void doClose() {
+<span class="fc" id="L98">      delegate.close();</span>
+<span class="fc" id="L99">    }</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

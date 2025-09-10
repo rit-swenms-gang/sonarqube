@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SearchRequest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.projectanalysis.ws</a> &gt; <span class="el_source">SearchRequest.java</span></div><h1>SearchRequest.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.projectanalysis.ws;
+
+import java.util.List;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.util.Objects.requireNonNull;
+
+class SearchRequest {
+  static final int DEFAULT_PAGE_SIZE = 100;
+  static final int MAX_SIZE = 500;
+
+  private final String project;
+  private final String branch;
+  private final String pullRequest;
+  private final EventCategory category;
+  private final int page;
+  private final int pageSize;
+  private final String from;
+  private final String to;
+  private final List&lt;String&gt; statuses;
+
+<span class="fc" id="L43">  private SearchRequest(Builder builder) {</span>
+<span class="fc" id="L44">    this.project = builder.project;</span>
+<span class="fc" id="L45">    this.branch = builder.branch;</span>
+<span class="fc" id="L46">    this.pullRequest = builder.pullRequest;</span>
+<span class="fc" id="L47">    this.category = builder.category;</span>
+<span class="fc" id="L48">    this.page = builder.page;</span>
+<span class="fc" id="L49">    this.pageSize = builder.pageSize;</span>
+<span class="fc" id="L50">    this.from = builder.from;</span>
+<span class="fc" id="L51">    this.to = builder.to;</span>
+<span class="fc" id="L52">    this.statuses = builder.statuses;</span>
+<span class="fc" id="L53">  }</span>
+
+  public String getProject() {
+<span class="fc" id="L56">    return project;</span>
+  }
+
+  @CheckForNull
+  public String getBranch() {
+<span class="fc" id="L61">    return branch;</span>
+  }
+
+  @CheckForNull
+  public String getPullRequest() {
+<span class="fc" id="L66">    return pullRequest;</span>
+  }
+
+  @CheckForNull
+  public EventCategory getCategory() {
+<span class="fc" id="L71">    return category;</span>
+  }
+
+  public int getPage() {
+<span class="fc" id="L75">    return page;</span>
+  }
+
+  public int getPageSize() {
+<span class="fc" id="L79">    return pageSize;</span>
+  }
+
+  @CheckForNull
+  public String getFrom() {
+<span class="fc" id="L84">    return from;</span>
+  }
+
+  @CheckForNull
+  public String getTo() {
+<span class="fc" id="L89">    return to;</span>
+  }
+
+  public List&lt;String&gt; getStatuses() {
+<span class="fc" id="L93">    return statuses;</span>
+  }
+
+  public static Builder builder() {
+<span class="fc" id="L97">    return new Builder();</span>
+  }
+
+  public static class Builder {
+    private String project;
+    private String branch;
+    private String pullRequest;
+    private EventCategory category;
+<span class="fc" id="L105">    private int page = 1;</span>
+<span class="fc" id="L106">    private int pageSize = DEFAULT_PAGE_SIZE;</span>
+    private String from;
+    private String to;
+    private List&lt;String&gt; statuses;
+
+<span class="fc" id="L111">    private Builder() {</span>
+      // enforce static factory method
+<span class="fc" id="L113">    }</span>
+
+    public Builder setProject(String project) {
+<span class="fc" id="L116">      this.project = project;</span>
+<span class="fc" id="L117">      return this;</span>
+    }
+
+    public Builder setBranch(@Nullable String branch) {
+<span class="fc" id="L121">      this.branch = branch;</span>
+<span class="fc" id="L122">      return this;</span>
+    }
+
+    public Builder setPullRequest(@Nullable String pullRequest) {
+<span class="nc" id="L126">      this.pullRequest = pullRequest;</span>
+<span class="nc" id="L127">      return this;</span>
+    }
+
+    public Builder setCategory(@Nullable EventCategory category) {
+<span class="fc" id="L131">      this.category = category;</span>
+<span class="fc" id="L132">      return this;</span>
+    }
+
+    public Builder setPage(int page) {
+<span class="fc" id="L136">      this.page = page;</span>
+<span class="fc" id="L137">      return this;</span>
+    }
+
+    public Builder setPageSize(int pageSize) {
+<span class="fc" id="L141">      this.pageSize = pageSize;</span>
+<span class="fc" id="L142">      return this;</span>
+    }
+
+    public Builder setFrom(@Nullable String from) {
+<span class="fc" id="L146">      this.from = from;</span>
+<span class="fc" id="L147">      return this;</span>
+    }
+
+    public Builder setTo(@Nullable String to) {
+<span class="fc" id="L151">      this.to = to;</span>
+<span class="fc" id="L152">      return this;</span>
+    }
+
+    public Builder setStatuses(@Nullable List&lt;String&gt; statuses) {
+<span class="fc" id="L156">      this.statuses = statuses;</span>
+<span class="fc" id="L157">      return this;</span>
+    }
+
+    public SearchRequest build() {
+<span class="fc" id="L161">      requireNonNull(project, &quot;Project is required&quot;);</span>
+<span class="pc bpc" id="L162" title="1 of 2 branches missed.">      checkArgument(pageSize &lt;= MAX_SIZE, &quot;Page size must be lower than or equal to &quot; + MAX_SIZE);</span>
+<span class="fc" id="L163">      return new SearchRequest(this);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

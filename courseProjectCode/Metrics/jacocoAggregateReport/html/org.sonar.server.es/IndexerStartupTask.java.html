@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IndexerStartupTask.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.es</a> &gt; <span class="el_source">IndexerStartupTask.java</span></div><h1>IndexerStartupTask.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.es;
+
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.sonar.api.config.Configuration;
+import org.sonar.api.utils.log.Logger;
+import org.sonar.api.utils.log.Loggers;
+import org.sonar.api.utils.log.Profiler;
+import org.sonar.server.es.metadata.MetadataIndex;
+
+import static java.util.Arrays.stream;
+import static java.util.stream.Collectors.toSet;
+
+public class IndexerStartupTask {
+
+<span class="fc" id="L36">  private static final Logger LOG = Loggers.get(IndexerStartupTask.class);</span>
+
+  private final EsClient esClient;
+  private final Configuration config;
+  private final MetadataIndex metadataIndex;
+  private final StartupIndexer[] indexers;
+
+<span class="fc" id="L43">  public IndexerStartupTask(EsClient esClient, Configuration config, MetadataIndex metadataIndex, StartupIndexer... indexers) {</span>
+<span class="fc" id="L44">    this.esClient = esClient;</span>
+<span class="fc" id="L45">    this.config = config;</span>
+<span class="fc" id="L46">    this.metadataIndex = metadataIndex;</span>
+<span class="fc" id="L47">    this.indexers = indexers;</span>
+<span class="fc" id="L48">  }</span>
+
+  public void execute() {
+<span class="fc bfc" id="L51" title="All 2 branches covered.">    if (indexesAreEnabled()) {</span>
+<span class="fc" id="L52">      stream(indexers)</span>
+<span class="fc" id="L53">        .forEach(this::indexUninitializedTypes);</span>
+    }
+<span class="fc" id="L55">  }</span>
+
+  private boolean indexesAreEnabled() {
+<span class="fc bfc" id="L58" title="All 2 branches covered.">    return !config.getBoolean(&quot;sonar.internal.es.disableIndexes&quot;).orElse(false);</span>
+  }
+
+  private void indexUninitializedTypes(StartupIndexer indexer) {
+<span class="fc" id="L62">    Set&lt;IndexType&gt; uninitializedTypes = getUninitializedTypes(indexer);</span>
+<span class="fc bfc" id="L63" title="All 2 branches covered.">    if (!uninitializedTypes.isEmpty()) {</span>
+<span class="fc" id="L64">      Profiler profiler = Profiler.create(LOG);</span>
+<span class="fc" id="L65">      StartupIndexer.Type type = indexer.getType();</span>
+<span class="pc bpc" id="L66" title="1 of 3 branches missed.">      switch (type) {</span>
+        case SYNCHRONOUS:
+<span class="fc" id="L68">          synchronousIndexing(indexer, uninitializedTypes, profiler);</span>
+<span class="fc" id="L69">          break;</span>
+        case ASYNCHRONOUS:
+<span class="fc" id="L71">          asynchronousIndexing(indexer, uninitializedTypes, profiler);</span>
+<span class="fc" id="L72">          break;</span>
+        default:
+<span class="nc" id="L74">          throw new IllegalArgumentException(&quot;Unsupported StartupIndexer type:&quot; + type);</span>
+      }
+    }
+<span class="fc" id="L77">  }</span>
+
+  private void synchronousIndexing(StartupIndexer indexer, Set&lt;IndexType&gt; uninitializedTypes, Profiler profiler) {
+<span class="fc" id="L80">    String logMessage = getSynchronousIndexingLogMessage(uninitializedTypes);</span>
+
+<span class="fc" id="L82">    profiler.startInfo(logMessage + &quot;...&quot;);</span>
+<span class="fc" id="L83">    indexer.indexOnStartup(uninitializedTypes);</span>
+<span class="fc" id="L84">    uninitializedTypes.forEach(this::setInitialized);</span>
+<span class="fc" id="L85">    profiler.stopInfo(logMessage + &quot; done&quot;);</span>
+<span class="fc" id="L86">  }</span>
+
+  private void asynchronousIndexing(StartupIndexer indexer, Set&lt;IndexType&gt; uninitializedTypes, Profiler profiler) {
+<span class="fc" id="L89">    String logMessage = getAsynchronousIndexingLogMessage(uninitializedTypes);</span>
+
+<span class="fc" id="L91">    profiler.startInfo(logMessage + &quot;...&quot;);</span>
+<span class="fc" id="L92">    indexer.triggerAsyncIndexOnStartup(uninitializedTypes);</span>
+<span class="fc" id="L93">    uninitializedTypes.forEach(this::setInitialized);</span>
+<span class="fc" id="L94">    profiler.stopInfo(logMessage + &quot; done&quot;);</span>
+<span class="fc" id="L95">  }</span>
+
+  private Set&lt;IndexType&gt; getUninitializedTypes(StartupIndexer indexer) {
+<span class="fc" id="L98">    return indexer.getIndexTypes().stream()</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">      .filter(indexType -&gt; !metadataIndex.getInitialized(indexType))</span>
+<span class="fc" id="L100">      .collect(toSet());</span>
+  }
+
+  private void setInitialized(IndexType indexType) {
+<span class="fc" id="L104">    waitForIndexYellow(indexType.getMainType().getIndex().getName());</span>
+<span class="fc" id="L105">    metadataIndex.setInitialized(indexType, true);</span>
+<span class="fc" id="L106">  }</span>
+
+  private void waitForIndexYellow(String index) {
+<span class="fc" id="L109">    esClient.clusterHealth(new ClusterHealthRequest()</span>
+<span class="fc" id="L110">      .indices(index)</span>
+<span class="fc" id="L111">      .waitForYellowStatus());</span>
+<span class="fc" id="L112">  }</span>
+
+  private static String getSynchronousIndexingLogMessage(Set&lt;IndexType&gt; emptyTypes) {
+<span class="pc bpc" id="L115" title="1 of 2 branches missed.">    String s = emptyTypes.size() == 1 ? &quot;&quot; : &quot;s&quot;;</span>
+<span class="fc" id="L116">    String typeList = emptyTypes.stream().map(Object::toString).collect(Collectors.joining(&quot;,&quot;));</span>
+<span class="fc" id="L117">    return String.format(&quot;Indexing of type%s %s&quot;, s, typeList);</span>
+  }
+
+  private static String getAsynchronousIndexingLogMessage(Set&lt;IndexType&gt; emptyTypes) {
+<span class="pc bpc" id="L121" title="1 of 2 branches missed.">    String s = emptyTypes.size() == 1 ? &quot;&quot; : &quot;s&quot;;</span>
+<span class="fc" id="L122">    String typeList = emptyTypes.stream().map(Object::toString).collect(Collectors.joining(&quot;,&quot;));</span>
+<span class="fc" id="L123">    return String.format(&quot;Trigger asynchronous indexing of type%s %s&quot;, s, typeList);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

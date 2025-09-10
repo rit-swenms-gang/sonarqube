@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BitbucketCloudRestClient.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.alm.client.bitbucket.bitbucketcloud</a> &gt; <span class="el_source">BitbucketCloudRestClient.java</span></div><h1>BitbucketCloudRestClient.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.alm.client.bitbucket.bitbucketcloud;
+
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonParseException;
+import jakarta.inject.Inject;
+import java.io.IOException;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.function.UnaryOperator;
+import javax.annotation.Nullable;
+import okhttp3.Credentials;
+import okhttp3.FormBody;
+import okhttp3.HttpUrl;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.server.ServerSide;
+import org.sonar.server.exceptions.NotFoundException;
+
+import static org.apache.commons.lang3.StringUtils.removeEnd;
+
+@ServerSide
+public class BitbucketCloudRestClient {
+<span class="fc" id="L49">  private static final Logger LOG = LoggerFactory.getLogger(BitbucketCloudRestClient.class);</span>
+  private static final String AUTHORIZATION = &quot;Authorization&quot;;
+  private static final String GET = &quot;GET&quot;;
+  private static final String ENDPOINT = &quot;https://api.bitbucket.org&quot;;
+  private static final String ACCESS_TOKEN_ENDPOINT = &quot;https://bitbucket.org/site/oauth2/access_token&quot;;
+  private static final String VERSION = &quot;2.0&quot;;
+  protected static final String ERROR_BBC_SERVERS = &quot;Error returned by Bitbucket Cloud&quot;;
+  protected static final String UNABLE_TO_CONTACT_BBC_SERVERS = &quot;Unable to contact Bitbucket Cloud servers&quot;;
+  protected static final String MISSING_PULL_REQUEST_READ_PERMISSION = &quot;The OAuth consumer in the Bitbucket workspace is not configured with the permission to read pull requests.&quot;;
+  protected static final String SCOPE = &quot;Scope is: %s&quot;;
+  protected static final String UNAUTHORIZED_CLIENT = &quot;Check your credentials&quot;;
+  protected static final String OAUTH_CONSUMER_NOT_PRIVATE = &quot;Configure the OAuth consumer in the Bitbucket workspace to be a private consumer&quot;;
+  protected static final String BBC_FAIL_WITH_RESPONSE = &quot;Bitbucket Cloud API call to [%s] failed with %s http code. Bitbucket Cloud response content : [%s]&quot;;
+  protected static final String BBC_FAIL_WITH_ERROR = &quot;Bitbucket Cloud API call to [%s] failed with error: %s&quot;;
+
+<span class="fc" id="L64">  protected static final MediaType JSON_MEDIA_TYPE = MediaType.parse(&quot;application/json; charset=utf-8&quot;);</span>
+
+  private final OkHttpClient client;
+  private final String bitbucketCloudEndpoint;
+  private final String accessTokenEndpoint;
+
+  @Inject
+  public BitbucketCloudRestClient(OkHttpClient bitBucketCloudHttpClient) {
+<span class="fc" id="L72">    this(bitBucketCloudHttpClient, ENDPOINT, ACCESS_TOKEN_ENDPOINT);</span>
+<span class="fc" id="L73">  }</span>
+
+<span class="fc" id="L75">  protected BitbucketCloudRestClient(OkHttpClient bitBucketCloudHttpClient, String bitbucketCloudEndpoint, String accessTokenEndpoint) {</span>
+<span class="fc" id="L76">    this.client = bitBucketCloudHttpClient;</span>
+<span class="fc" id="L77">    this.bitbucketCloudEndpoint = bitbucketCloudEndpoint;</span>
+<span class="fc" id="L78">    this.accessTokenEndpoint = accessTokenEndpoint;</span>
+<span class="fc" id="L79">  }</span>
+
+  /**
+   * Validate parameters provided.
+   */
+  public void validate(String clientId, String clientSecret, String workspace) {
+<span class="fc" id="L85">    Token token = validateAccessToken(clientId, clientSecret);</span>
+
+<span class="pc bpc" id="L87" title="1 of 4 branches missed.">    if (token.getScopes() == null || !token.getScopes().contains(&quot;pullrequest&quot;)) {</span>
+<span class="fc" id="L88">      LOG.atInfo()</span>
+<span class="fc" id="L89">        .addArgument(MISSING_PULL_REQUEST_READ_PERMISSION)</span>
+<span class="fc" id="L90">        .addArgument(() -&gt; String.format(SCOPE, token.getScopes()))</span>
+<span class="fc" id="L91">        .log(&quot;{}{}&quot;);</span>
+<span class="fc" id="L92">      throw new IllegalArgumentException(ERROR_BBC_SERVERS + &quot;: &quot; + MISSING_PULL_REQUEST_READ_PERMISSION);</span>
+    }
+
+    try {
+<span class="fc" id="L96">      doGet(token.getAccessToken(), buildUrl(&quot;/repositories/&quot; + workspace), r -&gt; null);</span>
+<span class="fc" id="L97">    } catch (NotFoundException | IllegalStateException e) {</span>
+<span class="fc" id="L98">      throw new IllegalArgumentException(e.getMessage());</span>
+<span class="fc" id="L99">    }</span>
+<span class="fc" id="L100">  }</span>
+
+  /**
+   * Validate parameters provided.
+   */
+  public void validateAppPassword(String encodedCredentials, String workspace) {
+    try {
+<span class="fc" id="L107">      doGetWithBasicAuth(encodedCredentials, buildUrl(&quot;/repositories/&quot; + workspace), r -&gt; null);</span>
+<span class="fc" id="L108">    } catch (NotFoundException | IllegalStateException e) {</span>
+<span class="fc" id="L109">      throw new IllegalArgumentException(e.getMessage());</span>
+<span class="fc" id="L110">    }</span>
+<span class="fc" id="L111">  }</span>
+
+  private Token validateAccessToken(String clientId, String clientSecret) {
+<span class="fc" id="L114">    Request request = createAccessTokenRequest(clientId, clientSecret);</span>
+<span class="fc" id="L115">    try (Response response = client.newCall(request).execute()) {</span>
+<span class="fc bfc" id="L116" title="All 2 branches covered.">      if (response.isSuccessful()) {</span>
+<span class="fc" id="L117">        return buildGson().fromJson(response.body().charStream(), Token.class);</span>
+      }
+
+<span class="fc" id="L120">      ErrorDetails errorMsg = getTokenError(response.body());</span>
+<span class="fc bfc" id="L121" title="All 2 branches covered.">      if (errorMsg.body != null) {</span>
+<span class="fc" id="L122">        LOG.atInfo().log(() -&gt; String.format(BBC_FAIL_WITH_RESPONSE, response.request().url(), response.code(), errorMsg.body));</span>
+<span class="fc bfc" id="L123" title="All 3 branches covered.">        switch (errorMsg.body) {</span>
+          case &quot;invalid_grant&quot;:
+<span class="fc" id="L125">            throw new IllegalArgumentException(UNABLE_TO_CONTACT_BBC_SERVERS + &quot;: &quot; + OAUTH_CONSUMER_NOT_PRIVATE);</span>
+          case &quot;unauthorized_client&quot;:
+<span class="fc" id="L127">            throw new IllegalArgumentException(UNABLE_TO_CONTACT_BBC_SERVERS + &quot;: &quot; + UNAUTHORIZED_CLIENT);</span>
+          default:
+<span class="pc bpc" id="L129" title="1 of 2 branches missed.">            if (errorMsg.parsedErrorMsg != null) {</span>
+<span class="nc" id="L130">              throw new IllegalArgumentException(ERROR_BBC_SERVERS + &quot;: &quot; + errorMsg.parsedErrorMsg);</span>
+            } else {
+<span class="fc" id="L132">              throw new IllegalArgumentException(UNABLE_TO_CONTACT_BBC_SERVERS);</span>
+            }
+        }
+      } else {
+<span class="fc" id="L136">        LOG.atInfo().log(() -&gt; String.format(BBC_FAIL_WITH_RESPONSE, response.request().url(), response.code(), response.message()));</span>
+      }
+<span class="fc" id="L138">      throw new IllegalArgumentException(UNABLE_TO_CONTACT_BBC_SERVERS);</span>
+
+<span class="fc" id="L140">    } catch (IOException e) {</span>
+<span class="fc" id="L141">      LOG.info(String.format(BBC_FAIL_WITH_ERROR, request.url(), e.getMessage()));</span>
+<span class="fc" id="L142">      throw new IllegalArgumentException(UNABLE_TO_CONTACT_BBC_SERVERS, e);</span>
+    }
+  }
+
+  public RepositoryList searchRepos(String encodedCredentials, String workspace, @Nullable String repoName, Integer page, Integer pageSize) {
+<span class="pc bpc" id="L147" title="1 of 2 branches missed.">    String filterQuery = String.format(&quot;q=name~\&quot;%s\&quot;&quot;, repoName != null ? repoName : &quot;&quot;);</span>
+<span class="fc" id="L148">    HttpUrl url = buildUrl(String.format(&quot;/repositories/%s?%s&amp;page=%s&amp;pagelen=%s&quot;, workspace, filterQuery, page, pageSize));</span>
+<span class="fc" id="L149">    return doGetWithBasicAuth(encodedCredentials, url, r -&gt; buildGson().fromJson(r.body().charStream(), RepositoryList.class));</span>
+  }
+
+  public Repository getRepo(String encodedCredentials, String workspace, String slug) {
+<span class="fc" id="L153">    HttpUrl url = buildUrl(String.format(&quot;/repositories/%s/%s&quot;, workspace, slug));</span>
+<span class="fc" id="L154">    return doGetWithBasicAuth(encodedCredentials, url, r -&gt; buildGson().fromJson(r.body().charStream(), Repository.class));</span>
+  }
+
+  public String createAccessToken(String clientId, String clientSecret) {
+<span class="nc" id="L158">    Request request = createAccessTokenRequest(clientId, clientSecret);</span>
+<span class="nc" id="L159">    return doCall(request, r -&gt; buildGson().fromJson(r.body().charStream(), Token.class)).getAccessToken();</span>
+  }
+
+  private Request createAccessTokenRequest(String clientId, String clientSecret) {
+<span class="fc" id="L163">    RequestBody body = new FormBody.Builder()</span>
+<span class="fc" id="L164">      .add(&quot;grant_type&quot;, &quot;client_credentials&quot;)</span>
+<span class="fc" id="L165">      .build();</span>
+<span class="fc" id="L166">    HttpUrl url = HttpUrl.parse(accessTokenEndpoint);</span>
+<span class="fc" id="L167">    String credential = Credentials.basic(clientId, clientSecret);</span>
+<span class="fc" id="L168">    return prepareRequestWithBasicAuthCredentials(credential, &quot;POST&quot;, url, body);</span>
+  }
+
+  protected HttpUrl buildUrl(String relativeUrl) {
+<span class="fc" id="L172">    return HttpUrl.parse(removeEnd(bitbucketCloudEndpoint, &quot;/&quot;) + &quot;/&quot; + VERSION + relativeUrl);</span>
+  }
+
+  protected &lt;G&gt; G doGet(String accessToken, HttpUrl url, Function&lt;Response, G&gt; handler) {
+<span class="fc" id="L176">    Request request = prepareRequestWithAccessToken(accessToken, GET, url, null);</span>
+<span class="fc" id="L177">    return doCall(request, handler);</span>
+  }
+
+  protected &lt;G&gt; G doGetWithBasicAuth(String encodedCredentials, HttpUrl url, Function&lt;Response, G&gt; handler) {
+<span class="fc" id="L181">    Request request = prepareRequestWithBasicAuthCredentials(&quot;Basic &quot; + encodedCredentials, GET, url, null);</span>
+<span class="fc" id="L182">    return doCall(request, handler);</span>
+  }
+
+  protected &lt;G&gt; G doCall(Request request, Function&lt;Response, G&gt; handler) {
+<span class="fc" id="L186">    try (Response response = client.newCall(request).execute()) {</span>
+<span class="fc bfc" id="L187" title="All 2 branches covered.">      if (!response.isSuccessful()) {</span>
+<span class="nc" id="L188">        handleError(response);</span>
+      }
+<span class="fc" id="L190">      return handler.apply(response);</span>
+<span class="nc" id="L191">    } catch (IOException e) {</span>
+<span class="nc" id="L192">      LOG.info(ERROR_BBC_SERVERS + &quot;: {}&quot;, e.getMessage());</span>
+<span class="nc" id="L193">      throw new IllegalStateException(ERROR_BBC_SERVERS, e);</span>
+    }
+  }
+
+  private static void handleError(Response response) throws IOException {
+<span class="fc" id="L198">    ErrorDetails error = getError(response.body());</span>
+<span class="fc" id="L199">    LOG.atInfo().log(() -&gt; String.format(BBC_FAIL_WITH_RESPONSE, response.request().url(), response.code(), error.body));</span>
+<span class="pc bpc" id="L200" title="1 of 2 branches missed.">    if (error.parsedErrorMsg != null) {</span>
+<span class="fc" id="L201">      throw new IllegalStateException(ERROR_BBC_SERVERS + &quot;: &quot; + error.parsedErrorMsg);</span>
+    } else {
+<span class="nc" id="L203">      throw new IllegalStateException(UNABLE_TO_CONTACT_BBC_SERVERS);</span>
+    }
+  }
+
+  private static ErrorDetails getError(@Nullable ResponseBody body) throws IOException {
+<span class="fc" id="L208">    return getErrorDetails(body, s -&gt; {</span>
+<span class="fc" id="L209">      Error gsonError = buildGson().fromJson(s, Error.class);</span>
+<span class="pc bpc" id="L210" title="3 of 6 branches missed.">      if (gsonError != null &amp;&amp; gsonError.errorMsg != null &amp;&amp; gsonError.errorMsg.message != null) {</span>
+<span class="fc" id="L211">        return gsonError.errorMsg.message;</span>
+      }
+<span class="nc" id="L213">      return null;</span>
+    });
+  }
+
+  private static ErrorDetails getTokenError(@Nullable ResponseBody body) throws IOException {
+<span class="fc bfc" id="L218" title="All 2 branches covered.">    if (body == null) {</span>
+<span class="fc" id="L219">      return new ErrorDetails(null, null);</span>
+    }
+<span class="fc" id="L221">    String bodyStr = body.string();</span>
+<span class="pc bpc" id="L222" title="1 of 4 branches missed.">    if (body.contentType() != null &amp;&amp; Objects.equals(JSON_MEDIA_TYPE.type(), body.contentType().type())) {</span>
+      try {
+<span class="fc" id="L224">        TokenError gsonError = buildGson().fromJson(bodyStr, TokenError.class);</span>
+<span class="pc bpc" id="L225" title="1 of 4 branches missed.">        if (gsonError != null &amp;&amp; gsonError.error != null) {</span>
+<span class="fc" id="L226">          return new ErrorDetails(gsonError.error, gsonError.errorDescription);</span>
+        }
+<span class="fc" id="L228">      } catch (JsonParseException e) {</span>
+        // ignore
+<span class="fc" id="L230">      }</span>
+    }
+
+<span class="fc" id="L233">    return new ErrorDetails(bodyStr, null);</span>
+  }
+
+  private static class ErrorDetails {
+    @Nullable
+    private final String body;
+    @Nullable
+    private final String parsedErrorMsg;
+
+<span class="fc" id="L242">    public ErrorDetails(@Nullable String body, @Nullable String parsedErrorMsg) {</span>
+<span class="fc" id="L243">      this.body = body;</span>
+<span class="fc" id="L244">      this.parsedErrorMsg = parsedErrorMsg;</span>
+<span class="fc" id="L245">    }</span>
+  }
+
+  private static ErrorDetails getErrorDetails(@Nullable ResponseBody body, UnaryOperator&lt;String&gt; parser) throws IOException {
+<span class="pc bpc" id="L249" title="1 of 2 branches missed.">    if (body == null) {</span>
+<span class="nc" id="L250">      return new ErrorDetails(&quot;&quot;, null);</span>
+    }
+<span class="fc" id="L252">    String bodyStr = body.string();</span>
+<span class="pc bpc" id="L253" title="2 of 4 branches missed.">    if (body.contentType() != null &amp;&amp; Objects.equals(JSON_MEDIA_TYPE.type(), body.contentType().type())) {</span>
+      try {
+<span class="fc" id="L255">        return new ErrorDetails(bodyStr, parser.apply(bodyStr));</span>
+<span class="nc" id="L256">      } catch (JsonParseException e) {</span>
+        // ignore
+      }
+    }
+<span class="nc" id="L260">    return new ErrorDetails(bodyStr, null);</span>
+  }
+
+  protected static Request prepareRequestWithAccessToken(String accessToken, String method, HttpUrl url, @Nullable RequestBody body) {
+<span class="fc" id="L264">    return new Request.Builder()</span>
+<span class="fc" id="L265">      .method(method, body)</span>
+<span class="fc" id="L266">      .url(url)</span>
+<span class="fc" id="L267">      .header(AUTHORIZATION, &quot;Bearer &quot; + accessToken)</span>
+<span class="fc" id="L268">      .build();</span>
+  }
+
+  protected static Request prepareRequestWithBasicAuthCredentials(String encodedCredentials, String method,
+    HttpUrl url, @Nullable RequestBody body) {
+<span class="fc" id="L273">    return new Request.Builder()</span>
+<span class="fc" id="L274">      .method(method, body)</span>
+<span class="fc" id="L275">      .url(url)</span>
+<span class="fc" id="L276">      .header(AUTHORIZATION, encodedCredentials)</span>
+<span class="fc" id="L277">      .build();</span>
+  }
+
+  public static Gson buildGson() {
+<span class="fc" id="L281">    return new GsonBuilder().create();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

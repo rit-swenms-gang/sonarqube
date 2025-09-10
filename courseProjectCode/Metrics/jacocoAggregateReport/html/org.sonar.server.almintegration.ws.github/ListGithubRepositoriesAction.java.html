@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ListGithubRepositoriesAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.almintegration.ws.github</a> &gt; <span class="el_source">ListGithubRepositoriesAction.java</span></div><h1>ListGithubRepositoriesAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.almintegration.ws.github;
+
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.BinaryOperator;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import org.sonar.auth.github.GithubApplicationClient;
+import org.sonar.auth.github.GithubApplicationClient.Repository;
+import org.sonar.alm.client.github.GithubApplicationClientImpl;
+import org.sonar.auth.github.security.AccessToken;
+import org.sonar.auth.github.security.UserAccessToken;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.alm.pat.AlmPatDto;
+import org.sonar.db.alm.setting.AlmSettingDto;
+import org.sonar.db.alm.setting.ProjectAlmSettingDao;
+import org.sonar.db.alm.setting.ProjectAlmSettingDto;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.server.almintegration.ws.AlmIntegrationsWsAction;
+import org.sonar.server.exceptions.NotFoundException;
+import org.sonar.server.user.UserSession;
+import org.sonarqube.ws.AlmIntegrations;
+import org.sonarqube.ws.Common;
+
+import static java.util.Objects.requireNonNull;
+import static org.sonar.api.server.ws.WebService.Param.PAGE;
+import static org.sonar.api.server.ws.WebService.Param.PAGE_SIZE;
+import static org.sonar.api.server.ws.WebService.Param.TEXT_QUERY;
+import static org.sonar.db.permission.GlobalPermission.PROVISION_PROJECTS;
+import static org.sonar.server.ws.WsUtils.writeProtobuf;
+
+public class ListGithubRepositoriesAction implements AlmIntegrationsWsAction {
+
+  public static final String PARAM_ALM_SETTING = &quot;almSetting&quot;;
+  public static final String PARAM_ORGANIZATION = &quot;organization&quot;;
+
+  private final DbClient dbClient;
+  private final UserSession userSession;
+  private final GithubApplicationClient githubApplicationClient;
+  private final ProjectAlmSettingDao projectAlmSettingDao;
+
+<span class="fc" id="L68">  public ListGithubRepositoriesAction(DbClient dbClient, UserSession userSession, GithubApplicationClientImpl githubApplicationClient, ProjectAlmSettingDao projectAlmSettingDao) {</span>
+<span class="fc" id="L69">    this.dbClient = dbClient;</span>
+<span class="fc" id="L70">    this.userSession = userSession;</span>
+<span class="fc" id="L71">    this.githubApplicationClient = githubApplicationClient;</span>
+<span class="fc" id="L72">    this.projectAlmSettingDao = projectAlmSettingDao;</span>
+<span class="fc" id="L73">  }</span>
+
+  @Override
+  public void define(WebService.NewController context) {
+<span class="fc" id="L77">    WebService.NewAction action = context.createAction(&quot;list_github_repositories&quot;)</span>
+<span class="fc" id="L78">      .setDescription(&quot;List the GitHub repositories for an organization&lt;br/&gt;&quot; +</span>
+        &quot;Requires the 'Create Projects' permission&quot;)
+<span class="fc" id="L80">      .setInternal(true)</span>
+<span class="fc" id="L81">      .setSince(&quot;8.4&quot;)</span>
+<span class="fc" id="L82">      .setResponseExample(getClass().getResource(&quot;example-list_github_repositories.json&quot;))</span>
+<span class="fc" id="L83">      .setHandler(this);</span>
+
+<span class="fc" id="L85">    action.createParam(PARAM_ALM_SETTING)</span>
+<span class="fc" id="L86">      .setRequired(true)</span>
+<span class="fc" id="L87">      .setMaximumLength(200)</span>
+<span class="fc" id="L88">      .setDescription(&quot;DevOps Platform setting key&quot;);</span>
+
+<span class="fc" id="L90">    action.createParam(PARAM_ORGANIZATION)</span>
+<span class="fc" id="L91">      .setRequired(true)</span>
+<span class="fc" id="L92">      .setMaximumLength(200)</span>
+<span class="fc" id="L93">      .setDescription(&quot;Github organization&quot;);</span>
+
+<span class="fc" id="L95">    action.createParam(TEXT_QUERY)</span>
+<span class="fc" id="L96">      .setDescription(&quot;Limit search to repositories that contain the supplied string&quot;)</span>
+<span class="fc" id="L97">      .setExampleValue(&quot;Apache&quot;);</span>
+
+<span class="fc" id="L99">    action.createParam(PAGE)</span>
+<span class="fc" id="L100">      .setDescription(&quot;Index of the page to display&quot;)</span>
+<span class="fc" id="L101">      .setDefaultValue(1);</span>
+<span class="fc" id="L102">    action.createParam(PAGE_SIZE)</span>
+<span class="fc" id="L103">      .setDescription(&quot;Size for the paging to apply&quot;)</span>
+<span class="fc" id="L104">      .setDefaultValue(100);</span>
+<span class="fc" id="L105">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) {
+<span class="fc" id="L109">    AlmIntegrations.ListGithubRepositoriesWsResponse getResponse = doHandle(request);</span>
+<span class="fc" id="L110">    writeProtobuf(getResponse, request, response);</span>
+<span class="fc" id="L111">  }</span>
+
+  private AlmIntegrations.ListGithubRepositoriesWsResponse doHandle(Request request) {
+<span class="fc" id="L114">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L115">      userSession.checkLoggedIn().checkPermission(PROVISION_PROJECTS);</span>
+
+<span class="fc" id="L117">      String almSettingKey = request.mandatoryParam(PARAM_ALM_SETTING);</span>
+<span class="fc" id="L118">      AlmSettingDto almSettingDto = dbClient.almSettingDao().selectByKey(dbSession, almSettingKey)</span>
+<span class="fc" id="L119">        .orElseThrow(() -&gt; new NotFoundException(String.format(&quot;GitHub Setting '%s' not found&quot;, almSettingKey)));</span>
+
+<span class="fc" id="L121">      String userUuid = requireNonNull(userSession.getUuid(), &quot;User UUID is not null&quot;);</span>
+<span class="fc" id="L122">      String url = requireNonNull(almSettingDto.getUrl(), String.format(&quot;No URL set for GitHub '%s'&quot;, almSettingKey));</span>
+
+<span class="fc" id="L124">      AccessToken accessToken = dbClient.almPatDao().selectByUserAndAlmSetting(dbSession, userUuid, almSettingDto)</span>
+<span class="fc" id="L125">        .map(AlmPatDto::getPersonalAccessToken)</span>
+<span class="fc" id="L126">        .map(UserAccessToken::new)</span>
+<span class="fc" id="L127">        .orElseThrow(() -&gt; new IllegalArgumentException(&quot;No personal access token found&quot;));</span>
+
+<span class="pc bpc" id="L129" title="1 of 2 branches missed.">      int pageIndex = request.hasParam(PAGE) ? request.mandatoryParamAsInt(PAGE) : 1;</span>
+<span class="pc bpc" id="L130" title="1 of 2 branches missed.">      int pageSize = request.hasParam(PAGE_SIZE) ? request.mandatoryParamAsInt(PAGE_SIZE) : 100;</span>
+
+<span class="fc" id="L132">      GithubApplicationClient.Repositories repositories = githubApplicationClient</span>
+<span class="fc" id="L133">        .listRepositories(url, accessToken, request.mandatoryParam(PARAM_ORGANIZATION), request.param(TEXT_QUERY), pageIndex, pageSize);</span>
+
+<span class="fc" id="L135">      AlmIntegrations.ListGithubRepositoriesWsResponse.Builder response = AlmIntegrations.ListGithubRepositoriesWsResponse.newBuilder()</span>
+<span class="fc" id="L136">        .setPaging(Common.Paging.newBuilder()</span>
+<span class="fc" id="L137">          .setPageIndex(pageIndex)</span>
+<span class="fc" id="L138">          .setPageSize(pageSize)</span>
+<span class="fc" id="L139">          .setTotal(repositories.getTotal())</span>
+<span class="fc" id="L140">          .build());</span>
+
+<span class="fc" id="L142">      List&lt;Repository&gt; repositoryList = repositories.getRepositories();</span>
+<span class="pc bpc" id="L143" title="1 of 2 branches missed.">      if (repositoryList != null) {</span>
+
+<span class="fc" id="L145">        Set&lt;String&gt; repo = repositoryList.stream().map(Repository::getFullName).collect(Collectors.toSet());</span>
+<span class="fc" id="L146">        List&lt;ProjectAlmSettingDto&gt; projectAlmSettingDtos = projectAlmSettingDao.selectByAlmSettingAndRepos(dbSession, almSettingDto, repo);</span>
+
+<span class="fc" id="L148">        Map&lt;String, ProjectDto&gt; projectsDtoByAlmRepo = getProjectDtoByAlmRepo(dbSession, projectAlmSettingDtos);</span>
+
+<span class="fc bfc" id="L150" title="All 2 branches covered.">        for (Repository repository : repositoryList) {</span>
+<span class="fc" id="L151">          AlmIntegrations.GithubRepository.Builder builder = AlmIntegrations.GithubRepository.newBuilder()</span>
+<span class="fc" id="L152">            .setId(repository.getId())</span>
+<span class="fc" id="L153">            .setKey(repository.getFullName())</span>
+<span class="fc" id="L154">            .setName(repository.getName())</span>
+<span class="fc" id="L155">            .setUrl(repository.getUrl());</span>
+
+<span class="fc bfc" id="L157" title="All 2 branches covered.">          if (projectsDtoByAlmRepo.containsKey(repository.getFullName())) {</span>
+<span class="fc" id="L158">            Optional.ofNullable(projectsDtoByAlmRepo.get(repository.getFullName()))</span>
+<span class="fc" id="L159">              .ifPresent(p -&gt; builder.setSqProjectKey(p.getKey()));</span>
+          }
+
+<span class="fc" id="L162">          response.addRepositories(builder.build());</span>
+<span class="fc" id="L163">        }</span>
+      }
+
+<span class="fc" id="L166">      return response.build();</span>
+    }
+  }
+
+  private Map&lt;String, ProjectDto&gt; getProjectDtoByAlmRepo(DbSession dbSession, List&lt;ProjectAlmSettingDto&gt; projectAlmSettingDtos) {
+<span class="fc" id="L171">    Map&lt;String, ProjectAlmSettingDto&gt; projectAlmSettingDtoByProjectUuid = projectAlmSettingDtos.stream()</span>
+<span class="fc" id="L172">      .collect(Collectors.toMap(ProjectAlmSettingDto::getProjectUuid, Function.identity()));</span>
+
+<span class="fc" id="L174">    Set&lt;String&gt; projectUuids = projectAlmSettingDtos.stream().map(ProjectAlmSettingDto::getProjectUuid).collect(Collectors.toSet());</span>
+
+<span class="fc" id="L176">    return dbClient.projectDao().selectByUuids(dbSession, projectUuids)</span>
+<span class="fc" id="L177">      .stream()</span>
+<span class="fc" id="L178">      .collect(Collectors.toMap(projectDto -&gt; projectAlmSettingDtoByProjectUuid.get(projectDto.getUuid()).getAlmRepo(),</span>
+<span class="fc" id="L179">        Function.identity(), resolveNameCollisionOperatorByNaturalOrder()));</span>
+  }
+
+  private static BinaryOperator&lt;ProjectDto&gt; resolveNameCollisionOperatorByNaturalOrder() {
+<span class="fc" id="L183">    Comparator&lt;ProjectDto&gt; comparator = Comparator.comparing(ProjectDto::getKey);</span>
+<span class="pc bpc" id="L184" title="1 of 2 branches missed.">    return (a, b) -&gt; comparator.compare(a, b) &gt; 0 ? b : a;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

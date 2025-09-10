@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CreateUserAIToolUsagesTable.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform.db.migration.version.v202501</a> &gt; <span class="el_source">CreateUserAIToolUsagesTable.java</span></div><h1>CreateUserAIToolUsagesTable.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform.db.migration.version.v202501;
+
+import java.sql.SQLException;
+import org.sonar.db.Database;
+import org.sonar.server.platform.db.migration.sql.CreateTableBuilder;
+import org.sonar.server.platform.db.migration.step.CreateTableChange;
+
+import static org.sonar.server.platform.db.migration.def.BigIntegerColumnDef.newBigIntegerColumnDefBuilder;
+import static org.sonar.server.platform.db.migration.def.VarcharColumnDef.UUID_SIZE;
+import static org.sonar.server.platform.db.migration.def.VarcharColumnDef.newVarcharColumnDefBuilder;
+
+public class CreateUserAIToolUsagesTable extends CreateTableChange {
+
+  static final String USER_AI_TOOLS_USAGES_TABLE_NAME = &quot;user_ai_tool_usages&quot;;
+  static final String COLUMN_UUID = &quot;uuid&quot;;
+  static final String COLUMN_USER_UUID = &quot;user_uuid&quot;;
+  static final String COLUMN_ACTIVATED_AT = &quot;activated_at&quot;;
+  static final String COLUMN_LAST_ACTIVITY_AT = &quot;last_activity_at&quot;;
+
+
+  protected CreateUserAIToolUsagesTable(Database db) {
+<span class="fc" id="L41">    super(db, USER_AI_TOOLS_USAGES_TABLE_NAME);</span>
+<span class="fc" id="L42">  }</span>
+
+  @Override
+  public void execute(Context context, String tableName) throws SQLException {
+<span class="fc" id="L46">    context.execute(new CreateTableBuilder(getDialect(), tableName)</span>
+<span class="fc" id="L47">      .addPkColumn(newVarcharColumnDefBuilder().setColumnName(COLUMN_UUID).setIsNullable(false).setLimit(UUID_SIZE).build())</span>
+<span class="fc" id="L48">      .addColumn(newVarcharColumnDefBuilder().setColumnName(COLUMN_USER_UUID).setIsNullable(false).setLimit(UUID_SIZE).build())</span>
+<span class="fc" id="L49">      .addColumn(newBigIntegerColumnDefBuilder().setColumnName(COLUMN_ACTIVATED_AT).setIsNullable(false).build())</span>
+<span class="fc" id="L50">      .addColumn(newBigIntegerColumnDefBuilder().setColumnName(COLUMN_LAST_ACTIVITY_AT).setIsNullable(true).build())</span>
+<span class="fc" id="L51">      .build());</span>
+<span class="fc" id="L52">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

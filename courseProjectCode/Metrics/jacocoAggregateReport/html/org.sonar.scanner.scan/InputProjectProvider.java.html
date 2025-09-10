@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>InputProjectProvider.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.scan</a> &gt; <span class="el_source">InputProjectProvider.java</span></div><h1>InputProjectProvider.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.scan;
+
+import java.util.Locale;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.batch.bootstrap.ProjectReactor;
+import org.sonar.api.batch.fs.internal.DefaultInputProject;
+import org.sonar.scanner.scan.filesystem.ScannerComponentIdGenerator;
+import org.springframework.context.annotation.Bean;
+
+<span class="fc" id="L30">public class InputProjectProvider {</span>
+<span class="fc" id="L31">  private static final Logger LOG = LoggerFactory.getLogger(InputProjectProvider.class);</span>
+
+  @Bean(&quot;DefaultInputProject&quot;)
+  public DefaultInputProject provide(ProjectBuildersExecutor projectBuildersExecutor, ProjectReactorValidator validator,
+    ProjectReactor projectReactor, ScannerComponentIdGenerator scannerComponentIdGenerator, WorkDirectoriesInitializer workDirectoriesInit) {
+    // 1 Apply project builders
+<span class="fc" id="L37">    projectBuildersExecutor.execute(projectReactor);</span>
+
+    // 2 Validate final reactor
+<span class="fc" id="L40">    validator.validate(projectReactor);</span>
+
+    // 3 Create project
+<span class="fc" id="L43">    DefaultInputProject project = new DefaultInputProject(projectReactor.getRoot(), scannerComponentIdGenerator.getAsInt());</span>
+<span class="fc" id="L44">    workDirectoriesInit.execute(project);</span>
+
+<span class="fc" id="L46">    LOG.info(&quot;Project key: {}&quot;, project.key());</span>
+<span class="fc" id="L47">    LOG.info(&quot;Base dir: {}&quot;, project.getBaseDir().toAbsolutePath());</span>
+<span class="fc" id="L48">    LOG.info(&quot;Working dir: {}&quot;, project.getWorkDir().toAbsolutePath());</span>
+<span class="fc bfc" id="L49" title="All 2 branches covered.">    if (LOG.isDebugEnabled()) {</span>
+<span class="fc" id="L50">      LOG.debug(&quot;Project global encoding: {}, default locale: {}&quot;, project.getEncoding().displayName(), Locale.getDefault());</span>
+    }
+<span class="fc" id="L52">    return project;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

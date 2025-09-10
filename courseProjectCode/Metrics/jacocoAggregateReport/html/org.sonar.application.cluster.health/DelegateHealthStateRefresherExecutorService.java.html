@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DelegateHealthStateRefresherExecutorService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.application.cluster.health</a> &gt; <span class="el_source">DelegateHealthStateRefresherExecutorService.java</span></div><h1>DelegateHealthStateRefresherExecutorService.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.application.cluster.health;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import org.sonar.process.cluster.health.HealthStateRefresherExecutorService;
+
+class DelegateHealthStateRefresherExecutorService implements HealthStateRefresherExecutorService {
+  private final ScheduledExecutorService delegate;
+
+<span class="fc" id="L36">  DelegateHealthStateRefresherExecutorService(ScheduledExecutorService delegate) {</span>
+<span class="fc" id="L37">    this.delegate = delegate;</span>
+<span class="fc" id="L38">  }</span>
+
+  @Override
+  public ScheduledFuture&lt;?&gt; schedule(Runnable command, long delay, TimeUnit unit) {
+<span class="fc" id="L42">    return delegate.schedule(command, delay, unit);</span>
+  }
+
+  @Override
+  public &lt;V&gt; ScheduledFuture&lt;V&gt; schedule(Callable&lt;V&gt; callable, long delay, TimeUnit unit) {
+<span class="fc" id="L47">    return delegate.schedule(callable, delay, unit);</span>
+  }
+
+  @Override
+  public ScheduledFuture&lt;?&gt; scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit) {
+<span class="fc" id="L52">    return delegate.scheduleAtFixedRate(command, initialDelay, period, unit);</span>
+  }
+
+  @Override
+  public ScheduledFuture&lt;?&gt; scheduleWithFixedDelay(Runnable command, long initialDelay, long delay, TimeUnit unit) {
+<span class="fc" id="L57">    return delegate.scheduleWithFixedDelay(command, initialDelay, delay, unit);</span>
+  }
+
+  @Override
+  public void shutdown() {
+<span class="fc" id="L62">    delegate.shutdown();</span>
+<span class="fc" id="L63">  }</span>
+
+  @Override
+  public List&lt;Runnable&gt; shutdownNow() {
+<span class="fc" id="L67">    return delegate.shutdownNow();</span>
+  }
+
+  @Override
+  public boolean isShutdown() {
+<span class="fc" id="L72">    return delegate.isShutdown();</span>
+  }
+
+  @Override
+  public boolean isTerminated() {
+<span class="fc" id="L77">    return delegate.isTerminated();</span>
+  }
+
+  @Override
+  public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
+<span class="fc" id="L82">    return delegate.awaitTermination(timeout, unit);</span>
+  }
+
+  @Override
+  public &lt;T&gt; Future&lt;T&gt; submit(Callable&lt;T&gt; task) {
+<span class="fc" id="L87">    return delegate.submit(task);</span>
+  }
+
+  @Override
+  public &lt;T&gt; Future&lt;T&gt; submit(Runnable task, T result) {
+<span class="fc" id="L92">    return delegate.submit(task, result);</span>
+  }
+
+  @Override
+  public Future&lt;?&gt; submit(Runnable task) {
+<span class="fc" id="L97">    return delegate.submit(task);</span>
+  }
+
+  @Override
+  public &lt;T&gt; List&lt;Future&lt;T&gt;&gt; invokeAll(Collection&lt;? extends Callable&lt;T&gt;&gt; tasks) throws InterruptedException {
+<span class="fc" id="L102">    return delegate.invokeAll(tasks);</span>
+  }
+
+  @Override
+  public &lt;T&gt; List&lt;Future&lt;T&gt;&gt; invokeAll(Collection&lt;? extends Callable&lt;T&gt;&gt; tasks, long timeout, TimeUnit unit) throws InterruptedException {
+<span class="fc" id="L107">    return delegate.invokeAll(tasks, timeout, unit);</span>
+  }
+
+  @Override
+  public &lt;T&gt; T invokeAny(Collection&lt;? extends Callable&lt;T&gt;&gt; tasks) throws InterruptedException, ExecutionException {
+<span class="fc" id="L112">    return delegate.invokeAny(tasks);</span>
+  }
+
+  @Override
+  public &lt;T&gt; T invokeAny(Collection&lt;? extends Callable&lt;T&gt;&gt; tasks, long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
+<span class="fc" id="L117">    return delegate.invokeAny(tasks, timeout, unit);</span>
+  }
+
+  @Override
+  public void execute(Runnable command) {
+<span class="nc" id="L122">    delegate.execute(command);</span>
+<span class="nc" id="L123">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

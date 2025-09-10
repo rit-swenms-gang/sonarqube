@@ -1,0 +1,220 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RestResponseEntityExceptionHandler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.v2.common</a> &gt; <span class="el_source">RestResponseEntityExceptionHandler.java</span></div><h1>RestResponseEntityExceptionHandler.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.v2.common;
+
+import java.io.FileNotFoundException;
+import java.nio.file.AccessDeniedException;
+import java.util.NoSuchElementException;
+import java.util.Optional;
+import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.server.authentication.event.AuthenticationException;
+import org.sonar.server.exceptions.BadRequestException;
+import org.sonar.server.exceptions.ServerException;
+import org.sonar.server.exceptions.TooManyRequestsException;
+import org.sonar.server.v2.api.model.RestError;
+import org.springframework.core.convert.ConversionFailedException;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.validation.BindException;
+import org.springframework.validation.FieldError;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.ServletRequestBindingException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+
+import static org.springframework.http.HttpStatus.TOO_MANY_REQUESTS;
+
+@RestControllerAdvice
+<span class="fc" id="L55">public class RestResponseEntityExceptionHandler {</span>
+
+<span class="fc" id="L57">  private static final Logger LOGGER = LoggerFactory.getLogger(RestResponseEntityExceptionHandler.class);</span>
+
+  // region client
+
+  @ExceptionHandler(HttpMessageNotReadableException.class)
+  protected ResponseEntity&lt;RestError&gt; handleHttpMessageNotReadableException(HttpMessageNotReadableException ex) {
+<span class="fc" id="L63">    LOGGER.warn(ErrorMessages.INVALID_REQUEST_FORMAT.getMessage(), ex);</span>
+<span class="fc" id="L64">    return buildResponse(HttpStatus.BAD_REQUEST, ErrorMessages.INVALID_REQUEST_FORMAT);</span>
+  }
+
+  @ExceptionHandler(MethodArgumentNotValidException.class)
+  protected ResponseEntity&lt;RestError&gt; handleMethodArgumentNotValidException(MethodArgumentNotValidException ex) {
+<span class="fc" id="L69">    String validationErrors = ex.getFieldErrors().stream()</span>
+<span class="fc" id="L70">      .map(RestResponseEntityExceptionHandler::handleFieldError)</span>
+<span class="fc" id="L71">      .collect(Collectors.joining());</span>
+<span class="fc" id="L72">    LOGGER.info(&quot;{}\n{}&quot;, ErrorMessages.VALIDATION_ERROR.getMessage(), validationErrors);</span>
+<span class="fc" id="L73">    return buildResponse(HttpStatus.BAD_REQUEST, validationErrors);</span>
+  }
+
+  @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+  protected ResponseEntity&lt;RestError&gt; handleMethodArgumentTypeMismatchException(MethodArgumentTypeMismatchException ex) {
+<span class="fc" id="L78">    LOGGER.warn(ErrorMessages.INVALID_PARAMETER_TYPE.getMessage(), ex);</span>
+<span class="fc" id="L79">    return buildResponse(HttpStatus.BAD_REQUEST, ErrorMessages.INVALID_PARAMETER_TYPE);</span>
+  }
+
+  @ExceptionHandler(ConversionFailedException.class)
+  protected ResponseEntity&lt;RestError&gt; handleConversionFailedException(ConversionFailedException ex) {
+<span class="fc" id="L84">    LOGGER.info(ErrorMessages.CONVERSION_FAILED.getMessage(), ex);</span>
+<span class="fc" id="L85">    return buildResponse(HttpStatus.BAD_REQUEST, ErrorMessages.CONVERSION_FAILED);</span>
+  }
+
+  @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+  protected ResponseEntity&lt;RestError&gt; handleHttpRequestMethodNotSupportedException(HttpRequestMethodNotSupportedException ex) {
+<span class="fc" id="L90">    LOGGER.warn(ErrorMessages.METHOD_NOT_SUPPORTED.getMessage(), ex);</span>
+<span class="fc" id="L91">    return buildResponse(HttpStatus.METHOD_NOT_ALLOWED, ErrorMessages.METHOD_NOT_SUPPORTED);</span>
+  }
+
+  @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+  protected ResponseEntity&lt;RestError&gt; handleHttpMediaTypeNotSupportedException(HttpMediaTypeNotSupportedException ex) {
+<span class="fc" id="L96">    LOGGER.warn(ErrorMessages.UNSUPPORTED_MEDIA_TYPE.getMessage(), ex);</span>
+<span class="fc" id="L97">    return buildResponse(HttpStatus.UNSUPPORTED_MEDIA_TYPE, ErrorMessages.UNSUPPORTED_MEDIA_TYPE);</span>
+  }
+
+  @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
+  protected ResponseEntity&lt;RestError&gt; handleHttpMediaTypeNotAcceptableException(HttpMediaTypeNotAcceptableException ex) {
+<span class="fc" id="L102">    LOGGER.warn(ErrorMessages.UNACCEPTABLE_MEDIA_TYPE.getMessage(), ex);</span>
+<span class="fc" id="L103">    return buildResponse(HttpStatus.NOT_ACCEPTABLE, ErrorMessages.UNACCEPTABLE_MEDIA_TYPE);</span>
+  }
+
+  @ExceptionHandler(IllegalArgumentException.class)
+  protected ResponseEntity&lt;RestError&gt; handleIllegalArgumentException(IllegalArgumentException ex) {
+<span class="fc" id="L108">    LOGGER.warn(ErrorMessages.INVALID_INPUT_PROVIDED.getMessage(), ex);</span>
+<span class="fc" id="L109">    return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());</span>
+  }
+
+  @ExceptionHandler(BindException.class)
+  protected ResponseEntity&lt;RestError&gt; handleBindException(BindException ex) {
+<span class="fc" id="L114">    String validationErrors = ex.getFieldErrors().stream()</span>
+<span class="fc" id="L115">      .map(RestResponseEntityExceptionHandler::handleFieldError)</span>
+<span class="fc" id="L116">      .collect(Collectors.joining());</span>
+<span class="fc" id="L117">    LOGGER.info(&quot;{}\n{}&quot;, ErrorMessages.BIND_ERROR.getMessage(), validationErrors);</span>
+<span class="fc" id="L118">    return buildResponse(HttpStatus.BAD_REQUEST, validationErrors);</span>
+  }
+
+  @ExceptionHandler({
+    NoSuchElementException.class,
+    ServletRequestBindingException.class,
+  })
+  protected ResponseEntity&lt;RestError&gt; handleBadRequests(Exception ex) {
+<span class="fc" id="L126">    LOGGER.warn(ErrorMessages.BAD_REQUEST.getMessage(), ex);</span>
+<span class="fc" id="L127">    return buildResponse(HttpStatus.BAD_REQUEST, ErrorMessages.BAD_REQUEST);</span>
+  }
+
+  @ExceptionHandler(MaxUploadSizeExceededException.class)
+  protected ResponseEntity&lt;RestError&gt; handleMaxUploadSizeExceededException(MaxUploadSizeExceededException ex) {
+<span class="fc" id="L132">    LOGGER.warn(ErrorMessages.SIZE_EXCEEDED.getMessage(), ex);</span>
+<span class="fc" id="L133">    return buildResponse(HttpStatus.PAYLOAD_TOO_LARGE, ErrorMessages.SIZE_EXCEEDED);</span>
+  }
+
+  @ExceptionHandler(TooManyRequestsException.class)
+  protected ResponseEntity&lt;RestError&gt; handleTooManyRequestsException(TooManyRequestsException ex) {
+<span class="fc" id="L138">    final String errorMessage = Optional.ofNullable(ex.getMessage()).orElse(ErrorMessages.TOO_MANY_REQUESTS.getMessage());</span>
+<span class="fc" id="L139">    return buildResponse(TOO_MANY_REQUESTS, errorMessage);</span>
+  }
+
+  // endregion client
+
+  // region security
+
+  @ExceptionHandler(AccessDeniedException.class)
+  protected ResponseEntity&lt;RestError&gt; handleAccessDeniedException(AccessDeniedException ex) {
+<span class="fc" id="L148">    LOGGER.error(ErrorMessages.ACCESS_DENIED.getMessage(), ex);</span>
+<span class="fc" id="L149">    return buildResponse(HttpStatus.FORBIDDEN, ErrorMessages.ACCESS_DENIED);</span>
+  }
+
+  @ExceptionHandler(AuthenticationException.class)
+  protected ResponseEntity&lt;RestError&gt; handleAuthenticationException(AuthenticationException ex) {
+<span class="fc" id="L154">    LOGGER.warn(ex.getPublicMessage());</span>
+<span class="fc" id="L155">    return buildResponse(HttpStatus.UNAUTHORIZED, ErrorMessages.AUTHENTICATION_FAILED);</span>
+  }
+
+  // endregion security
+
+  // region server
+
+  @ExceptionHandler(IllegalStateException.class)
+  protected ResponseEntity&lt;RestError&gt; handleIllegalStateException(IllegalStateException ex) {
+<span class="fc" id="L164">    LOGGER.error(ErrorMessages.INVALID_STATE.getMessage(), ex);</span>
+<span class="fc" id="L165">    return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage());</span>
+  }
+
+  @ExceptionHandler({
+    FileNotFoundException.class,
+    NoHandlerFoundException.class,
+  })
+  protected ResponseEntity&lt;RestError&gt; handleResourceNotFoundException(Exception ex) {
+<span class="fc" id="L173">    LOGGER.error(ErrorMessages.RESOURCE_NOT_FOUND.getMessage(), ex);</span>
+<span class="fc" id="L174">    return buildResponse(HttpStatus.NOT_FOUND, ErrorMessages.RESOURCE_NOT_FOUND);</span>
+  }
+
+  @ExceptionHandler(AsyncRequestTimeoutException.class)
+  protected ResponseEntity&lt;RestError&gt; handleAsyncRequestTimeoutException(AsyncRequestTimeoutException ex) {
+<span class="fc" id="L179">    LOGGER.error(ErrorMessages.REQUEST_TIMEOUT.getMessage(), ex);</span>
+<span class="fc" id="L180">    return buildResponse(HttpStatus.SERVICE_UNAVAILABLE, ErrorMessages.REQUEST_TIMEOUT);</span>
+  }
+
+  @ExceptionHandler(ServerException.class)
+  protected ResponseEntity&lt;RestError&gt; handleServerException(ServerException ex) {
+<span class="fc" id="L185">    final HttpStatus httpStatus = Optional.ofNullable(HttpStatus.resolve(ex.httpCode())).orElse(HttpStatus.INTERNAL_SERVER_ERROR);</span>
+<span class="fc" id="L186">    final String errorMessage = Optional.ofNullable(ex.getMessage()).orElse(ErrorMessages.INTERNAL_SERVER_ERROR.getMessage());</span>
+<span class="fc" id="L187">    return buildResponse(httpStatus, errorMessage);</span>
+  }
+
+  @ExceptionHandler(BadRequestException.class)
+  protected ResponseEntity&lt;RestError&gt; handleBadRequestException(BadRequestException ex) {
+<span class="fc" id="L192">    return ex.getRelatedField()</span>
+<span class="fc" id="L193">      .map(field -&gt; ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new RestError(ex.getMessage(), field)))</span>
+<span class="fc" id="L194">      .orElse(handleServerException(ex));</span>
+  }
+
+  @ExceptionHandler({Exception.class})
+  protected ResponseEntity&lt;RestError&gt; handleUnhandledException(Exception ex) {
+<span class="fc" id="L199">    LOGGER.error(ErrorMessages.UNEXPECTED_ERROR.getMessage(), ex);</span>
+<span class="fc" id="L200">    return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, ErrorMessages.UNEXPECTED_ERROR);</span>
+  }
+
+  // endregion server
+
+  private static ResponseEntity&lt;RestError&gt; buildResponse(HttpStatus httpStatus, ErrorMessages errorMessages) {
+<span class="fc" id="L206">    return buildResponse(httpStatus, errorMessages.getMessage());</span>
+  }
+
+  private static ResponseEntity&lt;RestError&gt; buildResponse(HttpStatus httpStatus, String errorMessage) {
+<span class="fc" id="L210">    return ResponseEntity.status(httpStatus).body(new RestError(errorMessage));</span>
+  }
+
+  private static String handleFieldError(FieldError fieldError) {
+<span class="fc" id="L214">    String fieldName = fieldError.getField();</span>
+<span class="fc" id="L215">    String rejectedValueAsString = Optional.ofNullable(fieldError.getRejectedValue()).map(Object::toString).orElse(&quot;{}&quot;);</span>
+<span class="fc" id="L216">    String defaultMessage = fieldError.getDefaultMessage();</span>
+<span class="fc" id="L217">    return String.format(&quot;Value %s for field %s was rejected. Error: %s.&quot;, rejectedValueAsString, fieldName, defaultMessage);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SetTypeAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.issue.ws</a> &gt; <span class="el_source">SetTypeAction.java</span></div><h1>SetTypeAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.issue.ws;
+
+import com.google.common.io.Resources;
+import java.util.Date;
+import java.util.EnumSet;
+import java.util.Map;
+import org.sonar.core.rule.RuleType;
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.api.utils.System2;
+import org.sonar.core.issue.DefaultIssue;
+import org.sonar.core.issue.IssueChangeContext;
+import org.sonar.core.util.Uuids;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.BranchDto;
+import org.sonar.db.issue.IssueDto;
+import org.sonar.server.issue.IssueFieldsSetter;
+import org.sonar.server.issue.IssueFinder;
+import org.sonar.server.pushapi.issues.IssueChangeEventService;
+import org.sonar.server.user.UserSession;
+
+import static org.sonar.db.permission.ProjectPermission.ISSUE_ADMIN;
+import static org.sonar.core.issue.IssueChangeContext.issueChangeContextByUserBuilder;
+import static org.sonar.db.component.BranchType.BRANCH;
+import static org.sonarqube.ws.client.issue.IssuesWsParameters.ACTION_SET_TYPE;
+import static org.sonarqube.ws.client.issue.IssuesWsParameters.PARAM_ISSUE;
+import static org.sonarqube.ws.client.issue.IssuesWsParameters.PARAM_TYPE;
+
+public class SetTypeAction implements IssuesWsAction {
+<span class="fc" id="L52">  private static final EnumSet&lt;RuleType&gt; ALL_RULE_TYPES_EXCEPT_SECURITY_HOTSPOTS = EnumSet.complementOf(EnumSet.of(RuleType.SECURITY_HOTSPOT));</span>
+
+  private final UserSession userSession;
+  private final DbClient dbClient;
+  private final IssueChangeEventService issueChangeEventService;
+  private final IssueFinder issueFinder;
+  private final IssueFieldsSetter issueFieldsSetter;
+  private final IssueUpdater issueUpdater;
+  private final OperationResponseWriter responseWriter;
+  private final System2 system2;
+
+  public SetTypeAction(UserSession userSession, DbClient dbClient, IssueChangeEventService issueChangeEventService, IssueFinder issueFinder,
+<span class="fc" id="L64">    IssueFieldsSetter issueFieldsSetter, IssueUpdater issueUpdater, OperationResponseWriter responseWriter, System2 system2) {</span>
+<span class="fc" id="L65">    this.userSession = userSession;</span>
+<span class="fc" id="L66">    this.dbClient = dbClient;</span>
+<span class="fc" id="L67">    this.issueChangeEventService = issueChangeEventService;</span>
+<span class="fc" id="L68">    this.issueFinder = issueFinder;</span>
+<span class="fc" id="L69">    this.issueFieldsSetter = issueFieldsSetter;</span>
+<span class="fc" id="L70">    this.issueUpdater = issueUpdater;</span>
+<span class="fc" id="L71">    this.responseWriter = responseWriter;</span>
+<span class="fc" id="L72">    this.system2 = system2;</span>
+<span class="fc" id="L73">  }</span>
+
+  @Override
+  public void define(WebService.NewController controller) {
+<span class="fc" id="L77">    WebService.NewAction action = controller.createAction(ACTION_SET_TYPE)</span>
+<span class="fc" id="L78">      .setDescription(&quot;Change type of issue, for instance from 'code smell' to 'bug'.&lt;br/&gt;&quot; +</span>
+        &quot;Requires the following permissions:&quot; +
+        &quot;&lt;ul&gt;&quot; +
+        &quot;  &lt;li&gt;'Authentication'&lt;/li&gt;&quot; +
+        &quot;  &lt;li&gt;'Browse' rights on project of the specified issue&lt;/li&gt;&quot; +
+        &quot;  &lt;li&gt;'Administer Issues' rights on project of the specified issue&lt;/li&gt;&quot; +
+        &quot;&lt;/ul&gt;&quot;)
+<span class="fc" id="L85">      .setSince(&quot;5.5&quot;)</span>
+<span class="fc" id="L86">      .setChangelog(</span>
+        new Change(&quot;10.4&quot;, &quot;The response fields 'status' and 'resolution' are deprecated. Please use 'issueStatus' instead.&quot;),
+        new Change(&quot;10.4&quot;, &quot;Add 'issueStatus' field to the response.&quot;),
+        new Change(&quot;10.2&quot;, &quot;Add 'impacts', 'cleanCodeAttribute', 'cleanCodeAttributeCategory' fields to the response&quot;),
+        new Change(&quot;10.2&quot;, &quot;This endpoint is now deprecated.&quot;),
+        new Change(&quot;9.6&quot;, &quot;Response field 'ruleDescriptionContextKey' added&quot;),
+        new Change(&quot;8.8&quot;, &quot;The response field components.uuid is removed&quot;),
+        new Change(&quot;6.5&quot;, &quot;the database ids of the components are removed from the response&quot;),
+        new Change(&quot;6.5&quot;, &quot;the response field components.uuid is deprecated. Use components.key instead.&quot;))
+<span class="fc" id="L95">      .setHandler(this)</span>
+<span class="fc" id="L96">      .setDeprecatedSince(&quot;10.2&quot;)</span>
+<span class="fc" id="L97">      .setResponseExample(Resources.getResource(this.getClass(), &quot;set_type-example.json&quot;))</span>
+<span class="fc" id="L98">      .setPost(true);</span>
+
+<span class="fc" id="L100">    action.createParam(PARAM_ISSUE)</span>
+<span class="fc" id="L101">      .setDescription(&quot;Issue key&quot;)</span>
+<span class="fc" id="L102">      .setRequired(true)</span>
+<span class="fc" id="L103">      .setExampleValue(Uuids.UUID_EXAMPLE_01);</span>
+<span class="fc" id="L104">    action.createParam(PARAM_TYPE)</span>
+<span class="fc" id="L105">      .setDescription(&quot;New type&quot;)</span>
+<span class="fc" id="L106">      .setRequired(true)</span>
+<span class="fc" id="L107">      .setPossibleValues(ALL_RULE_TYPES_EXCEPT_SECURITY_HOTSPOTS);</span>
+<span class="fc" id="L108">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L112">    userSession.checkLoggedIn();</span>
+<span class="fc" id="L113">    String issueKey = request.mandatoryParam(PARAM_ISSUE);</span>
+<span class="fc" id="L114">    RuleType ruleType = RuleType.valueOf(request.mandatoryParam(PARAM_TYPE));</span>
+<span class="fc" id="L115">    try (DbSession session = dbClient.openSession(false)) {</span>
+<span class="fc" id="L116">      SearchResponseData preloadedSearchResponseData = setType(session, issueKey, ruleType);</span>
+<span class="fc" id="L117">      responseWriter.write(issueKey, preloadedSearchResponseData, request, response, true);</span>
+    }
+<span class="fc" id="L119">  }</span>
+
+  private SearchResponseData setType(DbSession session, String issueKey, RuleType ruleType) {
+<span class="fc" id="L122">    IssueDto issueDto = issueFinder.getByKey(session, issueKey);</span>
+<span class="fc" id="L123">    DefaultIssue issue = issueDto.toDefaultIssue();</span>
+
+<span class="fc" id="L125">    userSession.checkComponentUuidPermission(ISSUE_ADMIN, issue.projectUuid());</span>
+
+<span class="fc" id="L127">    IssueChangeContext context = issueChangeContextByUserBuilder(new Date(system2.now()), userSession.getUuid()).withRefreshMeasures().build();</span>
+<span class="fc bfc" id="L128" title="All 2 branches covered.">    if (issueFieldsSetter.setType(issue, ruleType, context)) {</span>
+<span class="fc" id="L129">      BranchDto branch = issueUpdater.getBranch(session, issue);</span>
+<span class="fc" id="L130">      SearchResponseData response = issueUpdater.saveIssueAndPreloadSearchResponseData(session, issueDto, issue, context, branch);</span>
+<span class="pc bpc" id="L131" title="1 of 4 branches missed.">      if (branch.getBranchType().equals(BRANCH) &amp;&amp; response.getComponentByUuid(issue.projectUuid()) != null) {</span>
+<span class="fc" id="L132">        issueChangeEventService.distributeIssueChangeEvent(issue, null, Map.of(), ruleType.name(), null, branch,</span>
+<span class="fc" id="L133">          response.getComponentByUuid(issue.projectUuid()).getKey());</span>
+      }
+<span class="fc" id="L135">      return response;</span>
+    }
+<span class="fc" id="L137">    return new SearchResponseData(issueDto);</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

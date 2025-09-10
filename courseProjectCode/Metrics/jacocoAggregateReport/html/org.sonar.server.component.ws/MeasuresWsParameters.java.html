@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MeasuresWsParameters.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.component.ws</a> &gt; <span class="el_source">MeasuresWsParameters.java</span></div><h1>MeasuresWsParameters.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.component.ws;
+
+import com.google.common.collect.ImmutableSortedSet;
+import java.util.Set;
+
+public class MeasuresWsParameters {
+  public static final String CONTROLLER_MEASURES = &quot;api/measures&quot;;
+
+  // actions
+  public static final String ACTION_COMPONENT_TREE = &quot;component_tree&quot;;
+  public static final String ACTION_COMPONENT = &quot;component&quot;;
+  public static final String ACTION_SEARCH_HISTORY = &quot;search_history&quot;;
+
+  // parameters
+  public static final String PARAM_COMPONENT = &quot;component&quot;;
+  public static final String PARAM_BRANCH = &quot;branch&quot;;
+  public static final String PARAM_PULL_REQUEST = &quot;pullRequest&quot;;
+  public static final String PARAM_STRATEGY = &quot;strategy&quot;;
+  public static final String PARAM_QUALIFIERS = &quot;qualifiers&quot;;
+  public static final String PARAM_METRICS = &quot;metrics&quot;;
+  public static final String PARAM_METRIC_KEYS = &quot;metricKeys&quot;;
+  public static final String PARAM_METRIC_SORT = &quot;metricSort&quot;;
+  public static final String PARAM_METRIC_PERIOD_SORT = &quot;metricPeriodSort&quot;;
+  public static final String PARAM_METRIC_SORT_FILTER = &quot;metricSortFilter&quot;;
+  public static final String PARAM_ADDITIONAL_FIELDS = &quot;additionalFields&quot;;
+  public static final String PARAM_PROJECT_KEYS = &quot;projectKeys&quot;;
+  public static final String PARAM_FROM = &quot;from&quot;;
+  public static final String PARAM_TO = &quot;to&quot;;
+
+  public static final String ADDITIONAL_METRICS = &quot;metrics&quot;;
+
+  public static final String ADDITIONAL_PERIOD = &quot;period&quot;;
+
+<span class="fc" id="L53">  public static final Set&lt;String&gt; ADDITIONAL_FIELDS = ImmutableSortedSet.of(ADDITIONAL_METRICS, ADDITIONAL_PERIOD);</span>
+
+  private MeasuresWsParameters() {
+    // static constants only
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

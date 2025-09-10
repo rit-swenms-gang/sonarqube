@@ -1,0 +1,574 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IssueFieldsSetter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.issue</a> &gt; <span class="el_source">IssueFieldsSetter.java</span></div><h1>IssueFieldsSetter.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.issue;
+
+import com.google.common.base.Joiner;
+import java.time.temporal.ChronoUnit;
+import java.util.Collection;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+import javax.annotation.Nullable;
+import org.sonar.api.ce.ComputeEngineSide;
+import org.sonar.api.issue.IssueStatus;
+import org.sonar.api.issue.impact.Severity;
+import org.sonar.api.issue.impact.SoftwareQuality;
+import org.sonar.api.rules.CleanCodeAttribute;
+import org.sonar.api.server.ServerSide;
+import org.sonar.api.server.rule.RuleTagFormat;
+import org.sonar.api.utils.Duration;
+import org.sonar.core.issue.DefaultImpact;
+import org.sonar.core.issue.DefaultIssue;
+import org.sonar.core.issue.DefaultIssueComment;
+import org.sonar.core.issue.IssueChangeContext;
+import org.sonar.core.rule.ImpactSeverityMapper;
+import org.sonar.core.rule.RuleType;
+import org.sonar.db.protobuf.DbIssues;
+import org.sonar.db.user.UserDto;
+import org.sonar.db.user.UserIdDto;
+
+import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.base.Strings.isNullOrEmpty;
+import static java.util.Objects.requireNonNull;
+import static org.sonar.api.server.rule.internal.ImpactMapper.convertToSoftwareQuality;
+import static org.sonar.core.rule.RuleTypeMapper.toApiRuleType;
+
+/**
+ * Updates issue fields and chooses if changes must be kept in history.
+ */
+@ServerSide
+@ComputeEngineSide
+<span class="fc" id="L61">public class IssueFieldsSetter {</span>
+
+  public static final String UNUSED = &quot;&quot;;
+  public static final String SEVERITY = &quot;severity&quot;;
+  public static final String TYPE = &quot;type&quot;;
+  public static final String CLEAN_CODE_ATTRIBUTE = &quot;cleanCodeAttribute&quot;;
+  public static final String ASSIGNEE = &quot;assignee&quot;;
+
+  /**
+   * @deprecated use {@link IssueFieldsSetter#ISSUE_STATUS} instead
+   */
+  @Deprecated(since = &quot;10.4&quot;)
+  public static final String RESOLUTION = &quot;resolution&quot;;
+  /**
+   * @deprecated use {@link IssueFieldsSetter#ISSUE_STATUS} instead
+   */
+  @Deprecated(since = &quot;10.4&quot;)
+  public static final String STATUS = &quot;status&quot;;
+  public static final String ISSUE_STATUS = &quot;issueStatus&quot;;
+  public static final String AUTHOR = &quot;author&quot;;
+  public static final String FILE = &quot;file&quot;;
+  public static final String FROM_BRANCH = &quot;from_branch&quot;;
+
+  /**
+   * It should be renamed to 'effort', but it hasn't been done to prevent a massive update in database
+   */
+  public static final String TECHNICAL_DEBT = &quot;technicalDebt&quot;;
+  public static final String LINE = &quot;line&quot;;
+  public static final String TAGS = &quot;tags&quot;;
+  public static final String CODE_VARIANTS = &quot;code_variants&quot;;
+  public static final String IMPACT_SEVERITY = &quot;impactSeverity&quot;;
+
+<span class="fc" id="L93">  private static final Joiner CHANGELOG_LIST_JOINER = Joiner.on(&quot; &quot;).skipNulls();</span>
+
+  public boolean setType(DefaultIssue issue, RuleType type, IssueChangeContext context) {
+<span class="fc bfc" id="L96" title="All 2 branches covered.">    if (!Objects.equals(type, issue.type())) {</span>
+<span class="fc" id="L97">      issue.setFieldChange(context, TYPE, issue.type(), type);</span>
+<span class="fc" id="L98">      issue.setType(type);</span>
+<span class="fc" id="L99">      issue.setUpdateDate(context.date());</span>
+<span class="fc" id="L100">      issue.setChanged(true);</span>
+<span class="fc" id="L101">      return true;</span>
+    }
+<span class="fc" id="L103">    return false;</span>
+  }
+
+  public boolean setSeverity(DefaultIssue issue, String severity, IssueChangeContext context) {
+<span class="fc bfc" id="L107" title="All 2 branches covered.">    checkState(!issue.manualSeverity(), &quot;Severity can't be changed&quot;);</span>
+<span class="fc bfc" id="L108" title="All 2 branches covered.">    if (!Objects.equals(severity, issue.severity())) {</span>
+<span class="fc" id="L109">      issue.setFieldChange(context, SEVERITY, issue.severity(), severity);</span>
+<span class="fc" id="L110">      issue.setSeverity(severity);</span>
+<span class="fc" id="L111">      issue.setUpdateDate(context.date());</span>
+<span class="fc" id="L112">      issue.setChanged(true);</span>
+<span class="fc" id="L113">      return true;</span>
+    }
+<span class="fc" id="L115">    return false;</span>
+  }
+
+  public boolean setPastSeverity(DefaultIssue issue, @Nullable String previousSeverity, IssueChangeContext context) {
+<span class="fc" id="L119">    String currentSeverity = issue.severity();</span>
+<span class="fc" id="L120">    issue.setSeverity(previousSeverity);</span>
+<span class="fc" id="L121">    return setSeverity(issue, currentSeverity, context);</span>
+  }
+
+  /**
+   * @return true if the 'severity' or 'manualSeverity' flag has been changed, else return false
+   */
+  public boolean setManualSeverity(DefaultIssue issue, String severity, IssueChangeContext context) {
+<span class="pc bpc" id="L128" title="1 of 4 branches missed.">    if (!issue.manualSeverity() || !Objects.equals(severity, issue.severity())) {</span>
+<span class="fc" id="L129">      issue.setFieldChange(context, SEVERITY, issue.severity(), severity);</span>
+<span class="fc" id="L130">      issue.setSeverity(severity);</span>
+<span class="fc" id="L131">      issue.setManualSeverity(true);</span>
+<span class="fc" id="L132">      issue.setUpdateDate(context.date());</span>
+<span class="fc" id="L133">      issue.setChanged(true);</span>
+<span class="fc" id="L134">      issue.setSendNotifications(true);</span>
+<span class="fc" id="L135">      return true;</span>
+    }
+<span class="fc" id="L137">    return false;</span>
+  }
+
+  /**
+   * @return true if the 'severity' or 'manualSeverity' flag of the Impact has been changed, else return false
+   */
+  public boolean setImpactManualSeverity(DefaultIssue issue, SoftwareQuality softwareQuality, Severity severity,
+    IssueChangeContext context) {
+<span class="fc" id="L145">    Map&lt;SoftwareQuality, Severity&gt; oldImpacts = issue.impacts();</span>
+<span class="pc bpc" id="L146" title="1 of 2 branches missed.">    if ((oldImpacts.containsKey(softwareQuality)</span>
+<span class="fc bfc" id="L147" title="All 4 branches covered.">      &amp;&amp; (!Objects.equals(oldImpacts.get(softwareQuality), severity) || !hasManualSeverity(issue, softwareQuality)))) {</span>
+<span class="fc" id="L148">      issue.addImpact(softwareQuality, severity, true);</span>
+<span class="fc" id="L149">      issue.setFieldChange(context, IMPACT_SEVERITY,</span>
+<span class="fc" id="L150">        softwareQuality + &quot;:&quot; + oldImpacts.get(softwareQuality),</span>
+        softwareQuality + &quot;:&quot; + severity);
+<span class="fc" id="L152">      issue.setUpdateDate(context.date());</span>
+<span class="fc" id="L153">      issue.setChanged(true);</span>
+<span class="fc" id="L154">      issue.setSendNotifications(true);</span>
+<span class="fc" id="L155">      return true;</span>
+    }
+<span class="fc" id="L157">    return false;</span>
+  }
+
+  private static boolean hasManualSeverity(DefaultIssue issue, SoftwareQuality softwareQuality) {
+<span class="fc" id="L161">    return issue.getImpacts().stream().filter(i -&gt; i.softwareQuality().equals(softwareQuality)).anyMatch(DefaultImpact::manualSeverity);</span>
+  }
+
+  public boolean assign(DefaultIssue issue, @Nullable UserDto user, IssueChangeContext context) {
+<span class="fc bfc" id="L165" title="All 2 branches covered.">    String assigneeUuid = user != null ? user.getUuid() : null;</span>
+<span class="fc bfc" id="L166" title="All 2 branches covered.">    if (!Objects.equals(assigneeUuid, issue.assignee())) {</span>
+<span class="fc bfc" id="L167" title="All 2 branches covered.">      String newAssigneeName = user == null ? null : user.getName();</span>
+<span class="fc" id="L168">      issue.setFieldChange(context, ASSIGNEE, UNUSED, newAssigneeName);</span>
+<span class="fc bfc" id="L169" title="All 2 branches covered.">      issue.setAssigneeUuid(user != null ? user.getUuid() : null);</span>
+<span class="fc" id="L170">      issue.setUpdateDate(context.date());</span>
+<span class="fc" id="L171">      issue.setChanged(true);</span>
+<span class="fc" id="L172">      issue.setSendNotifications(true);</span>
+<span class="fc" id="L173">      return true;</span>
+    }
+<span class="fc" id="L175">    return false;</span>
+  }
+
+  /**
+   * Used to set the assignee when it was null
+   */
+  public boolean setNewAssignee(DefaultIssue issue, @Nullable UserIdDto userId, IssueChangeContext context) {
+<span class="fc bfc" id="L182" title="All 2 branches covered.">    if (userId == null) {</span>
+<span class="fc" id="L183">      return false;</span>
+    }
+<span class="fc bfc" id="L185" title="All 2 branches covered.">    checkState(issue.assignee() == null, &quot;It's not possible to update the assignee with this method, please use assign()&quot;);</span>
+<span class="fc" id="L186">    issue.setFieldChange(context, ASSIGNEE, UNUSED, userId.getUuid());</span>
+<span class="fc" id="L187">    issue.setAssigneeUuid(userId.getUuid());</span>
+<span class="fc" id="L188">    issue.setAssigneeLogin(userId.getLogin());</span>
+<span class="fc" id="L189">    issue.setUpdateDate(context.date());</span>
+<span class="fc" id="L190">    issue.setChanged(true);</span>
+<span class="fc" id="L191">    issue.setSendNotifications(true);</span>
+<span class="fc" id="L192">    return true;</span>
+  }
+
+  public boolean unsetLine(DefaultIssue issue, IssueChangeContext context) {
+<span class="fc" id="L196">    Integer currentValue = issue.line();</span>
+<span class="fc bfc" id="L197" title="All 2 branches covered.">    if (currentValue != null) {</span>
+<span class="fc" id="L198">      issue.setFieldChange(context, LINE, currentValue, &quot;&quot;);</span>
+<span class="fc" id="L199">      issue.setLine(null);</span>
+<span class="fc" id="L200">      issue.setChanged(true);</span>
+<span class="fc" id="L201">      return true;</span>
+    }
+<span class="fc" id="L203">    return false;</span>
+  }
+
+  public boolean setPastLine(DefaultIssue issue, @Nullable Integer previousLine) {
+<span class="fc" id="L207">    Integer currentLine = issue.line();</span>
+<span class="fc" id="L208">    issue.setLine(previousLine);</span>
+<span class="fc bfc" id="L209" title="All 2 branches covered.">    if (!Objects.equals(currentLine, previousLine)) {</span>
+<span class="fc" id="L210">      issue.setLine(currentLine);</span>
+<span class="fc" id="L211">      issue.setChanged(true);</span>
+<span class="fc" id="L212">      return true;</span>
+    }
+<span class="fc" id="L214">    return false;</span>
+  }
+
+  public boolean setRuleDescriptionContextKey(DefaultIssue issue, @Nullable String previousContextKey) {
+<span class="fc" id="L218">    String currentContextKey = issue.getRuleDescriptionContextKey().orElse(null);</span>
+<span class="fc" id="L219">    issue.setRuleDescriptionContextKey(previousContextKey);</span>
+<span class="fc bfc" id="L220" title="All 2 branches covered.">    if (!Objects.equals(currentContextKey, previousContextKey)) {</span>
+<span class="fc" id="L221">      issue.setRuleDescriptionContextKey(currentContextKey);</span>
+<span class="fc" id="L222">      issue.setChanged(true);</span>
+<span class="fc" id="L223">      return true;</span>
+    }
+<span class="fc" id="L225">    return false;</span>
+  }
+
+  /**
+   * New value will be set if the locations are different, ignoring the hashes. If that's the case, we mark the issue as changed,
+   * and we also flag that the locations have changed, so that we calculate all the hashes later, in an efficient way.
+   * WARNING: It is possible that the hashes changes without the text ranges changing, but for optimization we take that risk.
+   *
+   * @see ComputeLocationHashesVisitor
+   */
+  public boolean setLocations(DefaultIssue issue, @Nullable Object locations) {
+<span class="fc bfc" id="L236" title="All 2 branches covered.">    if (!locationsEqualsIgnoreHashes(locations, issue.getLocations())) {</span>
+<span class="fc" id="L237">      issue.setLocations(locations);</span>
+<span class="fc" id="L238">      issue.setChanged(true);</span>
+<span class="fc" id="L239">      issue.setLocationsChanged(true);</span>
+<span class="fc" id="L240">      return true;</span>
+    }
+<span class="fc" id="L242">    return false;</span>
+  }
+
+  private static boolean locationsEqualsIgnoreHashes(@Nullable Object l1, @Nullable DbIssues.Locations l2) {
+<span class="pc bpc" id="L246" title="3 of 4 branches missed.">    if (l1 == null &amp;&amp; l2 == null) {</span>
+<span class="nc" id="L247">      return true;</span>
+    }
+
+<span class="pc bpc" id="L250" title="1 of 4 branches missed.">    if (l2 == null || !(l1 instanceof DbIssues.Locations)) {</span>
+<span class="fc" id="L251">      return false;</span>
+    }
+
+<span class="fc" id="L254">    DbIssues.Locations l1c = (DbIssues.Locations) l1;</span>
+<span class="fc bfc" id="L255" title="All 4 branches covered.">    if (!Objects.equals(l1c.getTextRange(), l2.getTextRange()) || l1c.getFlowCount() != l2.getFlowCount()) {</span>
+<span class="fc" id="L256">      return false;</span>
+    }
+
+<span class="fc bfc" id="L259" title="All 2 branches covered.">    for (int i = 0; i &lt; l1c.getFlowCount(); i++) {</span>
+<span class="pc bpc" id="L260" title="1 of 2 branches missed.">      if (l1c.getFlow(i).getLocationCount() != l2.getFlow(i).getLocationCount()) {</span>
+<span class="nc" id="L261">        return false;</span>
+      }
+<span class="fc bfc" id="L263" title="All 2 branches covered.">      for (int j = 0; j &lt; l1c.getFlow(i).getLocationCount(); j++) {</span>
+<span class="fc bfc" id="L264" title="All 2 branches covered.">        if (!locationEqualsIgnoreHashes(l1c.getFlow(i).getLocation(j), l2.getFlow(i).getLocation(j))) {</span>
+<span class="fc" id="L265">          return false;</span>
+        }
+      }
+    }
+<span class="fc" id="L269">    return true;</span>
+  }
+
+  private static boolean locationEqualsIgnoreHashes(DbIssues.Location l1, DbIssues.Location l2) {
+<span class="pc bpc" id="L273" title="1 of 6 branches missed.">    return Objects.equals(l1.getComponentId(), l2.getComponentId()) &amp;&amp; Objects.equals(l1.getTextRange(), l2.getTextRange()) &amp;&amp; Objects.equals(l1.getMsg(), l2.getMsg());</span>
+  }
+
+  public boolean setPastLocations(DefaultIssue issue, @Nullable Object previousLocations) {
+<span class="nc" id="L277">    Object currentLocations = issue.getLocations();</span>
+<span class="nc" id="L278">    issue.setLocations(previousLocations);</span>
+<span class="nc" id="L279">    return setLocations(issue, currentLocations);</span>
+  }
+
+  public boolean setResolution(DefaultIssue issue, @Nullable String resolution, IssueChangeContext context) {
+<span class="fc bfc" id="L283" title="All 2 branches covered.">    if (!Objects.equals(resolution, issue.resolution())) {</span>
+<span class="fc" id="L284">      issue.setFieldChange(context, RESOLUTION, issue.resolution(), resolution);</span>
+<span class="fc" id="L285">      issue.setResolution(resolution);</span>
+<span class="fc" id="L286">      issue.setUpdateDate(context.date());</span>
+<span class="fc" id="L287">      issue.setChanged(true);</span>
+<span class="fc" id="L288">      issue.setSendNotifications(true);</span>
+<span class="fc" id="L289">      return true;</span>
+    }
+<span class="fc" id="L291">    return false;</span>
+  }
+
+  public boolean setIssueStatus(DefaultIssue issue, @Nullable IssueStatus previousIssueStatus, @Nullable IssueStatus newIssueStatus, IssueChangeContext context) {
+<span class="fc bfc" id="L295" title="All 2 branches covered.">    if (!Objects.equals(newIssueStatus, previousIssueStatus)) {</span>
+      // Currently, issue status is not persisted in database, but is considered as an issue change
+<span class="fc" id="L297">      issue.setFieldChange(context, ISSUE_STATUS, previousIssueStatus, issue.issueStatus());</span>
+<span class="fc" id="L298">      return true;</span>
+    }
+<span class="fc" id="L300">    return false;</span>
+  }
+
+  public boolean setStatus(DefaultIssue issue, String status, IssueChangeContext context) {
+<span class="fc bfc" id="L304" title="All 2 branches covered.">    if (!Objects.equals(status, issue.status())) {</span>
+<span class="fc" id="L305">      issue.setFieldChange(context, STATUS, issue.status(), status);</span>
+<span class="fc" id="L306">      issue.setStatus(status);</span>
+<span class="fc" id="L307">      issue.setUpdateDate(context.date());</span>
+<span class="fc" id="L308">      issue.setChanged(true);</span>
+<span class="fc" id="L309">      issue.setSendNotifications(true);</span>
+<span class="fc" id="L310">      return true;</span>
+    }
+<span class="fc" id="L312">    return false;</span>
+  }
+
+  public boolean setAuthorLogin(DefaultIssue issue, @Nullable String authorLogin, IssueChangeContext context) {
+<span class="pc bpc" id="L316" title="1 of 2 branches missed.">    if (!Objects.equals(authorLogin, issue.authorLogin())) {</span>
+<span class="fc" id="L317">      issue.setFieldChange(context, AUTHOR, issue.authorLogin(), authorLogin);</span>
+<span class="fc" id="L318">      issue.setAuthorLogin(authorLogin);</span>
+<span class="fc" id="L319">      issue.setUpdateDate(context.date());</span>
+<span class="fc" id="L320">      issue.setChanged(true);</span>
+      // do not send notifications to prevent spam when installing the developer cockpit plugin
+<span class="fc" id="L322">      return true;</span>
+    }
+<span class="nc" id="L324">    return false;</span>
+  }
+
+  /**
+   * Used to set the author when it was null
+   */
+  public boolean setNewAuthor(DefaultIssue issue, @Nullable String newAuthorLogin, IssueChangeContext context) {
+<span class="fc bfc" id="L331" title="All 2 branches covered.">    if (isNullOrEmpty(newAuthorLogin)) {</span>
+<span class="fc" id="L332">      return false;</span>
+    }
+<span class="fc bfc" id="L334" title="All 2 branches covered.">    checkState(issue.authorLogin() == null, &quot;It's not possible to update the author with this method, please use setAuthorLogin()&quot;);</span>
+<span class="fc" id="L335">    issue.setFieldChange(context, AUTHOR, null, newAuthorLogin);</span>
+<span class="fc" id="L336">    issue.setAuthorLogin(newAuthorLogin);</span>
+<span class="fc" id="L337">    issue.setUpdateDate(context.date());</span>
+<span class="fc" id="L338">    issue.setChanged(true);</span>
+    // do not send notifications to prevent spam when installing the developer cockpit plugin
+<span class="fc" id="L340">    return true;</span>
+  }
+
+  public boolean setMessage(DefaultIssue issue, @Nullable String s, IssueChangeContext context) {
+<span class="fc bfc" id="L344" title="All 2 branches covered.">    if (!Objects.equals(s, issue.message())) {</span>
+<span class="fc" id="L345">      issue.setMessage(s);</span>
+<span class="fc" id="L346">      issue.setUpdateDate(context.date());</span>
+<span class="fc" id="L347">      issue.setChanged(true);</span>
+<span class="fc" id="L348">      return true;</span>
+    }
+<span class="fc" id="L350">    return false;</span>
+  }
+
+  public boolean setMessageFormattings(DefaultIssue issue, @Nullable Object issueMessageFormattings, IssueChangeContext context) {
+<span class="fc bfc" id="L354" title="All 2 branches covered.">    if (!messageFormattingsEqualsIgnoreHashes(issueMessageFormattings, issue.getMessageFormattings())) {</span>
+<span class="fc" id="L355">      issue.setMessageFormattings(issueMessageFormattings);</span>
+<span class="fc" id="L356">      issue.setUpdateDate(context.date());</span>
+<span class="fc" id="L357">      issue.setChanged(true);</span>
+<span class="fc" id="L358">      return true;</span>
+    }
+<span class="fc" id="L360">    return false;</span>
+  }
+
+  private static boolean messageFormattingsEqualsIgnoreHashes(@Nullable Object l1, @Nullable DbIssues.MessageFormattings l2) {
+<span class="pc bpc" id="L364" title="1 of 4 branches missed.">    if (l1 == null &amp;&amp; l2 == null) {</span>
+<span class="fc" id="L365">      return true;</span>
+    }
+
+<span class="pc bpc" id="L368" title="2 of 4 branches missed.">    if (l2 == null || !(l1 instanceof DbIssues.MessageFormattings)) {</span>
+<span class="nc" id="L369">      return false;</span>
+    }
+
+<span class="fc" id="L372">    DbIssues.MessageFormattings l1c = (DbIssues.MessageFormattings) l1;</span>
+
+<span class="pc bpc" id="L374" title="1 of 2 branches missed.">    if (!Objects.equals(l1c.getMessageFormattingCount(), l2.getMessageFormattingCount())) {</span>
+<span class="nc" id="L375">      return false;</span>
+    }
+
+<span class="fc bfc" id="L378" title="All 2 branches covered.">    for (int i = 0; i &lt; l1c.getMessageFormattingCount(); i++) {</span>
+<span class="pc bpc" id="L379" title="1 of 2 branches missed.">      if (l1c.getMessageFormatting(i).getStart() != l2.getMessageFormatting(i).getStart()</span>
+<span class="fc bfc" id="L380" title="All 2 branches covered.">        || l1c.getMessageFormatting(i).getEnd() != l2.getMessageFormatting(i).getEnd()</span>
+<span class="pc bpc" id="L381" title="1 of 2 branches missed.">        || l1c.getMessageFormatting(i).getType() != l2.getMessageFormatting(i).getType()) {</span>
+<span class="fc" id="L382">        return false;</span>
+      }
+    }
+<span class="fc" id="L385">    return true;</span>
+  }
+
+  public boolean setPastMessage(DefaultIssue issue, @Nullable String previousMessage, @Nullable Object previousMessageFormattings, IssueChangeContext context) {
+<span class="fc" id="L389">    String currentMessage = issue.message();</span>
+<span class="fc" id="L390">    DbIssues.MessageFormattings currentMessageFormattings = issue.getMessageFormattings();</span>
+<span class="fc" id="L391">    issue.setMessage(previousMessage);</span>
+<span class="fc" id="L392">    issue.setMessageFormattings(previousMessageFormattings);</span>
+<span class="fc" id="L393">    boolean changed = setMessage(issue, currentMessage, context);</span>
+<span class="fc bfc" id="L394" title="All 4 branches covered.">    return setMessageFormattings(issue, currentMessageFormattings, context) || changed;</span>
+  }
+
+  public void addComment(DefaultIssue issue, String text, IssueChangeContext context) {
+<span class="fc" id="L398">    issue.addComment(DefaultIssueComment.create(issue.key(), context.userUuid(), text));</span>
+<span class="fc" id="L399">    issue.setUpdateDate(context.date());</span>
+<span class="fc" id="L400">    issue.setChanged(true);</span>
+<span class="fc" id="L401">  }</span>
+
+  public void setPrioritizedRule(DefaultIssue issue, boolean prioritizedRule, IssueChangeContext context) {
+<span class="fc bfc" id="L404" title="All 2 branches covered.">    if (!Objects.equals(prioritizedRule, issue.isPrioritizedRule())) {</span>
+<span class="fc" id="L405">      issue.setPrioritizedRule(prioritizedRule);</span>
+<span class="pc bpc" id="L406" title="1 of 2 branches missed.">      if (!issue.isNew()) {</span>
+<span class="fc" id="L407">        issue.setUpdateDate(context.date());</span>
+<span class="fc" id="L408">        issue.setChanged(true);</span>
+      }
+    }
+<span class="fc" id="L411">  }</span>
+
+  public void setCloseDate(DefaultIssue issue, @Nullable Date d, IssueChangeContext context) {
+<span class="fc bfc" id="L414" title="All 2 branches covered.">    if (relevantDateDifference(d, issue.closeDate())) {</span>
+<span class="fc" id="L415">      issue.setCloseDate(d);</span>
+<span class="fc" id="L416">      issue.setUpdateDate(context.date());</span>
+<span class="fc" id="L417">      issue.setChanged(true);</span>
+    }
+<span class="fc" id="L419">  }</span>
+
+  public void setCreationDate(DefaultIssue issue, Date d, IssueChangeContext context) {
+<span class="nc bnc" id="L422" title="All 2 branches missed.">    if (relevantDateDifference(d, issue.creationDate())) {</span>
+<span class="nc" id="L423">      issue.setCreationDate(d);</span>
+<span class="nc" id="L424">      issue.setUpdateDate(context.date());</span>
+<span class="nc" id="L425">      issue.setChanged(true);</span>
+    }
+<span class="nc" id="L427">  }</span>
+
+  public boolean setGap(DefaultIssue issue, @Nullable Double d, IssueChangeContext context) {
+<span class="fc bfc" id="L430" title="All 2 branches covered.">    if (!Objects.equals(d, issue.gap())) {</span>
+<span class="fc" id="L431">      issue.setGap(d);</span>
+<span class="fc" id="L432">      issue.setUpdateDate(context.date());</span>
+<span class="fc" id="L433">      issue.setChanged(true);</span>
+      // Do not send notifications to prevent spam when installing the SQALE plugin,
+      // and do not complete the changelog (for the moment)
+<span class="fc" id="L436">      return true;</span>
+    }
+<span class="fc" id="L438">    return false;</span>
+  }
+
+  public boolean setPastGap(DefaultIssue issue, @Nullable Double previousGap, IssueChangeContext context) {
+<span class="fc" id="L442">    Double currentGap = issue.gap();</span>
+<span class="fc" id="L443">    issue.setGap(previousGap);</span>
+<span class="fc" id="L444">    return setGap(issue, currentGap, context);</span>
+  }
+
+  public boolean setEffort(DefaultIssue issue, @Nullable Duration value, IssueChangeContext context) {
+<span class="fc" id="L448">    Duration oldValue = issue.effort();</span>
+<span class="pc bpc" id="L449" title="1 of 2 branches missed.">    if (!Objects.equals(value, oldValue)) {</span>
+<span class="fc" id="L450">      issue.setEffort(value);</span>
+<span class="fc bfc" id="L451" title="All 4 branches covered.">      issue.setFieldChange(context, TECHNICAL_DEBT, oldValue != null ? oldValue.toMinutes() : null, value != null ? value.toMinutes() : null);</span>
+<span class="fc" id="L452">      issue.setUpdateDate(context.date());</span>
+<span class="fc" id="L453">      issue.setChanged(true);</span>
+<span class="fc" id="L454">      return true;</span>
+    }
+<span class="nc" id="L456">    return false;</span>
+  }
+
+  public boolean setPastEffort(DefaultIssue issue, @Nullable Duration previousEffort, IssueChangeContext context) {
+<span class="fc" id="L460">    Duration currentEffort = issue.effort();</span>
+<span class="fc" id="L461">    issue.setEffort(previousEffort);</span>
+<span class="fc" id="L462">    return setEffort(issue, currentEffort, context);</span>
+  }
+
+  public boolean setTags(DefaultIssue issue, Collection&lt;String&gt; tags, IssueChangeContext context) {
+<span class="fc" id="L466">    Set&lt;String&gt; newTags = RuleTagFormat.validate(tags);</span>
+
+<span class="fc" id="L468">    Set&lt;String&gt; oldTags = new HashSet&lt;&gt;(issue.tags());</span>
+<span class="pc bpc" id="L469" title="1 of 2 branches missed.">    if (!oldTags.equals(newTags)) {</span>
+<span class="fc" id="L470">      issue.setFieldChange(context, TAGS,</span>
+<span class="pc bpc" id="L471" title="1 of 2 branches missed.">        oldTags.isEmpty() ? null : CHANGELOG_LIST_JOINER.join(oldTags),</span>
+<span class="fc bfc" id="L472" title="All 2 branches covered.">        newTags.isEmpty() ? null : CHANGELOG_LIST_JOINER.join(newTags));</span>
+<span class="fc" id="L473">      issue.setTags(newTags);</span>
+<span class="fc" id="L474">      issue.setUpdateDate(context.date());</span>
+<span class="fc" id="L475">      issue.setChanged(true);</span>
+<span class="fc" id="L476">      issue.setSendNotifications(true);</span>
+<span class="fc" id="L477">      return true;</span>
+    }
+<span class="nc" id="L479">    return false;</span>
+  }
+
+  public boolean setCodeVariants(DefaultIssue issue, Set&lt;String&gt; currentCodeVariants, IssueChangeContext context) {
+<span class="fc" id="L483">    Set&lt;String&gt; newCodeVariants = getNewCodeVariants(issue);</span>
+<span class="fc bfc" id="L484" title="All 2 branches covered.">    if (!currentCodeVariants.equals(newCodeVariants)) {</span>
+<span class="fc" id="L485">      issue.setFieldChange(context, CODE_VARIANTS,</span>
+<span class="pc bpc" id="L486" title="1 of 2 branches missed.">        currentCodeVariants.isEmpty() ? null : CHANGELOG_LIST_JOINER.join(currentCodeVariants),</span>
+<span class="pc bpc" id="L487" title="1 of 2 branches missed.">        newCodeVariants.isEmpty() ? null : CHANGELOG_LIST_JOINER.join(newCodeVariants));</span>
+<span class="fc" id="L488">      issue.setCodeVariants(newCodeVariants);</span>
+<span class="fc" id="L489">      issue.setUpdateDate(context.date());</span>
+<span class="fc" id="L490">      issue.setChanged(true);</span>
+<span class="fc" id="L491">      issue.setSendNotifications(true);</span>
+<span class="fc" id="L492">      return true;</span>
+    }
+<span class="fc" id="L494">    return false;</span>
+  }
+
+  public boolean setImpacts(DefaultIssue issue, Set&lt;DefaultImpact&gt; previousImpacts, IssueChangeContext context) {
+<span class="fc" id="L498">    previousImpacts</span>
+<span class="fc" id="L499">      .stream().filter(DefaultImpact::manualSeverity)</span>
+<span class="fc" id="L500">      .forEach(i -&gt; issue.addImpact(i.softwareQuality(), i.severity(), true));</span>
+
+    // If the severity of the issue is manually set but not the impact, we need to update the impacts with the same severity.
+    // This happens for user migrating from lower than 10.8 and having already customized the rule severity
+<span class="fc bfc" id="L504" title="All 2 branches covered.">    if (issue.manualSeverity()</span>
+<span class="pc bpc" id="L505" title="1 of 2 branches missed.">      &amp;&amp; issue.severity() != null</span>
+<span class="fc bfc" id="L506" title="All 2 branches covered.">      &amp;&amp; issue.getImpacts().stream().noneMatch(DefaultImpact::manualSeverity)) {</span>
+<span class="fc" id="L507">      issue.getImpacts()</span>
+<span class="fc" id="L508">        .stream()</span>
+<span class="fc" id="L509">        .filter(i -&gt; convertToSoftwareQuality(toApiRuleType(issue.type())).equals(i.softwareQuality()))</span>
+<span class="fc" id="L510">        .forEach(i -&gt; {</span>
+<span class="fc" id="L511">          Severity newSeverity = ImpactSeverityMapper.mapImpactSeverity(issue.severity());</span>
+<span class="fc" id="L512">          issue.addImpact(i.softwareQuality(), newSeverity, true);</span>
+<span class="fc" id="L513">          issue.setFieldChange(context, IMPACT_SEVERITY,</span>
+<span class="fc" id="L514">            i.softwareQuality() + &quot;:&quot; + i.severity(),</span>
+<span class="fc" id="L515">            i.softwareQuality() + &quot;:&quot; + newSeverity);</span>
+<span class="fc" id="L516">        });</span>
+    }
+
+<span class="fc bfc" id="L519" title="All 2 branches covered.">    if (!previousImpacts.equals(issue.getImpacts())) {</span>
+<span class="fc" id="L520">      issue.setUpdateDate(context.date());</span>
+<span class="fc" id="L521">      issue.setChanged(true);</span>
+<span class="fc" id="L522">      return true;</span>
+    }
+
+<span class="fc" id="L525">    return false;</span>
+  }
+
+  public boolean setCleanCodeAttribute(DefaultIssue raw, @Nullable CleanCodeAttribute previousCleanCodeAttribute, IssueChangeContext changeContext) {
+<span class="fc" id="L529">    CleanCodeAttribute newCleanCodeAttribute = requireNonNull(raw.getCleanCodeAttribute());</span>
+<span class="fc bfc" id="L530" title="All 2 branches covered.">    if (Objects.equals(previousCleanCodeAttribute, newCleanCodeAttribute)) {</span>
+<span class="fc" id="L531">      return false;</span>
+    }
+<span class="fc" id="L533">    raw.setFieldChange(changeContext, CLEAN_CODE_ATTRIBUTE, previousCleanCodeAttribute, newCleanCodeAttribute.name());</span>
+<span class="fc" id="L534">    raw.setCleanCodeAttribute(newCleanCodeAttribute);</span>
+<span class="fc" id="L535">    raw.setUpdateDate(changeContext.date());</span>
+<span class="fc" id="L536">    raw.setChanged(true);</span>
+<span class="fc" id="L537">    return true;</span>
+
+  }
+
+  private static Set&lt;String&gt; getNewCodeVariants(DefaultIssue issue) {
+<span class="fc" id="L542">    Set&lt;String&gt; issueCodeVariants = issue.codeVariants();</span>
+<span class="pc bpc" id="L543" title="1 of 2 branches missed.">    if (issueCodeVariants == null) {</span>
+<span class="nc" id="L544">      return Set.of();</span>
+    }
+<span class="fc" id="L546">    return issueCodeVariants.stream()</span>
+<span class="fc" id="L547">      .map(String::trim)</span>
+<span class="pc bpc" id="L548" title="1 of 2 branches missed.">      .filter(s -&gt; !s.isEmpty())</span>
+<span class="fc" id="L549">      .collect(Collectors.toSet());</span>
+  }
+
+  public void setIssueComponent(DefaultIssue issue, String newComponentUuid, String newComponentKey, Date updateDate) {
+<span class="fc bfc" id="L553" title="All 2 branches covered.">    if (!Objects.equals(newComponentUuid, issue.componentUuid())) {</span>
+<span class="fc" id="L554">      issue.setComponentUuid(newComponentUuid);</span>
+<span class="fc" id="L555">      issue.setUpdateDate(updateDate);</span>
+<span class="fc" id="L556">      issue.setChanged(true);</span>
+    }
+
+    // other fields (such as module, modulePath, componentKey) are read-only and set/reset for consistency only
+<span class="fc" id="L560">    issue.setComponentKey(newComponentKey);</span>
+<span class="fc" id="L561">  }</span>
+
+  private static boolean relevantDateDifference(@Nullable Date left, @Nullable Date right) {
+<span class="fc bfc" id="L564" title="All 2 branches covered.">    return !Objects.equals(truncateMillis(left), truncateMillis(right));</span>
+  }
+
+  private static Date truncateMillis(@Nullable Date d) {
+<span class="fc bfc" id="L568" title="All 2 branches covered.">    if (d == null) {</span>
+<span class="fc" id="L569">      return null;</span>
+    }
+<span class="fc" id="L571">    return Date.from(d.toInstant().truncatedTo(ChronoUnit.SECONDS));</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

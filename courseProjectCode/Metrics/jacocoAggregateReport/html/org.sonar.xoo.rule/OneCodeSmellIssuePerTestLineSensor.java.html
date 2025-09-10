@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OneCodeSmellIssuePerTestLineSensor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.xoo.rule</a> &gt; <span class="el_source">OneCodeSmellIssuePerTestLineSensor.java</span></div><h1>OneCodeSmellIssuePerTestLineSensor.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.xoo.rule;
+
+import org.sonar.api.batch.fs.FilePredicates;
+import org.sonar.api.batch.fs.FileSystem;
+import org.sonar.api.batch.fs.InputFile;
+import org.sonar.api.batch.fs.InputFile.Type;
+import org.sonar.api.batch.fs.TextRange;
+import org.sonar.api.batch.sensor.Sensor;
+import org.sonar.api.batch.sensor.SensorContext;
+import org.sonar.api.batch.sensor.SensorDescriptor;
+import org.sonar.api.batch.sensor.issue.NewIssue;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.xoo.Xoo;
+import org.sonar.xoo.Xoo2;
+
+<span class="fc" id="L35">public class OneCodeSmellIssuePerTestLineSensor implements Sensor {</span>
+
+  public static final String RULE_KEY = &quot;OneCodeSmellIssuePerTestLine&quot;;
+
+  @Override
+  public void describe(SensorDescriptor descriptor) {
+<span class="fc" id="L41">    descriptor</span>
+<span class="fc" id="L42">      .name(&quot;One Code Smell Issue Per Line of Test File&quot;)</span>
+<span class="fc" id="L43">      .onlyOnFileType(Type.TEST)</span>
+<span class="fc" id="L44">      .onlyOnLanguages(Xoo.KEY, Xoo2.KEY)</span>
+<span class="fc" id="L45">      .createIssuesForRuleRepositories(XooRulesDefinition.XOO_REPOSITORY, XooRulesDefinition.XOO2_REPOSITORY);</span>
+<span class="fc" id="L46">  }</span>
+
+  @Override
+  public void execute(SensorContext context) {
+<span class="fc" id="L50">    analyse(context, Xoo.KEY, XooRulesDefinition.XOO_REPOSITORY);</span>
+<span class="fc" id="L51">  }</span>
+
+  private void analyse(SensorContext context, String language, String repo) {
+<span class="fc" id="L54">    FileSystem fs = context.fileSystem();</span>
+<span class="fc" id="L55">    FilePredicates p = fs.predicates();</span>
+<span class="fc bfc" id="L56" title="All 2 branches covered.">    for (InputFile file : fs.inputFiles(p.and(p.hasLanguages(language), p.hasType(Type.TEST)))) {</span>
+<span class="fc" id="L57">      createIssues(file, context, repo);</span>
+<span class="fc" id="L58">    }</span>
+<span class="fc" id="L59">  }</span>
+
+  private static void createIssues(InputFile file, SensorContext context, String repo) {
+<span class="fc" id="L62">    RuleKey ruleKey = RuleKey.of(repo, RULE_KEY);</span>
+<span class="fc bfc" id="L63" title="All 2 branches covered.">    for (int line = 1; line &lt;= file.lines(); line++) {</span>
+<span class="fc" id="L64">      TextRange text = file.selectLine(line);</span>
+      // do not count empty lines, which can be a pain with end-of-file return
+<span class="fc bfc" id="L66" title="All 2 branches covered.">      if (text.end().lineOffset() == 0) {</span>
+<span class="fc" id="L67">        continue;</span>
+      }
+<span class="fc" id="L69">      NewIssue newIssue = context.newIssue();</span>
+<span class="fc" id="L70">      newIssue</span>
+<span class="fc" id="L71">        .forRule(ruleKey)</span>
+<span class="fc" id="L72">        .at(newIssue.newLocation()</span>
+<span class="fc" id="L73">          .on(file)</span>
+<span class="fc" id="L74">          .at(text)</span>
+<span class="fc" id="L75">          .message(&quot;This code smell issue is generated on each line of a test file&quot;))</span>
+<span class="fc" id="L76">        .save();</span>
+    }
+<span class="fc" id="L78">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

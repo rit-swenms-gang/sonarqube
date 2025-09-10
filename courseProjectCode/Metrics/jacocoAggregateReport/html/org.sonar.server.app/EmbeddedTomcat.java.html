@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EmbeddedTomcat.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.app</a> &gt; <span class="el_source">EmbeddedTomcat.java</span></div><h1>EmbeddedTomcat.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.app;
+
+import com.google.common.base.Throwables;
+import java.io.File;
+import java.util.concurrent.CountDownLatch;
+import org.apache.catalina.LifecycleException;
+import org.apache.catalina.connector.Connector;
+import org.apache.catalina.core.StandardContext;
+import org.apache.catalina.startup.Tomcat;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.process.Props;
+
+import static org.sonar.core.util.FileUtils.deleteQuietly;
+import static org.sonar.process.ProcessProperties.Property.PATH_TEMP;
+
+class EmbeddedTomcat {
+
+<span class="fc" id="L38">  private static final Logger LOGGER = LoggerFactory.getLogger(EmbeddedTomcat.class);</span>
+
+  private final Props props;
+  private final TomcatHttpConnectorFactory tomcatHttpConnectorFactory;
+<span class="fc" id="L42">  private Tomcat tomcat = null;</span>
+  private volatile StandardContext webappContext;
+<span class="fc" id="L44">  private final CountDownLatch stopLatch = new CountDownLatch(1);</span>
+
+<span class="fc" id="L46">  EmbeddedTomcat(Props props, TomcatHttpConnectorFactory tomcatHttpConnectorFactory) {</span>
+<span class="fc" id="L47">    this.props = props;</span>
+<span class="fc" id="L48">    this.tomcatHttpConnectorFactory = tomcatHttpConnectorFactory;</span>
+<span class="fc" id="L49">  }</span>
+
+  void start() {
+    // '%2F' (slash /) and '%5C' (backslash \) are permitted as path delimiters in URLs
+<span class="fc" id="L53">    System.setProperty(&quot;org.apache.tomcat.util.buf.UDecoder.ALLOW_ENCODED_SLASH&quot;, &quot;true&quot;);</span>
+
+<span class="fc" id="L55">    System.setProperty(&quot;org.apache.catalina.startup.EXIT_ON_INIT_FAILURE&quot;, &quot;true&quot;);</span>
+    // prevent Tomcat from shutting down our logging when stopping
+<span class="fc" id="L57">    System.setProperty(&quot;logbackDisableServletContainerInitializer&quot;, &quot;true&quot;);</span>
+
+<span class="fc" id="L59">    tomcat = new Tomcat();</span>
+    // Initialize directories
+<span class="fc" id="L61">    String basedir = tomcatBasedir().getAbsolutePath();</span>
+<span class="fc" id="L62">    tomcat.setBaseDir(basedir);</span>
+<span class="fc" id="L63">    tomcat.getHost().setAppBase(basedir);</span>
+<span class="fc" id="L64">    tomcat.getHost().setAutoDeploy(false);</span>
+<span class="fc" id="L65">    tomcat.getHost().setCreateDirs(false);</span>
+<span class="fc" id="L66">    tomcat.getHost().setDeployOnStartup(true);</span>
+<span class="fc" id="L67">    new TomcatErrorHandling().configure(tomcat);</span>
+<span class="fc" id="L68">    new TomcatAccessLog().configure(tomcat, props);</span>
+<span class="fc" id="L69">    tomcat.getService().addConnector(tomcatHttpConnectorFactory.createConnector(props));</span>
+<span class="fc" id="L70">    webappContext = new TomcatContexts().configure(tomcat, props);</span>
+    try {
+<span class="fc" id="L72">      tomcat.start();</span>
+<span class="fc" id="L73">      validateConnectorScheme();</span>
+<span class="nc" id="L74">    } catch (LifecycleException e) {</span>
+<span class="nc" id="L75">      LOGGER.error(&quot;Failed to start web server&quot;, e);</span>
+<span class="nc" id="L76">      Throwables.propagate(e);</span>
+<span class="fc" id="L77">    }</span>
+<span class="fc" id="L78">  }</span>
+
+  private File tomcatBasedir() {
+<span class="fc" id="L81">    return new File(props.value(PATH_TEMP.getKey()), &quot;tc&quot;);</span>
+  }
+
+  private void validateConnectorScheme() {
+<span class="fc" id="L85">    Connector[] connectors = tomcat.getService().findConnectors();</span>
+<span class="fc bfc" id="L86" title="All 2 branches covered.">    for (Connector connector : connectors) {</span>
+<span class="fc bfc" id="L87" title="All 2 branches covered.">      if (!connector.getScheme().equals(&quot;http&quot;)) {</span>
+<span class="fc" id="L88">        throw new IllegalArgumentException(&quot;Unsupported connector: &quot; + connector);</span>
+      }
+    }
+<span class="fc" id="L91">  }</span>
+
+  Status getStatus() {
+<span class="fc bfc" id="L94" title="All 2 branches covered.">    if (webappContext == null) {</span>
+<span class="fc" id="L95">      return Status.DOWN;</span>
+    }
+<span class="pc bpc" id="L97" title="2 of 3 branches missed.">    return switch (webappContext.getState()) {</span>
+<span class="nc" id="L98">      case NEW, INITIALIZING, INITIALIZED, STARTING_PREP, STARTING -&gt; Status.DOWN;</span>
+<span class="fc" id="L99">      case STARTED -&gt; Status.UP;</span>
+      default -&gt;
+        // problem, stopped or failed
+<span class="nc" id="L102">        Status.FAILED;</span>
+    };
+  }
+
+<span class="fc" id="L106">  public enum Status {</span>
+<span class="fc" id="L107">    DOWN, UP, FAILED</span>
+  }
+
+  void terminate() {
+    try {
+<span class="pc bpc" id="L112" title="1 of 2 branches missed.">      if (tomcat.getServer().getState().isAvailable()) {</span>
+        try {
+<span class="fc" id="L114">          tomcat.stop();</span>
+<span class="fc" id="L115">          tomcat.destroy();</span>
+<span class="nc" id="L116">        } catch (Exception e) {</span>
+<span class="nc" id="L117">          LOGGER.warn(&quot;Failed to stop web server&quot;, e);</span>
+<span class="fc" id="L118">        }</span>
+      }
+<span class="fc" id="L120">      deleteQuietly(tomcatBasedir());</span>
+    } finally {
+<span class="fc" id="L122">      stopLatch.countDown();</span>
+    }
+<span class="fc" id="L124">  }</span>
+
+  void awaitTermination() {
+    try {
+      // calling tomcat.getServer().await() might block forever if stop fails for whatever reason
+<span class="nc" id="L129">      stopLatch.await();</span>
+<span class="nc" id="L130">    } catch (InterruptedException e) {</span>
+      // quit
+<span class="nc" id="L132">    }</span>
+<span class="nc" id="L133">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

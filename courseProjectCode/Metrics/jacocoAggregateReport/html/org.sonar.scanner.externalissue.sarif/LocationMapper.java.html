@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LocationMapper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.externalissue.sarif</a> &gt; <span class="el_source">LocationMapper.java</span></div><h1>LocationMapper.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.externalissue.sarif;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
+import java.io.File;
+import java.io.IOException;
+import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+import javax.annotation.Nullable;
+import org.apache.commons.lang.StringUtils;
+import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.batch.fs.InputFile;
+import org.sonar.api.batch.fs.internal.predicates.AbstractFilePredicate;
+import org.sonar.api.batch.sensor.SensorContext;
+import org.sonar.api.batch.sensor.issue.NewIssueLocation;
+import org.sonar.api.notifications.AnalysisWarnings;
+import org.sonar.api.scanner.ScannerSide;
+import org.sonar.sarif.pojo.ArtifactLocation;
+import org.sonar.sarif.pojo.Location;
+import org.sonar.sarif.pojo.PhysicalLocation;
+
+import static org.sonar.api.utils.Preconditions.checkArgument;
+
+@ScannerSide
+public class LocationMapper {
+<span class="fc" id="L52">  private static final Logger LOG = LoggerFactory.getLogger(LocationMapper.class);</span>
+
+  private static final int CACHE_SIZE = 500;
+  private static final int CACHE_EXPIRY = 60;
+
+  private final SensorContext sensorContext;
+  private final RegionMapper regionMapper;
+  private final AnalysisWarnings analysisWarnings;
+
+<span class="fc" id="L61">  LoadingCache&lt;String, Optional&lt;InputFile&gt;&gt; inputFileCache = CacheBuilder.newBuilder()</span>
+<span class="fc" id="L62">    .maximumSize(CACHE_SIZE)</span>
+<span class="fc" id="L63">    .expireAfterAccess(CACHE_EXPIRY, TimeUnit.SECONDS)</span>
+<span class="fc" id="L64">    .concurrencyLevel(Runtime.getRuntime().availableProcessors())</span>
+<span class="fc" id="L65">    .build(getCacheLoader());</span>
+
+<span class="fc" id="L67">  LocationMapper(SensorContext sensorContext, RegionMapper regionMapper, AnalysisWarnings analysisWarnings) {</span>
+<span class="fc" id="L68">    this.sensorContext = sensorContext;</span>
+<span class="fc" id="L69">    this.regionMapper = regionMapper;</span>
+<span class="fc" id="L70">    this.analysisWarnings = analysisWarnings;</span>
+<span class="fc" id="L71">  }</span>
+
+  void fillIssueInProjectLocation(NewIssueLocation newIssueLocation) {
+<span class="nc" id="L74">    newIssueLocation</span>
+<span class="nc" id="L75">      .on(sensorContext.project());</span>
+<span class="nc" id="L76">  }</span>
+
+  boolean fillIssueInFileLocation(NewIssueLocation newIssueLocation, Location location) {
+<span class="fc" id="L79">    PhysicalLocation physicalLocation = location.getPhysicalLocation();</span>
+
+<span class="fc" id="L81">    String fileUri = getFileUriOrThrow(location);</span>
+<span class="fc" id="L82">    Optional&lt;InputFile&gt; file = findFile(fileUri);</span>
+<span class="fc bfc" id="L83" title="All 2 branches covered.">    if (file.isEmpty()) {</span>
+<span class="fc" id="L84">      String unresolvedLocationWarning = String.format(&quot;Unable to resolve Issue location from SARIF physical location %s. Falling back to the project location.&quot;, fileUri);</span>
+<span class="fc" id="L85">      analysisWarnings.addUnique(unresolvedLocationWarning);</span>
+<span class="fc" id="L86">      LOG.warn(unresolvedLocationWarning);</span>
+<span class="fc" id="L87">      return false;</span>
+    }
+<span class="fc" id="L89">    InputFile inputFile = file.get();</span>
+<span class="fc" id="L90">    newIssueLocation.on(inputFile);</span>
+<span class="fc" id="L91">    regionMapper.mapRegion(physicalLocation.getRegion(), inputFile).ifPresent(newIssueLocation::at);</span>
+<span class="fc" id="L92">    return true;</span>
+  }
+
+  private static String getFileUriOrThrow(Location location) {
+<span class="fc" id="L96">    PhysicalLocation physicalLocation = location.getPhysicalLocation();</span>
+<span class="fc" id="L97">    checkArgument(hasUriFieldPopulated(physicalLocation), &quot;The field location.physicalLocation.artifactLocation.uri is not set.&quot;);</span>
+<span class="fc" id="L98">    return physicalLocation.getArtifactLocation().getUri();</span>
+  }
+
+  private static boolean hasUriFieldPopulated(@Nullable PhysicalLocation location) {
+<span class="fc" id="L102">    return Optional.ofNullable(location).map(PhysicalLocation::getArtifactLocation).map(ArtifactLocation::getUri).isPresent();</span>
+  }
+
+  private Optional&lt;InputFile&gt; findFile(String filePath) {
+<span class="fc" id="L106">    return inputFileCache.getUnchecked(filePath);</span>
+  }
+
+  private CacheLoader&lt;String, Optional&lt;InputFile&gt;&gt; getCacheLoader() {
+<span class="fc" id="L110">    return new CacheLoader&lt;&gt;() {</span>
+      @NotNull
+      @Override
+      public Optional&lt;InputFile&gt; load(final String filePath) {
+<span class="fc" id="L114">        return computeInputFile(filePath);</span>
+      }
+    };
+  }
+
+  private Optional&lt;InputFile&gt; computeInputFile(String key) {
+    // we use a custom predicate (which is not optimized) because fileSystem().predicates().is() doesn't handle symlinks correctly
+<span class="fc" id="L121">    return Optional.ofNullable(sensorContext.fileSystem().inputFile(new LocationMapper.IsPredicate(getFileFromAbsoluteUriOrPath(key).toPath())));</span>
+  }
+
+  private static File getFileFromAbsoluteUriOrPath(String filePath) {
+<span class="fc" id="L125">    URI uri = URI.create(filePath);</span>
+<span class="fc bfc" id="L126" title="All 2 branches covered.">    if (uri.isAbsolute()) {</span>
+<span class="fc" id="L127">      return getFileFromAbsoluteUri(filePath, uri);</span>
+    } else {
+<span class="fc" id="L129">      return new File(filePath);</span>
+    }
+  }
+
+  @NotNull
+  private static File getFileFromAbsoluteUri(String filePath, URI uri) {
+<span class="fc" id="L135">    String path = uri.getPath();</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">    if (StringUtils.isNotBlank(path)) {</span>
+<span class="fc" id="L137">      return new File(path);</span>
+    } else {
+<span class="fc" id="L139">      throw new IllegalArgumentException(&quot;Invalid file scheme URI: &quot; + filePath);</span>
+    }
+  }
+
+  @VisibleForTesting
+  static class IsPredicate extends AbstractFilePredicate {
+    private final Path path;
+
+<span class="fc" id="L147">    public IsPredicate(Path path) {</span>
+<span class="fc" id="L148">      this.path = path;</span>
+<span class="fc" id="L149">    }</span>
+
+    @Override
+    public boolean apply(InputFile inputFile) {
+      try {
+<span class="fc" id="L154">        return Files.isSameFile(path, inputFile.path());</span>
+<span class="fc" id="L155">      } catch (IOException e) {</span>
+<span class="fc" id="L156">        return false;</span>
+      }
+    }
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

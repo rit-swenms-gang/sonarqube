@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SearchOptions.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.es</a> &gt; <span class="el_source">SearchOptions.java</span></div><h1>SearchOptions.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.es;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import javax.annotation.Nullable;
+import org.apache.commons.lang3.StringUtils;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.api.utils.text.JsonWriter;
+
+import static com.google.common.base.Preconditions.checkArgument;
+
+/**
+ * Various Elasticsearch request options: paging, fields and facets
+ */
+<span class="fc" id="L37">public class SearchOptions {</span>
+
+  public static final int DEFAULT_OFFSET = 0;
+  public static final int DEFAULT_LIMIT = 10;
+  public static final int MAX_PAGE_SIZE = 500;
+  private static final int MAX_RETURNABLE_RESULTS = 10_000;
+
+<span class="fc" id="L44">  private int offset = DEFAULT_OFFSET;</span>
+<span class="fc" id="L45">  private int limit = DEFAULT_LIMIT;</span>
+<span class="fc" id="L46">  private final Set&lt;String&gt; facets = new LinkedHashSet&lt;&gt;();</span>
+<span class="fc" id="L47">  private final Set&lt;String&gt; fieldsToReturn = new HashSet&lt;&gt;();</span>
+
+  /**
+   * Offset of the first result to return. Defaults to {@link #DEFAULT_OFFSET}
+   */
+  public int getOffset() {
+<span class="fc" id="L53">    return offset;</span>
+  }
+
+  /**
+   * Sets the offset of the first result to return (zero-based).
+   */
+  public SearchOptions setOffset(int offset) {
+<span class="pc bpc" id="L60" title="1 of 2 branches missed.">    checkArgument(offset &gt;= 0, &quot;Offset must be positive&quot;);</span>
+<span class="fc" id="L61">    this.offset = offset;</span>
+<span class="fc" id="L62">    return this;</span>
+  }
+
+  /**
+   * Set offset and limit according to page approach
+   */
+  public SearchOptions setPage(int page, int pageSize) {
+<span class="fc bfc" id="L69" title="All 2 branches covered.">    checkArgument(page &gt;= 1, &quot;Page must be greater or equal to 1 (got &quot; + page + &quot;)&quot;);</span>
+<span class="fc" id="L70">    setLimit(pageSize);</span>
+<span class="fc" id="L71">    int lastResultIndex = page * pageSize;</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">    checkArgument(lastResultIndex &lt;= MAX_RETURNABLE_RESULTS, &quot;Can return only the first %s results. %sth result asked.&quot;, MAX_RETURNABLE_RESULTS, lastResultIndex);</span>
+<span class="fc" id="L73">    setOffset(lastResultIndex - pageSize);</span>
+<span class="fc" id="L74">    return this;</span>
+  }
+
+  public int getPage() {
+<span class="pc bpc" id="L78" title="1 of 2 branches missed.">    return limit &gt; 0 ? (int) Math.ceil((double) (offset + 1) / (double) limit) : 0;</span>
+  }
+
+  /**
+   * Limit on the number of results to return. Defaults to {@link #DEFAULT_LIMIT}.
+   */
+  public int getLimit() {
+<span class="fc" id="L85">    return limit;</span>
+  }
+
+  /**
+   * Sets the limit on the number of results to return.
+   */
+  public SearchOptions setLimit(int limit) {
+<span class="fc bfc" id="L92" title="All 4 branches covered.">    checkArgument(limit &gt; 0 &amp;&amp; limit &lt;= MAX_PAGE_SIZE, &quot;Page size must be between 1 and &quot; + MAX_PAGE_SIZE + &quot; (got &quot; + limit + &quot;)&quot;);</span>
+<span class="fc" id="L93">    this.limit = limit;</span>
+<span class="fc" id="L94">    return this;</span>
+  }
+
+  /**
+   * Lists selected facets.
+   */
+  public Collection&lt;String&gt; getFacets() {
+<span class="fc" id="L101">    return facets;</span>
+  }
+
+  /**
+   * Selects facets to return for the domain.
+   */
+  public SearchOptions addFacets(@Nullable Collection&lt;String&gt; f) {
+<span class="pc bpc" id="L108" title="1 of 2 branches missed.">    if (f != null) {</span>
+<span class="fc" id="L109">      this.facets.addAll(f);</span>
+    }
+<span class="fc" id="L111">    return this;</span>
+  }
+
+  public SearchOptions addFacets(String... array) {
+<span class="fc" id="L115">    Collections.addAll(facets, array);</span>
+<span class="fc" id="L116">    return this;</span>
+  }
+
+  public Set&lt;String&gt; getFields() {
+<span class="fc" id="L120">    return fieldsToReturn;</span>
+  }
+
+  public SearchOptions addFields(@Nullable Collection&lt;String&gt; c) {
+<span class="fc bfc" id="L124" title="All 2 branches covered.">    if (c != null) {</span>
+<span class="fc bfc" id="L125" title="All 2 branches covered.">      for (String s : c) {</span>
+<span class="pc bpc" id="L126" title="1 of 2 branches missed.">        if (StringUtils.isNotBlank(s)) {</span>
+<span class="fc" id="L127">          fieldsToReturn.add(s);</span>
+        }
+<span class="fc" id="L129">      }</span>
+    }
+<span class="fc" id="L131">    return this;</span>
+  }
+
+  public SearchOptions writeJson(JsonWriter json, long totalHits) {
+<span class="fc" id="L135">    json.prop(&quot;total&quot;, totalHits);</span>
+<span class="fc" id="L136">    json.prop(WebService.Param.PAGE, getPage());</span>
+<span class="fc" id="L137">    json.prop(WebService.Param.PAGE_SIZE, getLimit());</span>
+<span class="fc" id="L138">    return this;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EmbeddedDatabase.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform.db</a> &gt; <span class="el_source">EmbeddedDatabase.java</span></div><h1>EmbeddedDatabase.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform.db;
+
+import java.io.File;
+import java.net.InetAddress;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import org.h2.Driver;
+import org.h2.tools.Server;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.Startable;
+import org.sonar.api.config.Configuration;
+import org.sonar.api.utils.System2;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.lang.String.format;
+import static org.apache.commons.lang3.StringUtils.isNotEmpty;
+import static org.sonar.process.ProcessProperties.Property.JDBC_EMBEDDED_PORT;
+import static org.sonar.process.ProcessProperties.Property.JDBC_PASSWORD;
+import static org.sonar.process.ProcessProperties.Property.JDBC_URL;
+import static org.sonar.process.ProcessProperties.Property.JDBC_USERNAME;
+import static org.sonar.process.ProcessProperties.Property.PATH_DATA;
+
+public class EmbeddedDatabase implements Startable {
+  private static final String IGNORED_KEYWORDS_OPTION = &quot;;NON_KEYWORDS=VALUE&quot;;
+<span class="fc" id="L45">  private static final Logger LOG = LoggerFactory.getLogger(EmbeddedDatabase.class);</span>
+
+  private final Configuration config;
+  private final System2 system2;
+  private Server server;
+
+<span class="fc" id="L51">  public EmbeddedDatabase(Configuration config, System2 system2) {</span>
+<span class="fc" id="L52">    this.config = config;</span>
+<span class="fc" id="L53">    this.system2 = system2;</span>
+<span class="fc" id="L54">  }</span>
+
+  @Override
+  public void start() {
+<span class="fc" id="L58">    File dbHome = new File(getRequiredSetting(PATH_DATA.getKey()));</span>
+<span class="pc bpc" id="L59" title="1 of 2 branches missed.">    if (!dbHome.exists()) {</span>
+<span class="nc" id="L60">      dbHome.mkdirs();</span>
+    }
+
+<span class="fc" id="L63">    startServer(dbHome);</span>
+<span class="fc" id="L64">  }</span>
+
+  private void startServer(File dbHome) {
+<span class="fc" id="L67">    String url = getRequiredSetting(JDBC_URL.getKey());</span>
+<span class="fc" id="L68">    String port = getRequiredSetting(JDBC_EMBEDDED_PORT.getKey());</span>
+<span class="fc" id="L69">    String user = getSetting(JDBC_USERNAME.getKey());</span>
+<span class="fc" id="L70">    String password = getSetting(JDBC_PASSWORD.getKey());</span>
+    try {
+      // Db is used only by web server and compute engine. No need
+      // to make it accessible from outside.
+<span class="fc" id="L74">      system2.setProperty(&quot;h2.bindAddress&quot;, InetAddress.getLoopbackAddress().getHostAddress());</span>
+
+<span class="pc bpc" id="L76" title="1 of 2 branches missed.">      if (url.contains(&quot;/mem:&quot;)) {</span>
+<span class="nc" id="L77">        server = Server.createTcpServer(&quot;-tcpPort&quot;, port, &quot;-baseDir&quot;, dbHome.getAbsolutePath());</span>
+      } else {
+<span class="fc" id="L79">        createDatabase(dbHome, user, password);</span>
+<span class="fc" id="L80">        server = Server.createTcpServer(&quot;-tcpPort&quot;, port, &quot;-ifExists&quot;, &quot;-baseDir&quot;, dbHome.getAbsolutePath());</span>
+      }
+
+<span class="fc" id="L83">      LOG.info(&quot;Starting embedded database on port {} with url {}&quot;, server.getPort(), url);</span>
+<span class="fc" id="L84">      server.start();</span>
+
+<span class="fc" id="L86">      LOG.info(&quot;Embedded database started. Data stored in: {}&quot;, dbHome.getAbsolutePath());</span>
+<span class="nc" id="L87">    } catch (SQLException e) {</span>
+<span class="nc" id="L88">      throw new IllegalStateException(&quot;Unable to start database&quot;, e);</span>
+<span class="fc" id="L89">    }</span>
+<span class="fc" id="L90">  }</span>
+
+  @Override
+  public void stop() {
+<span class="fc bfc" id="L94" title="All 2 branches covered.">    if (server != null) {</span>
+<span class="fc" id="L95">      server.stop();</span>
+<span class="fc" id="L96">      server = null;</span>
+<span class="fc" id="L97">      LOG.info(&quot;Embedded database stopped&quot;);</span>
+    }
+<span class="fc" id="L99">  }</span>
+
+  private String getRequiredSetting(String property) {
+<span class="fc" id="L102">    String value = config.get(property).orElse(&quot;&quot;);</span>
+<span class="fc" id="L103">    checkArgument(isNotEmpty(value), &quot;Missing property %s&quot;, property);</span>
+<span class="fc" id="L104">    return value;</span>
+  }
+
+  private String getSetting(String name) {
+<span class="fc" id="L108">    return config.get(name).orElse(&quot;&quot;);</span>
+  }
+
+  private static void createDatabase(File dbHome, String user, String password) throws SQLException {
+<span class="fc" id="L112">    String url = format(&quot;jdbc:h2:%s/sonar;USER=%s;PASSWORD=%s%s&quot;, dbHome.getAbsolutePath(), user, password, IGNORED_KEYWORDS_OPTION);</span>
+
+<span class="fc" id="L114">    DriverManager.registerDriver(new Driver());</span>
+<span class="fc" id="L115">    DriverManager.getConnection(url).close();</span>
+<span class="fc" id="L116">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

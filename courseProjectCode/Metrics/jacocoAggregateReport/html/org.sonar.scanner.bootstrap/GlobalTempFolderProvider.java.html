@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GlobalTempFolderProvider.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.bootstrap</a> &gt; <span class="el_source">GlobalTempFolderProvider.java</span></div><h1>GlobalTempFolderProvider.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.bootstrap;
+
+import java.io.IOException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.concurrent.TimeUnit;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.CoreProperties;
+import org.sonar.api.impl.utils.DefaultTempFolder;
+import org.sonar.api.utils.TempFolder;
+import org.springframework.context.annotation.Bean;
+
+import static org.sonar.core.util.FileUtils.deleteQuietly;
+
+<span class="fc" id="L39">public class GlobalTempFolderProvider {</span>
+<span class="fc" id="L40">  private static final Logger LOG = LoggerFactory.getLogger(GlobalTempFolderProvider.class);</span>
+<span class="fc" id="L41">  private static final long CLEAN_MAX_AGE = TimeUnit.DAYS.toMillis(21);</span>
+  static final String TMP_NAME_PREFIX = &quot;.sonartmp_&quot;;
+
+  @Bean(&quot;GlobalTempFolder&quot;)
+  public TempFolder provide(ScannerProperties scannerProps, SonarUserHome userHome) {
+<span class="fc" id="L46">    var workingPathName = StringUtils.defaultIfBlank(scannerProps.property(CoreProperties.GLOBAL_WORKING_DIRECTORY), CoreProperties.GLOBAL_WORKING_DIRECTORY_DEFAULT_VALUE);</span>
+<span class="fc" id="L47">    var workingPath = Paths.get(workingPathName);</span>
+
+<span class="fc bfc" id="L49" title="All 2 branches covered.">    if (!workingPath.isAbsolute()) {</span>
+<span class="fc" id="L50">      var home = userHome.getPath();</span>
+<span class="fc" id="L51">      workingPath = home.resolve(workingPath).normalize();</span>
+    }
+    try {
+<span class="fc" id="L54">      cleanTempFolders(workingPath);</span>
+<span class="nc" id="L55">    } catch (IOException e) {</span>
+<span class="nc" id="L56">      LOG.error(String.format(&quot;failed to clean global working directory: %s&quot;, workingPath), e);</span>
+<span class="fc" id="L57">    }</span>
+<span class="fc" id="L58">    var tempDir = createTempFolder(workingPath);</span>
+<span class="fc" id="L59">    return new DefaultTempFolder(tempDir.toFile(), true);</span>
+
+  }
+
+  private static Path createTempFolder(Path workingPath) {
+    try {
+<span class="fc" id="L65">      Path realPath = workingPath;</span>
+<span class="fc bfc" id="L66" title="All 2 branches covered.">      if (Files.isSymbolicLink(realPath)) {</span>
+<span class="fc" id="L67">        realPath = realPath.toRealPath();</span>
+      }
+<span class="fc" id="L69">      Files.createDirectories(realPath);</span>
+<span class="nc" id="L70">    } catch (IOException e) {</span>
+<span class="nc" id="L71">      throw new IllegalStateException(&quot;Failed to create working path: &quot; + workingPath, e);</span>
+<span class="fc" id="L72">    }</span>
+
+    try {
+<span class="fc" id="L75">      return Files.createTempDirectory(workingPath, TMP_NAME_PREFIX);</span>
+<span class="nc" id="L76">    } catch (IOException e) {</span>
+<span class="nc" id="L77">      throw new IllegalStateException(&quot;Failed to create temporary folder in &quot; + workingPath, e);</span>
+    }
+  }
+
+  private static void cleanTempFolders(Path path) throws IOException {
+<span class="fc bfc" id="L82" title="All 2 branches covered.">    if (Files.exists(path)) {</span>
+<span class="fc" id="L83">      try (DirectoryStream&lt;Path&gt; stream = Files.newDirectoryStream(path, new CleanFilter())) {</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">        for (Path p : stream) {</span>
+<span class="fc" id="L85">          deleteQuietly(p.toFile());</span>
+<span class="fc" id="L86">        }</span>
+      }
+    }
+<span class="fc" id="L89">  }</span>
+
+  private static class CleanFilter implements DirectoryStream.Filter&lt;Path&gt; {
+    @Override
+    public boolean accept(Path path) {
+<span class="pc bpc" id="L94" title="1 of 2 branches missed.">      if (!Files.exists(path)) {</span>
+<span class="nc" id="L95">        return false;</span>
+      }
+
+<span class="pc bpc" id="L98" title="1 of 2 branches missed.">      if (!path.getFileName().toString().startsWith(TMP_NAME_PREFIX)) {</span>
+<span class="nc" id="L99">        return false;</span>
+      }
+
+<span class="fc" id="L102">      long threshold = System.currentTimeMillis() - CLEAN_MAX_AGE;</span>
+
+      // we could also check the timestamp in the name, instead
+      BasicFileAttributes attrs;
+
+      try {
+<span class="fc" id="L108">        attrs = Files.readAttributes(path, BasicFileAttributes.class);</span>
+<span class="nc" id="L109">      } catch (IOException ioe) {</span>
+<span class="nc" id="L110">        LOG.error(String.format(&quot;Couldn't read file attributes for %s : &quot;, path), ioe);</span>
+<span class="nc" id="L111">        return false;</span>
+<span class="fc" id="L112">      }</span>
+
+<span class="fc" id="L114">      long creationTime = attrs.creationTime().toMillis();</span>
+<span class="pc bpc" id="L115" title="1 of 2 branches missed.">      return creationTime &lt; threshold;</span>
+    }
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

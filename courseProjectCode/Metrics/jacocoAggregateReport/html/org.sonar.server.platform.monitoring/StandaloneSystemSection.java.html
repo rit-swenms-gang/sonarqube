@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StandaloneSystemSection.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform.monitoring</a> &gt; <span class="el_source">StandaloneSystemSection.java</span></div><h1>StandaloneSystemSection.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform.monitoring;
+
+import org.sonar.api.SonarRuntime;
+import org.sonar.api.config.Configuration;
+import org.sonar.api.platform.Server;
+import org.sonar.process.systeminfo.BaseSectionMBean;
+import org.sonar.process.systeminfo.protobuf.ProtobufSystemInfo;
+import org.sonar.server.log.ServerLogging;
+import org.sonar.server.platform.ContainerSupport;
+import org.sonar.server.platform.OfficialDistribution;
+import org.sonar.server.platform.StatisticsSupport;
+
+import static org.sonar.api.measures.CoreMetrics.NCLOC;
+import static org.sonar.process.ProcessProperties.Property.PATH_DATA;
+import static org.sonar.process.ProcessProperties.Property.PATH_HOME;
+import static org.sonar.process.ProcessProperties.Property.PATH_TEMP;
+import static org.sonar.process.systeminfo.SystemInfoUtils.addIfNotEmpty;
+import static org.sonar.process.systeminfo.SystemInfoUtils.setAttribute;
+
+public class StandaloneSystemSection extends BaseSectionMBean implements SystemSectionMBean {
+
+  private final Configuration config;
+  private final Server server;
+  private final ServerLogging serverLogging;
+  private final OfficialDistribution officialDistribution;
+  private final ContainerSupport containerSupport;
+  private final StatisticsSupport statisticsSupport;
+  private final SonarRuntime sonarRuntime;
+  private final CommonSystemInformation commonSystemInformation;
+
+  public StandaloneSystemSection(Configuration config, Server server, ServerLogging serverLogging,
+    OfficialDistribution officialDistribution, ContainerSupport containerSupport, StatisticsSupport statisticsSupport,
+<span class="fc" id="L52">    SonarRuntime sonarRuntime, CommonSystemInformation commonSystemInformation) {</span>
+<span class="fc" id="L53">    this.config = config;</span>
+<span class="fc" id="L54">    this.server = server;</span>
+<span class="fc" id="L55">    this.serverLogging = serverLogging;</span>
+<span class="fc" id="L56">    this.officialDistribution = officialDistribution;</span>
+<span class="fc" id="L57">    this.containerSupport = containerSupport;</span>
+<span class="fc" id="L58">    this.statisticsSupport = statisticsSupport;</span>
+<span class="fc" id="L59">    this.sonarRuntime = sonarRuntime;</span>
+<span class="fc" id="L60">    this.commonSystemInformation = commonSystemInformation;</span>
+<span class="fc" id="L61">  }</span>
+
+  @Override
+  public String getServerId() {
+<span class="fc" id="L65">    return server.getId();</span>
+  }
+
+  @Override
+  public String getVersion() {
+<span class="fc" id="L70">    return server.getVersion();</span>
+  }
+
+  @Override
+  public String getLogLevel() {
+<span class="nc" id="L75">    return serverLogging.getRootLoggerLevel().name();</span>
+  }
+
+  @Override
+  public String name() {
+    // JMX name
+<span class="fc" id="L81">    return &quot;SonarQube&quot;;</span>
+  }
+
+  @Override
+  public ProtobufSystemInfo.Section toProtobuf() {
+<span class="fc" id="L86">    ProtobufSystemInfo.Section.Builder protobuf = ProtobufSystemInfo.Section.newBuilder();</span>
+<span class="fc" id="L87">    protobuf.setName(&quot;System&quot;);</span>
+
+<span class="fc" id="L89">    setAttribute(protobuf, &quot;Server ID&quot;, server.getId());</span>
+<span class="fc" id="L90">    setAttribute(protobuf, &quot;Version&quot;, getVersion());</span>
+<span class="fc" id="L91">    setAttribute(protobuf, &quot;Edition&quot;, sonarRuntime.getEdition().getLabel());</span>
+<span class="fc" id="L92">    setAttribute(protobuf, NCLOC.getName(), statisticsSupport.getLinesOfCode());</span>
+<span class="fc" id="L93">    setAttribute(protobuf, &quot;Container&quot;, containerSupport.isRunningInContainer());</span>
+<span class="fc" id="L94">    setAttribute(protobuf, &quot;External Users and Groups Provisioning&quot;, commonSystemInformation.getManagedInstanceProviderName());</span>
+<span class="fc" id="L95">    setAttribute(protobuf, &quot;External User Authentication&quot;, commonSystemInformation.getExternalUserAuthentication());</span>
+<span class="fc" id="L96">    addIfNotEmpty(protobuf, &quot;Accepted external identity providers&quot;,</span>
+<span class="fc" id="L97">      commonSystemInformation.getEnabledIdentityProviders());</span>
+<span class="fc" id="L98">    addIfNotEmpty(protobuf, &quot;External identity providers whose users are allowed to sign themselves up&quot;,</span>
+<span class="fc" id="L99">      commonSystemInformation.getAllowsToSignUpEnabledIdentityProviders());</span>
+<span class="fc" id="L100">    setAttribute(protobuf, &quot;High Availability&quot;, false);</span>
+<span class="fc" id="L101">    setAttribute(protobuf, &quot;Official Distribution&quot;, officialDistribution.check());</span>
+<span class="fc" id="L102">    setAttribute(protobuf, &quot;Force authentication&quot;, commonSystemInformation.getForceAuthentication());</span>
+<span class="fc" id="L103">    setAttribute(protobuf, &quot;Home Dir&quot;, config.get(PATH_HOME.getKey()).orElse(null));</span>
+<span class="fc" id="L104">    setAttribute(protobuf, &quot;Data Dir&quot;, config.get(PATH_DATA.getKey()).orElse(null));</span>
+<span class="fc" id="L105">    setAttribute(protobuf, &quot;Temp Dir&quot;, config.get(PATH_TEMP.getKey()).orElse(null));</span>
+<span class="fc" id="L106">    setAttribute(protobuf, &quot;Processors&quot;, Runtime.getRuntime().availableProcessors());</span>
+<span class="fc" id="L107">    return protobuf.build();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

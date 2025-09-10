@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ExportPluginsStep.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectexport.steps</a> &gt; <span class="el_source">ExportPluginsStep.java</span></div><h1>ExportPluginsStep.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectexport.steps;
+
+import com.sonarsource.governance.projectdump.protobuf.ProjectDump;
+import java.util.Collection;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.LoggerFactory;
+import org.sonar.ce.task.step.ComputationStep;
+import org.sonar.core.platform.PluginInfo;
+import org.sonar.core.platform.PluginRepository;
+import org.sonar.updatecenter.common.Version;
+
+public class ExportPluginsStep implements ComputationStep {
+
+  private final PluginRepository pluginRepository;
+  private final DumpWriter dumpWriter;
+
+<span class="fc" id="L36">  public ExportPluginsStep(PluginRepository pluginRepository, DumpWriter dumpWriter) {</span>
+<span class="fc" id="L37">    this.pluginRepository = pluginRepository;</span>
+<span class="fc" id="L38">    this.dumpWriter = dumpWriter;</span>
+<span class="fc" id="L39">  }</span>
+
+  @Override
+  public void execute(Context context) {
+<span class="fc" id="L43">    try (StreamWriter&lt;ProjectDump.Plugin&gt; writer = dumpWriter.newStreamWriter(DumpElement.PLUGINS)) {</span>
+
+<span class="fc" id="L45">      Collection&lt;PluginInfo&gt; plugins = pluginRepository.getPluginInfos();</span>
+<span class="fc bfc" id="L46" title="All 2 branches covered.">      for (PluginInfo plugin : plugins) {</span>
+<span class="fc" id="L47">        ProjectDump.Plugin.Builder builder = ProjectDump.Plugin.newBuilder();</span>
+<span class="fc" id="L48">        writer.write(convert(plugin, builder));</span>
+<span class="fc" id="L49">      }</span>
+<span class="fc" id="L50">      LoggerFactory.getLogger(getClass()).debug(&quot;{} plugins exported&quot;, plugins.size());</span>
+    }
+<span class="fc" id="L52">  }</span>
+
+  private static ProjectDump.Plugin convert(PluginInfo plugin, ProjectDump.Plugin.Builder builder) {
+<span class="fc" id="L55">    builder</span>
+<span class="fc" id="L56">      .clear()</span>
+<span class="fc" id="L57">      .setKey(plugin.getKey())</span>
+<span class="fc" id="L58">      .setName(StringUtils.defaultString(plugin.getName()));</span>
+<span class="fc" id="L59">    Version version = plugin.getVersion();</span>
+<span class="fc bfc" id="L60" title="All 2 branches covered.">    if (version != null) {</span>
+<span class="fc" id="L61">      builder.setVersion(version.toString());</span>
+    }
+<span class="fc" id="L63">    return builder.build();</span>
+  }
+
+  @Override
+  public String getDescription() {
+<span class="fc" id="L68">    return &quot;Export plugins&quot;;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

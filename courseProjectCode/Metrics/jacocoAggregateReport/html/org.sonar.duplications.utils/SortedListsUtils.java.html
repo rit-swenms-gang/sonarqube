@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SortedListsUtils.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.duplications.utils</a> &gt; <span class="el_source">SortedListsUtils.java</span></div><h1>SortedListsUtils.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.duplications.utils;
+
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+
+/**
+ * Provides utility methods for sorted lists.
+ */
+public final class SortedListsUtils {
+
+  /**
+   * Returns true if {@code container} contains all elements from {@code list}.
+   * Both lists must be sorted in consistency with {@code comparator},
+   * that is for any two sequential elements x and y:
+   * {@code (comparator.compare(x, y) &lt;= 0) &amp;&amp; (comparator.compare(y, x) &gt;= 0)}.
+   * Running time - O(|container| + |list|).
+   */
+  public static &lt;T&gt; boolean contains(List&lt;T&gt; container, List&lt;T&gt; list, Comparator&lt;T&gt; comparator) {
+<span class="fc" id="L39">    Iterator&lt;T&gt; listIterator = list.iterator();</span>
+<span class="fc" id="L40">    Iterator&lt;T&gt; containerIterator = container.iterator();</span>
+<span class="fc" id="L41">    T listElement = listIterator.next();</span>
+<span class="fc" id="L42">    T containerElement = containerIterator.next();</span>
+    while (true) {
+<span class="fc" id="L44">      int r = comparator.compare(containerElement, listElement);</span>
+<span class="fc bfc" id="L45" title="All 2 branches covered.">      if (r == 0) {</span>
+        // current element from list is equal to current element from container
+<span class="fc bfc" id="L47" title="All 2 branches covered.">        if (!listIterator.hasNext()) {</span>
+          // no elements remaining in list - all were matched
+<span class="fc" id="L49">          return true;</span>
+        }
+        // next element from list also can be equal to current element from container
+<span class="fc" id="L52">        listElement = listIterator.next();</span>
+<span class="fc bfc" id="L53" title="All 2 branches covered.">      } else if (r &lt; 0) {</span>
+        // current element from list is greater than current element from container
+        // need to check next element from container
+<span class="fc bfc" id="L56" title="All 2 branches covered.">        if (!containerIterator.hasNext()) {</span>
+<span class="fc" id="L57">          return false;</span>
+        }
+<span class="fc" id="L59">        containerElement = containerIterator.next();</span>
+      } else {
+        // current element from list is less than current element from container
+        // stop search, because current element from list would be less than any next element from container
+<span class="fc" id="L63">        return false;</span>
+      }
+<span class="fc" id="L65">    }</span>
+  }
+
+  private SortedListsUtils() {
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

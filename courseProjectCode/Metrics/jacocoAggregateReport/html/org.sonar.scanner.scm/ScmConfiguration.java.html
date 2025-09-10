@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ScmConfiguration.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.scm</a> &gt; <span class="el_source">ScmConfiguration.java</span></div><h1>ScmConfiguration.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.scm;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.stream.Collectors;
+import javax.annotation.CheckForNull;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.CoreProperties;
+import org.sonar.api.Properties;
+import org.sonar.api.Property;
+import org.sonar.api.PropertyType;
+import org.sonar.api.Startable;
+import org.sonar.api.batch.scm.ScmProvider;
+import org.sonar.api.config.Configuration;
+import org.sonar.api.notifications.AnalysisWarnings;
+import org.sonar.api.utils.MessageException;
+import org.sonar.core.config.ScannerProperties;
+import org.sonar.scanner.fs.InputModuleHierarchy;
+
+import static org.sonar.api.CoreProperties.SCM_PROVIDER_KEY;
+
+@Properties({
+  @Property(
+    key = ScmConfiguration.FORCE_RELOAD_KEY,
+    defaultValue = &quot;false&quot;,
+    name = &quot;Force reloading of SCM information for all files&quot;,
+    description = &quot;By default only files modified since previous analysis are inspected. Set this parameter to true to force the reloading.&quot;,
+    category = CoreProperties.CATEGORY_SCM,
+    project = false,
+    module = false,
+    global = false,
+    type = PropertyType.BOOLEAN)
+})
+public class ScmConfiguration implements Startable {
+<span class="fc" id="L56">  private static final Logger LOG = LoggerFactory.getLogger(ScmConfiguration.class);</span>
+
+  public static final String FORCE_RELOAD_KEY = &quot;sonar.scm.forceReloadAll&quot;;
+
+  static final String MESSAGE_SCM_STEP_IS_DISABLED_BY_CONFIGURATION = &quot;SCM Step is disabled by configuration&quot;;
+  static final String MESSAGE_SCM_EXCLUSIONS_IS_DISABLED_BY_CONFIGURATION = &quot;Exclusions based on SCM info is disabled by configuration&quot;;
+
+  private final Configuration settings;
+  private final AnalysisWarnings analysisWarnings;
+<span class="fc" id="L65">  private final Map&lt;String, ScmProvider&gt; providerPerKey = new LinkedHashMap&lt;&gt;();</span>
+  private final InputModuleHierarchy moduleHierarchy;
+
+  private ScmProvider provider;
+
+  public ScmConfiguration(InputModuleHierarchy moduleHierarchy, Configuration settings, AnalysisWarnings analysisWarnings,
+<span class="fc" id="L71">    ScmProvider... providers) {</span>
+<span class="fc" id="L72">    this.moduleHierarchy = moduleHierarchy;</span>
+<span class="fc" id="L73">    this.settings = settings;</span>
+<span class="fc" id="L74">    this.analysisWarnings = analysisWarnings;</span>
+<span class="fc bfc" id="L75" title="All 2 branches covered.">    for (ScmProvider scmProvider : providers) {</span>
+<span class="fc" id="L76">      providerPerKey.put(scmProvider.key(), scmProvider);</span>
+    }
+<span class="fc" id="L78">  }</span>
+
+  @Override
+  public void start() {
+<span class="fc bfc" id="L82" title="All 2 branches covered.">    if (isDisabled()) {</span>
+<span class="fc" id="L83">      LOG.debug(MESSAGE_SCM_STEP_IS_DISABLED_BY_CONFIGURATION);</span>
+<span class="fc" id="L84">      return;</span>
+    }
+<span class="fc bfc" id="L86" title="All 2 branches covered.">    if (settings.hasKey(SCM_PROVIDER_KEY)) {</span>
+<span class="fc" id="L87">      settings.get(SCM_PROVIDER_KEY).ifPresent(this::setProviderIfSupported);</span>
+    } else {
+<span class="fc" id="L89">      autodetection();</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">      if (this.provider == null) {</span>
+<span class="fc" id="L91">        considerOldScmUrl();</span>
+      }
+<span class="fc bfc" id="L93" title="All 2 branches covered.">      if (this.provider == null) {</span>
+<span class="fc" id="L94">        String message = &quot;SCM provider autodetection failed. Please use \&quot;&quot; + SCM_PROVIDER_KEY + &quot;\&quot; to define SCM of &quot; +</span>
+          &quot;your project, or disable the SCM Sensor in the project settings.&quot;;
+<span class="fc" id="L96">        LOG.warn(message);</span>
+<span class="fc" id="L97">        analysisWarnings.addUnique(message);</span>
+      }
+    }
+<span class="fc bfc" id="L100" title="All 2 branches covered.">    if (isExclusionDisabled()) {</span>
+<span class="fc" id="L101">      LOG.info(MESSAGE_SCM_EXCLUSIONS_IS_DISABLED_BY_CONFIGURATION);</span>
+    }
+<span class="fc" id="L103">  }</span>
+
+  private void setProviderIfSupported(String forcedProviderKey) {
+<span class="fc bfc" id="L106" title="All 2 branches covered.">    if (providerPerKey.containsKey(forcedProviderKey)) {</span>
+<span class="fc" id="L107">      this.provider = providerPerKey.get(forcedProviderKey);</span>
+    } else {
+<span class="pc bpc" id="L109" title="1 of 2 branches missed.">      String supportedProviders = providerPerKey.isEmpty() ? &quot;No SCM provider installed&quot;</span>
+<span class="fc" id="L110">        : (&quot;Supported SCM providers are &quot; + providerPerKey.keySet().stream().collect(Collectors.joining(&quot;,&quot;)));</span>
+<span class="fc" id="L111">      throw new IllegalArgumentException(&quot;SCM provider was set to \&quot;&quot; + forcedProviderKey + &quot;\&quot; but no SCM provider found for this key. &quot; + supportedProviders);</span>
+    }
+<span class="fc" id="L113">  }</span>
+
+  private void considerOldScmUrl() {
+<span class="fc" id="L116">    settings.get(ScannerProperties.LINKS_SOURCES_DEV).ifPresent(url -&gt; {</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">      if (StringUtils.startsWith(url, &quot;scm:&quot;)) {</span>
+<span class="fc" id="L118">        String[] split = url.split(&quot;:&quot;);</span>
+<span class="fc bfc" id="L119" title="All 2 branches covered.">        if (split.length &gt; 1) {</span>
+<span class="fc" id="L120">          setProviderIfSupported(split[1]);</span>
+        }
+      }
+<span class="fc" id="L123">    });</span>
+<span class="fc" id="L124">  }</span>
+
+  private void autodetection() {
+<span class="fc bfc" id="L127" title="All 2 branches covered.">    for (ScmProvider installedProvider : providerPerKey.values()) {</span>
+<span class="fc bfc" id="L128" title="All 2 branches covered.">      if (installedProvider.supports(moduleHierarchy.root().getBaseDir().toFile())) {</span>
+<span class="fc bfc" id="L129" title="All 2 branches covered.">        if (this.provider == null) {</span>
+<span class="fc" id="L130">          this.provider = installedProvider;</span>
+        } else {
+<span class="fc" id="L132">          throw MessageException.of(&quot;SCM provider autodetection failed. Both &quot; + this.provider.key() + &quot; and &quot; + installedProvider.key()</span>
+            + &quot; claim to support this project. Please use \&quot;&quot; + SCM_PROVIDER_KEY + &quot;\&quot; to define SCM of your project.&quot;);
+        }
+      }
+<span class="fc" id="L136">    }</span>
+<span class="fc" id="L137">  }</span>
+
+  @CheckForNull
+  public ScmProvider provider() {
+<span class="fc" id="L141">    return provider;</span>
+  }
+
+  public boolean isDisabled() {
+<span class="fc" id="L145">    return settings.getBoolean(CoreProperties.SCM_DISABLED_KEY).orElse(false);</span>
+  }
+
+  public boolean isExclusionDisabled() {
+<span class="fc bfc" id="L149" title="All 4 branches covered.">    return isDisabled() || settings.getBoolean(CoreProperties.SCM_EXCLUSIONS_DISABLED_KEY).orElse(false);</span>
+  }
+
+  public boolean forceReloadAll() {
+<span class="fc" id="L153">    return settings.getBoolean(FORCE_RELOAD_KEY).orElse(false);</span>
+  }
+
+  @Override
+  public void stop() {
+    // Nothing to do
+<span class="fc" id="L159">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

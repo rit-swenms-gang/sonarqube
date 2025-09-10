@@ -1,0 +1,392 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ServerUserSession.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.user</a> &gt; <span class="el_source">ServerUserSession.java</span></div><h1>ServerUserSession.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.user;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.BranchDto;
+import org.sonar.db.component.ComponentDto;
+import org.sonar.db.component.ComponentQualifiers;
+import org.sonar.db.component.ComponentScopes;
+import org.sonar.db.component.ComponentTreeQuery;
+import org.sonar.db.component.ComponentTreeQuery.Strategy;
+import org.sonar.db.entity.EntityDto;
+import org.sonar.db.permission.GlobalPermission;
+import org.sonar.db.permission.ProjectPermission;
+import org.sonar.db.user.GroupDto;
+import org.sonar.db.user.UserDto;
+
+import static java.util.Collections.singleton;
+import static java.util.Optional.of;
+import static java.util.Optional.ofNullable;
+import static java.util.stream.Collectors.toMap;
+import static java.util.stream.Collectors.toSet;
+import static org.sonar.db.component.ComponentQualifiers.SUBVIEW;
+import static org.sonar.db.component.ComponentQualifiers.VIEW;
+import static org.sonar.db.permission.ProjectPermission.PUBLIC_PERMISSIONS;
+
+/**
+ * Implementation of {@link UserSession} used in web server
+ */
+public class ServerUserSession extends AbstractUserSession {
+
+<span class="fc" id="L62">  private static final Set&lt;String&gt; QUALIFIERS = Set.of(VIEW, SUBVIEW);</span>
+
+  @CheckForNull
+  private final UserDto userDto;
+  private final boolean isAuthenticatedBrowserSession;
+  private final DbClient dbClient;
+<span class="fc" id="L68">  private final Map&lt;String, String&gt; entityUuidByComponentUuid = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L69">  private final Map&lt;String, Set&lt;String&gt;&gt; permissionsByEntityUuid = new HashMap&lt;&gt;();</span>
+
+  private Collection&lt;GroupDto&gt; groups;
+  private Boolean isSystemAdministrator;
+  private Set&lt;GlobalPermission&gt; permissions;
+
+<span class="fc" id="L75">  public ServerUserSession(DbClient dbClient, @Nullable UserDto userDto, boolean isAuthenticatedBrowserSession) {</span>
+<span class="fc" id="L76">    this.dbClient = dbClient;</span>
+<span class="fc" id="L77">    this.userDto = userDto;</span>
+<span class="fc" id="L78">    this.isAuthenticatedBrowserSession = isAuthenticatedBrowserSession;</span>
+<span class="fc" id="L79">  }</span>
+
+  private Collection&lt;GroupDto&gt; loadGroups() {
+<span class="fc bfc" id="L82" title="All 2 branches covered.">    if (this.userDto == null) {</span>
+<span class="fc" id="L83">      return Collections.emptyList();</span>
+    }
+<span class="fc" id="L85">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L86">      return dbClient.groupDao().selectByUserLogin(dbSession, userDto.getLogin());</span>
+    }
+  }
+
+  @Override
+  @CheckForNull
+  public Long getLastSonarlintConnectionDate() {
+<span class="pc bpc" id="L93" title="1 of 2 branches missed.">    return userDto == null ? null : userDto.getLastSonarlintConnectionDate();</span>
+  }
+
+  @Override
+  @CheckForNull
+  public String getLogin() {
+<span class="fc bfc" id="L99" title="All 2 branches covered.">    return userDto == null ? null : userDto.getLogin();</span>
+  }
+
+  @Override
+  @CheckForNull
+  public String getUuid() {
+<span class="fc bfc" id="L105" title="All 2 branches covered.">    return userDto == null ? null : userDto.getUuid();</span>
+  }
+
+  @Override
+  @CheckForNull
+  public String getName() {
+<span class="nc bnc" id="L111" title="All 2 branches missed.">    return userDto == null ? null : userDto.getName();</span>
+  }
+
+  @Override
+  public Collection&lt;GroupDto&gt; getGroups() {
+<span class="fc bfc" id="L116" title="All 2 branches covered.">    if (groups == null) {</span>
+<span class="fc" id="L117">      groups = loadGroups();</span>
+    }
+<span class="fc" id="L119">    return groups;</span>
+  }
+
+  @Override
+  public boolean shouldResetPassword() {
+<span class="fc bfc" id="L124" title="All 4 branches covered.">    return userDto != null &amp;&amp; userDto.isResetPassword();</span>
+  }
+
+  @Override
+  public boolean isLoggedIn() {
+<span class="fc bfc" id="L129" title="All 2 branches covered.">    return userDto != null;</span>
+  }
+
+  @Override
+  public Optional&lt;IdentityProvider&gt; getIdentityProvider() {
+<span class="nc" id="L134">    return ofNullable(userDto).map(d -&gt; computeIdentity(d).getIdentityProvider());</span>
+  }
+
+  @Override
+  public Optional&lt;ExternalIdentity&gt; getExternalIdentity() {
+<span class="nc" id="L139">    return ofNullable(userDto).map(d -&gt; computeIdentity(d).getExternalIdentity());</span>
+  }
+
+  @Override
+  protected boolean hasPermissionImpl(GlobalPermission permission) {
+<span class="fc bfc" id="L144" title="All 2 branches covered.">    if (permissions == null) {</span>
+<span class="fc" id="L145">      permissions = loadGlobalPermissions();</span>
+    }
+<span class="fc" id="L147">    return permissions.contains(permission);</span>
+  }
+
+  @Override
+  protected Optional&lt;String&gt; componentUuidToEntityUuid(String componentUuid) {
+<span class="fc" id="L152">    String entityUuid = entityUuidByComponentUuid.get(componentUuid);</span>
+<span class="fc bfc" id="L153" title="All 2 branches covered.">    if (entityUuid != null) {</span>
+<span class="fc" id="L154">      return of(entityUuid);</span>
+    }
+<span class="fc" id="L156">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L157">      Optional&lt;ComponentDto&gt; component = dbClient.componentDao().selectByUuid(dbSession, componentUuid);</span>
+<span class="fc bfc" id="L158" title="All 2 branches covered.">      if (component.isEmpty()) {</span>
+<span class="fc" id="L159">        return Optional.empty();</span>
+      }
+      // permissions must be checked on the project
+<span class="fc" id="L162">      entityUuid = getEntityUuid(dbSession, component.get());</span>
+<span class="fc" id="L163">      entityUuidByComponentUuid.put(componentUuid, entityUuid);</span>
+<span class="fc" id="L164">      return of(entityUuid);</span>
+<span class="pc bpc" id="L165" title="1 of 2 branches missed.">    }</span>
+  }
+
+  @Override
+  protected boolean hasEntityUuidPermission(ProjectPermission permission, String entityUuid) {
+<span class="fc" id="L170">    return hasPermission(permission, entityUuid);</span>
+  }
+
+  @Override
+  protected boolean hasChildProjectsPermission(ProjectPermission permission, String applicationUuid) {
+<span class="fc" id="L175">    Set&lt;String&gt; childProjectUuids = loadChildProjectUuids(applicationUuid);</span>
+<span class="fc" id="L176">    Set&lt;String&gt; projectsWithPermission = keepEntitiesUuidsByPermission(permission, childProjectUuids);</span>
+<span class="fc" id="L177">    return projectsWithPermission.containsAll(childProjectUuids);</span>
+  }
+
+  @Override
+  protected boolean hasPortfolioChildProjectsPermission(ProjectPermission permission, String portfolioUuid) {
+    // portfolioUuid might be the UUID of a sub portfolio
+<span class="fc" id="L183">    Set&lt;String&gt; projectUuids = findProjectUuids(portfolioUuid);</span>
+
+<span class="fc" id="L185">    Set&lt;String&gt; projectsWithPermission = keepEntitiesUuidsByPermission(permission, projectUuids);</span>
+<span class="fc" id="L186">    return projectsWithPermission.containsAll(projectUuids);</span>
+  }
+
+  @Override
+  protected &lt;T extends EntityDto&gt; List&lt;T&gt; doKeepAuthorizedEntities(ProjectPermission permission, Collection&lt;T&gt; entities) {
+<span class="fc" id="L191">    Set&lt;String&gt; projectsUuids = entities.stream().map(EntityDto::getUuid).collect(Collectors.toSet());</span>
+    // TODO in SONAR-19445
+<span class="fc" id="L193">    Set&lt;String&gt; authorizedEntitiesUuids = keepEntitiesUuidsByPermission(permission, projectsUuids);</span>
+
+<span class="fc" id="L195">    return entities.stream()</span>
+<span class="fc" id="L196">      .filter(project -&gt; authorizedEntitiesUuids.contains(project.getUuid()))</span>
+<span class="fc" id="L197">      .toList();</span>
+  }
+
+  private Set&lt;String&gt; keepEntitiesUuidsByPermission(ProjectPermission permission, Collection&lt;String&gt; entityUuids) {
+<span class="fc" id="L201">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc bfc" id="L202" title="All 2 branches covered.">      String userUuid = userDto == null ? null : userDto.getUuid();</span>
+<span class="fc" id="L203">      return dbClient.authorizationDao().keepAuthorizedEntityUuids(dbSession, entityUuids, userUuid, permission);</span>
+    }
+  }
+
+  private Set&lt;String&gt; findProjectUuids(String portfolioUuid) {
+<span class="fc" id="L208">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L209">      List&lt;ComponentDto&gt; portfolioLeaves = dbClient.componentDao().selectDescendants(dbSession, ComponentTreeQuery.builder()</span>
+<span class="fc" id="L210">        .setBaseUuid(portfolioUuid)</span>
+<span class="fc" id="L211">        .setQualifiers(List.of(ComponentQualifiers.PROJECT))</span>
+<span class="fc" id="L212">        .setStrategy(Strategy.LEAVES).build());</span>
+
+<span class="fc" id="L214">      Set&lt;String&gt; projectBranchUuids = portfolioLeaves.stream()</span>
+<span class="fc" id="L215">        .map(ComponentDto::getCopyComponentUuid)</span>
+<span class="fc" id="L216">        .filter(Objects::nonNull)</span>
+<span class="fc" id="L217">        .collect(toSet());</span>
+
+<span class="fc" id="L219">      return dbClient.branchDao().selectByUuids(dbSession, projectBranchUuids).stream()</span>
+<span class="fc" id="L220">        .map(BranchDto::getProjectUuid)</span>
+<span class="fc" id="L221">        .collect(toSet());</span>
+    }
+  }
+
+  private String getEntityUuid(DbSession dbSession, ComponentDto componentDto) {
+    // Portfolio &amp; subPortfolio don't have branch, so branchUuid represents the portfolio uuid.
+    // technical project store root portfolio uuid in branchUuid
+<span class="pc bpc" id="L228" title="2 of 4 branches missed.">    if (isPortfolioOrSubPortfolio(componentDto) || isTechnicalProject(componentDto)) {</span>
+<span class="nc" id="L229">      return componentDto.branchUuid();</span>
+    }
+<span class="fc" id="L231">    Optional&lt;BranchDto&gt; branchDto = dbClient.branchDao().selectByUuid(dbSession, componentDto.branchUuid());</span>
+<span class="pc" id="L232">    return branchDto.map(BranchDto::getProjectUuid).orElseThrow(() -&gt; new IllegalStateException(&quot;No branch found for component : &quot; + componentDto));</span>
+  }
+
+  private Map&lt;String, String&gt; getEntityUuidsByComponentUuid(DbSession dbSession, Collection&lt;ComponentDto&gt; components) {
+<span class="fc" id="L236">    Map&lt;String, String&gt; entityUuidsByComponentUuid = new HashMap&lt;&gt;();</span>
+
+    // the result of following stream could be project or application
+<span class="fc" id="L239">    Collection&lt;String&gt; componentsWithBranch = components.stream()</span>
+<span class="fc bfc" id="L240" title="All 4 branches covered.">      .filter(c -&gt; !(isTechnicalProject(c) || isPortfolioOrSubPortfolio(c)))</span>
+<span class="fc" id="L241">      .map(ComponentDto::branchUuid)</span>
+<span class="fc" id="L242">      .toList();</span>
+
+<span class="fc" id="L244">    Map&lt;String, BranchDto&gt; branchDtos = dbClient.branchDao().selectByUuids(dbSession, componentsWithBranch).stream()</span>
+<span class="fc" id="L245">      .collect(toMap(BranchDto::getUuid, b -&gt; b));</span>
+<span class="fc" id="L246">    components.stream()</span>
+<span class="fc bfc" id="L247" title="All 4 branches covered.">      .filter(c -&gt; !(isTechnicalProject(c) || isPortfolioOrSubPortfolio(c)))</span>
+<span class="fc" id="L248">      .forEach(c -&gt; {</span>
+<span class="fc" id="L249">        BranchDto branchDto = branchDtos.get(c.branchUuid());</span>
+<span class="pc bpc" id="L250" title="1 of 2 branches missed.">        if (branchDto != null) {</span>
+<span class="fc" id="L251">          entityUuidsByComponentUuid.put(c.uuid(), branchDto.getProjectUuid());</span>
+        }
+<span class="fc" id="L253">      });</span>
+
+<span class="fc" id="L255">    components.stream()</span>
+<span class="fc bfc" id="L256" title="All 4 branches covered.">      .filter(c -&gt; isTechnicalProject(c) || isPortfolioOrSubPortfolio(c))</span>
+<span class="fc" id="L257">      .forEach(c -&gt; entityUuidsByComponentUuid.put(c.uuid(), c.branchUuid()));</span>
+
+<span class="fc" id="L259">    return entityUuidsByComponentUuid;</span>
+  }
+
+  private static boolean isTechnicalProject(ComponentDto componentDto) {
+<span class="fc bfc" id="L263" title="All 4 branches covered.">    return ComponentQualifiers.PROJECT.equals(componentDto.qualifier()) &amp;&amp; ComponentScopes.FILE.equals(componentDto.scope());</span>
+  }
+
+  private static boolean isPortfolioOrSubPortfolio(ComponentDto componentDto) {
+<span class="fc bfc" id="L267" title="All 4 branches covered.">    return !Objects.isNull(componentDto.qualifier()) &amp;&amp; QUALIFIERS.contains(componentDto.qualifier());</span>
+  }
+
+  private boolean hasPermission(ProjectPermission permission, String entityUuid) {
+<span class="fc" id="L271">    Set&lt;String&gt; entityPermissions = permissionsByEntityUuid.computeIfAbsent(entityUuid, this::loadEntityPermissions);</span>
+<span class="pc bpc" id="L272" title="1 of 4 branches missed.">    return permission != null &amp;&amp; entityPermissions.contains(permission.getKey());</span>
+  }
+
+  private Set&lt;String&gt; loadEntityPermissions(String entityUuid) {
+<span class="fc" id="L276">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L277">      Optional&lt;EntityDto&gt; entity = dbClient.entityDao().selectByUuid(dbSession, entityUuid);</span>
+<span class="pc bpc" id="L278" title="1 of 2 branches missed.">      if (entity.isEmpty()) {</span>
+<span class="nc" id="L279">        return Collections.emptySet();</span>
+      }
+<span class="fc bfc" id="L281" title="All 2 branches covered.">      if (entity.get().isPrivate()) {</span>
+<span class="fc" id="L282">        return loadDbPermissions(dbSession, entityUuid);</span>
+      }
+<span class="fc" id="L284">      Set&lt;String&gt; projectPermissions = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L285">      projectPermissions.addAll(PUBLIC_PERMISSIONS.stream().map(ProjectPermission::getKey).collect(toSet()));</span>
+<span class="fc" id="L286">      projectPermissions.addAll(loadDbPermissions(dbSession, entityUuid));</span>
+<span class="fc" id="L287">      return Collections.unmodifiableSet(projectPermissions);</span>
+<span class="pc bpc" id="L288" title="3 of 4 branches missed.">    }</span>
+  }
+
+  private Set&lt;String&gt; loadChildProjectUuids(String applicationUuid) {
+<span class="fc" id="L292">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L293">      BranchDto branchDto = dbClient.branchDao().selectMainBranchByProjectUuid(dbSession, applicationUuid)</span>
+<span class="fc" id="L294">        .orElseThrow();</span>
+<span class="fc" id="L295">      Set&lt;String&gt; projectBranchesUuid = dbClient.componentDao()</span>
+<span class="fc" id="L296">        .selectDescendants(dbSession, ComponentTreeQuery.builder()</span>
+<span class="fc" id="L297">          .setBaseUuid(branchDto.getUuid())</span>
+<span class="fc" id="L298">          .setQualifiers(singleton(ComponentQualifiers.PROJECT))</span>
+<span class="fc" id="L299">          .setScopes(singleton(ComponentScopes.FILE))</span>
+<span class="fc" id="L300">          .setStrategy(Strategy.CHILDREN).build())</span>
+<span class="fc" id="L301">        .stream()</span>
+<span class="fc" id="L302">        .map(ComponentDto::getCopyComponentUuid)</span>
+<span class="fc" id="L303">        .collect(toSet());</span>
+
+<span class="fc" id="L305">      return dbClient.branchDao().selectByUuids(dbSession, projectBranchesUuid).stream()</span>
+<span class="fc" id="L306">        .map(BranchDto::getProjectUuid)</span>
+<span class="fc" id="L307">        .collect(toSet());</span>
+
+    }
+  }
+
+  private Set&lt;GlobalPermission&gt; loadGlobalPermissions() {
+    Set&lt;String&gt; permissionKeys;
+<span class="fc" id="L314">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="pc bpc" id="L315" title="1 of 4 branches missed.">      if (userDto != null &amp;&amp; userDto.getUuid() != null) {</span>
+<span class="fc" id="L316">        permissionKeys = dbClient.authorizationDao().selectGlobalPermissions(dbSession, userDto.getUuid());</span>
+      } else {
+<span class="fc" id="L318">        permissionKeys = dbClient.authorizationDao().selectGlobalPermissionsOfAnonymous(dbSession);</span>
+      }
+    }
+<span class="fc" id="L321">    return permissionKeys.stream()</span>
+<span class="fc" id="L322">      .map(GlobalPermission::fromKey)</span>
+<span class="fc" id="L323">      .collect(toSet());</span>
+  }
+
+  private Set&lt;String&gt; loadDbPermissions(DbSession dbSession, String entityUuid) {
+<span class="pc bpc" id="L327" title="1 of 4 branches missed.">    if (userDto != null &amp;&amp; userDto.getUuid() != null) {</span>
+<span class="fc" id="L328">      return dbClient.authorizationDao().selectEntityPermissions(dbSession, entityUuid, userDto.getUuid());</span>
+    }
+<span class="fc" id="L330">    return dbClient.authorizationDao().selectEntityPermissionsOfAnonymous(dbSession, entityUuid);</span>
+  }
+
+  @Override
+  protected List&lt;ComponentDto&gt; doKeepAuthorizedComponents(ProjectPermission permission, Collection&lt;ComponentDto&gt; components) {
+<span class="fc" id="L335">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L336">      Map&lt;String, String&gt; entityUuidsByComponentUuid = new HashMap&lt;&gt;(getEntityUuidsByComponentUuid(dbSession, components));</span>
+<span class="fc" id="L337">      Map&lt;String, ComponentDto&gt; originalComponents = findComponentsByCopyComponentUuid(components, dbSession);</span>
+<span class="fc" id="L338">      entityUuidsByComponentUuid.putAll(getEntityUuidsByComponentUuid(dbSession, originalComponents.values()));</span>
+
+<span class="fc" id="L340">      Set&lt;String&gt; authorizedEntityUuids = keepAuthorizedProjectsUuids(dbSession, permission, entityUuidsByComponentUuid.values());</span>
+
+<span class="fc" id="L342">      return components.stream()</span>
+<span class="fc" id="L343">        .filter(c -&gt; {</span>
+<span class="fc bfc" id="L344" title="All 2 branches covered.">          if (c.getCopyComponentUuid() != null) {</span>
+<span class="fc" id="L345">            c = originalComponents.get(c.getCopyComponentUuid());</span>
+<span class="pc bpc" id="L346" title="1 of 2 branches missed.">            if (c == null) {</span>
+<span class="nc" id="L347">              return false;</span>
+            }
+          }
+<span class="fc" id="L350">          String entityUuid = entityUuidsByComponentUuid.get(c.uuid());</span>
+<span class="pc bpc" id="L351" title="1 of 4 branches missed.">          return entityUuid != null &amp;&amp; authorizedEntityUuids.contains(entityUuid);</span>
+        })
+<span class="fc" id="L353">        .toList();</span>
+    }
+  }
+
+  protected Set&lt;String&gt; keepAuthorizedProjectsUuids(DbSession dbSession, ProjectPermission permission, Collection&lt;String&gt; entityUuids) {
+<span class="fc" id="L358">    return dbClient.authorizationDao().keepAuthorizedEntityUuids(dbSession, entityUuids, getUuid(), permission);</span>
+  }
+
+  private Map&lt;String, ComponentDto&gt; findComponentsByCopyComponentUuid(Collection&lt;ComponentDto&gt; components, DbSession dbSession) {
+<span class="fc" id="L362">    Set&lt;String&gt; copyComponentsUuids = components.stream()</span>
+<span class="fc" id="L363">      .map(ComponentDto::getCopyComponentUuid)</span>
+<span class="fc" id="L364">      .filter(Objects::nonNull)</span>
+<span class="fc" id="L365">      .collect(toSet());</span>
+<span class="fc" id="L366">    return dbClient.componentDao().selectByUuids(dbSession, copyComponentsUuids).stream()</span>
+<span class="fc" id="L367">      .collect(Collectors.toMap(ComponentDto::uuid, componentDto -&gt; componentDto));</span>
+  }
+
+  @Override
+  public boolean isSystemAdministrator() {
+<span class="fc bfc" id="L372" title="All 2 branches covered.">    if (isSystemAdministrator == null) {</span>
+<span class="fc" id="L373">      isSystemAdministrator = loadIsSystemAdministrator();</span>
+    }
+<span class="fc" id="L375">    return isSystemAdministrator;</span>
+  }
+
+  @Override
+  public boolean isActive() {
+<span class="fc" id="L380">    return userDto.isActive();</span>
+  }
+
+  @Override
+  public boolean isAuthenticatedBrowserSession() {
+<span class="fc" id="L385">    return isAuthenticatedBrowserSession;</span>
+  }
+
+  private boolean loadIsSystemAdministrator() {
+<span class="fc" id="L389">    return hasPermission(GlobalPermission.ADMINISTER);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

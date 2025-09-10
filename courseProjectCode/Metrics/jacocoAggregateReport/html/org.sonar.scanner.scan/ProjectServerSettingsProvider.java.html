@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ProjectServerSettingsProvider.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.scan</a> &gt; <span class="el_source">ProjectServerSettingsProvider.java</span></div><h1>ProjectServerSettingsProvider.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.scan;
+
+import java.util.Map;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.CoreProperties;
+import org.sonar.api.notifications.AnalysisWarnings;
+import org.sonar.scanner.repository.settings.ProjectSettingsLoader;
+import org.springframework.context.annotation.Bean;
+
+<span class="fc" id="L31">public class ProjectServerSettingsProvider {</span>
+
+<span class="fc" id="L33">  private static final Logger LOG = LoggerFactory.getLogger(ProjectServerSettingsProvider.class);</span>
+
+  private static final String MODULE_LEVEL_ARCHIVED_SETTINGS_WARNING = &quot;Settings that were previously configured at &quot; +
+    &quot;sub-project level are not used anymore. Transition the settings listed in ‘General Settings -&gt; General -&gt; &quot; +
+    &quot;Archived Sub-Projects Settings' at project level, and clear the property to prevent the analysis from &quot; +
+    &quot;displaying this warning.&quot;;
+
+  @Bean(&quot;ProjectServerSettings&quot;)
+  public ProjectServerSettings provide(ProjectSettingsLoader loader, AnalysisWarnings analysisWarnings) {
+<span class="fc" id="L42">    Map&lt;String, String&gt; serverSideSettings = loader.loadProjectSettings();</span>
+<span class="pc bpc" id="L43" title="1 of 2 branches missed.">    if (StringUtils.isNotBlank(serverSideSettings.get(CoreProperties.MODULE_LEVEL_ARCHIVED_SETTINGS))) {</span>
+<span class="nc" id="L44">      LOG.warn(MODULE_LEVEL_ARCHIVED_SETTINGS_WARNING);</span>
+<span class="nc" id="L45">      analysisWarnings.addUnique(MODULE_LEVEL_ARCHIVED_SETTINGS_WARNING);</span>
+    }
+<span class="fc" id="L47">    return new ProjectServerSettings(serverSideSettings);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

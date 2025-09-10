@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Node.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.duplications.detector.suffixtree</a> &gt; <span class="el_source">Node.java</span></div><h1>Node.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.duplications.detector.suffixtree;
+
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Collection;
+
+public final class Node {
+
+  private final SuffixTree suffixTree;
+  private final Map&lt;Object, Edge&gt; edges;
+
+  /**
+   * Node represents string s[i],s[i+1],...,s[j],
+   * suffix-link is a link to node, which represents string s[i+1],...,s[j].
+   */
+  private Node suffixNode;
+
+  /**
+   * Number of symbols from the root to this node.
+   * &lt;p&gt;
+   * Note that this is not equal to number of nodes from root to this node,
+   * because in a compact suffix-tree edge can span multiple symbols - see {@link Edge#getSpan()}.
+   * &lt;/p&gt;&lt;p&gt;
+   * Depth of {@link #suffixNode} is always equal to this depth minus one.
+   * &lt;/p&gt; 
+   */
+  int depth;
+
+  int startSize;
+  int endSize;
+
+  public Node(Node node, Node suffixNode) {
+<span class="fc" id="L52">    this(node.suffixTree, suffixNode);</span>
+<span class="fc" id="L53">  }</span>
+
+<span class="fc" id="L55">  public Node(SuffixTree suffixTree, Node suffixNode) {</span>
+<span class="fc" id="L56">    this.suffixTree = suffixTree;</span>
+<span class="fc" id="L57">    this.suffixNode = suffixNode;</span>
+<span class="fc" id="L58">    edges = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L59">  }</span>
+
+  public Object symbolAt(int index) {
+<span class="fc" id="L62">    return suffixTree.symbolAt(index);</span>
+  }
+
+  public void addEdge(int charIndex, Edge edge) {
+<span class="fc" id="L66">    edges.put(symbolAt(charIndex), edge);</span>
+<span class="fc" id="L67">  }</span>
+
+  public void removeEdge(int charIndex) {
+<span class="fc" id="L70">    edges.remove(symbolAt(charIndex));</span>
+<span class="fc" id="L71">  }</span>
+
+  public Edge findEdge(Object ch) {
+<span class="fc" id="L74">    return edges.get(ch);</span>
+  }
+
+  public Node getSuffixNode() {
+<span class="fc" id="L78">    return suffixNode;</span>
+  }
+
+  public void setSuffixNode(Node suffixNode) {
+<span class="fc" id="L82">    this.suffixNode = suffixNode;</span>
+<span class="fc" id="L83">  }</span>
+
+  public Collection&lt;Edge&gt; getEdges() {
+<span class="fc" id="L86">    return edges.values();</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

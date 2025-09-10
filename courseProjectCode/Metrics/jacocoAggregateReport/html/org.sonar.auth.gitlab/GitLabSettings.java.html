@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GitLabSettings.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.auth.gitlab</a> &gt; <span class="el_source">GitLabSettings.java</span></div><h1>GitLabSettings.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.auth.gitlab;
+
+import com.google.common.base.Strings;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Set;
+import org.sonar.api.PropertyType;
+import org.sonar.api.ce.ComputeEngineSide;
+import org.sonar.api.config.Configuration;
+import org.sonar.api.config.PropertyDefinition;
+import org.sonar.auth.DevOpsPlatformSettings;
+import org.sonar.db.alm.setting.ALM;
+
+import static java.lang.String.valueOf;
+import static org.sonar.api.PropertyType.BOOLEAN;
+import static org.sonar.api.PropertyType.PASSWORD;
+import static org.sonar.db.ce.CeTaskTypes.GITLAB_PROJECT_PERMISSIONS_PROVISIONING;
+
+@ComputeEngineSide
+public class GitLabSettings implements DevOpsPlatformSettings {
+
+  public static final String GITLAB_AUTH_ENABLED = &quot;sonar.auth.gitlab.enabled&quot;;
+  public static final String GITLAB_AUTH_URL = &quot;sonar.auth.gitlab.url&quot;;
+  public static final String GITLAB_AUTH_APPLICATION_ID = &quot;sonar.auth.gitlab.applicationId.secured&quot;;
+  public static final String GITLAB_AUTH_SECRET = &quot;sonar.auth.gitlab.secret.secured&quot;;
+  public static final String GITLAB_AUTH_ALLOW_USERS_TO_SIGNUP = &quot;sonar.auth.gitlab.allowUsersToSignUp&quot;;
+  public static final String GITLAB_AUTH_ALLOWED_GROUPS = &quot;sonar.auth.gitlab.allowedGroups&quot;;
+  public static final String GITLAB_AUTH_SYNC_USER_GROUPS = &quot;sonar.auth.gitlab.groupsSync&quot;;
+  public static final String GITLAB_AUTH_PROVISIONING_TOKEN = &quot;provisioning.gitlab.token.secured&quot;;
+  public static final String GITLAB_AUTH_PROVISIONING_ENABLED = &quot;provisioning.gitlab.enabled&quot;;
+  public static final String GITLAB_USER_CONSENT_FOR_PERMISSION_PROVISIONING_REQUIRED = &quot;sonar.auth.gitlab.userConsentForPermissionProvisioningRequired&quot;;
+
+  private static final String CATEGORY = &quot;authentication&quot;;
+  private static final String SUBCATEGORY = &quot;gitlab&quot;;
+
+  private final Configuration configuration;
+
+<span class="fc" id="L57">  public GitLabSettings(Configuration configuration) {</span>
+<span class="fc" id="L58">    this.configuration = configuration;</span>
+<span class="fc" id="L59">  }</span>
+
+  public String url() {
+<span class="fc" id="L62">    String url = configuration.get(GITLAB_AUTH_URL).orElse(null);</span>
+<span class="pc bpc" id="L63" title="1 of 4 branches missed.">    if (url != null &amp;&amp; url.endsWith(&quot;/&quot;)) {</span>
+<span class="fc" id="L64">      return url.substring(0, url.length() - 1);</span>
+    }
+<span class="fc" id="L66">    return url;</span>
+  }
+
+  public String apiUrl() {
+<span class="fc" id="L70">    return url() + &quot;/api/v4&quot;;</span>
+  }
+
+  public String applicationId() {
+<span class="fc" id="L74">    return configuration.get(GITLAB_AUTH_APPLICATION_ID).orElse(null);</span>
+  }
+
+  public String secret() {
+<span class="fc" id="L78">    return configuration.get(GITLAB_AUTH_SECRET).orElse(null);</span>
+  }
+
+  public boolean isEnabled() {
+<span class="fc bfc" id="L82" title="All 6 branches covered.">    return configuration.getBoolean(GITLAB_AUTH_ENABLED).orElse(false) &amp;&amp; applicationId() != null &amp;&amp; secret() != null;</span>
+  }
+
+  public boolean allowUsersToSignUp() {
+<span class="fc" id="L86">    return configuration.getBoolean(GITLAB_AUTH_ALLOW_USERS_TO_SIGNUP).orElse(false);</span>
+  }
+
+  public Set&lt;String&gt; allowedGroups() {
+<span class="fc" id="L90">    return Set.of(configuration.getStringArray(GITLAB_AUTH_ALLOWED_GROUPS));</span>
+  }
+
+  public boolean syncUserGroups() {
+<span class="fc" id="L94">    return configuration.getBoolean(GITLAB_AUTH_SYNC_USER_GROUPS).orElse(false);</span>
+  }
+
+  public String provisioningToken() {
+<span class="fc" id="L98">    return configuration.get(GITLAB_AUTH_PROVISIONING_TOKEN).map(Strings::emptyToNull).orElse(null);</span>
+  }
+
+  @Override
+  public String getDevOpsPlatform() {
+<span class="nc" id="L103">    return ALM.GITLAB.getId();</span>
+  }
+
+  @Override
+  public boolean isProvisioningEnabled() {
+<span class="fc bfc" id="L108" title="All 4 branches covered.">    return isEnabled() &amp;&amp; configuration.getBoolean(GITLAB_AUTH_PROVISIONING_ENABLED).orElse(false);</span>
+  }
+
+  @Override
+  public boolean isProjectVisibilitySynchronizationActivated() {
+<span class="fc" id="L113">    return true;</span>
+  }
+
+  @Override
+  public boolean isUserConsentRequiredAfterUpgrade() {
+<span class="fc" id="L118">    return configuration.getBoolean(GITLAB_USER_CONSENT_FOR_PERMISSION_PROVISIONING_REQUIRED).isPresent();</span>
+  }
+
+  @Override
+  public String getProjectsPermissionsProvisioningTaskName() {
+<span class="fc" id="L123">    return GITLAB_PROJECT_PERMISSIONS_PROVISIONING;</span>
+  }
+
+  public boolean isAllowedGroup(String group) {
+<span class="fc" id="L127">    return allowedGroups().stream().anyMatch(allowedGroup -&gt; isExactGroupOrParentGroup(group, allowedGroup));</span>
+  }
+
+  private static boolean isExactGroupOrParentGroup(String group, String allowedGroup) {
+<span class="fc bfc" id="L131" title="All 4 branches covered.">    return group.equals(allowedGroup) || group.startsWith(allowedGroup + &quot;/&quot;);</span>
+  }
+
+  static List&lt;PropertyDefinition&gt; definitions() {
+<span class="fc" id="L135">    return Arrays.asList(</span>
+<span class="fc" id="L136">      PropertyDefinition.builder(GITLAB_AUTH_ENABLED)</span>
+<span class="fc" id="L137">        .name(&quot;Enabled&quot;)</span>
+<span class="fc" id="L138">        .description(&quot;Enable Gitlab users to login. Value is ignored if URL, Application ID, and Secret are not set.&quot;)</span>
+<span class="fc" id="L139">        .category(CATEGORY)</span>
+<span class="fc" id="L140">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L141">        .type(BOOLEAN)</span>
+<span class="fc" id="L142">        .defaultValue(valueOf(false))</span>
+<span class="fc" id="L143">        .index(1)</span>
+<span class="fc" id="L144">        .build(),</span>
+<span class="fc" id="L145">      PropertyDefinition.builder(GITLAB_AUTH_URL)</span>
+<span class="fc" id="L146">        .name(&quot;GitLab URL&quot;)</span>
+<span class="fc" id="L147">        .description(&quot;Base URL to access GitLab. https://gitlab.com for Gitlab SaaS&quot;)</span>
+<span class="fc" id="L148">        .category(CATEGORY)</span>
+<span class="fc" id="L149">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L150">        .defaultValue(&quot;https://gitlab.com&quot;)</span>
+<span class="fc" id="L151">        .index(2)</span>
+<span class="fc" id="L152">        .build(),</span>
+<span class="fc" id="L153">      PropertyDefinition.builder(GITLAB_AUTH_APPLICATION_ID)</span>
+<span class="fc" id="L154">        .name(&quot;Application ID&quot;)</span>
+<span class="fc" id="L155">        .description(&quot;Application ID provided by GitLab when registering the application.&quot;)</span>
+<span class="fc" id="L156">        .category(CATEGORY)</span>
+<span class="fc" id="L157">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L158">        .index(3)</span>
+<span class="fc" id="L159">        .build(),</span>
+<span class="fc" id="L160">      PropertyDefinition.builder(GITLAB_AUTH_SECRET)</span>
+<span class="fc" id="L161">        .name(&quot;Secret&quot;)</span>
+<span class="fc" id="L162">        .description(&quot;Secret provided by GitLab when registering the application.&quot;)</span>
+<span class="fc" id="L163">        .category(CATEGORY)</span>
+<span class="fc" id="L164">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L165">        .type(PASSWORD)</span>
+<span class="fc" id="L166">        .index(4)</span>
+<span class="fc" id="L167">        .build(),</span>
+<span class="fc" id="L168">      PropertyDefinition.builder(GITLAB_AUTH_ALLOW_USERS_TO_SIGNUP)</span>
+<span class="fc" id="L169">        .name(&quot;Allow users to sign up&quot;)</span>
+<span class="fc" id="L170">        .description(&quot;Allow new users to authenticate. When set to disabled, only existing users will be able to authenticate to the server.&quot;)</span>
+<span class="fc" id="L171">        .category(CATEGORY)</span>
+<span class="fc" id="L172">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L173">        .type(BOOLEAN)</span>
+<span class="fc" id="L174">        .defaultValue(valueOf(true))</span>
+<span class="fc" id="L175">        .index(5)</span>
+<span class="fc" id="L176">        .build(),</span>
+<span class="fc" id="L177">      PropertyDefinition.builder(GITLAB_AUTH_ALLOWED_GROUPS)</span>
+<span class="fc" id="L178">        .name(&quot;Allowed groups&quot;)</span>
+<span class="fc" id="L179">        .description(&quot;Only members of these groups (and sub-groups) will be allowed to authenticate. &quot; +</span>
+          &quot;Please enter the group slug as it appears in the GitLab URL, for instance `my-gitlab-group`. &quot; +
+          &quot;If you use Auto-provisioning, only members of these groups (and sub-groups) will be provisioned&quot;)
+<span class="fc" id="L182">        .multiValues(true)</span>
+<span class="fc" id="L183">        .category(CATEGORY)</span>
+<span class="fc" id="L184">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L185">        .index(6)</span>
+<span class="fc" id="L186">        .build(),</span>
+<span class="fc" id="L187">      PropertyDefinition.builder(GITLAB_AUTH_SYNC_USER_GROUPS)</span>
+<span class="fc" id="L188">        .deprecatedKey(&quot;sonar.auth.gitlab.sync_user_groups&quot;)</span>
+<span class="fc" id="L189">        .name(&quot;Synchronize user groups&quot;)</span>
+<span class="fc" id="L190">        .description(&quot;For each GitLab group they belong to, the user will be associated to a group with the same name (if it exists) in SonarQube.&quot; +</span>
+          &quot; If enabled, the GitLab OAuth 2 application will need to provide the api scope.&quot;)
+<span class="fc" id="L192">        .category(CATEGORY)</span>
+<span class="fc" id="L193">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L194">        .type(PropertyType.BOOLEAN)</span>
+<span class="fc" id="L195">        .defaultValue(valueOf(false))</span>
+<span class="fc" id="L196">        .index(7)</span>
+<span class="fc" id="L197">        .build(),</span>
+<span class="fc" id="L198">      PropertyDefinition.builder(GITLAB_AUTH_PROVISIONING_TOKEN)</span>
+<span class="fc" id="L199">        .name(&quot;Provisioning token&quot;)</span>
+<span class="fc" id="L200">        .description(&quot;Token used for user provisioning.&quot; +</span>
+          &quot; You can either use a group or a personal access token, as long as it has visibility on the groups that need to be imported.&quot;)
+<span class="fc" id="L202">        .category(CATEGORY)</span>
+<span class="fc" id="L203">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L204">        .type(PASSWORD)</span>
+<span class="fc" id="L205">        .index(8)</span>
+<span class="fc" id="L206">        .build(),</span>
+<span class="fc" id="L207">      PropertyDefinition.builder(GITLAB_AUTH_PROVISIONING_ENABLED)</span>
+<span class="fc" id="L208">        .name(&quot;Provisioning enabled&quot;)</span>
+<span class="fc" id="L209">        .description(&quot;Enable Gitlab provisioning for users.&quot;)</span>
+<span class="fc" id="L210">        .category(CATEGORY)</span>
+<span class="fc" id="L211">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L212">        .type(BOOLEAN)</span>
+<span class="fc" id="L213">        .defaultValue(valueOf(false))</span>
+<span class="fc" id="L214">        .index(9)</span>
+<span class="fc" id="L215">        .build());</span>
+
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

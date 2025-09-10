@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ComponentTreeData.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.measure.ws</a> &gt; <span class="el_source">ComponentTreeData.java</span></div><h1>ComponentTreeData.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.measure.ws;
+
+import com.google.common.collect.Table;
+import java.util.List;
+import java.util.Map;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.api.measures.Metric;
+import org.sonar.db.component.BranchDto;
+import org.sonar.db.component.ComponentDto;
+import org.sonar.db.metric.MetricDto;
+import org.sonarqube.ws.Measures;
+
+import static java.lang.Double.NaN;
+import static java.lang.Double.isNaN;
+import static java.util.Objects.requireNonNull;
+import static org.sonar.server.measure.ws.ComponentTreeSort.NUMERIC_VALUE_TYPES;
+import static org.sonar.server.measure.ws.ComponentTreeSort.TEXTUAL_VALUE_TYPES;
+
+class ComponentTreeData {
+  private final ComponentDto baseComponent;
+  private final BranchDto branch;
+  private final List&lt;ComponentDto&gt; components;
+  private final int componentCount;
+  private final Map&lt;String, ComponentDto&gt; referenceComponentsByUuid;
+  private final Map&lt;String, String&gt; branchByReferenceUuid;
+  private final List&lt;MetricDto&gt; metrics;
+  private final Measures.Period period;
+  private final Table&lt;String, MetricDto, Measure&gt; measuresByComponentUuidAndMetric;
+
+<span class="fc" id="L50">  private ComponentTreeData(Builder builder) {</span>
+<span class="fc" id="L51">    this.baseComponent = builder.baseComponent;</span>
+<span class="fc" id="L52">    this.components = builder.componentsFromDb;</span>
+<span class="fc" id="L53">    this.componentCount = builder.componentCount;</span>
+<span class="fc" id="L54">    this.branch = builder.branch;</span>
+<span class="fc" id="L55">    this.referenceComponentsByUuid = builder.referenceComponentsByUuid;</span>
+<span class="fc" id="L56">    this.branchByReferenceUuid = builder.branchByReferenceUuid;</span>
+<span class="fc" id="L57">    this.metrics = builder.metrics;</span>
+<span class="fc" id="L58">    this.measuresByComponentUuidAndMetric = builder.measuresByComponentUuidAndMetric;</span>
+<span class="fc" id="L59">    this.period = builder.period;</span>
+<span class="fc" id="L60">  }</span>
+
+  public Map&lt;String, String&gt; getBranchByReferenceUuid() {
+<span class="fc" id="L63">    return branchByReferenceUuid;</span>
+  }
+
+  public ComponentDto getBaseComponent() {
+<span class="fc" id="L67">    return baseComponent;</span>
+  }
+
+  @CheckForNull
+  public BranchDto getBranch() {
+<span class="fc" id="L72">    return branch;</span>
+  }
+
+  @CheckForNull
+  List&lt;ComponentDto&gt; getComponents() {
+<span class="fc" id="L77">    return components;</span>
+  }
+
+  int getComponentCount() {
+<span class="fc" id="L81">    return componentCount;</span>
+  }
+
+  public Map&lt;String, ComponentDto&gt; getReferenceComponentsByUuid() {
+<span class="fc" id="L85">    return referenceComponentsByUuid;</span>
+  }
+
+  @CheckForNull
+  List&lt;MetricDto&gt; getMetrics() {
+<span class="fc" id="L90">    return metrics;</span>
+  }
+
+  Measures.Period getPeriod() {
+<span class="fc" id="L94">    return period;</span>
+  }
+
+  @CheckForNull
+  Table&lt;String, MetricDto, Measure&gt; getMeasuresByComponentUuidAndMetric() {
+<span class="fc" id="L99">    return measuresByComponentUuidAndMetric;</span>
+  }
+
+  static Builder builder() {
+<span class="fc" id="L103">    return new Builder();</span>
+  }
+
+  static class Builder {
+    private ComponentDto baseComponent;
+    private List&lt;ComponentDto&gt; componentsFromDb;
+    private Map&lt;String, ComponentDto&gt; referenceComponentsByUuid;
+    private Map&lt;String, String&gt; branchByReferenceUuid;
+    private int componentCount;
+    private List&lt;MetricDto&gt; metrics;
+    private Measures.Period period;
+    private BranchDto branch;
+
+    private Table&lt;String, MetricDto, Measure&gt; measuresByComponentUuidAndMetric;
+
+    private Builder() {
+      // private constructor
+    }
+
+    public Builder setBranchByReferenceUuid(Map&lt;String, String&gt; branchByReferenceUuid) {
+<span class="fc" id="L123">      this.branchByReferenceUuid = branchByReferenceUuid;</span>
+<span class="fc" id="L124">      return this;</span>
+    }
+
+    public Builder setBaseComponent(ComponentDto baseComponent) {
+<span class="fc" id="L128">      this.baseComponent = baseComponent;</span>
+<span class="fc" id="L129">      return this;</span>
+    }
+
+    public Builder setComponentsFromDb(List&lt;ComponentDto&gt; componentsFromDbQuery) {
+<span class="fc" id="L133">      this.componentsFromDb = componentsFromDbQuery;</span>
+<span class="fc" id="L134">      return this;</span>
+    }
+
+    public Builder setComponentCount(int componentCount) {
+<span class="fc" id="L138">      this.componentCount = componentCount;</span>
+<span class="fc" id="L139">      return this;</span>
+    }
+
+    public Builder setBranch(@Nullable BranchDto branch) {
+<span class="fc" id="L143">      this.branch = branch;</span>
+<span class="fc" id="L144">      return this;</span>
+    }
+
+    public Builder setMetrics(List&lt;MetricDto&gt; metrics) {
+<span class="fc" id="L148">      this.metrics = metrics;</span>
+<span class="fc" id="L149">      return this;</span>
+    }
+
+    public Builder setPeriod(@Nullable Measures.Period period) {
+<span class="fc" id="L153">      this.period = period;</span>
+<span class="fc" id="L154">      return this;</span>
+    }
+
+    public Builder setMeasuresByComponentUuidAndMetric(Table&lt;String, MetricDto, Measure&gt; measuresByComponentUuidAndMetric) {
+<span class="fc" id="L158">      this.measuresByComponentUuidAndMetric = measuresByComponentUuidAndMetric;</span>
+<span class="fc" id="L159">      return this;</span>
+    }
+
+    public Builder setReferenceComponentsByUuid(Map&lt;String, ComponentDto&gt; referenceComponentsByUuid) {
+<span class="fc" id="L163">      this.referenceComponentsByUuid = referenceComponentsByUuid;</span>
+<span class="fc" id="L164">      return this;</span>
+    }
+
+    public ComponentTreeData build() {
+<span class="fc" id="L168">      requireNonNull(baseComponent);</span>
+<span class="fc" id="L169">      return new ComponentTreeData(this);</span>
+    }
+  }
+
+  static class Measure {
+    private double value;
+    private String data;
+
+<span class="fc" id="L177">    public Measure(@Nullable String data, @Nullable Double value) {</span>
+<span class="fc" id="L178">      this.data = data;</span>
+<span class="fc" id="L179">      this.value = toPrimitive(value);</span>
+<span class="fc" id="L180">    }</span>
+
+    public double getValue() {
+<span class="fc" id="L183">      return value;</span>
+    }
+
+    public boolean isValueSet() {
+<span class="pc bpc" id="L187" title="1 of 2 branches missed.">      return !isNaN(value);</span>
+    }
+
+    @CheckForNull
+    public String getData() {
+<span class="fc" id="L192">      return data;</span>
+    }
+
+    static Measure createFromMetricValue(MetricDto metric, @Nullable Object value) {
+<span class="pc bpc" id="L196" title="1 of 2 branches missed.">      if (value == null) {</span>
+<span class="nc" id="L197">        return null;</span>
+      }
+
+<span class="fc" id="L200">      Metric.ValueType metricValueType = Metric.ValueType.valueOf(metric.getValueType());</span>
+<span class="fc bfc" id="L201" title="All 2 branches covered.">      if (NUMERIC_VALUE_TYPES.contains(metricValueType)) {</span>
+<span class="fc" id="L202">        return new Measure(null, (double) value);</span>
+<span class="fc bfc" id="L203" title="All 2 branches covered.">      } else if (TEXTUAL_VALUE_TYPES.contains(metricValueType)</span>
+<span class="pc bpc" id="L204" title="1 of 2 branches missed.">        || List.of(Metric.ValueType.DATA, Metric.ValueType.LEVEL).contains(metricValueType)) {</span>
+<span class="fc" id="L205">        return new Measure(value.toString(), null);</span>
+      } else {
+<span class="nc" id="L207">        return null;</span>
+      }
+    }
+
+    private static double toPrimitive(@Nullable Double value) {
+<span class="fc bfc" id="L212" title="All 2 branches covered.">      return value == null ? NaN : value;</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

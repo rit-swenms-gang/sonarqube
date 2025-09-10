@@ -1,0 +1,261 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EsSettings.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.application.es</a> &gt; <span class="el_source">EsSettings.java</span></div><h1>EsSettings.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.application.es;
+
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.process.MessageException;
+import org.sonar.process.ProcessProperties;
+import org.sonar.process.Props;
+import org.sonar.process.System2;
+
+import static java.lang.String.valueOf;
+import static org.sonar.process.ProcessProperties.Property.CLUSTER_ENABLED;
+import static org.sonar.process.ProcessProperties.Property.CLUSTER_ES_DISCOVERY_SEED_HOSTS;
+import static org.sonar.process.ProcessProperties.Property.CLUSTER_ES_HOSTS;
+import static org.sonar.process.ProcessProperties.Property.CLUSTER_ES_HTTP_KEYSTORE;
+import static org.sonar.process.ProcessProperties.Property.CLUSTER_ES_KEYSTORE;
+import static org.sonar.process.ProcessProperties.Property.CLUSTER_ES_TRUSTSTORE;
+import static org.sonar.process.ProcessProperties.Property.CLUSTER_NAME;
+import static org.sonar.process.ProcessProperties.Property.CLUSTER_NODE_ES_HOST;
+import static org.sonar.process.ProcessProperties.Property.CLUSTER_NODE_ES_PORT;
+import static org.sonar.process.ProcessProperties.Property.CLUSTER_NODE_NAME;
+import static org.sonar.process.ProcessProperties.Property.CLUSTER_NODE_SEARCH_HOST;
+import static org.sonar.process.ProcessProperties.Property.CLUSTER_NODE_SEARCH_PORT;
+import static org.sonar.process.ProcessProperties.Property.CLUSTER_SEARCH_PASSWORD;
+import static org.sonar.process.ProcessProperties.Property.ES_PORT;
+import static org.sonar.process.ProcessProperties.Property.SEARCH_HOST;
+import static org.sonar.process.ProcessProperties.Property.SEARCH_INITIAL_STATE_TIMEOUT;
+import static org.sonar.process.ProcessProperties.Property.SEARCH_PORT;
+
+public class EsSettings {
+  private static final String ES_HTTP_HOST_KEY = &quot;http.host&quot;;
+  private static final String ES_HTTP_PORT_KEY = &quot;http.port&quot;;
+  private static final String ES_TRANSPORT_HOST_KEY = &quot;transport.host&quot;;
+  private static final String ES_TRANSPORT_PORT_KEY = &quot;transport.port&quot;;
+  private static final String ES_NETWORK_HOST_KEY = &quot;network.host&quot;;
+
+<span class="fc" id="L63">  private static final Logger LOGGER = LoggerFactory.getLogger(EsSettings.class);</span>
+  private static final String STANDALONE_NODE_NAME = &quot;sonarqube&quot;;
+  private static final String SECCOMP_PROPERTY = &quot;bootstrap.system_call_filter&quot;;
+  private static final String ALLOW_MMAP = &quot;node.store.allow_mmap&quot;;
+
+  private static final String JAVA_ADDITIONAL_OPS_PROPERTY = &quot;sonar.search.javaAdditionalOpts&quot;;
+
+  private final Props props;
+  private final EsInstallation fileSystem;
+
+  private final boolean clusterEnabled;
+  private final String clusterName;
+  private final String nodeName;
+  private final InetAddress loopbackAddress;
+
+<span class="fc" id="L78">  public EsSettings(Props props, EsInstallation fileSystem, System2 system2) {</span>
+<span class="fc" id="L79">    this.props = props;</span>
+<span class="fc" id="L80">    this.fileSystem = fileSystem;</span>
+
+<span class="fc" id="L82">    this.clusterName = props.nonNullValue(CLUSTER_NAME.getKey());</span>
+<span class="fc" id="L83">    this.clusterEnabled = props.valueAsBoolean(CLUSTER_ENABLED.getKey());</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">    if (this.clusterEnabled) {</span>
+<span class="fc" id="L85">      this.nodeName = props.value(CLUSTER_NODE_NAME.getKey(), &quot;sonarqube-&quot; + UUID.randomUUID());</span>
+    } else {
+<span class="fc" id="L87">      this.nodeName = STANDALONE_NODE_NAME;</span>
+    }
+<span class="fc" id="L89">    this.loopbackAddress = InetAddress.getLoopbackAddress();</span>
+<span class="fc" id="L90">    String esJvmOptions = system2.getenv(&quot;ES_JVM_OPTIONS&quot;);</span>
+<span class="fc bfc" id="L91" title="All 4 branches covered.">    if (esJvmOptions != null &amp;&amp; !esJvmOptions.trim().isEmpty()) {</span>
+<span class="fc" id="L92">      LOGGER.warn(&quot;ES_JVM_OPTIONS is defined but will be ignored. &quot; +</span>
+        &quot;Use sonar.search.javaOpts and/or sonar.search.javaAdditionalOpts in sonar.properties to specify jvm options for Elasticsearch&quot;);
+    }
+<span class="fc" id="L95">  }</span>
+
+  public Map&lt;String, String&gt; build() {
+<span class="fc" id="L98">    Map&lt;String, String&gt; builder = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L99">    configureFileSystem(builder);</span>
+<span class="fc" id="L100">    configureNetwork(builder);</span>
+<span class="fc" id="L101">    configureCluster(builder);</span>
+<span class="fc" id="L102">    configureSecurity(builder);</span>
+<span class="fc" id="L103">    configureOthers(builder);</span>
+<span class="fc" id="L104">    LOGGER.atInfo()</span>
+<span class="fc" id="L105">      .addArgument(() -&gt; builder.get(ES_HTTP_HOST_KEY))</span>
+<span class="fc" id="L106">      .addArgument(() -&gt; builder.get(ES_HTTP_PORT_KEY))</span>
+<span class="fc" id="L107">      .addArgument(() -&gt; builder.get(ES_TRANSPORT_HOST_KEY))</span>
+<span class="fc" id="L108">      .log(&quot;Elasticsearch listening on [HTTP: {}:{}, TCP: {}:{}]&quot;);</span>
+<span class="fc" id="L109">    return builder;</span>
+  }
+
+  private void configureFileSystem(Map&lt;String, String&gt; builder) {
+<span class="fc" id="L113">    builder.put(&quot;path.data&quot;, fileSystem.getDataDirectory().getAbsolutePath());</span>
+<span class="fc" id="L114">    builder.put(&quot;path.logs&quot;, fileSystem.getLogDirectory().getAbsolutePath());</span>
+<span class="fc" id="L115">  }</span>
+
+  private void configureSecurity(Map&lt;String, String&gt; builder) {
+<span class="fc bfc" id="L118" title="All 4 branches covered.">    if (clusterEnabled &amp;&amp; props.value((CLUSTER_SEARCH_PASSWORD.getKey())) != null) {</span>
+
+<span class="fc" id="L120">      String clusterESKeystoreFileName = getFileNameFromPathProperty(CLUSTER_ES_KEYSTORE);</span>
+<span class="fc" id="L121">      String clusterESTruststoreFileName = getFileNameFromPathProperty(CLUSTER_ES_TRUSTSTORE);</span>
+
+<span class="fc" id="L123">      builder.put(&quot;xpack.security.enabled&quot;, &quot;true&quot;);</span>
+<span class="fc" id="L124">      builder.put(&quot;xpack.security.transport.ssl.enabled&quot;, &quot;true&quot;);</span>
+<span class="fc" id="L125">      builder.put(&quot;xpack.security.transport.ssl.supported_protocols&quot;, &quot;TLSv1.3,TLSv1.2&quot;);</span>
+<span class="fc" id="L126">      builder.put(&quot;xpack.security.transport.ssl.verification_mode&quot;, &quot;certificate&quot;);</span>
+<span class="fc" id="L127">      builder.put(&quot;xpack.security.transport.ssl.keystore.path&quot;, clusterESKeystoreFileName);</span>
+<span class="fc" id="L128">      builder.put(&quot;xpack.security.transport.ssl.truststore.path&quot;, clusterESTruststoreFileName);</span>
+
+<span class="fc bfc" id="L130" title="All 2 branches covered.">      if (props.value(CLUSTER_ES_HTTP_KEYSTORE.getKey()) != null) {</span>
+<span class="fc" id="L131">        String clusterESHttpKeystoreFileName = getFileNameFromPathProperty(CLUSTER_ES_HTTP_KEYSTORE);</span>
+
+<span class="fc" id="L133">        builder.put(&quot;xpack.security.http.ssl.enabled&quot;, Boolean.TRUE.toString());</span>
+<span class="fc" id="L134">        builder.put(&quot;xpack.security.http.ssl.keystore.path&quot;, clusterESHttpKeystoreFileName);</span>
+      }
+<span class="fc" id="L136">    } else {</span>
+<span class="fc" id="L137">      builder.put(&quot;xpack.security.autoconfiguration.enabled&quot;, Boolean.FALSE.toString());</span>
+<span class="fc" id="L138">      builder.put(&quot;xpack.security.enabled&quot;, Boolean.FALSE.toString());</span>
+    }
+<span class="fc" id="L140">  }</span>
+
+  private String getFileNameFromPathProperty(ProcessProperties.Property processProperty) {
+<span class="fc" id="L143">    String processPropertyPath = props.value(processProperty.getKey());</span>
+
+<span class="fc bfc" id="L145" title="All 2 branches covered.">    if (processPropertyPath == null) {</span>
+<span class="fc" id="L146">      throw new MessageException(processProperty.name() + &quot; property need to be set &quot; +</span>
+        &quot;when using elastic search authentication&quot;);
+    }
+<span class="fc" id="L149">    Path path = Paths.get(processPropertyPath);</span>
+<span class="fc bfc" id="L150" title="All 2 branches covered.">    if (!path.toFile().exists()) {</span>
+<span class="fc" id="L151">      throw new MessageException(&quot;Unable to configure: &quot; + processProperty.getKey() + &quot;. &quot;</span>
+        + &quot;File specified in [&quot; + processPropertyPath + &quot;] does not exist&quot;);
+    }
+<span class="pc bpc" id="L154" title="1 of 2 branches missed.">    if (!path.toFile().canRead()) {</span>
+<span class="nc" id="L155">      throw new MessageException(&quot;Unable to configure: &quot; + processProperty.getKey() + &quot;. &quot;</span>
+        + &quot;Could not get read access to [&quot; + processPropertyPath + &quot;]&quot;);
+    }
+<span class="fc" id="L158">    return path.getFileName().toString();</span>
+  }
+
+  private void configureNetwork(Map&lt;String, String&gt; builder) {
+<span class="fc bfc" id="L162" title="All 2 branches covered.">    if (!clusterEnabled) {</span>
+<span class="fc" id="L163">      InetAddress searchHost = resolveAddress(SEARCH_HOST);</span>
+<span class="fc" id="L164">      int searchPort = Integer.parseInt(props.nonNullValue(SEARCH_PORT.getKey()));</span>
+<span class="fc" id="L165">      builder.put(ES_HTTP_HOST_KEY, searchHost.getHostAddress());</span>
+<span class="fc" id="L166">      builder.put(ES_HTTP_PORT_KEY, valueOf(searchPort));</span>
+<span class="fc" id="L167">      builder.put(&quot;discovery.type&quot;, &quot;single-node&quot;);</span>
+
+<span class="fc" id="L169">      int transportPort = Integer.parseInt(props.nonNullValue(ES_PORT.getKey()));</span>
+
+      // we have no use of transport port in non-DCE editions
+      // but specified host must be the one listed in: discovery.seed_hosts
+      // otherwise elasticsearch cannot elect master node
+      // by default it will be localhost, see: org.sonar.process.ProcessProperties.completeDefaults
+<span class="fc" id="L175">      builder.put(ES_TRANSPORT_HOST_KEY, searchHost.getHostAddress());</span>
+<span class="fc" id="L176">      builder.put(ES_TRANSPORT_PORT_KEY, valueOf(transportPort));</span>
+    }
+
+    // see https://github.com/lmenezes/elasticsearch-kopf/issues/195
+<span class="fc" id="L180">    builder.put(&quot;http.cors.enabled&quot;, valueOf(true));</span>
+<span class="fc" id="L181">    builder.put(&quot;http.cors.allow-origin&quot;, &quot;*&quot;);</span>
+
+    // Elasticsearch sets the default value of TCP reuse address to true only on non-MSWindows machines, but why ?
+<span class="fc" id="L184">    builder.put(&quot;network.tcp.reuse_address&quot;, valueOf(true));</span>
+<span class="fc" id="L185">  }</span>
+
+  private InetAddress resolveAddress(ProcessProperties.Property prop) {
+<span class="fc" id="L188">    return resolveAddress(prop, null);</span>
+  }
+
+  private InetAddress resolveAddress(ProcessProperties.Property prop, @Nullable InetAddress defaultAddress) {
+    String address;
+<span class="fc bfc" id="L193" title="All 2 branches covered.">    if (defaultAddress == null) {</span>
+<span class="fc" id="L194">      address = props.nonNullValue(prop.getKey());</span>
+    } else {
+<span class="fc" id="L196">      address = props.value(prop.getKey());</span>
+<span class="fc bfc" id="L197" title="All 2 branches covered.">      if (address == null) {</span>
+<span class="fc" id="L198">        return defaultAddress;</span>
+      }
+    }
+
+    try {
+<span class="fc" id="L203">      return InetAddress.getByName(address);</span>
+<span class="nc" id="L204">    } catch (UnknownHostException e) {</span>
+<span class="nc" id="L205">      throw new IllegalStateException(&quot;Can not resolve host [&quot; + address + &quot;]. Please check network settings and property &quot; + prop.getKey(), e);</span>
+    }
+  }
+
+  private void configureCluster(Map&lt;String, String&gt; builder) {
+    // Default value in a standalone mode, not overridable
+
+<span class="fc" id="L212">    String initialStateTimeOut = &quot;30s&quot;;</span>
+
+<span class="fc bfc" id="L214" title="All 2 branches covered.">    if (clusterEnabled) {</span>
+<span class="fc" id="L215">      initialStateTimeOut = props.value(SEARCH_INITIAL_STATE_TIMEOUT.getKey(), &quot;120s&quot;);</span>
+
+<span class="fc" id="L217">      String nodeSearchHost = resolveAddress(CLUSTER_NODE_SEARCH_HOST, loopbackAddress).getHostAddress();</span>
+<span class="fc" id="L218">      int nodeSearchPort = props.valueAsInt(CLUSTER_NODE_SEARCH_PORT.getKey(), 9001);</span>
+<span class="fc" id="L219">      builder.put(ES_HTTP_HOST_KEY, nodeSearchHost);</span>
+<span class="fc" id="L220">      builder.put(ES_HTTP_PORT_KEY, valueOf(nodeSearchPort));</span>
+
+<span class="fc" id="L222">      String nodeTransportHost = resolveAddress(CLUSTER_NODE_ES_HOST, loopbackAddress).getHostAddress();</span>
+<span class="fc" id="L223">      int nodeTransportPort = props.valueAsInt(CLUSTER_NODE_ES_PORT.getKey(), 9002);</span>
+<span class="fc" id="L224">      builder.put(ES_TRANSPORT_HOST_KEY, nodeTransportHost);</span>
+<span class="fc" id="L225">      builder.put(ES_TRANSPORT_PORT_KEY, valueOf(nodeTransportPort));</span>
+<span class="fc" id="L226">      builder.put(ES_NETWORK_HOST_KEY, nodeTransportHost);</span>
+
+<span class="fc" id="L228">      String hosts = props.value(CLUSTER_ES_HOSTS.getKey(), loopbackAddress.getHostAddress());</span>
+<span class="fc" id="L229">      String discoveryHosts = props.value(CLUSTER_ES_DISCOVERY_SEED_HOSTS.getKey(), hosts);</span>
+<span class="fc" id="L230">      LOGGER.info(&quot;Elasticsearch cluster enabled. Connect to hosts [{}]&quot;, hosts);</span>
+<span class="fc" id="L231">      builder.put(&quot;discovery.seed_hosts&quot;, discoveryHosts);</span>
+<span class="fc" id="L232">      builder.put(&quot;cluster.initial_master_nodes&quot;, hosts);</span>
+    }
+
+<span class="fc" id="L235">    builder.put(&quot;discovery.initial_state_timeout&quot;, initialStateTimeOut);</span>
+<span class="fc" id="L236">    builder.put(&quot;cluster.name&quot;, clusterName);</span>
+<span class="fc" id="L237">    builder.put(&quot;cluster.routing.allocation.awareness.attributes&quot;, &quot;rack_id&quot;);</span>
+<span class="fc" id="L238">    builder.put(&quot;node.attr.rack_id&quot;, nodeName);</span>
+<span class="fc" id="L239">    builder.put(&quot;node.name&quot;, nodeName);</span>
+<span class="fc" id="L240">  }</span>
+
+  private void configureOthers(Map&lt;String, String&gt; builder) {
+<span class="fc" id="L243">    builder.put(&quot;action.auto_create_index&quot;, String.valueOf(false));</span>
+<span class="fc bfc" id="L244" title="All 2 branches covered.">    if (props.value(JAVA_ADDITIONAL_OPS_PROPERTY, &quot;&quot;).contains(&quot;-D&quot; + SECCOMP_PROPERTY + &quot;=&quot; + Boolean.FALSE)) {</span>
+<span class="fc" id="L245">      builder.put(SECCOMP_PROPERTY, Boolean.FALSE.toString());</span>
+    }
+
+<span class="fc bfc" id="L248" title="All 2 branches covered.">    if (props.value(JAVA_ADDITIONAL_OPS_PROPERTY, &quot;&quot;).contains(&quot;-Dnode.store.allow_mmapfs=&quot; + Boolean.FALSE)) {</span>
+<span class="fc" id="L249">      throw new MessageException(&quot;Property 'node.store.allow_mmapfs' is no longer supported. Use 'node.store.allow_mmap' instead.&quot;);</span>
+    }
+
+<span class="fc bfc" id="L252" title="All 2 branches covered.">    if (props.value(JAVA_ADDITIONAL_OPS_PROPERTY, &quot;&quot;).contains(&quot;-D&quot; + ALLOW_MMAP + &quot;=&quot; + Boolean.FALSE)) {</span>
+<span class="fc" id="L253">      builder.put(ALLOW_MMAP, Boolean.FALSE.toString());</span>
+    }
+
+<span class="fc bfc" id="L256" title="All 2 branches covered.">    if (props.value(JAVA_ADDITIONAL_OPS_PROPERTY, &quot;&quot;).contains(&quot;-Dcluster.routing.allocation.disk.threshold_enabled=&quot; + Boolean.FALSE)) {</span>
+<span class="fc" id="L257">      builder.put(&quot;cluster.routing.allocation.disk.threshold_enabled&quot;, Boolean.FALSE.toString());</span>
+    }
+<span class="fc" id="L259">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,382 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ValuesAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.setting.ws</a> &gt; <span class="el_source">ValuesAction.java</span></div><h1>ValuesAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.setting.ws;
+
+import com.google.common.base.Splitter;
+import com.google.common.collect.ImmutableSet;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.api.config.PropertyDefinition;
+import org.sonar.api.config.PropertyDefinitions;
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.db.permission.ProjectPermission;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.entity.EntityDto;
+import org.sonar.db.permission.GlobalPermission;
+import org.sonar.db.property.PropertyDto;
+import org.sonar.markdown.Markdown;
+import org.sonar.server.exceptions.NotFoundException;
+import org.sonar.server.user.UserSession;
+import org.sonarqube.ws.Settings;
+import org.sonarqube.ws.Settings.ValuesWsResponse;
+
+import static java.lang.String.format;
+import static java.util.stream.Stream.concat;
+import static org.apache.commons.lang3.StringUtils.isEmpty;
+import static org.sonar.api.CoreProperties.SERVER_ID;
+import static org.sonar.api.CoreProperties.SERVER_STARTTIME;
+import static org.sonar.api.PropertyType.FORMATTED_TEXT;
+import static org.sonar.api.PropertyType.PROPERTY_SET;
+import static org.sonar.db.permission.ProjectPermission.USER;
+import static org.sonar.server.setting.ws.PropertySetExtractor.extractPropertySetKeys;
+import static org.sonar.server.setting.ws.SettingsWsParameters.PARAM_COMPONENT;
+import static org.sonar.server.setting.ws.SettingsWsParameters.PARAM_KEYS;
+import static org.sonar.server.setting.ws.SettingsWsSupport.isSecured;
+import static org.sonar.server.user.AbstractUserSession.insufficientPrivilegesException;
+import static org.sonar.server.ws.KeyExamples.KEY_PROJECT_EXAMPLE_001;
+import static org.sonar.server.ws.WsUtils.writeProtobuf;
+
+public class ValuesAction implements SettingsWsAction {
+<span class="fc" id="L72">  private static final Splitter COMMA_SPLITTER = Splitter.on(&quot;,&quot;);</span>
+  private static final String COMMA_ENCODED_VALUE = &quot;%2C&quot;;
+<span class="fc" id="L74">  private static final Set&lt;String&gt; SERVER_SETTING_KEYS = Set.of(SERVER_STARTTIME, SERVER_ID);</span>
+
+  private final DbClient dbClient;
+  private final UserSession userSession;
+  private final PropertyDefinitions propertyDefinitions;
+  private final SettingsWsSupport settingsWsSupport;
+
+<span class="fc" id="L81">  public ValuesAction(DbClient dbClient, UserSession userSession, PropertyDefinitions propertyDefinitions, SettingsWsSupport settingsWsSupport) {</span>
+<span class="fc" id="L82">    this.dbClient = dbClient;</span>
+<span class="fc" id="L83">    this.userSession = userSession;</span>
+<span class="fc" id="L84">    this.propertyDefinitions = propertyDefinitions;</span>
+<span class="fc" id="L85">    this.settingsWsSupport = settingsWsSupport;</span>
+<span class="fc" id="L86">  }</span>
+
+  @Override
+  public void define(WebService.NewController context) {
+<span class="fc" id="L90">    WebService.NewAction action = context.createAction(&quot;values&quot;)</span>
+<span class="fc" id="L91">      .setDescription(&quot;List settings values.&lt;br&gt;&quot; +</span>
+        &quot;If no value has been set for a setting, then the default value is returned.&lt;br&gt;&quot; +
+        &quot;The settings from conf/sonar.properties are excluded from results.&lt;br&gt;&quot; +
+        &quot;Requires 'Browse' or 'Execute Analysis' permission when a component is specified.&lt;br/&gt;&quot; +
+        &quot;Secured settings values are not returned by the endpoint.&lt;br/&gt;&quot;)
+<span class="fc" id="L96">      .setResponseExample(getClass().getResource(&quot;values-example.json&quot;))</span>
+<span class="fc" id="L97">      .setSince(&quot;6.3&quot;)</span>
+<span class="fc" id="L98">      .setChangelog(</span>
+<span class="fc" id="L99">        new Change(&quot;10.1&quot;, String.format(&quot;The use of module keys in parameter '%s' is removed&quot;, PARAM_COMPONENT)),</span>
+        new Change(&quot;9.1&quot;, &quot;The secured settings values are no longer returned. Secured settings keys that have a value &quot; +
+          &quot;are now returned in setSecuredSettings array.&quot;),
+<span class="fc" id="L102">        new Change(&quot;7.6&quot;, String.format(&quot;The use of module keys in parameter '%s' is deprecated&quot;, PARAM_COMPONENT)),</span>
+        new Change(&quot;7.1&quot;, &quot;The settings from conf/sonar.properties are excluded from results.&quot;))
+<span class="fc" id="L104">      .setHandler(this);</span>
+<span class="fc" id="L105">    action.createParam(PARAM_KEYS)</span>
+<span class="fc" id="L106">      .setDescription(&quot;List of setting keys&quot;)</span>
+<span class="fc" id="L107">      .setExampleValue(&quot;sonar.test.inclusions,sonar.exclusions&quot;);</span>
+<span class="fc" id="L108">    action.createParam(PARAM_COMPONENT)</span>
+<span class="fc" id="L109">      .setDescription(&quot;Component key&quot;)</span>
+<span class="fc" id="L110">      .setExampleValue(KEY_PROJECT_EXAMPLE_001);</span>
+<span class="fc" id="L111">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L115">    writeProtobuf(doHandle(request), request, response);</span>
+<span class="fc" id="L116">  }</span>
+
+  private ValuesWsResponse doHandle(Request request) {
+<span class="fc" id="L119">    try (DbSession dbSession = dbClient.openSession(true)) {</span>
+<span class="fc" id="L120">      ValuesRequest valuesRequest = ValuesRequest.from(request);</span>
+<span class="fc" id="L121">      Optional&lt;EntityDto&gt; component = loadComponent(dbSession, valuesRequest);</span>
+<span class="fc" id="L122">      Set&lt;String&gt; keys = loadKeys(valuesRequest);</span>
+<span class="fc" id="L123">      Map&lt;String, String&gt; keysToDisplayMap = getKeysToDisplayMap(keys);</span>
+<span class="fc" id="L124">      List&lt;Setting&gt; settings = loadSettings(dbSession, component, keysToDisplayMap.keySet());</span>
+<span class="fc" id="L125">      return new ValuesResponseBuilder(settings, component, keysToDisplayMap).build();</span>
+    }
+  }
+
+  private Set&lt;String&gt; loadKeys(ValuesRequest valuesRequest) {
+<span class="fc" id="L130">    List&lt;String&gt; keys = valuesRequest.getKeys();</span>
+    Set&lt;String&gt; result;
+<span class="pc bpc" id="L132" title="1 of 4 branches missed.">    if (keys == null || keys.isEmpty()) {</span>
+<span class="fc" id="L133">      result = concat(propertyDefinitions.getAll().stream().map(PropertyDefinition::key), SERVER_SETTING_KEYS.stream()).collect(Collectors.toSet());</span>
+    } else {
+<span class="fc" id="L135">      result = ImmutableSet.copyOf(keys);</span>
+    }
+<span class="fc" id="L137">    result.forEach(SettingsWsSupport::validateKey);</span>
+<span class="fc" id="L138">    return result;</span>
+  }
+
+  private Optional&lt;EntityDto&gt; loadComponent(DbSession dbSession, ValuesRequest valuesRequest) {
+<span class="fc" id="L142">    String componentKey = valuesRequest.getComponent();</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">    if (componentKey == null) {</span>
+<span class="fc" id="L144">      return Optional.empty();</span>
+    }
+
+<span class="fc" id="L147">    EntityDto entity = dbClient.entityDao().selectByKey(dbSession, componentKey)</span>
+<span class="fc" id="L148">      .orElseThrow(() -&gt; new NotFoundException(format(&quot;Component key '%s' not found&quot;, componentKey)));</span>
+
+<span class="fc bfc" id="L150" title="All 2 branches covered.">    if (!userSession.hasEntityPermission(USER, entity) &amp;&amp;</span>
+<span class="pc bpc" id="L151" title="1 of 2 branches missed.">      !userSession.hasEntityPermission(ProjectPermission.SCAN, entity) &amp;&amp;</span>
+<span class="pc bpc" id="L152" title="1 of 2 branches missed.">      !userSession.hasPermission(GlobalPermission.SCAN)) {</span>
+<span class="fc" id="L153">      throw insufficientPrivilegesException();</span>
+    }
+<span class="fc" id="L155">    return Optional.of(entity);</span>
+  }
+
+  private List&lt;Setting&gt; loadSettings(DbSession dbSession, Optional&lt;EntityDto&gt; component, Set&lt;String&gt; keys) {
+    // List of settings must be kept in the following orders : default -&gt; global -&gt; component
+<span class="fc" id="L160">    List&lt;Setting&gt; settings = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L161">    settings.addAll(loadDefaultValues(keys));</span>
+<span class="fc" id="L162">    settings.addAll(loadGlobalSettings(dbSession, keys));</span>
+<span class="fc" id="L163">    component.ifPresent(c -&gt; settings.addAll(loadComponentSettings(dbSession, c, keys)));</span>
+<span class="fc" id="L164">    return settings.stream()</span>
+<span class="fc" id="L165">      .filter(s -&gt; settingsWsSupport.isVisible(s.getKey(), component))</span>
+<span class="fc" id="L166">      .toList();</span>
+  }
+
+  private Collection&lt;Setting&gt; loadComponentSettings(DbSession dbSession, EntityDto entity, Set&lt;String&gt; keys) {
+<span class="fc" id="L170">    return loadComponentSettings(dbSession, keys, entity.getUuid());</span>
+  }
+
+  private List&lt;Setting&gt; loadDefaultValues(Set&lt;String&gt; keys) {
+<span class="fc" id="L174">    return propertyDefinitions.getAll().stream()</span>
+<span class="fc" id="L175">      .filter(definition -&gt; keys.contains(definition.key()))</span>
+<span class="fc bfc" id="L176" title="All 2 branches covered.">      .filter(defaultProperty -&gt; !isEmpty(defaultProperty.defaultValue()))</span>
+<span class="fc" id="L177">      .map(Setting::createFromDefinition)</span>
+<span class="fc" id="L178">      .toList();</span>
+  }
+
+  private Map&lt;String, String&gt; getKeysToDisplayMap(Set&lt;String&gt; keys) {
+<span class="fc" id="L182">    return keys.stream()</span>
+<span class="fc" id="L183">      .collect(Collectors.toMap(propertyDefinitions::validKey, Function.identity(),</span>
+        (u, v) -&gt; {
+<span class="fc" id="L185">          throw new IllegalArgumentException(format(&quot;'%s' and '%s' cannot be used at the same time as they refer to the same setting&quot;, u, v));</span>
+        }));
+  }
+
+  private List&lt;Setting&gt; loadGlobalSettings(DbSession dbSession, Set&lt;String&gt; keys) {
+<span class="fc" id="L190">    List&lt;PropertyDto&gt; properties = dbClient.propertiesDao().selectGlobalPropertiesByKeys(dbSession, keys);</span>
+<span class="fc" id="L191">    List&lt;PropertyDto&gt; propertySets = dbClient.propertiesDao().selectGlobalPropertiesByKeys(dbSession, getPropertySetKeys(properties));</span>
+<span class="fc" id="L192">    return properties.stream()</span>
+<span class="fc" id="L193">      .map(property -&gt; Setting.createFromDto(property, filterPropertySets(property.getKey(), propertySets, null), propertyDefinitions.get(property.getKey())))</span>
+<span class="fc" id="L194">      .toList();</span>
+  }
+
+  /**
+   * Return list of settings by component uuids
+   */
+  private Collection&lt;Setting&gt; loadComponentSettings(DbSession dbSession, Set&lt;String&gt; keys, String entityUuid) {
+<span class="fc" id="L201">    List&lt;PropertyDto&gt; properties = dbClient.propertiesDao().selectPropertiesByKeysAndEntityUuids(dbSession, keys, Set.of(entityUuid));</span>
+<span class="fc" id="L202">    List&lt;PropertyDto&gt; propertySets = dbClient.propertiesDao().selectPropertiesByKeysAndEntityUuids(dbSession, getPropertySetKeys(properties), Set.of(entityUuid));</span>
+
+<span class="fc" id="L204">    List&lt;Setting&gt; settings = new LinkedList&lt;&gt;();</span>
+<span class="fc bfc" id="L205" title="All 2 branches covered.">    for (PropertyDto propertyDto : properties) {</span>
+<span class="fc" id="L206">      String componentUuid = propertyDto.getEntityUuid();</span>
+<span class="fc" id="L207">      String propertyKey = propertyDto.getKey();</span>
+<span class="fc" id="L208">      settings.add(Setting.createFromDto(propertyDto, filterPropertySets(propertyKey, propertySets, componentUuid), propertyDefinitions.get(propertyKey)));</span>
+<span class="fc" id="L209">    }</span>
+<span class="fc" id="L210">    return settings;</span>
+  }
+
+  private Set&lt;String&gt; getPropertySetKeys(List&lt;PropertyDto&gt; properties) {
+<span class="fc" id="L214">    return properties.stream()</span>
+<span class="fc bfc" id="L215" title="All 2 branches covered.">      .filter(propertyDto -&gt; propertyDefinitions.get(propertyDto.getKey()) != null)</span>
+<span class="fc" id="L216">      .filter(propertyDto -&gt; propertyDefinitions.get(propertyDto.getKey()).type().equals(PROPERTY_SET))</span>
+<span class="fc" id="L217">      .flatMap(propertyDto -&gt; extractPropertySetKeys(propertyDto, propertyDefinitions.get(propertyDto.getKey())).stream())</span>
+<span class="fc" id="L218">      .collect(Collectors.toSet());</span>
+  }
+
+  private static List&lt;PropertyDto&gt; filterPropertySets(String propertyKey, List&lt;PropertyDto&gt; propertySets, @Nullable String componentUuid) {
+<span class="fc" id="L222">    return propertySets.stream()</span>
+<span class="fc" id="L223">      .filter(propertyDto -&gt; Objects.equals(propertyDto.getEntityUuid(), componentUuid))</span>
+<span class="fc" id="L224">      .filter(propertyDto -&gt; propertyDto.getKey().startsWith(propertyKey + &quot;.&quot;))</span>
+<span class="fc" id="L225">      .toList();</span>
+  }
+
+  private class ValuesResponseBuilder {
+    private final List&lt;Setting&gt; settings;
+    private final Optional&lt;EntityDto&gt; requestedComponent;
+
+<span class="fc" id="L232">    private final ValuesWsResponse.Builder valuesWsBuilder = ValuesWsResponse.newBuilder();</span>
+<span class="fc" id="L233">    private final Map&lt;String, Settings.Setting.Builder&gt; settingsBuilderByKey = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L234">    private final Map&lt;String, Setting&gt; settingsByParentKey = new HashMap&lt;&gt;();</span>
+    private final Map&lt;String, String&gt; keysToDisplayMap;
+
+<span class="fc" id="L237">    ValuesResponseBuilder(List&lt;Setting&gt; settings, Optional&lt;EntityDto&gt; requestedComponent, Map&lt;String, String&gt; keysToDisplayMap) {</span>
+<span class="fc" id="L238">      this.settings = settings;</span>
+<span class="fc" id="L239">      this.requestedComponent = requestedComponent;</span>
+<span class="fc" id="L240">      this.keysToDisplayMap = keysToDisplayMap;</span>
+<span class="fc" id="L241">    }</span>
+
+    ValuesWsResponse build() {
+<span class="fc" id="L244">      processSettings();</span>
+<span class="fc" id="L245">      settingsBuilderByKey.values().forEach(Settings.Setting.Builder::build);</span>
+<span class="fc" id="L246">      return valuesWsBuilder.build();</span>
+    }
+
+    private void processSettings() {
+<span class="fc" id="L250">      settings.forEach(setting -&gt; {</span>
+<span class="fc bfc" id="L251" title="All 2 branches covered.">        if (isSecured(setting.getKey())) {</span>
+<span class="fc bfc" id="L252" title="All 2 branches covered.">          if (!setting.isDefault()) {</span>
+<span class="fc" id="L253">            valuesWsBuilder.addSetSecuredSettings(setting.getKey());</span>
+          }
+<span class="fc" id="L255">          return;</span>
+        }
+<span class="fc" id="L257">        Settings.Setting.Builder valueBuilder = getOrCreateValueBuilder(keysToDisplayMap.get(setting.getKey()));</span>
+<span class="fc" id="L258">        setInherited(setting, valueBuilder);</span>
+<span class="fc" id="L259">        setValue(setting, valueBuilder);</span>
+<span class="fc" id="L260">        setParent(setting, valueBuilder);</span>
+<span class="fc" id="L261">      });</span>
+<span class="fc" id="L262">    }</span>
+
+    private Settings.Setting.Builder getOrCreateValueBuilder(String key) {
+<span class="fc" id="L265">      return settingsBuilderByKey.computeIfAbsent(key, k -&gt; valuesWsBuilder.addSettingsBuilder().setKey(key));</span>
+    }
+
+    private void setInherited(Setting setting, Settings.Setting.Builder valueBuilder) {
+<span class="fc" id="L269">      boolean isDefault = setting.isDefault();</span>
+<span class="fc bfc" id="L270" title="All 2 branches covered.">      boolean isGlobal = !requestedComponent.isPresent();</span>
+<span class="fc bfc" id="L271" title="All 4 branches covered.">      boolean isOnComponent = requestedComponent.isPresent() &amp;&amp; Objects.equals(setting.getComponentUuid(), requestedComponent.get().getUuid());</span>
+<span class="fc bfc" id="L272" title="All 4 branches covered.">      boolean isSet = isGlobal || isOnComponent;</span>
+<span class="fc bfc" id="L273" title="All 4 branches covered.">      valueBuilder.setInherited(isDefault || !isSet);</span>
+<span class="fc" id="L274">    }</span>
+
+    private void setValue(Setting setting, Settings.Setting.Builder valueBuilder) {
+<span class="fc" id="L277">      PropertyDefinition definition = setting.getDefinition();</span>
+<span class="fc" id="L278">      String value = setting.getValue();</span>
+<span class="fc bfc" id="L279" title="All 2 branches covered.">      if (definition == null) {</span>
+<span class="fc" id="L280">        valueBuilder.setValue(value);</span>
+<span class="fc" id="L281">        return;</span>
+      }
+<span class="fc bfc" id="L283" title="All 2 branches covered.">      if (definition.type().equals(PROPERTY_SET)) {</span>
+<span class="fc" id="L284">        valueBuilder.setFieldValues(createFieldValuesBuilder(filterVisiblePropertySets(setting.getPropertySets())));</span>
+<span class="fc bfc" id="L285" title="All 2 branches covered.">      } else if (definition.type().equals(FORMATTED_TEXT)) {</span>
+<span class="fc" id="L286">        valueBuilder.setValues(createFormattedTextValuesBuilder(value));</span>
+<span class="fc bfc" id="L287" title="All 2 branches covered.">      } else if (definition.multiValues()) {</span>
+<span class="fc" id="L288">        valueBuilder.setValues(createValuesBuilder(value));</span>
+      } else {
+<span class="fc" id="L290">        valueBuilder.setValue(value);</span>
+      }
+<span class="fc" id="L292">    }</span>
+
+    private void setParent(Setting setting, Settings.Setting.Builder valueBuilder) {
+<span class="fc" id="L295">      Setting parent = settingsByParentKey.get(setting.getKey());</span>
+<span class="fc bfc" id="L296" title="All 2 branches covered.">      if (parent != null) {</span>
+<span class="fc bfc" id="L297" title="All 2 branches covered.">        String value = valueBuilder.getInherited() ? setting.getValue() : parent.getValue();</span>
+<span class="fc" id="L298">        PropertyDefinition definition = setting.getDefinition();</span>
+<span class="pc bpc" id="L299" title="1 of 2 branches missed.">        if (definition == null) {</span>
+<span class="nc" id="L300">          valueBuilder.setParentValue(value);</span>
+<span class="nc" id="L301">          return;</span>
+        }
+
+<span class="pc bpc" id="L304" title="1 of 2 branches missed.">        if (definition.type().equals(PROPERTY_SET)) {</span>
+<span class="nc" id="L305">          valueBuilder.setParentFieldValues(</span>
+<span class="nc bnc" id="L306" title="All 2 branches missed.">            createFieldValuesBuilder(valueBuilder.getInherited() ? filterVisiblePropertySets(setting.getPropertySets()) : filterVisiblePropertySets(parent.getPropertySets())));</span>
+<span class="pc bpc" id="L307" title="1 of 2 branches missed.">        } else if (definition.multiValues()) {</span>
+<span class="nc" id="L308">          valueBuilder.setParentValues(createValuesBuilder(value));</span>
+        } else {
+<span class="fc" id="L310">          valueBuilder.setParentValue(value);</span>
+        }
+      }
+<span class="fc" id="L313">      settingsByParentKey.put(setting.getKey(), setting);</span>
+<span class="fc" id="L314">    }</span>
+
+    private Settings.Values.Builder createValuesBuilder(String value) {
+<span class="fc" id="L317">      List&lt;String&gt; values = COMMA_SPLITTER.splitToList(value).stream().map(v -&gt; v.replace(COMMA_ENCODED_VALUE, &quot;,&quot;)).toList();</span>
+<span class="fc" id="L318">      return Settings.Values.newBuilder().addAllValues(values);</span>
+    }
+
+    private Settings.Values.Builder createFormattedTextValuesBuilder(String value) {
+<span class="fc" id="L322">      List&lt;String&gt; values = List.of(value, Markdown.convertToHtml(value));</span>
+<span class="fc" id="L323">      return Settings.Values.newBuilder().addAllValues(values);</span>
+    }
+
+    private Settings.FieldValues.Builder createFieldValuesBuilder(List&lt;Map&lt;String, String&gt;&gt; fieldValues) {
+<span class="fc" id="L327">      Settings.FieldValues.Builder builder = Settings.FieldValues.newBuilder();</span>
+<span class="fc bfc" id="L328" title="All 2 branches covered.">      for (Map&lt;String, String&gt; propertySetMap : fieldValues) {</span>
+<span class="fc" id="L329">        builder.addFieldValuesBuilder().putAllValue(propertySetMap);</span>
+<span class="fc" id="L330">      }</span>
+<span class="fc" id="L331">      return builder;</span>
+    }
+
+    private List&lt;Map&lt;String, String&gt;&gt; filterVisiblePropertySets(List&lt;Map&lt;String, String&gt;&gt; propertySets) {
+<span class="fc" id="L335">      List&lt;Map&lt;String, String&gt;&gt; filteredPropertySets = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L336">      propertySets.forEach(map -&gt; {</span>
+<span class="fc" id="L337">        Map&lt;String, String&gt; set = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L338">        map.entrySet().stream()</span>
+<span class="fc" id="L339">          .filter(entry -&gt; settingsWsSupport.isVisible(entry.getKey(), requestedComponent))</span>
+<span class="fc" id="L340">          .forEach(entry -&gt; set.put(entry.getKey(), entry.getValue()));</span>
+<span class="fc" id="L341">        filteredPropertySets.add(set);</span>
+<span class="fc" id="L342">      });</span>
+<span class="fc" id="L343">      return filteredPropertySets;</span>
+    }
+  }
+
+  private static class ValuesRequest {
+    private String component;
+    private List&lt;String&gt; keys;
+
+    public ValuesRequest setComponent(@Nullable String component) {
+<span class="fc" id="L352">      this.component = component;</span>
+<span class="fc" id="L353">      return this;</span>
+    }
+
+    @CheckForNull
+    public String getComponent() {
+<span class="fc" id="L358">      return component;</span>
+    }
+
+    public ValuesRequest setKeys(@Nullable List&lt;String&gt; keys) {
+<span class="fc" id="L362">      this.keys = keys;</span>
+<span class="fc" id="L363">      return this;</span>
+    }
+
+    @CheckForNull
+    public List&lt;String&gt; getKeys() {
+<span class="fc" id="L368">      return keys;</span>
+    }
+
+    private static ValuesRequest from(Request request) {
+<span class="fc" id="L372">      ValuesRequest result = new ValuesRequest()</span>
+<span class="fc" id="L373">        .setComponent(request.param(PARAM_COMPONENT));</span>
+<span class="fc bfc" id="L374" title="All 2 branches covered.">      if (request.hasParam(PARAM_KEYS)) {</span>
+<span class="fc" id="L375">        result.setKeys(request.paramAsStrings(PARAM_KEYS));</span>
+      }
+<span class="fc" id="L377">      return result;</span>
+    }
+
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultIndexedFile.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.api.batch.fs.internal</a> &gt; <span class="el_source">DefaultIndexedFile.java</span></div><h1>DefaultIndexedFile.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.api.batch.fs.internal;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicInteger;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
+import org.sonar.api.batch.fs.IndexedFile;
+import org.sonar.api.batch.fs.InputFile.Type;
+import org.sonar.api.utils.PathUtils;
+
+/**
+ * @since 6.3
+ */
+@Immutable
+public class DefaultIndexedFile extends DefaultInputComponent implements IndexedFile {
+  // should match limit in org.sonar.core.component.ComponentKeys
+<span class="fc" id="L42">  private static final Integer MAX_KEY_LENGTH = 400;</span>
+<span class="fc" id="L43">  private static final AtomicInteger intGenerator = new AtomicInteger(0);</span>
+
+  private final String projectRelativePath;
+  private final String moduleRelativePath;
+  private final String projectKey;
+  private final String language;
+  private final Type type;
+  private final Path absolutePath;
+  private final SensorStrategy sensorStrategy;
+  private final String oldRelativeFilePath;
+  private final boolean hidden;
+  private final URI uri;
+
+  /**
+   * Testing purposes only!
+   */
+  public DefaultIndexedFile(String projectKey, Path baseDir, String relativePath, @Nullable String language) {
+<span class="fc" id="L60">    this(baseDir.resolve(relativePath), projectKey, relativePath, relativePath, Type.MAIN, language, intGenerator.getAndIncrement(),</span>
+      new SensorStrategy(), null, false);
+<span class="fc" id="L62">  }</span>
+
+  public DefaultIndexedFile(Path absolutePath, String projectKey, String projectRelativePath, String moduleRelativePath, Type type, @Nullable String language, int batchId,
+    SensorStrategy sensorStrategy, boolean hidden) {
+<span class="fc" id="L66">    this(absolutePath, projectKey, projectRelativePath, moduleRelativePath, type, language, batchId, sensorStrategy, null, hidden);</span>
+<span class="fc" id="L67">  }</span>
+
+  public DefaultIndexedFile(Path absolutePath, String projectKey, String projectRelativePath, String moduleRelativePath, Type type, @Nullable String language, int batchId,
+    SensorStrategy sensorStrategy, @Nullable String oldRelativeFilePath, boolean hidden) {
+<span class="fc" id="L71">    super(batchId);</span>
+<span class="fc" id="L72">    this.projectKey = projectKey;</span>
+<span class="fc" id="L73">    this.projectRelativePath = checkSanitize(projectRelativePath);</span>
+<span class="fc" id="L74">    this.moduleRelativePath = PathUtils.sanitize(moduleRelativePath);</span>
+<span class="fc" id="L75">    this.type = type;</span>
+<span class="fc" id="L76">    this.language = language;</span>
+<span class="fc" id="L77">    this.sensorStrategy = sensorStrategy;</span>
+<span class="fc" id="L78">    this.absolutePath = absolutePath;</span>
+<span class="fc" id="L79">    this.uri = absolutePath.toUri();</span>
+<span class="fc" id="L80">    this.oldRelativeFilePath = oldRelativeFilePath;</span>
+<span class="fc" id="L81">    this.hidden = hidden;</span>
+<span class="fc" id="L82">    validateKeyLength();</span>
+<span class="fc" id="L83">  }</span>
+
+  static String checkSanitize(String relativePath) {
+<span class="fc" id="L86">    String sanitized = PathUtils.sanitize(relativePath);</span>
+<span class="fc bfc" id="L87" title="All 2 branches covered.">    if (sanitized == null) {</span>
+<span class="fc" id="L88">      throw new IllegalArgumentException(String.format(&quot;The path '%s' must sanitize to a non-null value&quot;, relativePath));</span>
+    }
+<span class="fc" id="L90">    return sanitized;</span>
+  }
+
+  private void validateKeyLength() {
+<span class="fc" id="L94">    String key = key();</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">    if (key.length() &gt; MAX_KEY_LENGTH) {</span>
+<span class="fc" id="L96">      throw new IllegalStateException(String.format(&quot;Component key (%s) length (%s) is longer than the maximum authorized (%s)&quot;, key, key.length(), MAX_KEY_LENGTH));</span>
+    }
+<span class="fc" id="L98">  }</span>
+
+  @Override
+  public String relativePath() {
+<span class="fc bfc" id="L102" title="All 2 branches covered.">    return sensorStrategy.isGlobal() ? projectRelativePath : moduleRelativePath;</span>
+  }
+
+  public String getModuleRelativePath() {
+<span class="fc" id="L106">    return moduleRelativePath;</span>
+  }
+
+  public String getProjectRelativePath() {
+<span class="fc" id="L110">    return projectRelativePath;</span>
+  }
+
+  @Override
+  public String absolutePath() {
+<span class="fc" id="L115">    return PathUtils.sanitize(path().toString());</span>
+  }
+
+  @Override
+  public File file() {
+<span class="fc" id="L120">    return path().toFile();</span>
+  }
+
+  @Override
+  public Path path() {
+<span class="fc" id="L125">    return absolutePath;</span>
+  }
+
+  @CheckForNull
+  public String oldRelativePath() {
+<span class="fc" id="L130">    return oldRelativeFilePath;</span>
+  }
+
+  @Override
+  public InputStream inputStream() throws IOException {
+<span class="nc" id="L135">    return Files.newInputStream(path());</span>
+  }
+
+  @CheckForNull
+  @Override
+  public String language() {
+<span class="fc" id="L141">    return language;</span>
+  }
+
+  @Override
+  public Type type() {
+<span class="fc" id="L146">    return type;</span>
+  }
+
+  /**
+   * Component key (without branch).
+   */
+  @Override
+  public String key() {
+<span class="fc" id="L154">    return String.join(&quot;:&quot;, projectKey, projectRelativePath);</span>
+  }
+
+  @Override
+  public boolean equals(Object o) {
+<span class="nc bnc" id="L159" title="All 2 branches missed.">    if (this == o) {</span>
+<span class="nc" id="L160">      return true;</span>
+    }
+
+<span class="nc bnc" id="L163" title="All 4 branches missed.">    if (o == null || o.getClass() != this.getClass()) {</span>
+<span class="nc" id="L164">      return false;</span>
+    }
+
+<span class="nc" id="L167">    DefaultIndexedFile that = (DefaultIndexedFile) o;</span>
+<span class="nc" id="L168">    return projectRelativePath.equals(that.projectRelativePath);</span>
+  }
+
+  @Override
+  public int hashCode() {
+<span class="fc" id="L173">    return projectRelativePath.hashCode();</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="fc" id="L178">    return projectRelativePath;</span>
+  }
+
+  @Override
+  public boolean isFile() {
+<span class="nc" id="L183">    return true;</span>
+  }
+
+  @Override
+  public String filename() {
+<span class="fc" id="L188">    return path().getFileName().toString();</span>
+  }
+
+  @Override
+  public boolean isHidden() {
+<span class="fc" id="L193">    return hidden;</span>
+  }
+
+  @Override
+  public URI uri() {
+<span class="fc" id="L198">    return uri;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

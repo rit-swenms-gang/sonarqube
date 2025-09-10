@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>QProfileDto.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.qualityprofile</a> &gt; <span class="el_source">QProfileDto.java</span></div><h1>QProfileDto.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.qualityprofile;
+
+import java.util.Date;
+import java.util.Objects;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.core.util.UtcDateUtils;
+
+/**
+ * Represents the join of &quot;org_qprofiles&quot; and &quot;rules_profiles&quot;
+ */
+<span class="fc" id="L31">public class QProfileDto implements Comparable&lt;QProfileDto&gt; {</span>
+  private String kee;
+  private String name;
+  private String language;
+  private String parentKee;
+  private String rulesUpdatedAt;
+  private Long lastUsed;
+  private Long userUpdatedAt;
+  private boolean isBuiltIn;
+  private String rulesProfileUuid;
+
+  public String getKee() {
+<span class="fc" id="L43">    return kee;</span>
+  }
+
+  public QProfileDto setKee(String s) {
+<span class="fc" id="L47">    this.kee = s;</span>
+<span class="fc" id="L48">    return this;</span>
+  }
+
+  public String getRulesProfileUuid() {
+<span class="fc" id="L52">    return rulesProfileUuid;</span>
+  }
+
+  public QProfileDto setRulesProfileUuid(String s) {
+<span class="fc" id="L56">    this.rulesProfileUuid = s;</span>
+<span class="fc" id="L57">    return this;</span>
+  }
+
+  public String getName() {
+<span class="fc" id="L61">    return name;</span>
+  }
+
+  public QProfileDto setName(String name) {
+<span class="fc" id="L65">    this.name = name;</span>
+<span class="fc" id="L66">    return this;</span>
+  }
+
+  public String getLanguage() {
+<span class="fc" id="L70">    return language;</span>
+  }
+
+  public QProfileDto setLanguage(String language) {
+<span class="fc" id="L74">    this.language = language;</span>
+<span class="fc" id="L75">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getParentKee() {
+<span class="fc" id="L80">    return parentKee;</span>
+  }
+
+  public QProfileDto setParentKee(@Nullable String s) {
+<span class="fc" id="L84">    this.parentKee = s;</span>
+<span class="fc" id="L85">    return this;</span>
+  }
+
+  public String getRulesUpdatedAt() {
+<span class="fc" id="L89">    return rulesUpdatedAt;</span>
+  }
+
+  public QProfileDto setRulesUpdatedAt(String s) {
+<span class="fc" id="L93">    this.rulesUpdatedAt = s;</span>
+<span class="fc" id="L94">    return this;</span>
+  }
+
+  public QProfileDto setRulesUpdatedAtAsDate(Date d) {
+<span class="fc" id="L98">    this.rulesUpdatedAt = UtcDateUtils.formatDateTime(d);</span>
+<span class="fc" id="L99">    return this;</span>
+  }
+
+  @CheckForNull
+  public Long getLastUsed() {
+<span class="fc" id="L104">    return lastUsed;</span>
+  }
+
+  public QProfileDto setLastUsed(@Nullable Long lastUsed) {
+<span class="fc" id="L108">    this.lastUsed = lastUsed;</span>
+<span class="fc" id="L109">    return this;</span>
+  }
+
+  @CheckForNull
+  public Long getUserUpdatedAt() {
+<span class="fc" id="L114">    return userUpdatedAt;</span>
+  }
+
+  public QProfileDto setUserUpdatedAt(@Nullable Long userUpdatedAt) {
+<span class="fc" id="L118">    this.userUpdatedAt = userUpdatedAt;</span>
+<span class="fc" id="L119">    return this;</span>
+  }
+
+  public boolean isBuiltIn() {
+<span class="fc" id="L123">    return isBuiltIn;</span>
+  }
+
+  public QProfileDto setIsBuiltIn(boolean b) {
+<span class="fc" id="L127">    this.isBuiltIn = b;</span>
+<span class="fc" id="L128">    return this;</span>
+  }
+
+  public static QProfileDto from(OrgQProfileDto org, RulesProfileDto rules) {
+<span class="fc" id="L132">    return new QProfileDto()</span>
+<span class="fc" id="L133">      .setIsBuiltIn(rules.isBuiltIn())</span>
+<span class="fc" id="L134">      .setKee(org.getUuid())</span>
+<span class="fc" id="L135">      .setParentKee(org.getParentUuid())</span>
+<span class="fc" id="L136">      .setRulesProfileUuid(rules.getUuid())</span>
+<span class="fc" id="L137">      .setLanguage(rules.getLanguage())</span>
+<span class="fc" id="L138">      .setName(rules.getName())</span>
+<span class="fc" id="L139">      .setRulesUpdatedAt(rules.getRulesUpdatedAt())</span>
+<span class="fc" id="L140">      .setLastUsed(org.getLastUsed())</span>
+<span class="fc" id="L141">      .setUserUpdatedAt(org.getUserUpdatedAt());</span>
+  }
+
+  @Override
+  public int compareTo(QProfileDto o) {
+<span class="fc" id="L146">    return kee.compareTo(o.kee);</span>
+  }
+
+  @Override
+  public boolean equals(Object o) {
+<span class="fc bfc" id="L151" title="All 2 branches covered.">    if (this == o) {</span>
+<span class="fc" id="L152">      return true;</span>
+    }
+<span class="pc bpc" id="L154" title="2 of 4 branches missed.">    if (o == null || getClass() != o.getClass()) {</span>
+<span class="nc" id="L155">      return false;</span>
+    }
+<span class="fc" id="L157">    QProfileDto that = (QProfileDto) o;</span>
+<span class="fc" id="L158">    return kee.equals(that.kee);</span>
+  }
+
+  @Override
+  public int hashCode() {
+<span class="fc" id="L163">    return Objects.hash(kee);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

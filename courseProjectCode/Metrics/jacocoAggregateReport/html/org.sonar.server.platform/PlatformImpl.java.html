@@ -1,0 +1,419 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PlatformImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform</a> &gt; <span class="el_source">PlatformImpl.java</span></div><h1>PlatformImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Properties;
+import javax.annotation.Nullable;
+import jakarta.servlet.ServletContext;
+import jakarta.servlet.ServletRegistration;
+import org.sonar.api.utils.log.Logger;
+import org.sonar.api.utils.log.Loggers;
+import org.sonar.api.utils.log.Profiler;
+import org.sonar.core.documentation.DocumentationLinkGenerator;
+import org.sonar.core.platform.ExtensionContainer;
+import org.sonar.core.platform.SpringComponentContainer;
+import org.sonar.server.app.ProcessCommandWrapper;
+import org.sonar.server.platform.db.migration.version.DatabaseVersion;
+import org.sonar.server.platform.platformlevel.PlatformLevel;
+import org.sonar.server.platform.platformlevel.PlatformLevel1;
+import org.sonar.server.platform.platformlevel.PlatformLevel2;
+import org.sonar.server.platform.platformlevel.PlatformLevel3;
+import org.sonar.server.platform.platformlevel.PlatformLevel4;
+import org.sonar.server.platform.platformlevel.PlatformLevelSafeMode;
+import org.sonar.server.platform.platformlevel.PlatformLevelStartup;
+import org.sonar.server.platform.web.ApiV2Servlet;
+
+import static org.sonar.process.ProcessId.WEB_SERVER;
+
+/**
+ * @since 2.2
+ */
+<span class="fc" id="L51">public class PlatformImpl implements Platform {</span>
+
+<span class="fc" id="L53">  private static final Logger LOGGER = Loggers.get(Platform.class);</span>
+
+<span class="fc" id="L55">  private static final PlatformImpl INSTANCE = new PlatformImpl();</span>
+
+<span class="fc" id="L57">  private AutoStarter autoStarter = null;</span>
+<span class="fc" id="L58">  private Properties properties = null;</span>
+<span class="fc" id="L59">  private ServletContext servletContext = null;</span>
+<span class="fc" id="L60">  private PlatformLevel level1 = null;</span>
+<span class="fc" id="L61">  private PlatformLevel level2 = null;</span>
+<span class="fc" id="L62">  private PlatformLevel levelSafeMode = null;</span>
+<span class="fc" id="L63">  private PlatformLevel level3 = null;</span>
+<span class="fc" id="L64">  private PlatformLevel level4 = null;</span>
+<span class="fc" id="L65">  private PlatformLevel currentLevel = null;</span>
+<span class="fc" id="L66">  private boolean dbConnected = false;</span>
+<span class="fc" id="L67">  private boolean started = false;</span>
+<span class="fc" id="L68">  private final List&lt;Object&gt; level4AddedComponents = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L69">  private final Profiler profiler = Profiler.createIfTrace(Loggers.get(PlatformImpl.class));</span>
+<span class="fc" id="L70">  private ApiV2Servlet servlet = null;</span>
+
+  public static PlatformImpl getInstance() {
+<span class="fc" id="L73">    return INSTANCE;</span>
+  }
+
+  public void init(Properties properties, ServletContext servletContext) {
+<span class="nc" id="L77">    this.properties = properties;</span>
+<span class="nc" id="L78">    this.servletContext = servletContext;</span>
+<span class="nc bnc" id="L79" title="All 2 branches missed.">    if (!dbConnected) {</span>
+<span class="nc" id="L80">      startLevel1Container();</span>
+<span class="nc" id="L81">      startLevel2Container();</span>
+<span class="nc" id="L82">      currentLevel = level2;</span>
+<span class="nc" id="L83">      dbConnected = true;</span>
+    }
+<span class="nc" id="L85">  }</span>
+
+  @Override
+  public void doStart() {
+<span class="nc bnc" id="L89" title="All 4 branches missed.">    if (started &amp;&amp; !isInSafeMode()) {</span>
+<span class="nc" id="L90">      return;</span>
+    }
+
+<span class="nc" id="L93">    boolean dbRequiredMigration = dbRequiresMigration();</span>
+<span class="nc" id="L94">    startSafeModeContainer();</span>
+<span class="nc" id="L95">    currentLevel = levelSafeMode;</span>
+<span class="nc bnc" id="L96" title="All 2 branches missed.">    if (!started) {</span>
+<span class="nc" id="L97">      registerSpringMvcServlet();</span>
+<span class="nc" id="L98">      this.servlet.initDispatcherSafeMode(levelSafeMode);</span>
+    }
+<span class="nc" id="L100">    started = true;</span>
+
+    // if AutoDbMigration kicked in or no DB migration was required, startup can be resumed in another thread
+<span class="nc bnc" id="L103" title="All 2 branches missed.">    if (dbRequiresMigration()) {</span>
+<span class="nc" id="L104">      DocumentationLinkGenerator docLinkGenerator = currentLevel.getContainer().getComponentByType(DocumentationLinkGenerator.class);</span>
+<span class="nc" id="L105">      String documentationLink = docLinkGenerator.getDocumentationLink(&quot;/server-upgrade-and-maintenance/upgrade/upgrade-the-server/roadmap&quot;);</span>
+<span class="nc" id="L106">      LOGGER.info(&quot;Database needs to be migrated. Please refer to {}&quot;, documentationLink);</span>
+<span class="nc" id="L107">    } else {</span>
+<span class="nc" id="L108">      this.autoStarter = createAutoStarter();</span>
+
+<span class="nc" id="L110">      this.autoStarter.execute(new AutoStarterRunnable(autoStarter) {</span>
+        @Override
+        public void doRun() {
+<span class="nc bnc" id="L113" title="All 2 branches missed.">          if (dbRequiredMigration) {</span>
+<span class="nc" id="L114">            LOGGER.info(&quot;Database has been automatically updated&quot;);</span>
+          }
+<span class="nc" id="L116">          runIfNotAborted(PlatformImpl.this::startLevel34Containers);</span>
+
+<span class="nc" id="L118">          runIfNotAborted(()-&gt;servlet.initDispatcherLevel4(level4));</span>
+<span class="nc" id="L119">          runIfNotAborted(PlatformImpl.this::executeStartupTasks);</span>
+
+          // switch current container last to avoid giving access to a partially initialized container
+<span class="nc" id="L122">          runIfNotAborted(() -&gt; {</span>
+<span class="nc" id="L123">            currentLevel = level4;</span>
+<span class="nc" id="L124">            LOGGER.info(&quot;{} is operational&quot;, WEB_SERVER.getHumanReadableName());</span>
+<span class="nc" id="L125">          });</span>
+
+          // stop safemode container if it existed
+<span class="nc" id="L128">          runIfNotAborted(PlatformImpl.this::stopSafeModeContainer);</span>
+<span class="nc" id="L129">        }</span>
+      });
+    }
+<span class="nc" id="L132">  }</span>
+
+  private void registerSpringMvcServlet() {
+<span class="nc" id="L135">    servlet = new ApiV2Servlet();</span>
+<span class="nc" id="L136">    ServletRegistration.Dynamic app = this.servletContext.addServlet(&quot;app&quot;, servlet);</span>
+<span class="nc" id="L137">    app.addMapping(&quot;/api/v2/*&quot;);</span>
+<span class="nc" id="L138">    app.setLoadOnStartup(1);</span>
+<span class="nc" id="L139">  }</span>
+
+  private AutoStarter createAutoStarter() {
+<span class="nc" id="L142">    ProcessCommandWrapper processCommandWrapper = getContainer().getComponentByType(ProcessCommandWrapper.class);</span>
+<span class="nc" id="L143">    return new AsynchronousAutoStarter(processCommandWrapper);</span>
+  }
+
+  private boolean dbRequiresMigration() {
+<span class="nc bnc" id="L147" title="All 2 branches missed.">    return getDatabaseStatus() != DatabaseVersion.Status.UP_TO_DATE;</span>
+  }
+
+  public boolean isStarted() {
+<span class="nc bnc" id="L151" title="All 2 branches missed.">    return status() == Status.UP;</span>
+  }
+
+  public boolean isInSafeMode() {
+<span class="nc bnc" id="L155" title="All 2 branches missed.">    return status() == Status.SAFEMODE;</span>
+  }
+
+  @Override
+  public Status status() {
+<span class="nc bnc" id="L160" title="All 2 branches missed.">    if (!started) {</span>
+<span class="nc" id="L161">      return Status.BOOTING;</span>
+    }
+<span class="nc" id="L163">    PlatformLevel current = this.currentLevel;</span>
+<span class="nc" id="L164">    PlatformLevel levelSafe = this.levelSafeMode;</span>
+<span class="nc bnc" id="L165" title="All 4 branches missed.">    if (levelSafe != null &amp;&amp; current == levelSafe) {</span>
+<span class="nc bnc" id="L166" title="All 2 branches missed.">      return isRunning(this.autoStarter) ? Status.STARTING : Status.SAFEMODE;</span>
+    }
+<span class="nc bnc" id="L168" title="All 2 branches missed.">    if (current == level4) {</span>
+<span class="nc" id="L169">      return Status.UP;</span>
+    }
+<span class="nc" id="L171">    return Status.BOOTING;</span>
+  }
+
+  private static boolean isRunning(@Nullable AutoStarter autoStarter) {
+<span class="nc bnc" id="L175" title="All 4 branches missed.">    return autoStarter != null &amp;&amp; autoStarter.isRunning();</span>
+  }
+
+  /**
+   * Starts level 1
+   */
+  private void startLevel1Container() {
+<span class="nc" id="L182">    level1 = start(new PlatformLevel1(this, properties, servletContext));</span>
+<span class="nc" id="L183">  }</span>
+
+  /**
+   * Starts level 2
+   */
+  private void startLevel2Container() {
+<span class="nc" id="L189">    level2 = start(new PlatformLevel2(level1));</span>
+<span class="nc" id="L190">  }</span>
+
+  /**
+   * Starts level 3 and 4
+   */
+  private void startLevel34Containers() {
+<span class="nc" id="L196">    level3 = start(new PlatformLevel3(level2));</span>
+<span class="nc" id="L197">    level4 = start(new PlatformLevel4(level3, level4AddedComponents));</span>
+<span class="nc" id="L198">  }</span>
+
+
+  private void executeStartupTasks() {
+<span class="nc" id="L202">    new PlatformLevelStartup(level4)</span>
+<span class="nc" id="L203">      .configure()</span>
+<span class="nc" id="L204">      .start()</span>
+<span class="nc" id="L205">      .stop();</span>
+<span class="nc" id="L206">  }</span>
+
+  private void startSafeModeContainer() {
+<span class="nc" id="L209">    levelSafeMode = start(new PlatformLevelSafeMode(level2));</span>
+<span class="nc" id="L210">  }</span>
+
+  private PlatformLevel start(PlatformLevel platformLevel) {
+<span class="nc" id="L213">    profiler.start();</span>
+<span class="nc" id="L214">    platformLevel.configure();</span>
+<span class="nc" id="L215">    profiler.stopTrace(String.format(&quot;%s configured&quot;, platformLevel.getName()));</span>
+<span class="nc" id="L216">    profiler.start();</span>
+<span class="nc" id="L217">    platformLevel.start();</span>
+<span class="nc" id="L218">    profiler.stopTrace(String.format(&quot;%s started&quot;, platformLevel.getName()));</span>
+
+<span class="nc" id="L220">    return platformLevel;</span>
+  }
+
+  /**
+   * Stops level 1
+   */
+  private void stopLevel1Container() {
+<span class="nc bnc" id="L227" title="All 2 branches missed.">    if (level1 != null) {</span>
+<span class="nc" id="L228">      level1.stop();</span>
+<span class="nc" id="L229">      level1 = null;</span>
+    }
+<span class="nc" id="L231">  }</span>
+
+  /**
+   * Stops level 2, 3 and 4 containers cleanly if they exists.
+   * Call this method before {@link #startLevel1Container()} to avoid duplicate attempt to stop safemode container
+   * components (since calling stop on a container calls stop on its children too, see
+   * {@link SpringComponentContainer#stopComponents()}).
+   */
+  private void stopLevel234Containers() {
+<span class="nc bnc" id="L240" title="All 2 branches missed.">    if (level2 != null) {</span>
+<span class="nc" id="L241">      level2.stop();</span>
+<span class="nc" id="L242">      level2 = null;</span>
+<span class="nc" id="L243">      level3 = null;</span>
+<span class="nc" id="L244">      level4 = null;</span>
+    }
+<span class="nc" id="L246">  }</span>
+
+  /**
+   * Stops safemode container cleanly if it exists.
+   * Call this method before {@link #stopLevel234Containers()} and {@link #stopLevel1Container()} to avoid duplicate
+   * attempt to stop safemode container components (since calling stop on a container calls stops on its children too,
+   * see {@link SpringComponentContainer#stopComponents()}).
+   */
+  private void stopSafeModeContainer() {
+<span class="nc bnc" id="L255" title="All 2 branches missed.">    if (levelSafeMode != null) {</span>
+<span class="nc" id="L256">      levelSafeMode.stop();</span>
+<span class="nc" id="L257">      levelSafeMode = null;</span>
+    }
+<span class="nc" id="L259">  }</span>
+
+  private DatabaseVersion.Status getDatabaseStatus() {
+<span class="nc" id="L262">    DatabaseVersion version = getContainer().getComponentByType(DatabaseVersion.class);</span>
+<span class="nc" id="L263">    return version.getStatus();</span>
+  }
+
+  public void doStop() {
+    try {
+<span class="nc" id="L268">      stopAutoStarter();</span>
+<span class="nc" id="L269">      stopSafeModeContainer();</span>
+<span class="nc" id="L270">      stopLevel234Containers();</span>
+<span class="nc" id="L271">      stopLevel1Container();</span>
+<span class="nc" id="L272">      currentLevel = null;</span>
+<span class="nc" id="L273">      dbConnected = false;</span>
+<span class="nc" id="L274">      started = false;</span>
+<span class="nc" id="L275">    } catch (Exception e) {</span>
+<span class="nc" id="L276">      LOGGER.error(&quot;Fail to stop server - ignored&quot;, e);</span>
+<span class="nc" id="L277">    }</span>
+<span class="nc" id="L278">  }</span>
+
+  private void stopAutoStarter() {
+<span class="nc bnc" id="L281" title="All 2 branches missed.">    if (autoStarter != null) {</span>
+<span class="nc" id="L282">      autoStarter.abort();</span>
+<span class="nc" id="L283">      autoStarter = null;</span>
+    }
+<span class="nc" id="L285">  }</span>
+
+  public void addComponents(Collection&lt;?&gt; components) {
+<span class="nc" id="L288">    level4AddedComponents.addAll(components);</span>
+<span class="nc" id="L289">  }</span>
+
+  @Override
+  public ExtensionContainer getContainer() {
+<span class="nc" id="L293">    return currentLevel.getContainer();</span>
+  }
+
+  public interface AutoStarter {
+    /**
+     * Let the autostarted execute the provided code.
+     */
+    void execute(Runnable startCode);
+
+    /**
+     * This method is called by executed start code (see {@link #execute(Runnable)} has finished with a failure.
+     */
+    void failure(Throwable t);
+
+    /**
+     * This method is called by executed start code (see {@link #execute(Runnable)} has finished successfully.
+     */
+    void success();
+
+    /**
+     * Indicates whether the AutoStarter is running.
+     */
+    boolean isRunning();
+
+    /**
+     * Requests the startcode (ie. the argument of {@link #execute(Runnable)}) aborts its processing (if it supports it).
+     */
+    void abort();
+
+    /**
+     * Indicates whether {@link #abort()} was invoked.
+     * &lt;p&gt;
+     * This method can be used by the start code to check whether it should proceed running or stop.
+     * &lt;/p&gt;
+     */
+    boolean isAborting();
+
+    /**
+     * Called when abortion is complete.
+     * &lt;p&gt;
+     * Start code support abortion should call this method once is done processing and if it stopped on abortion.
+     * &lt;/p&gt;
+     */
+    void aborted();
+  }
+
+  private abstract static class AutoStarterRunnable implements Runnable {
+    private final AutoStarter autoStarter;
+
+<span class="nc" id="L342">    AutoStarterRunnable(AutoStarter autoStarter) {</span>
+<span class="nc" id="L343">      this.autoStarter = autoStarter;</span>
+<span class="nc" id="L344">    }</span>
+
+    @Override
+    public void run() {
+      try {
+<span class="nc" id="L349">        doRun();</span>
+<span class="nc" id="L350">      } catch (Throwable t) {</span>
+<span class="nc" id="L351">        autoStarter.failure(t);</span>
+      } finally {
+<span class="nc bnc" id="L353" title="All 2 branches missed.">        if (autoStarter.isAborting()) {</span>
+<span class="nc" id="L354">          autoStarter.aborted();</span>
+        } else {
+<span class="nc" id="L356">          autoStarter.success();</span>
+        }
+      }
+<span class="nc" id="L359">    }</span>
+
+    abstract void doRun();
+
+    void runIfNotAborted(Runnable r) {
+<span class="nc bnc" id="L364" title="All 2 branches missed.">      if (!autoStarter.isAborting()) {</span>
+<span class="nc" id="L365">        r.run();</span>
+      }
+<span class="nc" id="L367">    }</span>
+  }
+
+  private static final class AsynchronousAutoStarter implements AutoStarter {
+    private final ProcessCommandWrapper processCommandWrapper;
+<span class="nc" id="L372">    private boolean running = true;</span>
+<span class="nc" id="L373">    private boolean abort = false;</span>
+
+<span class="nc" id="L375">    private AsynchronousAutoStarter(ProcessCommandWrapper processCommandWrapper) {</span>
+<span class="nc" id="L376">      this.processCommandWrapper = processCommandWrapper;</span>
+<span class="nc" id="L377">    }</span>
+
+    @Override
+    public void execute(Runnable startCode) {
+<span class="nc" id="L381">      new Thread(startCode, &quot;SQ starter&quot;).start();</span>
+<span class="nc" id="L382">    }</span>
+
+    @Override
+    public void failure(Throwable t) {
+<span class="nc" id="L386">      LOGGER.error(&quot;Background initialization failed. Stopping SonarQube&quot;, t);</span>
+<span class="nc" id="L387">      processCommandWrapper.requestHardStop();</span>
+<span class="nc" id="L388">      this.running = false;</span>
+<span class="nc" id="L389">    }</span>
+
+    @Override
+    public void success() {
+<span class="nc" id="L393">      LOGGER.debug(&quot;Background initialization of SonarQube done&quot;);</span>
+<span class="nc" id="L394">      this.running = false;</span>
+<span class="nc" id="L395">    }</span>
+
+    @Override
+    public void aborted() {
+<span class="nc" id="L399">      LOGGER.debug(&quot;Background initialization of SonarQube aborted&quot;);</span>
+<span class="nc" id="L400">      this.running = false;</span>
+<span class="nc" id="L401">    }</span>
+
+    @Override
+    public boolean isRunning() {
+<span class="nc" id="L405">      return running;</span>
+    }
+
+    @Override
+    public void abort() {
+<span class="nc" id="L410">      this.abort = true;</span>
+<span class="nc" id="L411">    }</span>
+
+    @Override
+    public boolean isAborting() {
+<span class="nc" id="L415">      return this.abort;</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

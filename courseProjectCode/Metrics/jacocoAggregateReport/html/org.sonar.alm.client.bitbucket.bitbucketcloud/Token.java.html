@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Token.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.alm.client.bitbucket.bitbucketcloud</a> &gt; <span class="el_source">Token.java</span></div><h1>Token.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.alm.client.bitbucket.bitbucketcloud;
+
+import com.google.gson.annotations.SerializedName;
+
+public class Token {
+  @SerializedName(&quot;scopes&quot;)
+  private String scopes;
+  @SerializedName(&quot;access_token&quot;)
+  private String accessToken;
+  @SerializedName(&quot;exires_in&quot;)
+  private long expiresIn;
+  @SerializedName(&quot;token_type&quot;)
+  private String tokenType;
+  @SerializedName(&quot;state&quot;)
+  private String state;
+  @SerializedName(&quot;refresh_token&quot;)
+  private String refreshToken;
+
+<span class="fc" id="L38">  public Token() {</span>
+    // nothing to do here
+<span class="fc" id="L40">  }</span>
+
+  public String getScopes() {
+<span class="fc" id="L43">    return scopes;</span>
+  }
+
+  public String getAccessToken() {
+<span class="fc" id="L47">    return accessToken;</span>
+  }
+
+  public long getExpiresIn() {
+<span class="nc" id="L51">    return expiresIn;</span>
+  }
+
+  public String getTokenType() {
+<span class="nc" id="L55">    return tokenType;</span>
+  }
+
+  public String getState() {
+<span class="nc" id="L59">    return state;</span>
+  }
+
+  public String getRefreshToken() {
+<span class="nc" id="L63">    return refreshToken;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

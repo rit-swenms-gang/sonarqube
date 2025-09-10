@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CreateAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.webhook.ws</a> &gt; <span class="el_source">CreateAction.java</span></div><h1>CreateAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.webhook.ws;
+
+import javax.annotation.Nullable;
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.core.util.UuidFactory;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.db.webhook.WebhookDto;
+import org.sonar.server.component.ComponentFinder;
+import org.sonar.server.user.UserSession;
+
+import static java.lang.String.format;
+import static org.apache.commons.lang3.StringUtils.isNotBlank;
+import static org.sonar.server.webhook.ws.WebhooksWsParameters.ACTION_CREATE;
+import static org.sonar.server.webhook.ws.WebhooksWsParameters.NAME_PARAM;
+import static org.sonar.server.webhook.ws.WebhooksWsParameters.NAME_PARAM_MAXIMUM_LENGTH;
+import static org.sonar.server.webhook.ws.WebhooksWsParameters.PROJECT_KEY_PARAM;
+import static org.sonar.server.webhook.ws.WebhooksWsParameters.PROJECT_KEY_PARAM_MAXIMUM_LENGTH;
+import static org.sonar.server.webhook.ws.WebhooksWsParameters.SECRET_PARAM;
+import static org.sonar.server.webhook.ws.WebhooksWsParameters.SECRET_PARAM_MAXIMUM_LENGTH;
+import static org.sonar.server.webhook.ws.WebhooksWsParameters.SECRET_PARAM_MINIMUM_LENGTH;
+import static org.sonar.server.webhook.ws.WebhooksWsParameters.URL_PARAM;
+import static org.sonar.server.webhook.ws.WebhooksWsParameters.URL_PARAM_MAXIMUM_LENGTH;
+import static org.sonar.server.ws.KeyExamples.KEY_PROJECT_EXAMPLE_001;
+import static org.sonar.server.ws.KeyExamples.NAME_WEBHOOK_EXAMPLE_001;
+import static org.sonar.server.ws.KeyExamples.URL_WEBHOOK_EXAMPLE_001;
+import static org.sonar.server.ws.WsUtils.writeProtobuf;
+import static org.sonarqube.ws.Webhooks.CreateWsResponse.Webhook;
+import static org.sonarqube.ws.Webhooks.CreateWsResponse.newBuilder;
+
+public class CreateAction implements WebhooksWsAction {
+
+  private static final int MAX_NUMBER_OF_WEBHOOKS = 10;
+
+  private final DbClient dbClient;
+  private final UserSession userSession;
+  private final UuidFactory uuidFactory;
+  private final WebhookSupport webhookSupport;
+  private final ComponentFinder componentFinder;
+
+<span class="fc" id="L64">  public CreateAction(DbClient dbClient, UserSession userSession, UuidFactory uuidFactory, WebhookSupport webhookSupport, ComponentFinder componentFinder) {</span>
+<span class="fc" id="L65">    this.dbClient = dbClient;</span>
+<span class="fc" id="L66">    this.userSession = userSession;</span>
+<span class="fc" id="L67">    this.uuidFactory = uuidFactory;</span>
+<span class="fc" id="L68">    this.webhookSupport = webhookSupport;</span>
+<span class="fc" id="L69">    this.componentFinder = componentFinder;</span>
+<span class="fc" id="L70">  }</span>
+
+  @Override
+  public void define(WebService.NewController controller) {
+<span class="fc" id="L74">    WebService.NewAction action = controller.createAction(ACTION_CREATE)</span>
+<span class="fc" id="L75">      .setPost(true)</span>
+<span class="fc" id="L76">      .setDescription(&quot;Create a Webhook.&lt;br&gt;&quot; +</span>
+        &quot;Requires 'Administer' permission on the specified project, or global 'Administer' permission.&quot;)
+<span class="fc" id="L78">      .setSince(&quot;7.1&quot;)</span>
+<span class="fc" id="L79">      .setChangelog(new Change(&quot;10.6&quot;, &quot;The minimum length of parameter '&quot; + SECRET_PARAM + &quot;' increased to 16.&quot;))</span>
+<span class="fc" id="L80">      .setResponseExample(getClass().getResource(&quot;example-webhook-create.json&quot;))</span>
+<span class="fc" id="L81">      .setHandler(this);</span>
+
+<span class="fc" id="L83">    action.createParam(NAME_PARAM)</span>
+<span class="fc" id="L84">      .setRequired(true)</span>
+<span class="fc" id="L85">      .setMaximumLength(NAME_PARAM_MAXIMUM_LENGTH)</span>
+<span class="fc" id="L86">      .setDescription(&quot;Name displayed in the administration console of webhooks&quot;)</span>
+<span class="fc" id="L87">      .setExampleValue(NAME_WEBHOOK_EXAMPLE_001);</span>
+
+<span class="fc" id="L89">    action.createParam(URL_PARAM)</span>
+<span class="fc" id="L90">      .setRequired(true)</span>
+<span class="fc" id="L91">      .setMaximumLength(URL_PARAM_MAXIMUM_LENGTH)</span>
+<span class="fc" id="L92">      .setDescription(&quot;Server endpoint that will receive the webhook payload, for example 'http://my_server/foo'.&quot; +</span>
+        &quot; If HTTP Basic authentication is used, HTTPS is recommended to avoid man in the middle attacks.&quot; +
+        &quot; Example: 'https://myLogin:myPassword@my_server/foo'&quot;)
+<span class="fc" id="L95">      .setExampleValue(URL_WEBHOOK_EXAMPLE_001);</span>
+
+<span class="fc" id="L97">    action.createParam(PROJECT_KEY_PARAM)</span>
+<span class="fc" id="L98">      .setRequired(false)</span>
+<span class="fc" id="L99">      .setMaximumLength(PROJECT_KEY_PARAM_MAXIMUM_LENGTH)</span>
+<span class="fc" id="L100">      .setDescription(&quot;The key of the project that will own the webhook&quot;)</span>
+<span class="fc" id="L101">      .setExampleValue(KEY_PROJECT_EXAMPLE_001);</span>
+
+<span class="fc" id="L103">    action.createParam(SECRET_PARAM)</span>
+<span class="fc" id="L104">      .setRequired(false)</span>
+<span class="fc" id="L105">      .setMinimumLength(SECRET_PARAM_MINIMUM_LENGTH)</span>
+<span class="fc" id="L106">      .setMaximumLength(SECRET_PARAM_MAXIMUM_LENGTH)</span>
+<span class="fc" id="L107">      .setDescription(&quot;If provided, secret will be used as the key to generate the HMAC hex (lowercase) digest value in the 'X-Sonar-Webhook-HMAC-SHA256' header&quot;)</span>
+<span class="fc" id="L108">      .setExampleValue(&quot;your_secret&quot;)</span>
+<span class="fc" id="L109">      .setSince(&quot;7.8&quot;);</span>
+<span class="fc" id="L110">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L114">    userSession.checkLoggedIn();</span>
+
+<span class="fc" id="L116">    String name = request.mandatoryParam(NAME_PARAM);</span>
+<span class="fc" id="L117">    String url = request.mandatoryParam(URL_PARAM);</span>
+<span class="fc" id="L118">    String projectKey = request.param(PROJECT_KEY_PARAM);</span>
+<span class="fc" id="L119">    String secret = request.param(SECRET_PARAM);</span>
+
+<span class="fc" id="L121">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L122">      ProjectDto projectDto = null;</span>
+<span class="fc bfc" id="L123" title="All 2 branches covered.">      if (isNotBlank(projectKey)) {</span>
+<span class="fc" id="L124">        projectDto = componentFinder.getProjectByKey(dbSession, projectKey);</span>
+<span class="fc" id="L125">        webhookSupport.checkPermission(projectDto);</span>
+      } else {
+<span class="fc" id="L127">        webhookSupport.checkPermission();</span>
+      }
+
+<span class="fc" id="L130">      webhookSupport.checkUrlPattern(url, &quot;Url parameter with value '%s' is not a valid url&quot;, url);</span>
+<span class="fc" id="L131">      WebhookDto dto = doHandle(dbSession, projectDto, name, url, secret);</span>
+<span class="fc bfc" id="L132" title="All 2 branches covered.">      String projectName = projectDto == null ? null : projectDto.getName();</span>
+<span class="fc" id="L133">      dbClient.webhookDao().insert(dbSession, dto, projectKey, projectName);</span>
+<span class="fc" id="L134">      dbSession.commit();</span>
+<span class="fc" id="L135">      writeResponse(request, response, dto);</span>
+    }
+
+<span class="fc" id="L138">  }</span>
+
+  private WebhookDto doHandle(DbSession dbSession, @Nullable ProjectDto project, String name, String url, @Nullable String secret) {
+<span class="fc" id="L141">    WebhookDto dto = new WebhookDto()</span>
+<span class="fc" id="L142">      .setUuid(uuidFactory.create())</span>
+<span class="fc" id="L143">      .setName(name)</span>
+<span class="fc" id="L144">      .setUrl(url)</span>
+<span class="fc" id="L145">      .setSecret(secret);</span>
+
+<span class="fc bfc" id="L147" title="All 2 branches covered.">    if (project != null) {</span>
+<span class="fc" id="L148">      checkNumberOfWebhook(numberOfWebhookOf(dbSession, project), project.getKey());</span>
+<span class="fc" id="L149">      dto.setProjectUuid(project.getUuid());</span>
+    } else {
+<span class="fc" id="L151">      checkNumberOfGlobalWebhooks(dbSession);</span>
+    }
+
+<span class="fc" id="L154">    return dto;</span>
+  }
+
+  private static void writeResponse(Request request, Response response, WebhookDto dto) {
+<span class="fc" id="L158">    Webhook.Builder webhookBuilder = Webhook.newBuilder();</span>
+<span class="fc" id="L159">    webhookBuilder</span>
+<span class="fc" id="L160">      .setKey(dto.getUuid())</span>
+<span class="fc" id="L161">      .setName(dto.getName())</span>
+<span class="fc" id="L162">      .setUrl(dto.getUrl())</span>
+<span class="fc bfc" id="L163" title="All 2 branches covered.">      .setHasSecret(dto.getSecret() != null);</span>
+<span class="fc" id="L164">    writeProtobuf(newBuilder().setWebhook(webhookBuilder).build(), request, response);</span>
+<span class="fc" id="L165">  }</span>
+
+  private static void checkNumberOfWebhook(int nbOfWebhooks, String projectKey) {
+<span class="fc bfc" id="L168" title="All 2 branches covered.">    if (nbOfWebhooks &gt;= MAX_NUMBER_OF_WEBHOOKS) {</span>
+<span class="fc" id="L169">      throw new IllegalArgumentException(format(&quot;Maximum number of webhook reached for project '%s'&quot;, projectKey));</span>
+    }
+<span class="fc" id="L171">  }</span>
+
+  private int numberOfWebhookOf(DbSession dbSession, ProjectDto projectDto) {
+<span class="fc" id="L174">    return dbClient.webhookDao().selectByProject(dbSession, projectDto).size();</span>
+  }
+
+  private void checkNumberOfGlobalWebhooks(DbSession dbSession) {
+<span class="fc" id="L178">    int globalWebhooksCount = dbClient.webhookDao().selectGlobalWebhooks(dbSession).size();</span>
+<span class="fc bfc" id="L179" title="All 2 branches covered.">    if (globalWebhooksCount &gt;= MAX_NUMBER_OF_WEBHOOKS) {</span>
+<span class="fc" id="L180">      throw new IllegalArgumentException(&quot;Maximum number of global webhooks reached&quot;);</span>
+    }
+<span class="fc" id="L182">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

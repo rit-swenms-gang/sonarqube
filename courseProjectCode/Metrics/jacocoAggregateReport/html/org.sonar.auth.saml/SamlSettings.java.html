@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SamlSettings.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.auth.saml</a> &gt; <span class="el_source">SamlSettings.java</span></div><h1>SamlSettings.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.auth.saml;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
+import org.sonar.api.config.Configuration;
+import org.sonar.api.config.PropertyDefinition;
+import org.sonar.api.server.ServerSide;
+
+import static java.lang.String.valueOf;
+import static org.sonar.api.PropertyType.BOOLEAN;
+import static org.sonar.api.PropertyType.PASSWORD;
+
+@ServerSide
+public class SamlSettings {
+  public static final String ENABLED = &quot;sonar.auth.saml.enabled&quot;;
+  public static final String PROVIDER_ID = &quot;sonar.auth.saml.providerId&quot;;
+  public static final String PROVIDER_NAME = &quot;sonar.auth.saml.providerName&quot;;
+
+  public static final String APPLICATION_ID = &quot;sonar.auth.saml.applicationId&quot;;
+  public static final String LOGIN_URL = &quot;sonar.auth.saml.loginUrl&quot;;
+  public static final String CERTIFICATE = &quot;sonar.auth.saml.certificate.secured&quot;;
+
+  public static final String USER_LOGIN_ATTRIBUTE = &quot;sonar.auth.saml.user.login&quot;;
+  public static final String USER_NAME_ATTRIBUTE = &quot;sonar.auth.saml.user.name&quot;;
+  public static final String USER_EMAIL_ATTRIBUTE = &quot;sonar.auth.saml.user.email&quot;;
+  public static final String GROUP_NAME_ATTRIBUTE = &quot;sonar.auth.saml.group.name&quot;;
+
+  public static final String SIGN_REQUESTS_ENABLED = &quot;sonar.auth.saml.signature.enabled&quot;;
+  public static final String SERVICE_PROVIDER_CERTIFICATE = &quot;sonar.auth.saml.sp.certificate.secured&quot;;
+  public static final String SERVICE_PROVIDER_PRIVATE_KEY = &quot;sonar.auth.saml.sp.privateKey.secured&quot;;
+
+  public static final String CATEGORY = &quot;authentication&quot;;
+  public static final String SUBCATEGORY = &quot;saml&quot;;
+
+  private final Configuration configuration;
+
+<span class="fc" id="L57">  public SamlSettings(Configuration configuration) {</span>
+<span class="fc" id="L58">    this.configuration = configuration;</span>
+<span class="fc" id="L59">  }</span>
+
+  String getProviderId() {
+<span class="fc" id="L62">    return configuration.get(PROVIDER_ID).orElseThrow(() -&gt; new IllegalArgumentException(&quot;Provider ID is missing&quot;));</span>
+  }
+
+  String getProviderName() {
+<span class="pc" id="L66">    return configuration.get(PROVIDER_NAME).orElseThrow(() -&gt; new IllegalArgumentException(&quot;Provider Name is missing&quot;));</span>
+  }
+
+  String getApplicationId() {
+<span class="pc" id="L70">    return configuration.get(APPLICATION_ID).orElseThrow(() -&gt; new IllegalArgumentException(&quot;Application ID is missing&quot;));</span>
+  }
+
+  String getLoginUrl() {
+<span class="fc" id="L74">    return configuration.get(LOGIN_URL).orElseThrow(() -&gt; new IllegalArgumentException(&quot;Login URL is missing&quot;));</span>
+  }
+
+  String getCertificate() {
+<span class="fc" id="L78">    return configuration.get(CERTIFICATE).orElseThrow(() -&gt; new IllegalArgumentException(&quot;Identity provider certificate is missing&quot;));</span>
+  }
+
+  String getUserLogin() {
+<span class="fc" id="L82">    return configuration.get(USER_LOGIN_ATTRIBUTE).orElseThrow(() -&gt; new IllegalArgumentException(&quot;User login attribute is missing&quot;));</span>
+  }
+
+  String getUserName() {
+<span class="fc" id="L86">    return configuration.get(USER_NAME_ATTRIBUTE).orElseThrow(() -&gt; new IllegalArgumentException(&quot;User name attribute is missing&quot;));</span>
+  }
+
+  boolean isSignRequestsEnabled() {
+<span class="fc" id="L90">    return configuration.getBoolean(SIGN_REQUESTS_ENABLED).orElse(false);</span>
+  }
+
+  Optional&lt;String&gt; getServiceProviderPrivateKey() {
+<span class="fc" id="L94">    return configuration.get(SERVICE_PROVIDER_PRIVATE_KEY);</span>
+  }
+
+  String getServiceProviderCertificate() {
+<span class="pc" id="L98">    return configuration.get(SERVICE_PROVIDER_CERTIFICATE).orElseThrow(() -&gt; new IllegalArgumentException(&quot;Service provider certificate is missing&quot;));</span>
+  }
+
+  Optional&lt;String&gt; getUserEmail() {
+<span class="fc" id="L102">    return configuration.get(USER_EMAIL_ATTRIBUTE);</span>
+  }
+
+  Optional&lt;String&gt; getGroupName() {
+<span class="fc" id="L106">    return configuration.get(GROUP_NAME_ATTRIBUTE);</span>
+  }
+
+  public boolean isEnabled() {
+<span class="fc bfc" id="L110" title="All 2 branches covered.">    return configuration.getBoolean(ENABLED).orElse(false) &amp;&amp;</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">      configuration.get(PROVIDER_ID).isPresent() &amp;&amp;</span>
+<span class="pc bpc" id="L112" title="1 of 2 branches missed.">      configuration.get(APPLICATION_ID).isPresent() &amp;&amp;</span>
+<span class="fc bfc" id="L113" title="All 2 branches covered.">      configuration.get(LOGIN_URL).isPresent() &amp;&amp;</span>
+<span class="fc bfc" id="L114" title="All 2 branches covered.">      configuration.get(CERTIFICATE).isPresent() &amp;&amp;</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">      configuration.get(USER_LOGIN_ATTRIBUTE).isPresent() &amp;&amp;</span>
+<span class="fc bfc" id="L116" title="All 2 branches covered.">      configuration.get(USER_NAME_ATTRIBUTE).isPresent();</span>
+  }
+
+  public static List&lt;PropertyDefinition&gt; definitions() {
+<span class="fc" id="L120">    return Arrays.asList(</span>
+<span class="fc" id="L121">      PropertyDefinition.builder(ENABLED)</span>
+<span class="fc" id="L122">        .name(&quot;Enabled&quot;)</span>
+<span class="fc" id="L123">        .description(&quot;Enable SAML users to login. Value is ignored if provider ID, login url, certificate, login, name attributes are not defined.&quot;)</span>
+<span class="fc" id="L124">        .category(CATEGORY)</span>
+<span class="fc" id="L125">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L126">        .type(BOOLEAN)</span>
+<span class="fc" id="L127">        .defaultValue(valueOf(false))</span>
+<span class="fc" id="L128">        .index(1)</span>
+<span class="fc" id="L129">        .build(),</span>
+<span class="fc" id="L130">      PropertyDefinition.builder(APPLICATION_ID)</span>
+<span class="fc" id="L131">        .name(&quot;Application ID&quot;)</span>
+<span class="fc" id="L132">        .description(&quot;The identifier used on the Identity Provider for registering SonarQube.&quot;)</span>
+<span class="fc" id="L133">        .defaultValue(&quot;sonarqube&quot;)</span>
+<span class="fc" id="L134">        .category(CATEGORY)</span>
+<span class="fc" id="L135">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L136">        .index(2)</span>
+<span class="fc" id="L137">        .build(),</span>
+<span class="fc" id="L138">      PropertyDefinition.builder(PROVIDER_NAME)</span>
+<span class="fc" id="L139">        .name(&quot;Provider Name&quot;)</span>
+<span class="fc" id="L140">        .description(&quot;Name of the Identity Provider displayed in the login page when SAML authentication is active.&quot;)</span>
+<span class="fc" id="L141">        .defaultValue(&quot;SAML&quot;)</span>
+<span class="fc" id="L142">        .category(CATEGORY)</span>
+<span class="fc" id="L143">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L144">        .index(3)</span>
+<span class="fc" id="L145">        .build(),</span>
+<span class="fc" id="L146">      PropertyDefinition.builder(PROVIDER_ID)</span>
+<span class="fc" id="L147">        .name(&quot;Provider ID&quot;)</span>
+<span class="fc" id="L148">        .description(&quot;Identifier of the Identity Provider, the entity that provides SAML authentication.&quot;)</span>
+<span class="fc" id="L149">        .category(CATEGORY)</span>
+<span class="fc" id="L150">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L151">        .index(4)</span>
+<span class="fc" id="L152">        .build(),</span>
+<span class="fc" id="L153">      PropertyDefinition.builder(LOGIN_URL)</span>
+<span class="fc" id="L154">        .name(&quot;SAML login url&quot;)</span>
+<span class="fc" id="L155">        .description(&quot;The URL where the Identity Provider expects to receive SAML requests.&quot;)</span>
+<span class="fc" id="L156">        .category(CATEGORY)</span>
+<span class="fc" id="L157">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L158">        .index(5)</span>
+<span class="fc" id="L159">        .build(),</span>
+<span class="fc" id="L160">      PropertyDefinition.builder(CERTIFICATE)</span>
+<span class="fc" id="L161">        .name(&quot;Identity provider certificate&quot;)</span>
+<span class="fc" id="L162">        .description(&quot;The public X.509 certificate used by the Identity Provider to authenticate SAML messages.&quot;)</span>
+<span class="fc" id="L163">        .category(CATEGORY)</span>
+<span class="fc" id="L164">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L165">        .type(PASSWORD)</span>
+<span class="fc" id="L166">        .index(6)</span>
+<span class="fc" id="L167">        .build(),</span>
+<span class="fc" id="L168">      PropertyDefinition.builder(USER_LOGIN_ATTRIBUTE)</span>
+<span class="fc" id="L169">        .name(&quot;SAML user login attribute&quot;)</span>
+<span class="fc" id="L170">        .description(&quot;The name of the attribute where the SAML Identity Provider will put the login of the authenticated user.&quot;)</span>
+<span class="fc" id="L171">        .category(CATEGORY)</span>
+<span class="fc" id="L172">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L173">        .index(7)</span>
+<span class="fc" id="L174">        .build(),</span>
+<span class="fc" id="L175">      PropertyDefinition.builder(USER_NAME_ATTRIBUTE)</span>
+<span class="fc" id="L176">        .name(&quot;SAML user name attribute&quot;)</span>
+<span class="fc" id="L177">        .description(&quot;The name of the attribute where the SAML Identity Provider will put the name of the authenticated user.&quot;)</span>
+<span class="fc" id="L178">        .category(CATEGORY)</span>
+<span class="fc" id="L179">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L180">        .index(8)</span>
+<span class="fc" id="L181">        .build(),</span>
+<span class="fc" id="L182">      PropertyDefinition.builder(USER_EMAIL_ATTRIBUTE)</span>
+<span class="fc" id="L183">        .name(&quot;SAML user email attribute&quot;)</span>
+<span class="fc" id="L184">        .description(&quot;The name of the attribute where the SAML Identity Provider will put the email of the authenticated user.&quot;)</span>
+<span class="fc" id="L185">        .category(CATEGORY)</span>
+<span class="fc" id="L186">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L187">        .index(9)</span>
+<span class="fc" id="L188">        .build(),</span>
+<span class="fc" id="L189">      PropertyDefinition.builder(GROUP_NAME_ATTRIBUTE)</span>
+<span class="fc" id="L190">        .name(&quot;SAML group attribute&quot;)</span>
+<span class="fc" id="L191">        .description(&quot;Attribute defining the user groups in SAML, used to synchronize group memberships. If you leave this field empty, &quot; +</span>
+          &quot;group memberships will not be synced when users log in.&quot;)
+<span class="fc" id="L193">        .category(CATEGORY)</span>
+<span class="fc" id="L194">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L195">        .index(10)</span>
+<span class="fc" id="L196">        .build(),</span>
+<span class="fc" id="L197">      PropertyDefinition.builder(SIGN_REQUESTS_ENABLED)</span>
+<span class="fc" id="L198">        .name(&quot;Sign requests&quot;)</span>
+<span class="fc" id="L199">        .description(&quot;Enables signature of SAML requests. It requires both service provider private key and certificate to be set.&quot;)</span>
+<span class="fc" id="L200">        .category(CATEGORY)</span>
+<span class="fc" id="L201">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L202">        .type(BOOLEAN)</span>
+<span class="fc" id="L203">        .defaultValue(valueOf(false))</span>
+<span class="fc" id="L204">        .index(11)</span>
+<span class="fc" id="L205">        .build(),</span>
+<span class="fc" id="L206">      PropertyDefinition.builder(SERVICE_PROVIDER_PRIVATE_KEY)</span>
+<span class="fc" id="L207">        .name(&quot;Service provider private key&quot;)</span>
+<span class="fc" id="L208">        .description(&quot;PKCS8 stored private key used for signing the requests and decrypting responses from the identity provider. &quot;)</span>
+<span class="fc" id="L209">        .category(CATEGORY)</span>
+<span class="fc" id="L210">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L211">        .type(PASSWORD)</span>
+<span class="fc" id="L212">        .index(12)</span>
+<span class="fc" id="L213">        .build(),</span>
+<span class="fc" id="L214">      PropertyDefinition.builder(SERVICE_PROVIDER_CERTIFICATE)</span>
+<span class="fc" id="L215">        .name(&quot;Service provider certificate&quot;)</span>
+<span class="fc" id="L216">        .description(&quot;X.509 certificate for the service provider, used for signing the requests and decrypting responses from the identity provider.&quot;)</span>
+<span class="fc" id="L217">        .category(CATEGORY)</span>
+<span class="fc" id="L218">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L219">        .type(PASSWORD)</span>
+<span class="fc" id="L220">        .index(13)</span>
+<span class="fc" id="L221">        .build());</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

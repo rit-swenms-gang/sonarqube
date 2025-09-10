@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ViewIndexDefinition.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.view.index</a> &gt; <span class="el_source">ViewIndexDefinition.java</span></div><h1>ViewIndexDefinition.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.view.index;
+
+import org.sonar.api.config.Configuration;
+import org.sonar.api.config.internal.MapSettings;
+import org.sonar.server.es.Index;
+import org.sonar.server.es.IndexDefinition;
+import org.sonar.server.es.IndexType;
+import org.sonar.server.es.IndexType.IndexMainType;
+import org.sonar.server.es.newindex.NewRegularIndex;
+import org.sonar.server.es.newindex.TypeMapping;
+
+import static org.sonar.server.es.newindex.SettingsConfiguration.newBuilder;
+
+/**
+ * Definition of ES index &quot;views&quot;, including settings and fields.
+ */
+public class ViewIndexDefinition implements IndexDefinition {
+
+<span class="fc" id="L38">  public static final Index DESCRIPTOR = Index.simple(&quot;views&quot;);</span>
+<span class="fc" id="L39">  public static final IndexMainType TYPE_VIEW = IndexType.main(DESCRIPTOR, &quot;view&quot;);</span>
+  public static final String FIELD_UUID = &quot;uuid&quot;;
+  public static final String FIELD_PROJECTS = &quot;projects&quot;;
+
+  private final Configuration config;
+
+<span class="fc" id="L45">  public ViewIndexDefinition(Configuration config) {</span>
+<span class="fc" id="L46">    this.config = config;</span>
+<span class="fc" id="L47">  }</span>
+
+  /**
+   * Keep the document sources in index so that indexer tests can verify content
+   * of indexed documents.
+   */
+  public static ViewIndexDefinition createForTest() {
+<span class="fc" id="L54">    return new ViewIndexDefinition(new MapSettings().asConfig());</span>
+  }
+
+  @Override
+  public void define(IndexDefinitionContext context) {
+<span class="fc" id="L59">    NewRegularIndex index = context.create(</span>
+      DESCRIPTOR,
+<span class="fc" id="L61">      newBuilder(config)</span>
+<span class="fc" id="L62">        .setDefaultNbOfShards(5)</span>
+<span class="fc" id="L63">        .build())</span>
+      // storing source is required because some search queries on issue index use terms lookup query onto the view index
+      // and this requires source to be stored (https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-terms-query.html#query-dsl-terms-lookup)
+<span class="fc" id="L66">      .setEnableSource(true);</span>
+
+    // type &quot;view&quot;
+<span class="fc" id="L69">    TypeMapping mapping = index.createTypeMapping(TYPE_VIEW);</span>
+<span class="fc" id="L70">    mapping.keywordFieldBuilder(FIELD_UUID).disableNorms().build();</span>
+<span class="fc" id="L71">    mapping.keywordFieldBuilder(FIELD_PROJECTS).disableNorms().build();</span>
+<span class="fc" id="L72">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

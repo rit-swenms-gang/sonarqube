@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SearchMyProjectsAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.project.ws</a> &gt; <span class="el_source">SearchMyProjectsAction.java</span></div><h1>SearchMyProjectsAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.project.ws;
+
+import com.google.common.collect.ImmutableSet;
+import java.util.List;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.api.measures.CoreMetrics;
+import org.sonar.db.component.ComponentQualifiers;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.api.server.ws.WebService.Param;
+import org.sonar.db.permission.ProjectPermission;
+import org.sonar.db.DatabaseUtils;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.Pagination;
+import org.sonar.db.component.BranchDto;
+import org.sonar.db.component.ProjectLinkDto;
+import org.sonar.db.component.SnapshotDto;
+import org.sonar.db.measure.MeasureDto;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.server.user.UserSession;
+import org.sonarqube.ws.Projects.SearchMyProjectsWsResponse;
+import org.sonarqube.ws.Projects.SearchMyProjectsWsResponse.Link;
+import org.sonarqube.ws.Projects.SearchMyProjectsWsResponse.Project;
+
+import static com.google.common.base.Strings.emptyToNull;
+import static com.google.common.base.Strings.isNullOrEmpty;
+import static java.util.Collections.singletonList;
+import static java.util.Objects.requireNonNull;
+import static java.util.Optional.ofNullable;
+import static org.sonar.api.utils.DateUtils.formatDateTime;
+import static org.sonar.server.project.ws.SearchMyProjectsData.builder;
+import static org.sonar.server.ws.WsUtils.writeProtobuf;
+
+public class SearchMyProjectsAction implements ProjectsWsAction {
+  private static final int MAX_SIZE = 500;
+
+  private final DbClient dbClient;
+  private final UserSession userSession;
+
+<span class="fc" id="L65">  public SearchMyProjectsAction(DbClient dbClient, UserSession userSession) {</span>
+<span class="fc" id="L66">    this.dbClient = dbClient;</span>
+<span class="fc" id="L67">    this.userSession = userSession;</span>
+<span class="fc" id="L68">  }</span>
+
+  @Override
+  public void define(WebService.NewController context) {
+<span class="fc" id="L72">    context.createAction(&quot;search_my_projects&quot;)</span>
+<span class="fc" id="L73">      .setDescription(&quot;Return list of projects for which the current user has 'Administer' permission. Maximum 1'000 projects are returned.&quot;)</span>
+<span class="fc" id="L74">      .setResponseExample(getClass().getResource(&quot;search_my_projects-example.json&quot;))</span>
+<span class="fc" id="L75">      .addPagingParams(100, MAX_SIZE)</span>
+<span class="fc" id="L76">      .setSince(&quot;6.0&quot;)</span>
+<span class="fc" id="L77">      .setInternal(true)</span>
+<span class="fc" id="L78">      .setHandler(this);</span>
+
+<span class="fc" id="L80">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L84">    SearchMyProjectsWsResponse searchMyProjectsWsResponse = doHandle(toRequest(request));</span>
+<span class="fc" id="L85">    writeProtobuf(searchMyProjectsWsResponse, request, response);</span>
+<span class="fc" id="L86">  }</span>
+
+  private SearchMyProjectsWsResponse doHandle(SearchMyProjectsRequest request) {
+<span class="fc" id="L89">    checkAuthenticated();</span>
+
+<span class="fc" id="L91">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L92">      SearchMyProjectsData data = load(dbSession, request);</span>
+<span class="fc" id="L93">      return buildResponse(request, data);</span>
+    }
+  }
+
+  private static SearchMyProjectsWsResponse buildResponse(SearchMyProjectsRequest request, SearchMyProjectsData data) {
+<span class="fc" id="L98">    SearchMyProjectsWsResponse.Builder response = SearchMyProjectsWsResponse.newBuilder();</span>
+
+<span class="fc" id="L100">    ProjectDtoToWs projectDtoToWs = new ProjectDtoToWs(data);</span>
+
+<span class="fc" id="L102">    data.projects().stream()</span>
+<span class="fc" id="L103">      .map(projectDtoToWs)</span>
+<span class="fc" id="L104">      .forEach(response::addProjects);</span>
+
+<span class="fc" id="L106">    response.getPagingBuilder()</span>
+<span class="fc" id="L107">      .setPageIndex(request.getPage())</span>
+<span class="fc" id="L108">      .setPageSize(request.getPageSize())</span>
+<span class="fc" id="L109">      .setTotal(data.totalNbOfProjects())</span>
+<span class="fc" id="L110">      .build();</span>
+
+<span class="fc" id="L112">    return response.build();</span>
+  }
+
+  private void checkAuthenticated() {
+<span class="fc" id="L116">    userSession.checkLoggedIn();</span>
+<span class="fc" id="L117">  }</span>
+
+  private static SearchMyProjectsRequest toRequest(Request request) {
+<span class="fc" id="L120">    return SearchMyProjectsRequest.builder()</span>
+<span class="fc" id="L121">      .setPage(request.mandatoryParamAsInt(Param.PAGE))</span>
+<span class="fc" id="L122">      .setPageSize(request.mandatoryParamAsInt(Param.PAGE_SIZE))</span>
+<span class="fc" id="L123">      .build();</span>
+  }
+
+  private static class ProjectDtoToWs implements Function&lt;ProjectDto, Project&gt; {
+    private final SearchMyProjectsData data;
+
+<span class="fc" id="L129">    private ProjectDtoToWs(SearchMyProjectsData data) {</span>
+<span class="fc" id="L130">      this.data = data;</span>
+<span class="fc" id="L131">    }</span>
+
+    @Override
+    public Project apply(ProjectDto dto) {
+<span class="fc" id="L135">      Project.Builder project = Project.newBuilder();</span>
+
+<span class="fc" id="L137">      project</span>
+<span class="fc" id="L138">        .setKey(dto.getKey())</span>
+<span class="fc" id="L139">        .setName(dto.getName());</span>
+<span class="fc" id="L140">      ofNullable(emptyToNull(dto.getDescription())).ifPresent(project::setDescription);</span>
+<span class="fc" id="L141">      data.projectLinksFor(dto.getUuid()).stream()</span>
+<span class="fc" id="L142">        .map(ProjectLinkDtoToWs.INSTANCE)</span>
+<span class="fc" id="L143">        .forEach(project::addLinks);</span>
+
+<span class="fc" id="L145">      String mainBranchUuid = data.mainBranchUuidForProjectUuid(dto.getUuid());</span>
+<span class="fc" id="L146">      data.lastSnapshot(mainBranchUuid).ifPresent(s -&gt; {</span>
+<span class="fc" id="L147">        project.setLastAnalysisDate(formatDateTime(s.getCreatedAt()));</span>
+<span class="fc" id="L148">        ofNullable(s.getRevision()).ifPresent(project::setRevision);</span>
+<span class="fc" id="L149">      });</span>
+<span class="fc" id="L150">      data.qualityGateStatusFor(mainBranchUuid).ifPresent(project::setQualityGate);</span>
+
+<span class="fc" id="L152">      return project.build();</span>
+    }
+  }
+
+<span class="fc" id="L156">  private enum ProjectLinkDtoToWs implements Function&lt;ProjectLinkDto, Link&gt; {</span>
+<span class="fc" id="L157">    INSTANCE;</span>
+
+    @Override
+    public Link apply(ProjectLinkDto dto) {
+<span class="fc" id="L161">      Link.Builder link = Link.newBuilder();</span>
+<span class="fc" id="L162">      link.setHref(dto.getHref());</span>
+
+<span class="pc bpc" id="L164" title="1 of 2 branches missed.">      if (!isNullOrEmpty(dto.getName())) {</span>
+<span class="fc" id="L165">        link.setName(dto.getName());</span>
+      }
+<span class="pc bpc" id="L167" title="1 of 2 branches missed.">      if (!isNullOrEmpty(dto.getType())) {</span>
+<span class="fc" id="L168">        link.setType(dto.getType());</span>
+      }
+
+<span class="fc" id="L171">      return link.build();</span>
+    }
+  }
+
+  private SearchMyProjectsData load(DbSession dbSession, SearchMyProjectsRequest request) {
+<span class="fc" id="L176">    SearchMyProjectsData.Builder data = builder();</span>
+<span class="fc" id="L177">    ProjectsResult searchResult = searchProjects(dbSession, request);</span>
+<span class="fc" id="L178">    List&lt;ProjectDto&gt; projects = searchResult.projects;</span>
+
+<span class="fc" id="L180">    List&lt;String&gt; projectUuids = projects.stream().map(ProjectDto::getUuid).toList();</span>
+<span class="fc" id="L181">    List&lt;ProjectLinkDto&gt; projectLinks = dbClient.projectLinkDao().selectByProjectUuids(dbSession, projectUuids);</span>
+
+<span class="fc" id="L183">    List&lt;BranchDto&gt; branches = searchResult.branches;</span>
+
+<span class="fc" id="L185">    Set&lt;String&gt; mainBranchUuids = branches.stream().map(BranchDto::getUuid).collect(Collectors.toSet());</span>
+<span class="fc" id="L186">    List&lt;SnapshotDto&gt; snapshots = dbClient.snapshotDao()</span>
+<span class="fc" id="L187">      .selectLastAnalysesByRootComponentUuids(dbSession, mainBranchUuids);</span>
+<span class="fc" id="L188">    List&lt;MeasureDto&gt; qualityGates = dbClient.measureDao()</span>
+<span class="fc" id="L189">      .selectByComponentUuidsAndMetricKeys(dbSession, mainBranchUuids, singletonList(CoreMetrics.ALERT_STATUS_KEY));</span>
+
+<span class="fc" id="L191">    data</span>
+<span class="fc" id="L192">      .setProjects(projects)</span>
+<span class="fc" id="L193">      .setBranches(searchResult.branches)</span>
+<span class="fc" id="L194">      .setProjectLinks(projectLinks)</span>
+<span class="fc" id="L195">      .setSnapshots(snapshots)</span>
+<span class="fc" id="L196">      .setQualityGates(qualityGates)</span>
+<span class="fc" id="L197">      .setTotalNbOfProjects(searchResult.total);</span>
+
+<span class="fc" id="L199">    return data.build();</span>
+  }
+
+  private ProjectsResult searchProjects(DbSession dbSession, SearchMyProjectsRequest request) {
+<span class="fc" id="L203">    String userUuid = requireNonNull(userSession.getUuid(), &quot;Current user must be authenticated&quot;);</span>
+
+<span class="fc" id="L205">    List&lt;String&gt; entitiesUuid = dbClient.roleDao()</span>
+<span class="fc" id="L206">      .selectEntityUuidsByPermissionAndUserUuidAndQualifier(dbSession, ProjectPermission.ADMIN, userUuid, Set.of(ComponentQualifiers.PROJECT));</span>
+
+<span class="fc" id="L208">    ImmutableSet&lt;String&gt; subSetEntityUuids = ImmutableSet.copyOf(entitiesUuid.subList(0, Math.min(entitiesUuid.size(), DatabaseUtils.PARTITION_SIZE_FOR_ORACLE)));</span>
+<span class="fc" id="L209">    Pagination pagination = Pagination.forPage(request.page).andSize(request.pageSize);</span>
+<span class="fc" id="L210">    List&lt;ProjectDto&gt; projectDtos = dbClient.projectDao().selectByUuids(dbSession, subSetEntityUuids, pagination);</span>
+
+<span class="fc" id="L212">    List&lt;BranchDto&gt; branchDtos = dbClient.branchDao().selectMainBranchesByProjectUuids(dbSession, projectDtos.stream().map(ProjectDto::getUuid).collect(Collectors.toSet()));</span>
+
+<span class="fc" id="L214">    return new ProjectsResult(projectDtos, branchDtos, subSetEntityUuids.size());</span>
+  }
+
+  private static class ProjectsResult {
+
+    private final List&lt;ProjectDto&gt; projects;
+    private final List&lt;BranchDto&gt; branches;
+    private final int total;
+
+<span class="fc" id="L223">    private ProjectsResult(List&lt;ProjectDto&gt; projects, List&lt;BranchDto&gt; branches, int total) {</span>
+<span class="fc" id="L224">      this.projects = projects;</span>
+<span class="fc" id="L225">      this.branches = branches;</span>
+<span class="fc" id="L226">      assertThatAllCollectionsHaveSameSize(projects, branches);</span>
+<span class="fc" id="L227">      this.total = total;</span>
+<span class="fc" id="L228">    }</span>
+
+    private static void assertThatAllCollectionsHaveSameSize(List&lt;ProjectDto&gt; projects, List&lt;BranchDto&gt; branches) {
+<span class="pc bpc" id="L231" title="1 of 2 branches missed.">      if (projects.size() != branches.size()) {</span>
+<span class="nc" id="L232">        throw new IllegalStateException(&quot;There must be the same number of projects as the branches.&quot;);</span>
+      }
+<span class="fc" id="L234">    }</span>
+  }
+
+  private static class SearchMyProjectsRequest {
+    private final Integer page;
+    private final Integer pageSize;
+
+<span class="fc" id="L241">    private SearchMyProjectsRequest(Builder builder) {</span>
+<span class="fc" id="L242">      this.page = builder.page;</span>
+<span class="fc" id="L243">      this.pageSize = builder.pageSize;</span>
+<span class="fc" id="L244">    }</span>
+
+    @CheckForNull
+    public Integer getPage() {
+<span class="fc" id="L248">      return page;</span>
+    }
+
+    @CheckForNull
+    public Integer getPageSize() {
+<span class="fc" id="L253">      return pageSize;</span>
+    }
+
+    public static Builder builder() {
+<span class="fc" id="L257">      return new Builder();</span>
+    }
+  }
+
+  private static class Builder {
+    private Integer page;
+    private Integer pageSize;
+
+    private Builder() {
+      // enforce method constructor
+    }
+
+    public Builder setPage(@Nullable Integer page) {
+<span class="fc" id="L270">      this.page = page;</span>
+<span class="fc" id="L271">      return this;</span>
+    }
+
+    public Builder setPageSize(@Nullable Integer pageSize) {
+<span class="fc" id="L275">      this.pageSize = pageSize;</span>
+<span class="fc" id="L276">      return this;</span>
+    }
+
+    public SearchMyProjectsRequest build() {
+<span class="fc" id="L280">      return new SearchMyProjectsRequest(this);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

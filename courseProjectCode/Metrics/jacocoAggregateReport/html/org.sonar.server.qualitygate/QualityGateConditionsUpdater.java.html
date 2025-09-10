@@ -1,0 +1,265 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>QualityGateConditionsUpdater.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.qualitygate</a> &gt; <span class="el_source">QualityGateConditionsUpdater.java</span></div><h1>QualityGateConditionsUpdater.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.qualitygate;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import javax.annotation.Nullable;
+import org.sonar.api.measures.Metric.ValueType;
+import org.sonar.core.util.Uuids;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.metric.MetricDto;
+import org.sonar.db.qualitygate.QualityGateConditionDto;
+import org.sonar.db.qualitygate.QualityGateDto;
+import org.sonar.server.exceptions.NotFoundException;
+import org.sonar.server.measure.Rating;
+import org.sonar.server.metric.StandardToMQRMetrics;
+
+import static com.google.common.base.Strings.isNullOrEmpty;
+import static java.lang.Double.parseDouble;
+import static java.lang.Integer.parseInt;
+import static java.lang.Long.parseLong;
+import static java.lang.String.format;
+import static java.util.Arrays.stream;
+import static java.util.Objects.requireNonNull;
+import static org.sonar.api.measures.CoreMetrics.ALERT_STATUS_KEY;
+import static org.sonar.api.measures.CoreMetrics.NEW_SECURITY_HOTSPOTS_KEY;
+import static org.sonar.api.measures.CoreMetrics.SECURITY_HOTSPOTS_KEY;
+import static org.sonar.api.measures.Metric.DIRECTION_BETTER;
+import static org.sonar.api.measures.Metric.DIRECTION_NONE;
+import static org.sonar.api.measures.Metric.DIRECTION_WORST;
+import static org.sonar.api.measures.Metric.ValueType.RATING;
+import static org.sonar.server.exceptions.BadRequestException.checkRequest;
+import static org.sonar.server.exceptions.BadRequestException.throwBadRequestException;
+import static org.sonar.server.measure.Rating.E;
+import static org.sonar.server.qualitygate.Condition.Operator.GREATER_THAN;
+import static org.sonar.server.qualitygate.Condition.Operator.LESS_THAN;
+import static org.sonar.server.qualitygate.ValidRatingMetrics.isCoreRatingMetric;
+import static org.sonar.server.qualitygate.ValidRatingMetrics.isScaRatingMetric;
+import static org.sonar.server.qualitygate.ValidRatingMetrics.isSoftwareQualityRatingMetric;
+
+public class QualityGateConditionsUpdater {
+<span class="fc" id="L68">  public static final Set&lt;String&gt; INVALID_METRIC_KEYS = Stream.of(ALERT_STATUS_KEY, SECURITY_HOTSPOTS_KEY, NEW_SECURITY_HOTSPOTS_KEY)</span>
+<span class="fc" id="L69">    .collect(Collectors.toUnmodifiableSet());</span>
+
+<span class="fc" id="L71">  private static final Map&lt;Integer, Set&lt;Condition.Operator&gt;&gt; VALID_OPERATORS_BY_DIRECTION = Map.of(</span>
+<span class="fc" id="L72">    DIRECTION_NONE, Set.of(GREATER_THAN, LESS_THAN),</span>
+<span class="fc" id="L73">    DIRECTION_BETTER, Set.of(LESS_THAN),</span>
+<span class="fc" id="L74">    DIRECTION_WORST, Set.of(GREATER_THAN));</span>
+
+<span class="fc" id="L76">  private static final EnumSet&lt;ValueType&gt; VALID_METRIC_TYPES = EnumSet.of(</span>
+    ValueType.INT,
+    ValueType.FLOAT,
+    ValueType.PERCENT,
+    ValueType.MILLISEC,
+    ValueType.LEVEL,
+    ValueType.RATING,
+    ValueType.WORK_DUR);
+
+<span class="fc" id="L85">  private static final List&lt;String&gt; RATING_VALID_INT_VALUES = stream(Rating.values()).map(r -&gt; Integer.toString(r.getIndex())).toList();</span>
+
+  private final DbClient dbClient;
+
+<span class="fc" id="L89">  public QualityGateConditionsUpdater(DbClient dbClient) {</span>
+<span class="fc" id="L90">    this.dbClient = dbClient;</span>
+
+<span class="fc" id="L92">  }</span>
+
+  public QualityGateConditionDto createCondition(DbSession dbSession, QualityGateDto qualityGate, String metricKey, String operator,
+    String errorThreshold) {
+<span class="fc" id="L96">    MetricDto metric = getNonNullMetric(dbSession, metricKey);</span>
+<span class="fc" id="L97">    validateCondition(metric, operator, errorThreshold);</span>
+<span class="fc" id="L98">    Collection&lt;QualityGateConditionDto&gt; conditions = getConditions(dbSession, qualityGate.getUuid());</span>
+<span class="fc" id="L99">    checkConditionDoesNotExistOnSameMetric(conditions, metric);</span>
+<span class="fc" id="L100">    checkConditionDoesNotExistOnEquivalentMetric(dbSession, conditions, metric);</span>
+<span class="fc" id="L101">    QualityGateConditionDto newCondition = new QualityGateConditionDto().setQualityGateUuid(qualityGate.getUuid())</span>
+<span class="fc" id="L102">      .setUuid(Uuids.create())</span>
+<span class="fc" id="L103">      .setMetricUuid(metric.getUuid()).setMetricKey(metric.getKey())</span>
+<span class="fc" id="L104">      .setOperator(operator)</span>
+<span class="fc" id="L105">      .setErrorThreshold(errorThreshold);</span>
+<span class="fc" id="L106">    dbClient.gateConditionDao().insert(newCondition, dbSession);</span>
+<span class="fc" id="L107">    return newCondition;</span>
+  }
+
+  public QualityGateConditionDto updateCondition(DbSession dbSession, QualityGateConditionDto condition, String metricKey, String operator,
+    String errorThreshold) {
+<span class="fc" id="L112">    MetricDto metric = getNonNullMetric(dbSession, metricKey);</span>
+<span class="fc" id="L113">    validateCondition(metric, operator, errorThreshold);</span>
+<span class="fc" id="L114">    Collection&lt;QualityGateConditionDto&gt; otherConditions = getConditions(dbSession, condition.getQualityGateUuid())</span>
+<span class="fc" id="L115">      .stream()</span>
+<span class="fc bfc" id="L116" title="All 2 branches covered.">      .filter(c -&gt; !c.getUuid().equals(condition.getUuid()))</span>
+<span class="fc" id="L117">      .toList();</span>
+<span class="fc" id="L118">    checkConditionDoesNotExistOnEquivalentMetric(dbSession, otherConditions, metric);</span>
+<span class="fc" id="L119">    condition</span>
+<span class="fc" id="L120">      .setMetricUuid(metric.getUuid())</span>
+<span class="fc" id="L121">      .setMetricKey(metric.getKey())</span>
+<span class="fc" id="L122">      .setOperator(operator)</span>
+<span class="fc" id="L123">      .setErrorThreshold(errorThreshold);</span>
+<span class="fc" id="L124">    dbClient.gateConditionDao().update(condition, dbSession);</span>
+<span class="fc" id="L125">    return condition;</span>
+  }
+
+  private MetricDto getNonNullMetric(DbSession dbSession, String metricKey) {
+<span class="fc" id="L129">    MetricDto metric = dbClient.metricDao().selectByKey(dbSession, metricKey);</span>
+<span class="fc bfc" id="L130" title="All 2 branches covered.">    if (metric == null) {</span>
+<span class="fc" id="L131">      throw new NotFoundException(format(&quot;There is no metric with key=%s&quot;, metricKey));</span>
+    }
+<span class="fc" id="L133">    return metric;</span>
+  }
+
+  private Collection&lt;QualityGateConditionDto&gt; getConditions(DbSession dbSession, String qGateUuid) {
+<span class="fc" id="L137">    return dbClient.gateConditionDao().selectForQualityGate(dbSession, qGateUuid);</span>
+  }
+
+  private static void validateCondition(MetricDto metric, String operator, String errorThreshold) {
+<span class="fc" id="L141">    List&lt;String&gt; errors = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L142">    validateMetric(metric, errors);</span>
+<span class="fc" id="L143">    checkOperator(metric, operator, errors);</span>
+<span class="fc" id="L144">    checkErrorThreshold(metric, errorThreshold, errors);</span>
+<span class="fc" id="L145">    checkRatingMetric(metric, errorThreshold, errors);</span>
+<span class="fc" id="L146">    checkRequest(errors.isEmpty(), errors);</span>
+<span class="fc" id="L147">  }</span>
+
+  private static void validateMetric(MetricDto metric, List&lt;String&gt; errors) {
+<span class="fc" id="L150">    check(isValid(metric), errors, &quot;Metric '%s' cannot be used to define a condition.&quot;, metric.getKey());</span>
+<span class="fc" id="L151">  }</span>
+
+  private static boolean isValid(MetricDto metric) {
+<span class="fc bfc" id="L154" title="All 2 branches covered.">    return !metric.isHidden()</span>
+<span class="fc bfc" id="L155" title="All 2 branches covered.">      &amp;&amp; VALID_METRIC_TYPES.contains(ValueType.valueOf(metric.getValueType()))</span>
+<span class="fc bfc" id="L156" title="All 2 branches covered.">      &amp;&amp; !INVALID_METRIC_KEYS.contains(metric.getKey());</span>
+  }
+
+  private static void checkOperator(MetricDto metric, String operator, List&lt;String&gt; errors) {
+<span class="fc" id="L160">    check(</span>
+<span class="fc bfc" id="L161" title="All 4 branches covered.">      Condition.Operator.isValid(operator) &amp;&amp; isAllowedOperator(operator, metric),</span>
+      errors,
+      &quot;Operator %s is not allowed for this metric.&quot;, operator);
+<span class="fc" id="L164">  }</span>
+
+  private static void checkErrorThreshold(MetricDto metric, String errorThreshold, List&lt;String&gt; errors) {
+<span class="fc" id="L167">    requireNonNull(errorThreshold, &quot;errorThreshold can not be null&quot;);</span>
+<span class="fc" id="L168">    validateErrorThresholdValue(metric, errorThreshold, errors);</span>
+<span class="fc" id="L169">  }</span>
+
+  private static void checkConditionDoesNotExistOnSameMetric(Collection&lt;QualityGateConditionDto&gt; conditions, MetricDto metric) {
+<span class="fc bfc" id="L172" title="All 2 branches covered.">    if (conditions.isEmpty()) {</span>
+<span class="fc" id="L173">      return;</span>
+    }
+
+<span class="fc" id="L176">    boolean conditionExists = conditions.stream().anyMatch(c -&gt; c.getMetricUuid().equals(metric.getUuid()));</span>
+<span class="fc bfc" id="L177" title="All 2 branches covered.">    checkRequest(!conditionExists, format(&quot;Condition on metric '%s' already exists.&quot;, metric.getShortName()));</span>
+<span class="fc" id="L178">  }</span>
+
+  private void checkConditionDoesNotExistOnEquivalentMetric(DbSession dbSession, Collection&lt;QualityGateConditionDto&gt; conditions, MetricDto metric) {
+<span class="fc" id="L181">    Optional&lt;String&gt; equivalentMetric = StandardToMQRMetrics.getEquivalentMetric(metric.getKey());</span>
+
+<span class="fc bfc" id="L183" title="All 4 branches covered.">    if (conditions.isEmpty() || equivalentMetric.isEmpty()) {</span>
+<span class="fc" id="L184">      return;</span>
+    }
+
+<span class="fc" id="L187">    MetricDto equivalentMetricDto = dbClient.metricDao().selectByKey(dbSession, equivalentMetric.get());</span>
+<span class="fc" id="L188">    boolean conditionExists = conditions.stream()</span>
+<span class="fc bfc" id="L189" title="All 4 branches covered.">      .anyMatch(c -&gt; equivalentMetricDto != null &amp;&amp; c.getMetricUuid().equals(equivalentMetricDto.getUuid()));</span>
+
+<span class="fc bfc" id="L191" title="All 2 branches covered.">    if (conditionExists) {</span>
+<span class="pc" id="L192">      throwBadRequestException(</span>
+<span class="fc" id="L193">        format(&quot;Condition for metric '%s' already exists on equivalent metric '%s''.&quot;, metric.getKey(), equivalentMetricDto.getKey()));</span>
+    }
+<span class="fc" id="L195">  }</span>
+
+  private static boolean isAllowedOperator(String operator, MetricDto metric) {
+<span class="fc bfc" id="L198" title="All 2 branches covered.">    if (VALID_OPERATORS_BY_DIRECTION.containsKey(metric.getDirection())) {</span>
+<span class="fc" id="L199">      return VALID_OPERATORS_BY_DIRECTION.get(metric.getDirection()).contains(Condition.Operator.fromDbValue(operator));</span>
+    }
+
+<span class="fc" id="L202">    return false;</span>
+  }
+
+  private static void validateErrorThresholdValue(MetricDto metric, String errorThreshold, List&lt;String&gt; errors) {
+    try {
+<span class="fc" id="L207">      ValueType valueType = ValueType.valueOf(metric.getValueType());</span>
+<span class="fc bfc" id="L208" title="All 5 branches covered.">      switch (valueType) {</span>
+        case BOOL, INT, RATING:
+<span class="fc" id="L210">          parseInt(errorThreshold);</span>
+<span class="fc" id="L211">          return;</span>
+        case MILLISEC, WORK_DUR:
+<span class="fc" id="L213">          parseLong(errorThreshold);</span>
+<span class="fc" id="L214">          return;</span>
+        case FLOAT, PERCENT:
+<span class="fc" id="L216">          parseDouble(errorThreshold);</span>
+<span class="fc" id="L217">          return;</span>
+        case STRING, LEVEL:
+<span class="fc" id="L219">          return;</span>
+        default:
+<span class="fc" id="L221">          throw new IllegalArgumentException(format(&quot;Unsupported value type %s. Cannot convert condition value&quot;, valueType));</span>
+      }
+<span class="fc" id="L223">    } catch (Exception e) {</span>
+<span class="fc" id="L224">      errors.add(format(&quot;Invalid value '%s' for metric '%s'&quot;, errorThreshold, metric.getShortName()));</span>
+    }
+<span class="fc" id="L226">  }</span>
+
+  private static void checkRatingMetric(MetricDto metric, String errorThreshold, List&lt;String&gt; errors) {
+<span class="fc bfc" id="L229" title="All 2 branches covered.">    if (!metric.getValueType().equals(RATING.name())) {</span>
+<span class="fc" id="L230">      return;</span>
+    }
+<span class="fc bfc" id="L232" title="All 6 branches covered.">    if (!isCoreRatingMetric(metric.getKey()) &amp;&amp; !isSoftwareQualityRatingMetric(metric.getKey()) &amp;&amp; !isScaRatingMetric(metric.getKey())) {</span>
+<span class="fc" id="L233">      errors.add(format(&quot;The metric '%s' cannot be used&quot;, metric.getShortName()));</span>
+    }
+<span class="fc bfc" id="L235" title="All 2 branches covered.">    if (!isValidRating(errorThreshold)) {</span>
+<span class="fc" id="L236">      addInvalidRatingError(errorThreshold, errors);</span>
+<span class="fc" id="L237">      return;</span>
+    }
+<span class="fc" id="L239">    checkRatingGreaterThanOperator(errorThreshold, errors);</span>
+<span class="fc" id="L240">  }</span>
+
+  private static void addInvalidRatingError(@Nullable String value, List&lt;String&gt; errors) {
+<span class="fc" id="L243">    errors.add(format(&quot;'%s' is not a valid rating&quot;, value));</span>
+<span class="fc" id="L244">  }</span>
+
+  private static void checkRatingGreaterThanOperator(@Nullable String value, List&lt;String&gt; errors) {
+<span class="pc bpc" id="L247" title="1 of 4 branches missed.">    check(isNullOrEmpty(value) || !Objects.equals(toRating(value), E), errors, &quot;There's no worse rating than E (%s)&quot;, value);</span>
+<span class="fc" id="L248">  }</span>
+
+  private static Rating toRating(String value) {
+<span class="fc" id="L251">    return Rating.valueOf(parseInt(value));</span>
+  }
+
+  private static boolean isValidRating(@Nullable String value) {
+<span class="pc bpc" id="L255" title="1 of 4 branches missed.">    return isNullOrEmpty(value) || RATING_VALID_INT_VALUES.contains(value);</span>
+  }
+
+  private static boolean check(boolean expression, List&lt;String&gt; errors, String message, String... args) {
+<span class="fc bfc" id="L259" title="All 2 branches covered.">    if (!expression) {</span>
+<span class="fc" id="L260">      errors.add(format(message, args));</span>
+    }
+<span class="fc" id="L262">    return expression;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

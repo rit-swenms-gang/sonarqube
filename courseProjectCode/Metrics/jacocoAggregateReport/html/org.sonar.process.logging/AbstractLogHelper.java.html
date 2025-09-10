@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractLogHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.process.logging</a> &gt; <span class="el_source">AbstractLogHelper.java</span></div><h1>AbstractLogHelper.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.process.logging;
+
+import ch.qos.logback.classic.Level;
+import java.util.Arrays;
+import javax.annotation.CheckForNull;
+import org.sonar.process.Props;
+
+import static java.lang.String.format;
+
+public abstract class AbstractLogHelper {
+<span class="fc" id="L30">  static final Level[] ALLOWED_ROOT_LOG_LEVELS = new Level[] {Level.TRACE, Level.DEBUG, Level.INFO};</span>
+
+  public static final String PREFIX_LOG_FORMAT = &quot;%d{yyyy.MM.dd HH:mm:ss} %-5level &quot;;
+  public static final String SUFFIX_LOG_FORMAT = &quot; %msg%n&quot;;
+  private final String loggerNamePattern;
+
+<span class="fc" id="L36">  protected AbstractLogHelper(String loggerNamePattern) {</span>
+<span class="fc" id="L37">    this.loggerNamePattern = loggerNamePattern;</span>
+<span class="fc" id="L38">  }</span>
+
+  public abstract String getRootLoggerName();
+
+  public String buildLogPattern(RootLoggerConfig config) {
+<span class="fc" id="L43">    return PREFIX_LOG_FORMAT</span>
+<span class="fc bfc" id="L44" title="All 2 branches covered.">      + (config.getNodeNameField().isBlank() ? &quot;&quot; : (config.getNodeNameField() + &quot; &quot;))</span>
+<span class="fc" id="L45">      + config.getProcessId().getKey()</span>
+<span class="fc" id="L46">      + &quot;[&quot; + config.getThreadIdFieldPattern() + &quot;]&quot;</span>
+      + &quot;[&quot; + loggerNamePattern + &quot;]&quot;
+      + SUFFIX_LOG_FORMAT;
+  }
+
+  /**
+   * Resolve a log level reading the value of specified properties.
+   * &lt;p&gt;
+   * To compute the applied log level the following rules will be followed:
+   * &lt;ul&gt;the last property with a defined and valid value in the order of the {@code propertyKeys} argument will be applied&lt;/ul&gt;
+   * &lt;ul&gt;if there is none, {@link Level#INFO INFO} will be returned&lt;/ul&gt;
+   * &lt;/p&gt;
+   *
+   * @throws IllegalArgumentException if the value of the specified property is not one of {@link #ALLOWED_ROOT_LOG_LEVELS}
+   */
+  static Level resolveLevel(Props props, String... propertyKeys) {
+<span class="fc" id="L62">    Level newLevel = Level.INFO;</span>
+<span class="fc bfc" id="L63" title="All 2 branches covered.">    for (String propertyKey : propertyKeys) {</span>
+<span class="fc" id="L64">      Level level = getPropertyValueAsLevel(props, propertyKey);</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">      if (level != null) {</span>
+<span class="fc" id="L66">        newLevel = level;</span>
+      }
+    }
+<span class="fc" id="L69">    return newLevel;</span>
+  }
+
+  @CheckForNull
+  static Level getPropertyValueAsLevel(Props props, String propertyKey) {
+<span class="fc" id="L74">    String value = props.value(propertyKey);</span>
+<span class="fc bfc" id="L75" title="All 2 branches covered.">    if (value == null) {</span>
+<span class="fc" id="L76">      return null;</span>
+    }
+
+<span class="fc" id="L79">    Level level = Level.toLevel(value, Level.INFO);</span>
+<span class="fc bfc" id="L80" title="All 2 branches covered.">    if (!isAllowed(level)) {</span>
+<span class="fc" id="L81">      throw new IllegalArgumentException(format(&quot;log level %s in property %s is not a supported value (allowed levels are %s)&quot;,</span>
+<span class="fc" id="L82">        level, propertyKey, Arrays.toString(ALLOWED_ROOT_LOG_LEVELS)));</span>
+    }
+<span class="fc" id="L84">    return level;</span>
+  }
+
+  static boolean isAllowed(Level level) {
+<span class="fc bfc" id="L88" title="All 2 branches covered.">    for (Level allowedRootLogLevel : ALLOWED_ROOT_LOG_LEVELS) {</span>
+<span class="fc bfc" id="L89" title="All 2 branches covered.">      if (level.equals(allowedRootLogLevel)) {</span>
+<span class="fc" id="L90">        return true;</span>
+      }
+    }
+<span class="fc" id="L93">    return false;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

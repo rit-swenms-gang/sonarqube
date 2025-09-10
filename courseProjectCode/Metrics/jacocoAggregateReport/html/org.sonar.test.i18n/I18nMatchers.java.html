@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>I18nMatchers.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.test.i18n</a> &gt; <span class="el_source">I18nMatchers.java</span></div><h1>I18nMatchers.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.test.i18n;
+
+import java.io.File;
+import java.net.URL;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
+import org.apache.commons.io.FileUtils;
+import org.sonar.test.TestUtils;
+
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.fail;
+
+public final class I18nMatchers {
+
+  private I18nMatchers() {
+  }
+
+  /**
+   * Returns a matcher which checks that a translation bundle is up to date with the corresponding default one found in the classpath.
+   *
+   * @return the matcher
+   */
+  public static BundleSynchronizedMatcher isBundleUpToDate() {
+<span class="fc" id="L44">    return new BundleSynchronizedMatcher();</span>
+  }
+
+  /**
+   * Checks that all the translation bundles found on the classpath are up to date with the corresponding default ones found in the classpath.
+   */
+  public static void assertBundlesUpToDate() {
+<span class="nc" id="L51">    File bundleFolder = getResource(BundleSynchronizedMatcher.L10N_PATH);</span>
+<span class="nc bnc" id="L52" title="All 4 branches missed.">    if (bundleFolder == null || !bundleFolder.isDirectory()) {</span>
+<span class="nc" id="L53">      fail(&quot;No bundle found in: &quot; + BundleSynchronizedMatcher.L10N_PATH);</span>
+    }
+
+<span class="nc" id="L56">    Collection&lt;File&gt; bundles = FileUtils.listFiles(bundleFolder, new String[] {&quot;properties&quot;}, false);</span>
+<span class="nc" id="L57">    Map&lt;String, String&gt; failedAssertionMessages = new HashMap&lt;&gt;();</span>
+<span class="nc bnc" id="L58" title="All 2 branches missed.">    for (File bundle : bundles) {</span>
+<span class="nc" id="L59">      String bundleName = bundle.getName();</span>
+<span class="nc bnc" id="L60" title="All 2 branches missed.">      if (bundleName.indexOf('_') &gt; 0) {</span>
+        try {
+<span class="nc" id="L62">          assertThat(bundleName, isBundleUpToDate());</span>
+<span class="nc" id="L63">        } catch (AssertionError e) {</span>
+<span class="nc" id="L64">          failedAssertionMessages.put(bundleName, e.getMessage());</span>
+<span class="nc" id="L65">        }</span>
+      }
+<span class="nc" id="L67">    }</span>
+
+<span class="nc bnc" id="L69" title="All 2 branches missed.">    if (!failedAssertionMessages.isEmpty()) {</span>
+<span class="nc" id="L70">      StringBuilder message = new StringBuilder();</span>
+<span class="nc" id="L71">      message.append(failedAssertionMessages.size());</span>
+<span class="nc" id="L72">      message.append(&quot; bundles are not up-to-date: &quot;);</span>
+<span class="nc" id="L73">      message.append(String.join(&quot;, &quot;, failedAssertionMessages.keySet()));</span>
+<span class="nc" id="L74">      message.append(&quot;\n\n&quot;);</span>
+<span class="nc" id="L75">      message.append(String.join(&quot;\n\n&quot;, failedAssertionMessages.values()));</span>
+<span class="nc" id="L76">      fail(message.toString());</span>
+    }
+<span class="nc" id="L78">  }</span>
+
+  private static File getResource(String path) {
+<span class="nc" id="L81">    String resourcePath = path;</span>
+<span class="nc bnc" id="L82" title="All 2 branches missed.">    if (!resourcePath.startsWith(&quot;/&quot;)) {</span>
+<span class="nc" id="L83">      resourcePath = &quot;/&quot; + resourcePath;</span>
+    }
+<span class="nc" id="L85">    URL url = TestUtils.class.getResource(resourcePath);</span>
+<span class="nc bnc" id="L86" title="All 2 branches missed.">    if (url != null) {</span>
+<span class="nc" id="L87">      return FileUtils.toFile(url);</span>
+    }
+<span class="nc" id="L89">    return null;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

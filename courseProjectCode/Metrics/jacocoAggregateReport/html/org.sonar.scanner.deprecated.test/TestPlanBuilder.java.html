@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TestPlanBuilder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.deprecated.test</a> &gt; <span class="el_source">TestPlanBuilder.java</span></div><h1>TestPlanBuilder.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.deprecated.test;
+
+import java.util.HashMap;
+import java.util.Map;
+import javax.annotation.CheckForNull;
+import org.sonar.api.batch.fs.InputFile;
+import org.sonar.api.batch.fs.internal.DefaultInputFile;
+import org.sonar.api.scanner.ScannerSide;
+
+@ScannerSide
+<span class="fc" id="L30">public class TestPlanBuilder {</span>
+<span class="fc" id="L31">  private final Map&lt;InputFile, DefaultTestPlan&gt; testPlanByFile = new HashMap&lt;&gt;();</span>
+
+  public DefaultTestPlan getTestPlan(InputFile component) {
+<span class="fc" id="L34">    DefaultInputFile inputFile = (DefaultInputFile) component;</span>
+<span class="fc" id="L35">    inputFile.setPublished(true);</span>
+<span class="fc bfc" id="L36" title="All 2 branches covered.">    if (!testPlanByFile.containsKey(inputFile)) {</span>
+<span class="fc" id="L37">      testPlanByFile.put(inputFile, new DefaultTestPlan());</span>
+    }
+<span class="fc" id="L39">    return testPlanByFile.get(inputFile);</span>
+  }
+
+  @CheckForNull
+  public DefaultTestPlan getTestPlanByFile(InputFile inputFile) {
+<span class="fc" id="L44">    return testPlanByFile.get(inputFile);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

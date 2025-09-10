@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FileAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.batch</a> &gt; <span class="el_source">FileAction.java</span></div><h1>FileAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.batch;
+
+import java.io.File;
+import java.io.IOException;
+import org.apache.commons.io.FileUtils;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+
+public class FileAction implements BatchWsAction {
+
+  private final BatchIndex batchIndex;
+
+<span class="fc" id="L33">  public FileAction(BatchIndex batchIndex) {</span>
+<span class="fc" id="L34">    this.batchIndex = batchIndex;</span>
+<span class="fc" id="L35">  }</span>
+
+  @Override
+  public void define(WebService.NewController context) {
+<span class="fc" id="L39">    WebService.NewAction action = context.createAction(&quot;file&quot;)</span>
+<span class="fc" id="L40">      .setInternal(true)</span>
+<span class="fc" id="L41">      .setSince(&quot;4.4&quot;)</span>
+<span class="fc" id="L42">      .setDescription(&quot;Download a JAR file listed in the index (see batch/index)&quot;)</span>
+<span class="fc" id="L43">      .setResponseExample(getClass().getResource(&quot;batch-file-example.txt&quot;))</span>
+<span class="fc" id="L44">      .setHandler(this);</span>
+<span class="fc" id="L45">    action</span>
+<span class="fc" id="L46">      .createParam(&quot;name&quot;)</span>
+<span class="fc" id="L47">      .setDescription(&quot;File name&quot;)</span>
+<span class="fc" id="L48">      .setExampleValue(&quot;batch-library-2.3.jar&quot;);</span>
+<span class="fc" id="L49">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L53">    String filename = request.mandatoryParam(&quot;name&quot;);</span>
+    try {
+<span class="fc" id="L55">      response.stream().setMediaType(&quot;application/java-archive&quot;);</span>
+<span class="fc" id="L56">      File file = batchIndex.getFile(filename);</span>
+<span class="fc" id="L57">      FileUtils.copyFile(file, response.stream().output());</span>
+<span class="nc" id="L58">    } catch (IOException e) {</span>
+<span class="nc" id="L59">      throw new IllegalStateException(e);</span>
+<span class="fc" id="L60">    }</span>
+<span class="fc" id="L61">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

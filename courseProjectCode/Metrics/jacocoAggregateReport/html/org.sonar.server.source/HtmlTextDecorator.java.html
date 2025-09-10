@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HtmlTextDecorator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.source</a> &gt; <span class="el_source">HtmlTextDecorator.java</span></div><h1>HtmlTextDecorator.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.source;
+
+import com.google.common.io.Closeables;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.StringReader;
+import java.util.Collection;
+import java.util.List;
+import javax.annotation.Nullable;
+import org.slf4j.LoggerFactory;
+
+import static com.google.common.collect.Lists.newArrayList;
+
+<span class="fc" id="L33">class HtmlTextDecorator {</span>
+
+  static final char CR_END_OF_LINE = '\r';
+  static final char LF_END_OF_LINE = '\n';
+  static final char HTML_OPENING = '&lt;';
+  static final char HTML_CLOSING = '&gt;';
+  static final char AMPERSAND = '&amp;';
+  static final String ENCODED_HTML_OPENING = &quot;&amp;lt;&quot;;
+  static final String ENCODED_HTML_CLOSING = &quot;&amp;gt;&quot;;
+  static final String ENCODED_AMPERSAND = &quot;&amp;amp;&quot;;
+
+  List&lt;String&gt; decorateTextWithHtml(String text, DecorationDataHolder decorationDataHolder) {
+<span class="fc" id="L45">    return decorateTextWithHtml(text, decorationDataHolder, null, null);</span>
+  }
+
+  List&lt;String&gt; decorateTextWithHtml(String text, DecorationDataHolder decorationDataHolder, @Nullable Integer from, @Nullable Integer to) {
+
+<span class="fc" id="L50">    StringBuilder currentHtmlLine = new StringBuilder();</span>
+<span class="fc" id="L51">    List&lt;String&gt; decoratedHtmlLines = newArrayList();</span>
+<span class="fc" id="L52">    int currentLine = 1;</span>
+
+<span class="fc" id="L54">    BufferedReader stringBuffer = null;</span>
+    try {
+<span class="fc" id="L56">      stringBuffer = new BufferedReader(new StringReader(text));</span>
+
+<span class="fc" id="L58">      CharactersReader charsReader = new CharactersReader(stringBuffer);</span>
+
+<span class="fc bfc" id="L60" title="All 2 branches covered.">      while (charsReader.readNextChar()) {</span>
+<span class="fc bfc" id="L61" title="All 2 branches covered.">        if (shouldStop(currentLine, to)) {</span>
+<span class="fc" id="L62">          break;</span>
+        }
+<span class="fc bfc" id="L64" title="All 2 branches covered.">        if (shouldStartNewLine(charsReader)) {</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">          if (canAddLine(currentLine, from)) {</span>
+<span class="fc" id="L66">            decoratedHtmlLines.add(currentHtmlLine.toString());</span>
+          }
+<span class="fc" id="L68">          currentLine++;</span>
+<span class="fc" id="L69">          currentHtmlLine = new StringBuilder();</span>
+        }
+<span class="fc" id="L71">        addCharToCurrentLine(charsReader, currentHtmlLine, decorationDataHolder);</span>
+      }
+
+<span class="fc" id="L74">      closeCurrentSyntaxTags(charsReader, currentHtmlLine);</span>
+
+<span class="fc bfc" id="L76" title="All 2 branches covered.">      if (shouldStartNewLine(charsReader)) {</span>
+<span class="fc" id="L77">        addLine(decoratedHtmlLines, currentHtmlLine.toString(), currentLine, from, to);</span>
+<span class="fc" id="L78">        currentLine++;</span>
+<span class="fc" id="L79">        addLine(decoratedHtmlLines, &quot;&quot;, currentLine, from, to);</span>
+<span class="fc bfc" id="L80" title="All 2 branches covered.">      } else if (currentHtmlLine.length() &gt; 0) {</span>
+<span class="fc" id="L81">        addLine(decoratedHtmlLines, currentHtmlLine.toString(), currentLine, from, to);</span>
+      }
+
+<span class="nc" id="L84">    } catch (IOException exception) {</span>
+<span class="nc" id="L85">      String errorMsg = &quot;An exception occurred while highlighting the syntax of one of the project's files&quot;;</span>
+<span class="nc" id="L86">      LoggerFactory.getLogger(HtmlTextDecorator.class).error(errorMsg);</span>
+<span class="nc" id="L87">      throw new IllegalStateException(errorMsg, exception);</span>
+    } finally {
+<span class="fc" id="L89">      Closeables.closeQuietly(stringBuffer);</span>
+    }
+
+<span class="fc" id="L92">    return decoratedHtmlLines;</span>
+  }
+
+  private static void addCharToCurrentLine(CharactersReader charsReader, StringBuilder currentHtmlLine, DecorationDataHolder decorationDataHolder) {
+<span class="fc bfc" id="L96" title="All 2 branches covered.">    if (shouldStartNewLine(charsReader)) {</span>
+<span class="fc bfc" id="L97" title="All 2 branches covered.">      if (shouldReopenPendingTags(charsReader)) {</span>
+<span class="fc" id="L98">        reopenCurrentSyntaxTags(charsReader, currentHtmlLine);</span>
+      }
+    }
+
+<span class="fc" id="L102">    int numberOfTagsToClose = getNumberOfTagsToClose(charsReader.getCurrentIndex(), decorationDataHolder);</span>
+<span class="fc" id="L103">    closeCompletedTags(charsReader, numberOfTagsToClose, currentHtmlLine);</span>
+
+<span class="fc bfc" id="L105" title="All 2 branches covered.">    if (shouldClosePendingTags(charsReader)) {</span>
+<span class="fc" id="L106">      closeCurrentSyntaxTags(charsReader, currentHtmlLine);</span>
+    }
+
+<span class="fc" id="L109">    Collection&lt;String&gt; tagsToOpen = getTagsToOpen(charsReader.getCurrentIndex(), decorationDataHolder);</span>
+<span class="fc" id="L110">    openNewTags(charsReader, tagsToOpen, currentHtmlLine);</span>
+
+<span class="fc bfc" id="L112" title="All 2 branches covered.">    if (shouldAppendCharToHtmlOutput(charsReader)) {</span>
+<span class="fc" id="L113">      char currentChar = (char) charsReader.getCurrentValue();</span>
+<span class="fc" id="L114">      currentHtmlLine.append(normalize(currentChar));</span>
+    }
+<span class="fc" id="L116">  }</span>
+
+  private static void addLine(List&lt;String&gt; decoratedHtmlLines, String line, int currentLine, @Nullable Integer from, @Nullable Integer to) {
+<span class="pc bpc" id="L119" title="1 of 4 branches missed.">    if (canAddLine(currentLine, from) &amp;&amp; !shouldStop(currentLine, to)) {</span>
+<span class="fc" id="L120">      decoratedHtmlLines.add(line);</span>
+    }
+<span class="fc" id="L122">  }</span>
+
+  private static boolean canAddLine(int currentLine, @Nullable Integer from) {
+<span class="fc bfc" id="L125" title="All 4 branches covered.">    return from == null || currentLine &gt;= from;</span>
+  }
+
+  private static boolean shouldStop(int currentLine, @Nullable Integer to) {
+<span class="fc bfc" id="L129" title="All 4 branches covered.">    return to != null &amp;&amp; to &lt; currentLine;</span>
+  }
+
+  private static char[] normalize(char currentChar) {
+    char[] normalizedChars;
+<span class="fc bfc" id="L134" title="All 2 branches covered.">    if (currentChar == HTML_OPENING) {</span>
+<span class="fc" id="L135">      normalizedChars = ENCODED_HTML_OPENING.toCharArray();</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">    } else if (currentChar == HTML_CLOSING) {</span>
+<span class="fc" id="L137">      normalizedChars = ENCODED_HTML_CLOSING.toCharArray();</span>
+<span class="fc bfc" id="L138" title="All 2 branches covered.">    } else if (currentChar == AMPERSAND) {</span>
+<span class="fc" id="L139">      normalizedChars = ENCODED_AMPERSAND.toCharArray();</span>
+    } else {
+<span class="fc" id="L141">      normalizedChars = new char[] {currentChar};</span>
+    }
+<span class="fc" id="L143">    return normalizedChars;</span>
+  }
+
+  private static boolean shouldAppendCharToHtmlOutput(CharactersReader charsReader) {
+<span class="fc bfc" id="L147" title="All 4 branches covered.">    return charsReader.getCurrentValue() != CR_END_OF_LINE &amp;&amp; charsReader.getCurrentValue() != LF_END_OF_LINE;</span>
+  }
+
+  private static int getNumberOfTagsToClose(int currentIndex, DecorationDataHolder dataHolder) {
+<span class="fc" id="L151">    int numberOfTagsToClose = 0;</span>
+
+<span class="fc bfc" id="L153" title="All 2 branches covered.">    while (currentIndex == dataHolder.getCurrentClosingTagOffset()) {</span>
+<span class="fc" id="L154">      numberOfTagsToClose++;</span>
+<span class="fc" id="L155">      dataHolder.nextClosingTagOffset();</span>
+    }
+<span class="fc" id="L157">    return numberOfTagsToClose;</span>
+  }
+
+  private static Collection&lt;String&gt; getTagsToOpen(int currentIndex, DecorationDataHolder dataHolder) {
+<span class="fc" id="L161">    Collection&lt;String&gt; tagsToOpen = newArrayList();</span>
+<span class="fc bfc" id="L162" title="All 4 branches covered.">    while (dataHolder.getCurrentOpeningTagEntry() != null &amp;&amp; currentIndex == dataHolder.getCurrentOpeningTagEntry().getStartOffset()) {</span>
+<span class="fc" id="L163">      tagsToOpen.add(dataHolder.getCurrentOpeningTagEntry().getCssClass());</span>
+<span class="fc" id="L164">      dataHolder.nextOpeningTagEntry();</span>
+    }
+<span class="fc" id="L166">    return tagsToOpen;</span>
+  }
+
+  private static boolean shouldClosePendingTags(CharactersReader charactersReader) {
+<span class="fc bfc" id="L170" title="All 2 branches covered.">    return charactersReader.getCurrentValue() == CR_END_OF_LINE</span>
+<span class="fc bfc" id="L171" title="All 4 branches covered.">      || (charactersReader.getCurrentValue() == LF_END_OF_LINE &amp;&amp; charactersReader.getPreviousValue() != CR_END_OF_LINE)</span>
+<span class="pc bpc" id="L172" title="3 of 4 branches missed.">      || (charactersReader.getCurrentValue() == CharactersReader.END_OF_STREAM &amp;&amp; charactersReader.getPreviousValue() != LF_END_OF_LINE);</span>
+  }
+
+  private static boolean shouldReopenPendingTags(CharactersReader charactersReader) {
+<span class="fc bfc" id="L176" title="All 4 branches covered.">    return (charactersReader.getPreviousValue() == LF_END_OF_LINE &amp;&amp; charactersReader.getCurrentValue() != LF_END_OF_LINE)</span>
+<span class="pc bpc" id="L177" title="1 of 4 branches missed.">      || (charactersReader.getPreviousValue() == CR_END_OF_LINE &amp;&amp; charactersReader.getCurrentValue() != CR_END_OF_LINE</span>
+<span class="pc bpc" id="L178" title="1 of 2 branches missed.">        &amp;&amp; charactersReader.getCurrentValue() != LF_END_OF_LINE);</span>
+  }
+
+  private static boolean shouldStartNewLine(CharactersReader charactersReader) {
+<span class="fc bfc" id="L182" title="All 2 branches covered.">    return charactersReader.getPreviousValue() == LF_END_OF_LINE</span>
+<span class="fc bfc" id="L183" title="All 4 branches covered.">      || (charactersReader.getPreviousValue() == CR_END_OF_LINE &amp;&amp; charactersReader.getCurrentValue() != LF_END_OF_LINE);</span>
+  }
+
+  private static void closeCompletedTags(CharactersReader charactersReader, int numberOfTagsToClose,
+    StringBuilder decoratedText) {
+<span class="fc bfc" id="L188" title="All 2 branches covered.">    for (int i = 0; i &lt; numberOfTagsToClose; i++) {</span>
+<span class="fc" id="L189">      injectClosingHtml(decoratedText);</span>
+<span class="fc" id="L190">      charactersReader.removeLastOpenTag();</span>
+    }
+<span class="fc" id="L192">  }</span>
+
+  private static void openNewTags(CharactersReader charactersReader, Collection&lt;String&gt; tagsToOpen,
+    StringBuilder decoratedText) {
+<span class="fc bfc" id="L196" title="All 2 branches covered.">    for (String tagToOpen : tagsToOpen) {</span>
+<span class="fc" id="L197">      injectOpeningHtmlForRule(tagToOpen, decoratedText);</span>
+<span class="fc" id="L198">      charactersReader.registerOpenTag(tagToOpen);</span>
+<span class="fc" id="L199">    }</span>
+<span class="fc" id="L200">  }</span>
+
+  private static void closeCurrentSyntaxTags(CharactersReader charactersReader, StringBuilder decoratedText) {
+<span class="fc bfc" id="L203" title="All 2 branches covered.">    for (int i = 0; i &lt; charactersReader.getOpenTags().size(); i++) {</span>
+<span class="fc" id="L204">      injectClosingHtml(decoratedText);</span>
+    }
+<span class="fc" id="L206">  }</span>
+
+  private static void reopenCurrentSyntaxTags(CharactersReader charactersReader, StringBuilder decoratedText) {
+<span class="fc bfc" id="L209" title="All 2 branches covered.">    for (String tags : charactersReader.getOpenTags()) {</span>
+<span class="fc" id="L210">      injectOpeningHtmlForRule(tags, decoratedText);</span>
+<span class="fc" id="L211">    }</span>
+<span class="fc" id="L212">  }</span>
+
+  private static void injectOpeningHtmlForRule(String textType, StringBuilder decoratedText) {
+<span class="fc" id="L215">    decoratedText.append(&quot;&lt;span class=\&quot;&quot;).append(textType).append(&quot;\&quot;&gt;&quot;);</span>
+<span class="fc" id="L216">  }</span>
+
+  private static void injectClosingHtml(StringBuilder decoratedText) {
+<span class="fc" id="L219">    decoratedText.append(&quot;&lt;/span&gt;&quot;);</span>
+<span class="fc" id="L220">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

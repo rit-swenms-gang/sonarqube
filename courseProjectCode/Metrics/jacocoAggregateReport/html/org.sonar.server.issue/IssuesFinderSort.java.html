@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IssuesFinderSort.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.issue</a> &gt; <span class="el_source">IssuesFinderSort.java</span></div><h1>IssuesFinderSort.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.issue;
+
+import com.google.common.base.Function;
+import com.google.common.collect.Ordering;
+import java.util.Collection;
+import java.util.Date;
+import java.util.List;
+import javax.annotation.Nonnull;
+import org.sonar.api.rule.Severity;
+import org.sonar.db.issue.IssueDto;
+import org.sonar.server.issue.index.IssueQuery;
+
+/**
+ * @since 3.6
+ */
+class IssuesFinderSort {
+
+  private List&lt;IssueDto&gt; issues;
+  private IssueQuery query;
+
+<span class="fc" id="L40">  public IssuesFinderSort(List&lt;IssueDto&gt; issues, IssueQuery query) {</span>
+<span class="fc" id="L41">    this.issues = issues;</span>
+<span class="fc" id="L42">    this.query = query;</span>
+<span class="fc" id="L43">  }</span>
+
+  public List&lt;IssueDto&gt; sort() {
+<span class="fc" id="L46">    String sort = query.sort();</span>
+<span class="fc" id="L47">    Boolean asc = query.asc();</span>
+<span class="pc bpc" id="L48" title="1 of 4 branches missed.">    if (sort != null &amp;&amp; asc != null) {</span>
+<span class="fc" id="L49">      return getIssueProcessor(sort).sort(issues, asc);</span>
+    }
+<span class="fc" id="L51">    return issues;</span>
+  }
+
+  private static IssueProcessor getIssueProcessor(String sort) {
+<span class="fc bfc" id="L55" title="All 2 branches covered.">    if (IssueQuery.SORT_BY_SEVERITY.equals(sort)) {</span>
+<span class="fc" id="L56">      return new SeveritySortIssueProcessor();</span>
+    }
+<span class="fc bfc" id="L58" title="All 2 branches covered.">    if (IssueQuery.SORT_BY_STATUS.equals(sort)) {</span>
+<span class="fc" id="L59">      return new StatusSortIssueProcessor();</span>
+    }
+<span class="fc bfc" id="L61" title="All 2 branches covered.">    if (IssueQuery.SORT_BY_CREATION_DATE.equals(sort)) {</span>
+<span class="fc" id="L62">      return new CreationDateSortIssueProcessor();</span>
+    }
+<span class="fc bfc" id="L64" title="All 2 branches covered.">    if (IssueQuery.SORT_BY_UPDATE_DATE.equals(sort)) {</span>
+<span class="fc" id="L65">      return new UpdateDateSortIssueProcessor();</span>
+    }
+<span class="fc bfc" id="L67" title="All 2 branches covered.">    if (IssueQuery.SORT_BY_CLOSE_DATE.equals(sort)) {</span>
+<span class="fc" id="L68">      return new CloseDateSortIssueProcessor();</span>
+    }
+<span class="fc" id="L70">    throw new IllegalArgumentException(&quot;Cannot sort on field : &quot; + sort);</span>
+  }
+
+  interface IssueProcessor {
+    Function sortFieldFunction();
+
+    Ordering sortFieldOrdering(boolean ascending);
+
+    default List&lt;IssueDto&gt; sort(Collection&lt;IssueDto&gt; issueDtos, boolean ascending) {
+<span class="fc" id="L79">      Ordering&lt;IssueDto&gt; ordering = sortFieldOrdering(ascending).onResultOf(sortFieldFunction());</span>
+<span class="fc" id="L80">      return ordering.immutableSortedCopy(issueDtos);</span>
+    }
+  }
+
+<span class="fc" id="L84">  abstract static class TextSortIssueProcessor implements IssueProcessor {</span>
+    @Override
+    public Function sortFieldFunction() {
+<span class="fc" id="L87">      return (Function&lt;IssueDto, String&gt;) this::sortField;</span>
+    }
+
+    abstract String sortField(IssueDto issueDto);
+
+    @Override
+    public Ordering sortFieldOrdering(boolean ascending) {
+<span class="fc" id="L94">      Ordering&lt;String&gt; ordering = Ordering.from(String.CASE_INSENSITIVE_ORDER).nullsLast();</span>
+<span class="pc bpc" id="L95" title="1 of 2 branches missed.">      if (!ascending) {</span>
+<span class="fc" id="L96">        ordering = ordering.reverse();</span>
+      }
+<span class="fc" id="L98">      return ordering;</span>
+    }
+  }
+
+<span class="fc" id="L102">  static class StatusSortIssueProcessor extends TextSortIssueProcessor {</span>
+    @Override
+    String sortField(IssueDto issueDto) {
+<span class="fc" id="L105">      return issueDto.getStatus();</span>
+    }
+  }
+
+<span class="fc" id="L109">  static class SeveritySortIssueProcessor implements IssueProcessor {</span>
+    @Override
+    public Function sortFieldFunction() {
+<span class="fc" id="L112">      return IssueDtoToSeverity.INSTANCE;</span>
+    }
+
+    @Override
+    public Ordering sortFieldOrdering(boolean ascending) {
+<span class="fc" id="L117">      Ordering&lt;Integer&gt; ordering = Ordering.&lt;Integer&gt;natural().nullsLast();</span>
+<span class="fc bfc" id="L118" title="All 2 branches covered.">      if (!ascending) {</span>
+<span class="fc" id="L119">        ordering = ordering.reverse();</span>
+      }
+<span class="fc" id="L121">      return ordering;</span>
+    }
+  }
+
+<span class="fc" id="L125">  abstract static class DateSortRowProcessor implements IssueProcessor {</span>
+    @Override
+    public Function sortFieldFunction() {
+<span class="fc" id="L128">      return (Function&lt;IssueDto, Date&gt;) this::sortField;</span>
+    }
+
+    abstract Date sortField(IssueDto issueDto);
+
+    @Override
+    public Ordering sortFieldOrdering(boolean ascending) {
+<span class="fc" id="L135">      Ordering&lt;Date&gt; ordering = Ordering.&lt;Date&gt;natural().nullsLast();</span>
+<span class="pc bpc" id="L136" title="1 of 2 branches missed.">      if (!ascending) {</span>
+<span class="fc" id="L137">        ordering = ordering.reverse();</span>
+      }
+<span class="fc" id="L139">      return ordering;</span>
+    }
+  }
+
+<span class="fc" id="L143">  static class CreationDateSortIssueProcessor extends DateSortRowProcessor {</span>
+    @Override
+    Date sortField(IssueDto issueDto) {
+<span class="fc" id="L146">      return issueDto.getIssueCreationDate();</span>
+    }
+  }
+
+<span class="fc" id="L150">  static class UpdateDateSortIssueProcessor extends DateSortRowProcessor {</span>
+    @Override
+    Date sortField(IssueDto issueDto) {
+<span class="fc" id="L153">      return issueDto.getIssueUpdateDate();</span>
+    }
+  }
+
+<span class="fc" id="L157">  static class CloseDateSortIssueProcessor extends DateSortRowProcessor {</span>
+    @Override
+    Date sortField(IssueDto issueDto) {
+<span class="fc" id="L160">      return issueDto.getIssueCloseDate();</span>
+    }
+  }
+
+<span class="fc" id="L164">  private enum IssueDtoToSeverity implements Function&lt;IssueDto, Integer&gt; {</span>
+<span class="fc" id="L165">    INSTANCE;</span>
+
+    @Override
+    public Integer apply(@Nonnull IssueDto issueDto) {
+<span class="fc" id="L169">      return Severity.ALL.indexOf(issueDto.getSeverity());</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

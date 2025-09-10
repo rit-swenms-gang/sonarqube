@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HtmlBlockquoteChannel.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.markdown</a> &gt; <span class="el_source">HtmlBlockquoteChannel.java</span></div><h1>HtmlBlockquoteChannel.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.markdown;
+
+import org.sonar.channel.Channel;
+import org.sonar.channel.CodeReader;
+import org.sonar.channel.RegexChannel;
+
+/**
+ * Markdown treats lines starting with a greater than sign (&amp;gt;) as a block of quoted text.
+ *
+ * E.g, the input:
+ * &lt;pre&gt;
+ * &amp;gt; Yesterday it worked
+ * &amp;gt; Today it is not working
+ * &amp;gt; Software is like that
+ * &lt;/pre&gt;
+ * will produce:
+ * {@literal&lt;blockquote&gt;}{@literal&lt;p&gt;}Yesterday it worked{@literal&lt;br/&gt;}
+ * Today it is not working{@literal&lt;br/&gt;}
+ * Software is like that{@literal&lt;/blockquote&gt;}
+ * @since 4.4
+ */
+<span class="fc" id="L41">class HtmlBlockquoteChannel extends Channel&lt;MarkdownOutput&gt; {</span>
+
+<span class="fc" id="L43">  private QuotedLineElementChannel quotedLineElement = new QuotedLineElementChannel();</span>
+<span class="fc" id="L44">  private EndOfLine endOfLine = new EndOfLine();</span>
+  private boolean pendingBlockConstruction;
+
+  @Override
+  public boolean consume(CodeReader code, MarkdownOutput output) {
+    try {
+<span class="fc bfc" id="L50" title="All 4 branches covered.">      if (code.getColumnPosition() == 0 &amp;&amp; quotedLineElement.consume(code, output)) {</span>
+<span class="fc bfc" id="L51" title="All 4 branches covered.">        while (endOfLine.consume(code, output) &amp;&amp; quotedLineElement.consume(code, output)) {</span>
+          // consume input
+        }
+<span class="fc" id="L54">        output.append(&quot;&lt;/blockquote&gt;&quot;);</span>
+<span class="fc" id="L55">        return true;</span>
+      }
+<span class="fc" id="L57">      return false;</span>
+    } finally {
+<span class="fc" id="L59">      pendingBlockConstruction = false;</span>
+    }
+  }
+
+  private class QuotedLineElementChannel extends RegexChannel&lt;MarkdownOutput&gt; {
+
+<span class="fc" id="L65">    private QuotedLineElementChannel() {</span>
+<span class="fc" id="L66">      super(&quot;&amp;gt;[^\r\n]*+&quot;);</span>
+<span class="fc" id="L67">    }</span>
+
+    @Override
+    public void consume(CharSequence token, MarkdownOutput output) {
+<span class="fc bfc" id="L71" title="All 2 branches covered.">      if (!pendingBlockConstruction) {</span>
+<span class="fc" id="L72">        output.append(&quot;&lt;blockquote&gt;&quot;);</span>
+<span class="fc" id="L73">        pendingBlockConstruction = true;</span>
+      }
+<span class="fc" id="L75">      output.append(token.subSequence(searchIndexOfFirstCharacter(token), token.length()));</span>
+<span class="fc" id="L76">      output.append(&quot;&lt;br/&gt;&quot;);</span>
+<span class="fc" id="L77">    }</span>
+
+    private int searchIndexOfFirstCharacter(CharSequence token) {
+<span class="fc" id="L80">      int index = 0;</span>
+<span class="fc bfc" id="L81" title="All 2 branches covered.">      while (index &lt; token.length()) {</span>
+<span class="pc bpc" id="L82" title="1 of 2 branches missed.">        if (token.charAt(index) == '&amp;') {</span>
+<span class="fc" id="L83">          index += 4;</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">          while (index &lt; token.length()) {</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">            if (token.charAt(index) != ' ') {</span>
+<span class="fc" id="L86">              return index;</span>
+            }
+<span class="fc" id="L88">            index ++;</span>
+          }
+        }
+<span class="fc" id="L91">        index ++;</span>
+      }
+<span class="fc" id="L93">      return token.length();</span>
+    }
+  }
+
+  private static final class EndOfLine extends RegexChannel&lt;MarkdownOutput&gt; {
+
+    public EndOfLine() {
+<span class="fc" id="L100">      super(&quot;(\r?\n)|(\r)&quot;);</span>
+<span class="fc" id="L101">    }</span>
+
+    @Override
+    public void consume(CharSequence token, MarkdownOutput output) {
+<span class="fc" id="L105">      output.append(token);</span>
+<span class="fc" id="L106">    }</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

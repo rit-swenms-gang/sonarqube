@@ -1,0 +1,398 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PersistComponentsStep.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.step</a> &gt; <span class="el_source">PersistComponentsStep.java</span></div><h1>PersistComponentsStep.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.step;
+
+import java.util.Collection;
+import java.util.Date;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
+import org.sonar.api.utils.System2;
+import org.sonar.ce.task.projectanalysis.component.BranchPersister;
+import org.sonar.ce.task.projectanalysis.component.Component;
+import org.sonar.ce.task.projectanalysis.component.CrawlerDepthLimit;
+import org.sonar.ce.task.projectanalysis.component.MutableDisabledComponentsHolder;
+import org.sonar.ce.task.projectanalysis.component.PathAwareCrawler;
+import org.sonar.ce.task.projectanalysis.component.PathAwareVisitor;
+import org.sonar.ce.task.projectanalysis.component.PathAwareVisitorAdapter;
+import org.sonar.ce.task.projectanalysis.component.ProjectPersister;
+import org.sonar.ce.task.projectanalysis.component.TreeRootHolder;
+import org.sonar.ce.task.step.ComputationStep;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.ComponentDto;
+import org.sonar.db.component.ComponentQualifiers;
+import org.sonar.db.component.ComponentScopes;
+import org.sonar.db.component.ComponentUpdateDto;
+
+import static java.util.Optional.ofNullable;
+import static org.sonar.ce.task.projectanalysis.component.ComponentVisitor.Order.PRE_ORDER;
+import static org.sonar.db.component.ComponentDto.UUID_PATH_OF_ROOT;
+import static org.sonar.db.component.ComponentDto.formatUuidPathFromParent;
+import static org.sonar.db.component.ComponentQualifiers.PROJECT;
+
+/**
+ * Persist report components
+ */
+public class PersistComponentsStep implements ComputationStep {
+  private final DbClient dbClient;
+  private final TreeRootHolder treeRootHolder;
+  private final System2 system2;
+  private final MutableDisabledComponentsHolder disabledComponentsHolder;
+  private final BranchPersister branchPersister;
+  private final ProjectPersister projectPersister;
+
+  public PersistComponentsStep(DbClient dbClient, TreeRootHolder treeRootHolder, System2 system2,
+<span class="fc" id="L66">    MutableDisabledComponentsHolder disabledComponentsHolder, BranchPersister branchPersister, ProjectPersister projectPersister) {</span>
+<span class="fc" id="L67">    this.dbClient = dbClient;</span>
+<span class="fc" id="L68">    this.treeRootHolder = treeRootHolder;</span>
+<span class="fc" id="L69">    this.system2 = system2;</span>
+<span class="fc" id="L70">    this.disabledComponentsHolder = disabledComponentsHolder;</span>
+<span class="fc" id="L71">    this.branchPersister = branchPersister;</span>
+<span class="fc" id="L72">    this.projectPersister = projectPersister;</span>
+<span class="fc" id="L73">  }</span>
+
+  @Override
+  public String getDescription() {
+<span class="fc" id="L77">    return &quot;Persist components&quot;;</span>
+  }
+
+  @Override
+  public void execute(ComputationStep.Context context) {
+<span class="fc" id="L82">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L83">      branchPersister.persist(dbSession);</span>
+<span class="fc" id="L84">      projectPersister.persist(dbSession);</span>
+
+<span class="fc" id="L86">      String projectUuid = treeRootHolder.getRoot().getUuid();</span>
+
+      // safeguard, reset all rows to b-changed=false
+<span class="fc" id="L89">      dbClient.componentDao().resetBChangedForBranchUuid(dbSession, projectUuid);</span>
+
+<span class="fc" id="L91">      Map&lt;String, ComponentDto&gt; existingDtosByUuids = indexExistingDtosByUuids(dbSession);</span>
+<span class="fc" id="L92">      boolean isRootPrivate = isRootPrivate(treeRootHolder.getRoot(), existingDtosByUuids);</span>
+
+      // Insert or update the components in database. They are removed from existingDtosByUuids
+      // at the same time.
+<span class="fc" id="L96">      new PathAwareCrawler&lt;&gt;(new PersistComponentStepsVisitor(existingDtosByUuids, dbSession))</span>
+<span class="fc" id="L97">        .visit(treeRootHolder.getRoot());</span>
+
+<span class="fc" id="L99">      disableRemainingComponents(dbSession, existingDtosByUuids.values());</span>
+<span class="fc" id="L100">      dbClient.componentDao().setPrivateForBranchUuidWithoutAudit(dbSession, projectUuid, isRootPrivate);</span>
+<span class="fc" id="L101">      dbSession.commit();</span>
+    }
+<span class="fc" id="L103">  }</span>
+
+  private void disableRemainingComponents(DbSession dbSession, Collection&lt;ComponentDto&gt; dtos) {
+<span class="fc" id="L106">    Set&lt;String&gt; uuids = dtos.stream()</span>
+<span class="fc" id="L107">      .filter(ComponentDto::isEnabled)</span>
+<span class="fc" id="L108">      .map(ComponentDto::uuid)</span>
+<span class="fc" id="L109">      .collect(Collectors.toSet());</span>
+<span class="fc" id="L110">    dbClient.componentDao().updateBEnabledToFalse(dbSession, uuids);</span>
+<span class="fc" id="L111">    disabledComponentsHolder.setUuids(uuids);</span>
+<span class="fc" id="L112">  }</span>
+
+  private static boolean isRootPrivate(Component root, Map&lt;String, ComponentDto&gt; existingDtosByUuids) {
+<span class="fc" id="L115">    ComponentDto rootDto = existingDtosByUuids.get(root.getUuid());</span>
+<span class="fc bfc" id="L116" title="All 2 branches covered.">    if (rootDto == null) {</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">      if (Component.Type.VIEW == root.getType()) {</span>
+<span class="fc" id="L118">        return false;</span>
+      }
+<span class="fc" id="L120">      throw new IllegalStateException(String.format(&quot;The project '%s' is not stored in the database, during a project analysis.&quot;, root.getKey()));</span>
+    }
+<span class="fc" id="L122">    return rootDto.isPrivate();</span>
+  }
+
+  /**
+   * Returns a mutable map of the components currently persisted in database for the project, including
+   * disabled components.
+   */
+  private Map&lt;String, ComponentDto&gt; indexExistingDtosByUuids(DbSession session) {
+<span class="fc" id="L130">    return dbClient.componentDao().selectByBranchUuid(treeRootHolder.getRoot().getUuid(), session)</span>
+<span class="fc" id="L131">      .stream()</span>
+<span class="fc" id="L132">      .collect(Collectors.toMap(ComponentDto::uuid, Function.identity()));</span>
+  }
+
+  private class PersistComponentStepsVisitor extends PathAwareVisitorAdapter&lt;ComponentDtoHolder&gt; {
+
+    private final Map&lt;String, ComponentDto&gt; existingComponentDtosByUuids;
+    private final DbSession dbSession;
+
+<span class="fc" id="L140">    PersistComponentStepsVisitor(Map&lt;String, ComponentDto&gt; existingComponentDtosByUuids, DbSession dbSession) {</span>
+<span class="fc" id="L141">      super(</span>
+        CrawlerDepthLimit.LEAVES,
+        PRE_ORDER,
+<span class="fc" id="L144">        new SimpleStackElementFactory&lt;&gt;() {</span>
+          @Override
+          public ComponentDtoHolder createForAny(Component component) {
+<span class="fc" id="L147">            return new ComponentDtoHolder();</span>
+          }
+
+          @Override
+          public ComponentDtoHolder createForFile(Component file) {
+            // no need to create holder for file since they are always leaves of the Component tree
+<span class="fc" id="L153">            return null;</span>
+          }
+
+          @Override
+          public ComponentDtoHolder createForProjectView(Component projectView) {
+            // no need to create holder for project views since they are always leaves of the Component tree
+<span class="fc" id="L159">            return null;</span>
+          }
+        });
+<span class="fc" id="L162">      this.existingComponentDtosByUuids = existingComponentDtosByUuids;</span>
+<span class="fc" id="L163">      this.dbSession = dbSession;</span>
+<span class="fc" id="L164">    }</span>
+
+    @Override
+    public void visitProject(Component project, Path&lt;ComponentDtoHolder&gt; path) {
+<span class="fc" id="L168">      ComponentDto dto = createForProject(project);</span>
+<span class="fc" id="L169">      ComponentDto persistedProject = persistComponent(dto);</span>
+<span class="fc" id="L170">      path.current().setDto(persistedProject);</span>
+<span class="fc" id="L171">    }</span>
+
+    @Override
+    public void visitDirectory(Component directory, Path&lt;ComponentDtoHolder&gt; path) {
+<span class="fc" id="L175">      ComponentDto dto = createForDirectory(directory, path);</span>
+<span class="fc" id="L176">      path.current().setDto(persistComponent(dto));</span>
+<span class="fc" id="L177">    }</span>
+
+    @Override
+    public void visitFile(Component file, Path&lt;ComponentDtoHolder&gt; path) {
+<span class="fc" id="L181">      ComponentDto dto = createForFile(file, path);</span>
+<span class="fc" id="L182">      persistComponent(dto);</span>
+<span class="fc" id="L183">    }</span>
+
+    @Override
+    public void visitView(Component view, Path&lt;ComponentDtoHolder&gt; path) {
+<span class="fc" id="L187">      ComponentDto dto = createForView(view);</span>
+<span class="fc" id="L188">      path.current().setDto(persistComponent(dto));</span>
+<span class="fc" id="L189">    }</span>
+
+    @Override
+    public void visitSubView(Component subView, Path&lt;ComponentDtoHolder&gt; path) {
+<span class="fc" id="L193">      ComponentDto dto = createForSubView(subView, path);</span>
+<span class="fc" id="L194">      path.current().setDto(persistComponent(dto));</span>
+<span class="fc" id="L195">    }</span>
+
+    @Override
+    public void visitProjectView(Component projectView, Path&lt;ComponentDtoHolder&gt; path) {
+<span class="fc" id="L199">      ComponentDto dto = createForProjectView(projectView, path);</span>
+<span class="fc" id="L200">      persistComponent(dto, false);</span>
+<span class="fc" id="L201">    }</span>
+
+    private ComponentDto persistComponent(ComponentDto componentDto) {
+<span class="fc" id="L204">      return persistComponent(componentDto, true);</span>
+    }
+
+    private ComponentDto persistComponent(ComponentDto componentDto, boolean shouldPersistAudit) {
+<span class="fc" id="L208">      ComponentDto existingComponent = existingComponentDtosByUuids.remove(componentDto.uuid());</span>
+<span class="fc bfc" id="L209" title="All 2 branches covered.">      if (existingComponent == null) {</span>
+<span class="pc bpc" id="L210" title="1 of 4 branches missed.">        if (componentDto.qualifier().equals(&quot;APP&quot;) &amp;&amp; componentDto.scope().equals(&quot;PRJ&quot;)) {</span>
+<span class="fc" id="L211">          throw new IllegalStateException(&quot;Application should already exists: &quot; + componentDto);</span>
+        }
+<span class="fc" id="L213">        dbClient.componentDao().insert(dbSession, componentDto, shouldPersistAudit);</span>
+<span class="fc" id="L214">        return componentDto;</span>
+      }
+<span class="fc" id="L216">      Optional&lt;ComponentUpdateDto&gt; update = compareForUpdate(existingComponent, componentDto);</span>
+<span class="fc bfc" id="L217" title="All 2 branches covered.">      if (update.isPresent()) {</span>
+<span class="fc" id="L218">        ComponentUpdateDto updateDto = update.get();</span>
+<span class="fc" id="L219">        dbClient.componentDao().update(dbSession, updateDto, componentDto.qualifier());</span>
+
+        // update the fields in memory in order the PathAwareVisitor.Path
+        // to be up-to-date
+<span class="fc" id="L223">        existingComponent.setKey(updateDto.getBKey());</span>
+<span class="fc" id="L224">        existingComponent.setCopyComponentUuid(updateDto.getBCopyComponentUuid());</span>
+<span class="fc" id="L225">        existingComponent.setDescription(updateDto.getBDescription());</span>
+<span class="fc" id="L226">        existingComponent.setEnabled(updateDto.isBEnabled());</span>
+<span class="fc" id="L227">        existingComponent.setUuidPath(updateDto.getBUuidPath());</span>
+<span class="fc" id="L228">        existingComponent.setLanguage(updateDto.getBLanguage());</span>
+<span class="fc" id="L229">        existingComponent.setLongName(updateDto.getBLongName());</span>
+<span class="fc" id="L230">        existingComponent.setName(updateDto.getBName());</span>
+<span class="fc" id="L231">        existingComponent.setPath(updateDto.getBPath());</span>
+        // We don't have a b_scope. The applyBChangesForRootComponentUuid query is using a case ... when to infer scope from the qualifier
+<span class="fc" id="L233">        existingComponent.setScope(componentDto.scope());</span>
+<span class="fc" id="L234">        existingComponent.setQualifier(updateDto.getBQualifier());</span>
+      }
+<span class="fc" id="L236">      return existingComponent;</span>
+    }
+
+    public ComponentDto createForProject(Component project) {
+<span class="fc" id="L240">      ComponentDto res = createBase(project);</span>
+
+<span class="fc" id="L242">      res.setScope(ComponentScopes.PROJECT);</span>
+<span class="fc" id="L243">      res.setQualifier(PROJECT);</span>
+<span class="fc" id="L244">      res.setName(project.getName());</span>
+<span class="fc" id="L245">      res.setLongName(res.name());</span>
+<span class="fc" id="L246">      res.setDescription(project.getDescription());</span>
+
+<span class="fc" id="L248">      res.setBranchUuid(res.uuid());</span>
+<span class="fc" id="L249">      res.setUuidPath(UUID_PATH_OF_ROOT);</span>
+
+<span class="fc" id="L251">      return res;</span>
+    }
+
+    public ComponentDto createForDirectory(Component directory, PathAwareVisitor.Path&lt;ComponentDtoHolder&gt; path) {
+<span class="fc" id="L255">      ComponentDto res = createBase(directory);</span>
+
+<span class="fc" id="L257">      res.setScope(ComponentScopes.DIRECTORY);</span>
+<span class="fc" id="L258">      res.setQualifier(ComponentQualifiers.DIRECTORY);</span>
+<span class="fc" id="L259">      res.setName(directory.getShortName());</span>
+<span class="fc" id="L260">      res.setLongName(directory.getName());</span>
+<span class="fc" id="L261">      res.setPath(directory.getName());</span>
+
+<span class="fc" id="L263">      setUuids(res, path);</span>
+
+<span class="fc" id="L265">      return res;</span>
+    }
+
+    public ComponentDto createForFile(Component file, PathAwareVisitor.Path&lt;ComponentDtoHolder&gt; path) {
+<span class="fc" id="L269">      ComponentDto res = createBase(file);</span>
+
+<span class="fc" id="L271">      res.setScope(ComponentScopes.FILE);</span>
+<span class="fc" id="L272">      res.setQualifier(getFileQualifier(file));</span>
+<span class="fc" id="L273">      res.setName(file.getShortName());</span>
+<span class="fc" id="L274">      res.setLongName(file.getName());</span>
+<span class="fc" id="L275">      res.setPath(file.getName());</span>
+<span class="fc" id="L276">      res.setLanguage(file.getFileAttributes().getLanguageKey());</span>
+
+<span class="fc" id="L278">      setUuids(res, path);</span>
+
+<span class="fc" id="L280">      return res;</span>
+    }
+
+    private ComponentDto createForView(Component view) {
+<span class="fc" id="L284">      ComponentDto res = createBase(view);</span>
+
+<span class="fc" id="L286">      res.setScope(ComponentScopes.PROJECT);</span>
+<span class="fc" id="L287">      res.setQualifier(view.getViewAttributes().getType().getQualifier());</span>
+<span class="fc" id="L288">      res.setName(view.getName());</span>
+<span class="fc" id="L289">      res.setDescription(view.getDescription());</span>
+<span class="fc" id="L290">      res.setLongName(res.name());</span>
+
+<span class="fc" id="L292">      res.setBranchUuid(res.uuid());</span>
+<span class="fc" id="L293">      res.setUuidPath(UUID_PATH_OF_ROOT);</span>
+
+<span class="fc" id="L295">      return res;</span>
+    }
+
+    private ComponentDto createForSubView(Component subView, PathAwareVisitor.Path&lt;ComponentDtoHolder&gt; path) {
+<span class="fc" id="L299">      ComponentDto res = createBase(subView);</span>
+
+<span class="fc" id="L301">      res.setScope(ComponentScopes.PROJECT);</span>
+<span class="fc" id="L302">      res.setQualifier(ComponentQualifiers.SUBVIEW);</span>
+<span class="fc" id="L303">      res.setName(subView.getName());</span>
+<span class="fc" id="L304">      res.setDescription(subView.getDescription());</span>
+<span class="fc" id="L305">      res.setLongName(res.name());</span>
+<span class="fc" id="L306">      res.setCopyComponentUuid(subView.getSubViewAttributes().getOriginalViewUuid());</span>
+
+<span class="fc" id="L308">      setRootAndParentModule(res, path);</span>
+
+<span class="fc" id="L310">      return res;</span>
+    }
+
+    private ComponentDto createForProjectView(Component projectView, PathAwareVisitor.Path&lt;ComponentDtoHolder&gt; path) {
+<span class="fc" id="L314">      ComponentDto res = createBase(projectView);</span>
+
+<span class="fc" id="L316">      res.setScope(ComponentScopes.FILE);</span>
+<span class="fc" id="L317">      res.setQualifier(PROJECT);</span>
+<span class="fc" id="L318">      res.setName(projectView.getName());</span>
+<span class="fc" id="L319">      res.setLongName(res.name());</span>
+<span class="fc" id="L320">      res.setCopyComponentUuid(projectView.getProjectViewAttributes().getUuid());</span>
+
+<span class="fc" id="L322">      setRootAndParentModule(res, path);</span>
+
+<span class="fc" id="L324">      return res;</span>
+    }
+
+    private ComponentDto createBase(Component component) {
+<span class="fc" id="L328">      String componentKey = component.getKey();</span>
+<span class="fc" id="L329">      String componentUuid = component.getUuid();</span>
+
+<span class="fc" id="L331">      ComponentDto componentDto = new ComponentDto();</span>
+<span class="fc" id="L332">      componentDto.setUuid(componentUuid);</span>
+<span class="fc" id="L333">      componentDto.setKey(componentKey);</span>
+<span class="fc" id="L334">      componentDto.setEnabled(true);</span>
+<span class="fc" id="L335">      componentDto.setCreatedAt(new Date(system2.now()));</span>
+
+<span class="fc" id="L337">      return componentDto;</span>
+    }
+
+    /**
+     * Applies to a node of type either SUBVIEW or PROJECT_VIEW
+     */
+    private void setRootAndParentModule(ComponentDto res, PathAwareVisitor.Path&lt;ComponentDtoHolder&gt; path) {
+<span class="fc" id="L344">      ComponentDto rootDto = path.root().getDto();</span>
+<span class="fc" id="L345">      res.setBranchUuid(rootDto.uuid());</span>
+
+<span class="fc" id="L347">      ComponentDto parent = path.parent().getDto();</span>
+<span class="fc" id="L348">      res.setUuidPath(formatUuidPathFromParent(parent));</span>
+<span class="fc" id="L349">    }</span>
+  }
+
+  /**
+   * Applies to a node of type either DIRECTORY or FILE
+   */
+  private static void setUuids(ComponentDto componentDto, PathAwareVisitor.Path&lt;ComponentDtoHolder&gt; path) {
+<span class="fc" id="L356">    componentDto.setBranchUuid(path.root().getDto().uuid());</span>
+<span class="fc" id="L357">    componentDto.setUuidPath(formatUuidPathFromParent(path.parent().getDto()));</span>
+<span class="fc" id="L358">  }</span>
+
+  private static Optional&lt;ComponentUpdateDto&gt; compareForUpdate(ComponentDto existing, ComponentDto target) {
+<span class="fc bfc" id="L361" title="All 2 branches covered.">    boolean hasDifferences = !StringUtils.equals(existing.getCopyComponentUuid(), target.getCopyComponentUuid()) ||</span>
+<span class="fc bfc" id="L362" title="All 2 branches covered.">      !StringUtils.equals(existing.description(), target.description()) ||</span>
+<span class="pc bpc" id="L363" title="1 of 2 branches missed.">      !StringUtils.equals(existing.getKey(), target.getKey()) ||</span>
+<span class="fc bfc" id="L364" title="All 2 branches covered.">      !existing.isEnabled() ||</span>
+<span class="pc bpc" id="L365" title="1 of 2 branches missed.">      !StringUtils.equals(existing.getUuidPath(), target.getUuidPath()) ||</span>
+<span class="fc bfc" id="L366" title="All 2 branches covered.">      !StringUtils.equals(existing.language(), target.language()) ||</span>
+<span class="fc bfc" id="L367" title="All 2 branches covered.">      !StringUtils.equals(existing.longName(), target.longName()) ||</span>
+<span class="pc bpc" id="L368" title="1 of 2 branches missed.">      !StringUtils.equals(existing.name(), target.name()) ||</span>
+<span class="pc bpc" id="L369" title="1 of 2 branches missed.">      !StringUtils.equals(existing.path(), target.path()) ||</span>
+<span class="pc bpc" id="L370" title="1 of 2 branches missed.">      !StringUtils.equals(existing.scope(), target.scope()) ||</span>
+<span class="pc bpc" id="L371" title="1 of 2 branches missed.">      !StringUtils.equals(existing.qualifier(), target.qualifier());</span>
+
+<span class="fc" id="L373">    ComponentUpdateDto update = null;</span>
+<span class="fc bfc" id="L374" title="All 2 branches covered.">    if (hasDifferences) {</span>
+<span class="fc" id="L375">      update = ComponentUpdateDto</span>
+<span class="fc" id="L376">        .copyFrom(target)</span>
+<span class="fc" id="L377">        .setBChanged(true);</span>
+    }
+<span class="fc" id="L379">    return ofNullable(update);</span>
+  }
+
+  private static String getFileQualifier(Component component) {
+<span class="fc bfc" id="L383" title="All 2 branches covered.">    return component.getFileAttributes().isUnitTest() ? ComponentQualifiers.UNIT_TEST_FILE : ComponentQualifiers.FILE;</span>
+  }
+
+  private static class ComponentDtoHolder {
+    private ComponentDto dto;
+
+    public ComponentDto getDto() {
+<span class="fc" id="L390">      return dto;</span>
+    }
+
+    public void setDto(ComponentDto dto) {
+<span class="fc" id="L394">      this.dto = dto;</span>
+<span class="fc" id="L395">    }</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

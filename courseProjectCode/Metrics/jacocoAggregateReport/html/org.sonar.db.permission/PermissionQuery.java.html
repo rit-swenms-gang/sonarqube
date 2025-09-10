@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PermissionQuery.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.permission</a> &gt; <span class="el_source">PermissionQuery.java</span></div><h1>PermissionQuery.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.permission;
+
+import java.util.Locale;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
+import org.sonar.db.WildcardPosition;
+import org.sonar.db.component.ComponentDto;
+import org.sonar.db.entity.EntityDto;
+
+import static com.google.common.base.MoreObjects.firstNonNull;
+import static com.google.common.base.Preconditions.checkArgument;
+import static org.apache.commons.lang3.StringUtils.defaultIfBlank;
+import static org.sonar.api.utils.Paging.offset;
+import static org.sonar.db.DaoUtils.buildLikeValue;
+
+/**
+ * Query used to get users and groups permissions
+ */
+@Immutable
+public class PermissionQuery {
+  public static final int RESULTS_MAX_SIZE = 100;
+  public static final int SEARCH_QUERY_MIN_LENGTH = 3;
+  public static final int DEFAULT_PAGE_SIZE = 20;
+  public static final int DEFAULT_PAGE_INDEX = 1;
+
+  // filter: return only the users or groups who have this permission
+  private final String permission;
+  // filter on project, else filter org permissions
+  private final String entityUuid;
+
+  // filter on login, email or name of users or groups
+  private final String searchQuery;
+  private final String searchQueryToSql;
+  private final String searchQueryToSqlLowercase;
+
+  // filter users or groups who have at least one permission. It does make
+  // sense when the filter &quot;permission&quot; is set.
+  private final boolean withAtLeastOnePermission;
+
+  private final int pageSize;
+  private final int pageIndex;
+  private final int pageOffset;
+
+<span class="fc" id="L64">  private PermissionQuery(Builder builder) {</span>
+<span class="fc" id="L65">    this.permission = builder.permission;</span>
+<span class="fc" id="L66">    this.withAtLeastOnePermission = builder.withAtLeastOnePermission;</span>
+<span class="fc" id="L67">    this.entityUuid = builder.entityUuid;</span>
+<span class="fc" id="L68">    this.searchQuery = builder.searchQuery;</span>
+<span class="fc bfc" id="L69" title="All 2 branches covered.">    this.searchQueryToSql = builder.searchQuery == null ? null : buildLikeValue(builder.searchQuery, WildcardPosition.BEFORE_AND_AFTER);</span>
+<span class="fc bfc" id="L70" title="All 2 branches covered.">    this.searchQueryToSqlLowercase = searchQueryToSql == null ? null : searchQueryToSql.toLowerCase(Locale.ENGLISH);</span>
+<span class="fc" id="L71">    this.pageSize = builder.pageSize;</span>
+<span class="fc" id="L72">    this.pageIndex = builder.pageIndex;</span>
+<span class="fc" id="L73">    this.pageOffset = offset(builder.pageIndex, builder.pageSize);</span>
+<span class="fc" id="L74">  }</span>
+
+  @CheckForNull
+  public String getPermission() {
+<span class="fc" id="L78">    return permission;</span>
+  }
+
+  public boolean withAtLeastOnePermission() {
+<span class="fc" id="L82">    return withAtLeastOnePermission;</span>
+  }
+
+  @CheckForNull
+  public String getEntityUuid() {
+<span class="fc" id="L87">    return entityUuid;</span>
+  }
+
+  @CheckForNull
+  public String getSearchQuery() {
+<span class="fc" id="L92">    return searchQuery;</span>
+  }
+
+  @CheckForNull
+  public String getSearchQueryToSql() {
+<span class="fc" id="L97">    return searchQueryToSql;</span>
+  }
+
+  @CheckForNull
+  public String getSearchQueryToSqlLowercase() {
+<span class="fc" id="L102">    return searchQueryToSqlLowercase;</span>
+  }
+
+  public int getPageSize() {
+<span class="fc" id="L106">    return pageSize;</span>
+  }
+
+  public int getPageIndex() {
+<span class="fc" id="L110">    return pageIndex;</span>
+  }
+
+  public int getPageOffset() {
+<span class="fc" id="L114">    return pageOffset;</span>
+  }
+
+  public static Builder builder() {
+<span class="fc" id="L118">    return new Builder();</span>
+  }
+
+  public static class Builder {
+    private String permission;
+    private String entityUuid;
+    private String searchQuery;
+    private boolean withAtLeastOnePermission;
+
+    private Integer pageIndex;
+    private Integer pageSize;
+
+    private Builder() {
+      // enforce method constructor
+    }
+
+    public Builder setPermission(@Nullable String permission) {
+<span class="fc bfc" id="L135" title="All 2 branches covered.">      this.withAtLeastOnePermission = permission != null;</span>
+<span class="fc" id="L136">      this.permission = permission;</span>
+<span class="fc" id="L137">      return this;</span>
+    }
+
+    public Builder setPermission(@Nullable ProjectPermission permission) {
+<span class="pc bpc" id="L141" title="1 of 2 branches missed.">      return setPermission(permission == null ? null : permission.getKey());</span>
+    }
+
+    public Builder setEntity(ComponentDto component) {
+<span class="fc" id="L145">      return setEntityUuid(component.uuid());</span>
+    }
+
+    public Builder setEntity(EntityDto entity) {
+<span class="fc" id="L149">      return setEntityUuid(entity.getUuid());</span>
+    }
+
+    public Builder setEntityUuid(String entityUuid) {
+<span class="fc" id="L153">      this.entityUuid = entityUuid;</span>
+<span class="fc" id="L154">      return this;</span>
+    }
+
+    public Builder setSearchQuery(@Nullable String s) {
+<span class="fc" id="L158">      this.searchQuery = defaultIfBlank(s, null);</span>
+<span class="fc" id="L159">      return this;</span>
+    }
+
+    public Builder setPageIndex(@Nullable Integer i) {
+<span class="fc" id="L163">      this.pageIndex = i;</span>
+<span class="fc" id="L164">      return this;</span>
+    }
+
+    public Builder setPageSize(@Nullable Integer i) {
+<span class="fc" id="L168">      this.pageSize = i;</span>
+<span class="fc" id="L169">      return this;</span>
+    }
+
+    public Builder withAtLeastOnePermission() {
+<span class="fc" id="L173">      this.withAtLeastOnePermission = true;</span>
+<span class="fc" id="L174">      return this;</span>
+    }
+
+    public PermissionQuery build() {
+<span class="fc" id="L178">      this.pageIndex = firstNonNull(pageIndex, DEFAULT_PAGE_INDEX);</span>
+<span class="fc" id="L179">      this.pageSize = firstNonNull(pageSize, DEFAULT_PAGE_SIZE);</span>
+<span class="fc bfc" id="L180" title="All 4 branches covered.">      checkArgument(searchQuery == null || searchQuery.length() &gt;= SEARCH_QUERY_MIN_LENGTH, &quot;Search query should contains at least %s characters&quot;, SEARCH_QUERY_MIN_LENGTH);</span>
+<span class="fc" id="L181">      return new PermissionQuery(this);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

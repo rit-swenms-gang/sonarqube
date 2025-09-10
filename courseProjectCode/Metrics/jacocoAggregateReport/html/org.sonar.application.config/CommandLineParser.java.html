@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CommandLineParser.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.application.config</a> &gt; <span class="el_source">CommandLineParser.java</span></div><h1>CommandLineParser.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.application.config;
+
+import java.util.Map;
+import java.util.Properties;
+import org.apache.commons.lang3.StringUtils;
+
+public class CommandLineParser {
+
+  private CommandLineParser() {
+    // prevent instantiation
+  }
+
+  /**
+   * Build properties from command-line arguments and system properties
+   */
+  public static Properties parseArguments(String[] args) {
+<span class="fc" id="L36">    Properties props = argumentsToProperties(args);</span>
+
+    // complete with only the system properties that start with &quot;sonar.&quot;
+<span class="fc bfc" id="L39" title="All 2 branches covered.">    for (Map.Entry&lt;Object, Object&gt; entry : System.getProperties().entrySet()) {</span>
+<span class="fc" id="L40">      String key = entry.getKey().toString();</span>
+<span class="fc bfc" id="L41" title="All 2 branches covered.">      if (key.startsWith(&quot;sonar.&quot;)) {</span>
+<span class="fc" id="L42">        props.setProperty(key, entry.getValue().toString());</span>
+      }
+<span class="fc" id="L44">    }</span>
+<span class="fc" id="L45">    return props;</span>
+  }
+
+  /**
+   * Convert strings &quot;-Dkey=value&quot; to properties
+   */
+  static Properties argumentsToProperties(String[] args) {
+<span class="fc" id="L52">    Properties props = new Properties();</span>
+<span class="fc bfc" id="L53" title="All 2 branches covered.">    for (String arg : args) {</span>
+<span class="pc bpc" id="L54" title="1 of 4 branches missed.">      if (!arg.startsWith(&quot;-D&quot;) || !arg.contains(&quot;=&quot;)) {</span>
+<span class="fc" id="L55">        throw new IllegalArgumentException(String.format(</span>
+          &quot;Command-line argument must start with -D, for example -Dsonar.jdbc.username=sonar. Got: %s&quot;, arg));
+      }
+<span class="fc" id="L58">      String key = StringUtils.substringBefore(arg, &quot;=&quot;).substring(2);</span>
+<span class="fc" id="L59">      String value = StringUtils.substringAfter(arg, &quot;=&quot;);</span>
+<span class="fc" id="L60">      props.setProperty(key, value);</span>
+    }
+<span class="fc" id="L62">    return props;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

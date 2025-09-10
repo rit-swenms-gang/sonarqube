@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MQRModeProperties.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.core.config</a> &gt; <span class="el_source">MQRModeProperties.java</span></div><h1>MQRModeProperties.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.core.config;
+
+import java.util.Collections;
+import java.util.List;
+import org.sonar.api.PropertyType;
+import org.sonar.api.config.PropertyDefinition;
+
+import static org.sonar.core.config.MQRModeConstants.MULTI_QUALITY_MODE_DEFAULT_VALUE;
+import static org.sonar.core.config.MQRModeConstants.UI_MODE;
+import static org.sonar.core.config.MQRModeConstants.UI_MODE_SUB_CATEGORY;
+import static org.sonar.core.config.MQRModeConstants.MULTI_QUALITY_MODE_ENABLED;
+
+public final class MQRModeProperties {
+
+  private MQRModeProperties() {
+  }
+
+  public static List&lt;PropertyDefinition&gt; all() {
+<span class="fc" id="L38">    return Collections.singletonList(</span>
+<span class="fc" id="L39">      PropertyDefinition.builder(MULTI_QUALITY_MODE_ENABLED)</span>
+<span class="fc" id="L40">        .defaultValue(Boolean.toString(MULTI_QUALITY_MODE_DEFAULT_VALUE))</span>
+<span class="fc" id="L41">        .name(&quot;Enable Multi-Quality Rule Mode&quot;)</span>
+<span class="fc" id="L42">        .description(&quot;Aims to more accurately represent the impact software has on all software qualities. &quot; +</span>
+                &quot;It does this by mapping rules to every software quality they can impact, not just the one &quot; +
+                &quot;they impact most significantly. Each rule has a separate severity &quot; +
+                &quot;for the impact it has on each quality that it has been mapped to. \n&quot; +
+                &quot;This approach focuses on ensuring the impact on all software qualities is clear, &quot; +
+                &quot;not just the most severe one.&quot;)
+<span class="fc" id="L48">        .type(PropertyType.BOOLEAN)</span>
+<span class="fc" id="L49">        .category(UI_MODE)</span>
+<span class="fc" id="L50">        .subCategory(UI_MODE_SUB_CATEGORY)</span>
+<span class="fc" id="L51">        .hidden()</span>
+<span class="fc" id="L52">        .index(1)</span>
+<span class="fc" id="L53">        .build()</span>
+    );
+
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

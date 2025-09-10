@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SourceLinesHashRepositoryImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.source</a> &gt; <span class="el_source">SourceLinesHashRepositoryImpl.java</span></div><h1>SourceLinesHashRepositoryImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.source;
+
+import java.util.List;
+import java.util.Optional;
+import org.apache.commons.lang3.StringUtils;
+import org.sonar.ce.task.projectanalysis.component.Component;
+import org.sonar.core.hash.LineRange;
+import org.sonar.core.hash.SourceLineHashesComputer;
+import org.sonar.core.util.CloseableIterator;
+import org.sonar.db.source.LineHashVersion;
+
+public class SourceLinesHashRepositoryImpl implements SourceLinesHashRepository {
+  private final SourceLinesRepository sourceLinesRepository;
+  private final SignificantCodeRepository significantCodeRepository;
+  private final SourceLinesHashCache cache;
+  private final DbLineHashVersion dbLineHashesVersion;
+
+  public SourceLinesHashRepositoryImpl(SourceLinesRepository sourceLinesRepository, SignificantCodeRepository significantCodeRepository,
+<span class="fc" id="L38">    SourceLinesHashCache cache, DbLineHashVersion dbLineHashVersion) {</span>
+<span class="fc" id="L39">    this.sourceLinesRepository = sourceLinesRepository;</span>
+<span class="fc" id="L40">    this.significantCodeRepository = significantCodeRepository;</span>
+<span class="fc" id="L41">    this.cache = cache;</span>
+<span class="fc" id="L42">    this.dbLineHashesVersion = dbLineHashVersion;</span>
+<span class="fc" id="L43">  }</span>
+
+  @Override
+  public List&lt;String&gt; getLineHashesMatchingDBVersion(Component component) {
+<span class="fc" id="L47">    return cache.computeIfAbsent(component, this::createLineHashesMatchingDBVersion);</span>
+  }
+
+  @Override
+  public int getLineHashesVersion(Component component) {
+<span class="fc bfc" id="L52" title="All 2 branches covered.">    if (significantCodeRepository.getRangesPerLine(component).isPresent()) {</span>
+<span class="fc" id="L53">      return LineHashVersion.WITH_SIGNIFICANT_CODE.getDbValue();</span>
+    } else {
+<span class="fc" id="L55">      return LineHashVersion.WITHOUT_SIGNIFICANT_CODE.getDbValue();</span>
+    }
+  }
+
+  @Override
+  public LineHashesComputer getLineHashesComputerToPersist(Component component) {
+<span class="fc" id="L61">    boolean cacheHit = cache.contains(component);</span>
+
+    // check if line hashes are cached and if we can use it
+<span class="pc bpc" id="L64" title="1 of 4 branches missed.">    if (cacheHit &amp;&amp; !dbLineHashesVersion.hasLineHashesWithoutSignificantCode(component)) {</span>
+<span class="fc" id="L65">      return new CachedLineHashesComputer(cache.get(component));</span>
+    }
+
+<span class="fc" id="L68">    Optional&lt;LineRange[]&gt; significantCodePerLine = significantCodeRepository.getRangesPerLine(component);</span>
+<span class="pc bpc" id="L69" title="1 of 4 branches missed.">    if (cacheHit &amp;&amp; !significantCodePerLine.isPresent()) {</span>
+<span class="fc" id="L70">      return new CachedLineHashesComputer(cache.get(component));</span>
+    }
+
+    // Generate the line hashes taking into account significant code ranges
+<span class="fc" id="L74">    return createLineHashesProcessor(component.getFileAttributes().getLines(), significantCodePerLine);</span>
+  }
+
+  private List&lt;String&gt; createLineHashesMatchingDBVersion(Component component) {
+<span class="fc bfc" id="L78" title="All 2 branches covered.">    if (dbLineHashesVersion.hasLineHashesWithoutSignificantCode(component)) {</span>
+<span class="fc" id="L79">      return createLineHashes(component, Optional.empty());</span>
+    }
+
+    // if the file is not in the DB, this will be used too
+<span class="fc" id="L83">    Optional&lt;LineRange[]&gt; significantCodePerLine = significantCodeRepository.getRangesPerLine(component);</span>
+<span class="fc" id="L84">    return createLineHashes(component, significantCodePerLine);</span>
+  }
+
+  private List&lt;String&gt; createLineHashes(Component component, Optional&lt;LineRange[]&gt; significantCodePerLine) {
+<span class="fc" id="L88">    LineHashesComputer processor = createLineHashesProcessor(component.getFileAttributes().getLines(), significantCodePerLine);</span>
+<span class="fc" id="L89">    try (CloseableIterator&lt;String&gt; lines = sourceLinesRepository.readLines(component)) {</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">      while (lines.hasNext()) {</span>
+<span class="fc" id="L91">        processor.addLine(lines.next());</span>
+      }
+<span class="fc" id="L93">      return processor.getResult();</span>
+    }
+  }
+
+  public interface LineHashesComputer {
+    void addLine(String line);
+
+    List&lt;String&gt; getResult();
+  }
+
+  private static LineHashesComputer createLineHashesProcessor(int numLines, Optional&lt;LineRange[]&gt; significantCodePerLine) {
+<span class="fc bfc" id="L104" title="All 2 branches covered.">    if (significantCodePerLine.isPresent()) {</span>
+<span class="fc" id="L105">      return new SignificantCodeLineHashesComputer(new SourceLineHashesComputer(numLines), significantCodePerLine.get());</span>
+    } else {
+<span class="fc" id="L107">      return new SimpleLineHashesComputer(numLines);</span>
+    }
+  }
+
+  static class CachedLineHashesComputer implements LineHashesComputer {
+    private final List&lt;String&gt; lineHashes;
+
+<span class="fc" id="L114">    public CachedLineHashesComputer(List&lt;String&gt; lineHashes) {</span>
+<span class="fc" id="L115">      this.lineHashes = lineHashes;</span>
+<span class="fc" id="L116">    }</span>
+
+    @Override
+    public void addLine(String line) {
+      // no op
+<span class="nc" id="L121">    }</span>
+
+    @Override
+    public List&lt;String&gt; getResult() {
+<span class="fc" id="L125">      return lineHashes;</span>
+    }
+  }
+
+  static class SimpleLineHashesComputer implements LineHashesComputer {
+    private final SourceLineHashesComputer delegate;
+
+<span class="fc" id="L132">    public SimpleLineHashesComputer(int numLines) {</span>
+<span class="fc" id="L133">      this.delegate = new SourceLineHashesComputer(numLines);</span>
+<span class="fc" id="L134">    }</span>
+
+    @Override
+    public void addLine(String line) {
+<span class="fc" id="L138">      delegate.addLine(line);</span>
+<span class="fc" id="L139">    }</span>
+
+    @Override
+    public List&lt;String&gt; getResult() {
+<span class="fc" id="L143">      return delegate.getLineHashes();</span>
+    }
+  }
+
+  static class SignificantCodeLineHashesComputer implements LineHashesComputer {
+    private final SourceLineHashesComputer delegate;
+    private final LineRange[] rangesPerLine;
+
+<span class="fc" id="L151">    private int i = 0;</span>
+
+<span class="fc" id="L153">    public SignificantCodeLineHashesComputer(SourceLineHashesComputer hashComputer, LineRange[] rangesPerLine) {</span>
+<span class="fc" id="L154">      this.rangesPerLine = rangesPerLine;</span>
+<span class="fc" id="L155">      this.delegate = hashComputer;</span>
+<span class="fc" id="L156">    }</span>
+
+    @Override
+    public void addLine(String line) {
+<span class="fc" id="L160">      LineRange range = null;</span>
+<span class="fc bfc" id="L161" title="All 2 branches covered.">      if (i &lt; rangesPerLine.length) {</span>
+<span class="fc" id="L162">        range = rangesPerLine[i];</span>
+      }
+
+<span class="fc bfc" id="L165" title="All 2 branches covered.">      if (range == null) {</span>
+<span class="fc" id="L166">        delegate.addLine(&quot;&quot;);</span>
+      } else {
+<span class="fc" id="L168">        delegate.addLine(StringUtils.substring(line, range.startOffset(), range.endOffset()));</span>
+      }
+<span class="fc" id="L170">      i++;</span>
+<span class="fc" id="L171">    }</span>
+
+    @Override
+    public List&lt;String&gt; getResult() {
+<span class="fc" id="L175">      return delegate.getLineHashes();</span>
+    }
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DevOpsPlatformSettingNewValue.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.audit.model</a> &gt; <span class="el_source">DevOpsPlatformSettingNewValue.java</span></div><h1>DevOpsPlatformSettingNewValue.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.audit.model;
+
+import java.util.Objects;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.db.alm.setting.AlmSettingDto;
+import org.sonar.db.alm.setting.ProjectAlmSettingDto;
+import org.sonar.db.project.ProjectDto;
+
+public class DevOpsPlatformSettingNewValue extends NewValue {
+
+  /**
+   * @deprecated The uuids in the audit logs are not product requirement anymore and will be removed in 11.x
+   */
+  @Deprecated(since = &quot;10.2&quot;)
+  @Nullable
+  private String devOpsPlatformSettingUuid;
+
+  @Nullable
+  private String key;
+
+  @Nullable
+  private String devOpsPlatformName;
+
+  @Nullable
+  private String url;
+
+  @Nullable
+  private String appId;
+
+  @Nullable
+  private String clientId;
+
+  /**
+   * @deprecated The uuids in the audit logs are not product requirement anymore and will be removed in 11.x
+   */
+  @Deprecated(since = &quot;10.2&quot;)
+  @Nullable
+  private String projectUuid;
+
+  @Nullable
+  private String projectKey;
+
+  @Nullable
+  private String projectName;
+
+  @Nullable
+  private String almRepo;
+
+  @Nullable
+  private String almSlug;
+
+  @Nullable
+  private Boolean isSummaryCommentEnabled;
+
+  @Nullable
+  private Boolean isMonorepo;
+
+<span class="fc" id="L78">  public DevOpsPlatformSettingNewValue(String devOpsPlatformSettingUuid, String key) {</span>
+<span class="fc" id="L79">    this.devOpsPlatformSettingUuid = devOpsPlatformSettingUuid;</span>
+<span class="fc" id="L80">    this.key = key;</span>
+<span class="fc" id="L81">  }</span>
+
+<span class="fc" id="L83">  public DevOpsPlatformSettingNewValue(AlmSettingDto dto) {</span>
+<span class="fc" id="L84">    this.devOpsPlatformSettingUuid = dto.getUuid();</span>
+<span class="fc" id="L85">    this.key = dto.getKey();</span>
+<span class="fc" id="L86">    this.devOpsPlatformName = dto.getAppId();</span>
+<span class="fc" id="L87">    this.url = dto.getUrl();</span>
+<span class="fc" id="L88">    this.appId = dto.getAppId();</span>
+<span class="fc" id="L89">    this.clientId = dto.getClientId();</span>
+<span class="fc" id="L90">  }</span>
+
+<span class="fc" id="L92">  public DevOpsPlatformSettingNewValue(ProjectAlmSettingDto dto, String key, String projectName, String projectKey) {</span>
+<span class="fc" id="L93">    this.devOpsPlatformSettingUuid = dto.getAlmSettingUuid();</span>
+<span class="fc" id="L94">    this.key = key;</span>
+<span class="fc" id="L95">    this.projectUuid = dto.getProjectUuid();</span>
+<span class="fc" id="L96">    this.projectKey = projectKey;</span>
+<span class="fc" id="L97">    this.projectName = projectName;</span>
+<span class="fc" id="L98">    this.almRepo = dto.getAlmRepo();</span>
+<span class="fc" id="L99">    this.almSlug = dto.getAlmSlug();</span>
+<span class="fc" id="L100">    this.isSummaryCommentEnabled = dto.getSummaryCommentEnabled();</span>
+<span class="fc" id="L101">    this.isMonorepo = dto.getMonorepo();</span>
+<span class="fc" id="L102">  }</span>
+
+<span class="fc" id="L104">  public DevOpsPlatformSettingNewValue(ProjectDto projectDto) {</span>
+<span class="fc" id="L105">    this.projectUuid = projectDto.getUuid();</span>
+<span class="fc" id="L106">    this.projectKey = projectDto.getKey();</span>
+<span class="fc" id="L107">    this.projectName = projectDto.getName();</span>
+<span class="fc" id="L108">  }</span>
+
+  /**
+   * @deprecated The uuids in the audit logs are not product requirement anymore and will be removed in 11.x
+   */
+  @Deprecated(since = &quot;10.2&quot;)
+  @CheckForNull
+  public String getDevOpsPlatformSettingUuid() {
+<span class="fc" id="L116">    return this.devOpsPlatformSettingUuid;</span>
+  }
+
+  @CheckForNull
+  public String getKey() {
+<span class="fc" id="L121">    return this.key;</span>
+  }
+
+  @CheckForNull
+  public String getDevOpsPlatformName() {
+<span class="fc" id="L126">    return this.devOpsPlatformName;</span>
+  }
+
+  @CheckForNull
+  public String getUrl() {
+<span class="fc" id="L131">    return this.url;</span>
+  }
+
+  @CheckForNull
+  public String getAppId() {
+<span class="fc" id="L136">    return this.appId;</span>
+  }
+
+  @CheckForNull
+  public String getClientId() {
+<span class="fc" id="L141">    return this.clientId;</span>
+  }
+
+  /**
+   * @deprecated The uuids in the audit logs are not product requirement anymore and will be removed in 11.x
+   */
+  @Deprecated(since = &quot;10.2&quot;)
+  @CheckForNull
+  public String getProjectUuid() {
+<span class="fc" id="L150">    return this.projectUuid;</span>
+  }
+
+  @CheckForNull
+  public String getProjectKey() {
+<span class="fc" id="L155">    return this.projectKey;</span>
+  }
+
+  @CheckForNull
+  public String getProjectName() {
+<span class="fc" id="L160">    return this.projectName;</span>
+  }
+
+  @CheckForNull
+  public String getAlmRepo() {
+<span class="fc" id="L165">    return this.almRepo;</span>
+  }
+
+  @CheckForNull
+  public String getAlmSlug() {
+<span class="fc" id="L170">    return this.almSlug;</span>
+  }
+
+  @CheckForNull
+  public Boolean isSummaryCommentEnabled() {
+<span class="fc" id="L175">    return this.isSummaryCommentEnabled;</span>
+  }
+
+  @CheckForNull
+  public Boolean isMonorepo() {
+<span class="fc" id="L180">    return this.isMonorepo;</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="fc" id="L185">    StringBuilder sb = new StringBuilder(&quot;{&quot;);</span>
+<span class="fc" id="L186">    addField(sb, &quot;\&quot;devOpsPlatformSettingUuid\&quot;: &quot;, this.devOpsPlatformSettingUuid, true);</span>
+<span class="fc" id="L187">    addField(sb, &quot;\&quot;key\&quot;: &quot;, this.key, true);</span>
+<span class="fc" id="L188">    addField(sb, &quot;\&quot;devOpsPlatformName\&quot;: &quot;, this.devOpsPlatformName, true);</span>
+<span class="fc" id="L189">    addField(sb, &quot;\&quot;url\&quot;: &quot;, this.url, true);</span>
+<span class="fc" id="L190">    addField(sb, &quot;\&quot;appId\&quot;: &quot;, this.appId, true);</span>
+<span class="fc" id="L191">    addField(sb, &quot;\&quot;clientId\&quot;: &quot;, this.clientId, true);</span>
+<span class="fc" id="L192">    addField(sb, &quot;\&quot;projectUuid\&quot;: &quot;, this.projectUuid, true);</span>
+<span class="fc" id="L193">    addField(sb, &quot;\&quot;projectKey\&quot;: &quot;, this.projectKey, true);</span>
+<span class="fc" id="L194">    addField(sb, &quot;\&quot;projectName\&quot;: &quot;, this.projectName, true);</span>
+<span class="fc" id="L195">    addField(sb, &quot;\&quot;almRepo\&quot;: &quot;, this.almRepo, true);</span>
+<span class="fc" id="L196">    addField(sb, &quot;\&quot;almSlug\&quot;: &quot;, this.almSlug, true);</span>
+<span class="fc" id="L197">    addField(sb, &quot;\&quot;isSummaryCommentEnabled\&quot;: &quot;, Objects.toString(this.isSummaryCommentEnabled, &quot;&quot;), false);</span>
+<span class="fc" id="L198">    addField(sb, &quot;\&quot;isMonorepo\&quot;: &quot;, Objects.toString(this.isMonorepo, &quot;&quot;), false);</span>
+<span class="fc" id="L199">    endString(sb);</span>
+<span class="fc" id="L200">    return sb.toString();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

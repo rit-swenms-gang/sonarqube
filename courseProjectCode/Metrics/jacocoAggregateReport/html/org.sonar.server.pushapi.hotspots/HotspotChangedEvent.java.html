@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HotspotChangedEvent.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.pushapi.hotspots</a> &gt; <span class="el_source">HotspotChangedEvent.java</span></div><h1>HotspotChangedEvent.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.pushapi.hotspots;
+
+import java.io.Serializable;
+import java.util.Date;
+import javax.annotation.CheckForNull;
+
+public class HotspotChangedEvent implements Serializable {
+
+  private final String key;
+  private final String projectKey;
+  private final Long updateDate;
+  private final String status;
+  private final String assignee;
+  private final String resolution;
+  private final String filePath;
+
+<span class="fc" id="L36">  private HotspotChangedEvent(Builder builder) {</span>
+<span class="fc" id="L37">    this.key = builder.getKey();</span>
+<span class="fc" id="L38">    this.projectKey = builder.getProjectKey();</span>
+<span class="pc bpc" id="L39" title="1 of 2 branches missed.">    this.updateDate = builder.getUpdateDate() == null ? null : builder.getUpdateDate().getTime();</span>
+<span class="fc" id="L40">    this.status = builder.getStatus();</span>
+<span class="fc" id="L41">    this.filePath = builder.getFilePath();</span>
+<span class="fc" id="L42">    this.resolution = builder.getResolution();</span>
+<span class="fc" id="L43">    this.assignee = builder.getAssignee();</span>
+<span class="fc" id="L44">  }</span>
+
+  public String getKey() {
+<span class="fc" id="L47">    return key;</span>
+  }
+
+  public String getProjectKey() {
+<span class="fc" id="L51">    return projectKey;</span>
+  }
+
+  public Long getUpdateDate() {
+<span class="fc" id="L55">    return updateDate;</span>
+  }
+
+  public String getStatus() {
+<span class="fc" id="L59">    return status;</span>
+  }
+
+  public String getFilePath() {
+<span class="fc" id="L63">    return filePath;</span>
+  }
+
+  @CheckForNull
+  public String getResolution() {
+<span class="fc" id="L68">    return resolution;</span>
+  }
+
+  @CheckForNull
+  public String getAssignee() {
+<span class="fc" id="L73">    return assignee;</span>
+  }
+
+<span class="fc" id="L76">  public static class Builder {</span>
+    private String key;
+    private String projectKey;
+    private Date updateDate;
+    private String status;
+    private String assignee;
+    private String resolution;
+    private String filePath;
+
+    public Builder setKey(String key) {
+<span class="fc" id="L86">      this.key = key;</span>
+<span class="fc" id="L87">      return this;</span>
+    }
+
+    public Builder setProjectKey(String projectKey) {
+<span class="fc" id="L91">      this.projectKey = projectKey;</span>
+<span class="fc" id="L92">      return this;</span>
+    }
+
+    public Builder setUpdateDate(Date updateDate) {
+<span class="fc" id="L96">      this.updateDate = updateDate;</span>
+<span class="fc" id="L97">      return this;</span>
+    }
+
+    public Builder setStatus(String status) {
+<span class="fc" id="L101">      this.status = status;</span>
+<span class="fc" id="L102">      return this;</span>
+    }
+
+    public Builder setAssignee(String assignee) {
+<span class="fc" id="L106">      this.assignee = assignee;</span>
+<span class="fc" id="L107">      return this;</span>
+    }
+
+    public Builder setResolution(String resolution) {
+<span class="fc" id="L111">      this.resolution = resolution;</span>
+<span class="fc" id="L112">      return this;</span>
+    }
+
+    public Builder setFilePath(String filePath) {
+<span class="fc" id="L116">      this.filePath = filePath;</span>
+<span class="fc" id="L117">      return this;</span>
+    }
+
+    public String getKey() {
+<span class="fc" id="L121">      return key;</span>
+    }
+
+    public String getProjectKey() {
+<span class="fc" id="L125">      return projectKey;</span>
+    }
+
+    public Date getUpdateDate() {
+<span class="fc" id="L129">      return updateDate;</span>
+    }
+
+    public String getStatus() {
+<span class="fc" id="L133">      return status;</span>
+    }
+
+    public String getAssignee() {
+<span class="fc" id="L137">      return assignee;</span>
+    }
+
+    public String getResolution() {
+<span class="fc" id="L141">      return resolution;</span>
+    }
+
+    public String getFilePath() {
+<span class="fc" id="L145">      return filePath;</span>
+    }
+
+    public HotspotChangedEvent build() {
+<span class="fc" id="L149">      return new HotspotChangedEvent(this);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

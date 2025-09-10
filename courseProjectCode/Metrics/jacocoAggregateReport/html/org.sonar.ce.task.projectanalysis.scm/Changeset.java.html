@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Changeset.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.scm</a> &gt; <span class="el_source">Changeset.java</span></div><h1>Changeset.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.scm;
+
+import java.util.Objects;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
+
+import static java.util.Objects.requireNonNull;
+
+@Immutable
+public final class Changeset {
+  @CheckForNull
+  private final String revision;
+  private final long date;
+  @CheckForNull
+  private final String author;
+
+<span class="fc" id="L37">  private Changeset(Builder builder) {</span>
+<span class="fc" id="L38">    this.revision = builder.revision;</span>
+<span class="fc" id="L39">    this.author = builder.author;</span>
+<span class="fc" id="L40">    this.date = builder.date;</span>
+<span class="fc" id="L41">  }</span>
+
+  public static Builder newChangesetBuilder() {
+<span class="fc" id="L44">    return new Builder();</span>
+  }
+
+  public static class Builder {
+    private String revision;
+    private Long date;
+    @CheckForNull
+    private String author;
+
+    private Builder() {
+      // prevents direct instantiation
+    }
+
+    public Builder setRevision(@Nullable String revision) {
+<span class="fc" id="L58">      this.revision = revision;</span>
+<span class="fc" id="L59">      return this;</span>
+    }
+
+    public Builder setDate(Long date) {
+<span class="fc" id="L63">      this.date = checkDate(date);</span>
+<span class="fc" id="L64">      return this;</span>
+    }
+
+    public Builder setAuthor(@Nullable String author) {
+<span class="fc" id="L68">      this.author = author;</span>
+<span class="fc" id="L69">      return this;</span>
+    }
+
+    public Changeset build() {
+<span class="fc" id="L73">      checkDate(date);</span>
+<span class="fc" id="L74">      return new Changeset(this);</span>
+    }
+
+    private static long checkDate(Long date) {
+<span class="fc" id="L78">      return requireNonNull(date, &quot;Date cannot be null&quot;);</span>
+    }
+  }
+
+  @CheckForNull
+  public String getRevision() {
+<span class="fc" id="L84">    return revision;</span>
+  }
+
+  public long getDate() {
+<span class="fc" id="L88">    return date;</span>
+  }
+
+  @CheckForNull
+  public String getAuthor() {
+<span class="fc" id="L93">    return author;</span>
+  }
+
+  @Override
+  public boolean equals(@Nullable Object o) {
+<span class="fc bfc" id="L98" title="All 2 branches covered.">    if (this == o) {</span>
+<span class="fc" id="L99">      return true;</span>
+    }
+<span class="pc bpc" id="L101" title="2 of 4 branches missed.">    if (o == null || getClass() != o.getClass()) {</span>
+<span class="nc" id="L102">      return false;</span>
+    }
+
+<span class="fc" id="L105">    Changeset changeset = (Changeset) o;</span>
+<span class="pc bpc" id="L106" title="1 of 6 branches missed.">    return Objects.equals(revision, changeset.revision) &amp;&amp; Objects.equals(author, changeset.author) &amp;&amp; Objects.equals(date, changeset.date);</span>
+  }
+
+  @Override
+  public int hashCode() {
+<span class="fc" id="L111">    return Objects.hash(revision, author, date);</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="fc" id="L116">    return &quot;Changeset{&quot; +</span>
+      &quot;revision='&quot; + revision + '\'' +
+      &quot;, author='&quot; + author + '\'' +
+      &quot;, date=&quot; + date +
+      '}';
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

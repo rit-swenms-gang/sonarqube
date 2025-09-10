@@ -1,0 +1,297 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>QualityProfileDao.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.qualityprofile</a> &gt; <span class="el_source">QualityProfileDao.java</span></div><h1>QualityProfileDao.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.qualityprofile;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Date;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.api.utils.System2;
+import org.sonar.core.util.UuidFactory;
+import org.sonar.db.Dao;
+import org.sonar.db.DatabaseUtils;
+import org.sonar.db.DbSession;
+import org.sonar.db.KeyLongValue;
+import org.sonar.db.RowNotFoundException;
+import org.sonar.db.project.ProjectDto;
+
+import static java.util.Collections.emptyList;
+import static org.sonar.db.DatabaseUtils.executeLargeInputs;
+import static org.sonar.db.DatabaseUtils.executeLargeUpdates;
+
+public class QualityProfileDao implements Dao {
+
+  private final System2 system;
+  private final UuidFactory uuidFactory;
+
+<span class="fc" id="L49">  public QualityProfileDao(UuidFactory uuidFactory, System2 system) {</span>
+<span class="fc" id="L50">    this.uuidFactory = uuidFactory;</span>
+<span class="fc" id="L51">    this.system = system;</span>
+<span class="fc" id="L52">  }</span>
+
+  @CheckForNull
+  public QProfileDto selectByUuid(DbSession dbSession, String uuid) {
+<span class="fc" id="L56">    return mapper(dbSession).selectByUuid(uuid);</span>
+  }
+
+  public QProfileDto selectOrFailByUuid(DbSession dbSession, String uuid) {
+<span class="fc" id="L60">    QProfileDto dto = selectByUuid(dbSession, uuid);</span>
+<span class="fc bfc" id="L61" title="All 2 branches covered.">    if (dto == null) {</span>
+<span class="fc" id="L62">      throw new RowNotFoundException(&quot;Quality profile not found: &quot; + uuid);</span>
+    }
+<span class="fc" id="L64">    return dto;</span>
+  }
+
+  public List&lt;QProfileDto&gt; selectByUuids(DbSession dbSession, List&lt;String&gt; uuids) {
+<span class="fc" id="L68">    return executeLargeInputs(uuids, mapper(dbSession)::selectByUuids);</span>
+  }
+
+  public List&lt;QProfileDto&gt; selectAll(DbSession dbSession) {
+<span class="fc" id="L72">    return mapper(dbSession).selectAll();</span>
+  }
+
+  public List&lt;RulesProfileDto&gt; selectBuiltInRuleProfiles(DbSession dbSession) {
+<span class="fc" id="L76">    return mapper(dbSession).selectBuiltInRuleProfiles();</span>
+  }
+
+  public List&lt;RulesProfileDto&gt; selectBuiltInRuleProfilesWithActiveRules(DbSession dbSession) {
+<span class="fc" id="L80">    return mapper(dbSession).selectBuiltInRuleProfilesWithActiveRules();</span>
+  }
+
+  @CheckForNull
+  public RulesProfileDto selectRuleProfile(DbSession dbSession, String ruleProfileUuid) {
+<span class="fc" id="L85">    return mapper(dbSession).selectRuleProfile(ruleProfileUuid);</span>
+  }
+
+  public void insert(DbSession dbSession, RulesProfileDto dto) {
+<span class="fc" id="L89">    QualityProfileMapper mapper = mapper(dbSession);</span>
+<span class="fc" id="L90">    mapper.insertRuleProfile(dto, new Date(system.now()));</span>
+<span class="fc" id="L91">  }</span>
+
+  public void insert(DbSession dbSession, OrgQProfileDto dto) {
+<span class="fc" id="L94">    QualityProfileMapper mapper = mapper(dbSession);</span>
+<span class="fc" id="L95">    mapper.insertOrgQProfile(dto, system.now());</span>
+<span class="fc" id="L96">  }</span>
+
+  public void insert(DbSession dbSession, QProfileDto profile, QProfileDto... otherProfiles) {
+<span class="fc" id="L99">    QualityProfileMapper mapper = mapper(dbSession);</span>
+<span class="fc" id="L100">    doInsert(mapper, profile);</span>
+<span class="fc bfc" id="L101" title="All 2 branches covered.">    for (QProfileDto other : otherProfiles) {</span>
+<span class="fc" id="L102">      doInsert(mapper, other);</span>
+    }
+<span class="fc" id="L104">  }</span>
+
+  private void doInsert(QualityProfileMapper mapper, QProfileDto profile) {
+<span class="fc" id="L107">    long now = system.now();</span>
+<span class="fc" id="L108">    RulesProfileDto rulesProfile = RulesProfileDto.from(profile);</span>
+<span class="fc" id="L109">    mapper.insertRuleProfile(rulesProfile, new Date(now));</span>
+<span class="fc" id="L110">    mapper.insertOrgQProfile(OrgQProfileDto.from(profile), now);</span>
+<span class="fc" id="L111">  }</span>
+
+  public void update(DbSession dbSession, QProfileDto profile, QProfileDto... otherProfiles) {
+<span class="fc" id="L114">    QualityProfileMapper mapper = mapper(dbSession);</span>
+<span class="fc" id="L115">    long now = system.now();</span>
+<span class="fc" id="L116">    doUpdate(mapper, profile, now);</span>
+<span class="pc bpc" id="L117" title="1 of 2 branches missed.">    for (QProfileDto otherProfile : otherProfiles) {</span>
+<span class="nc" id="L118">      doUpdate(mapper, otherProfile, now);</span>
+    }
+<span class="fc" id="L120">  }</span>
+
+  public int updateLastUsedDate(DbSession dbSession, QProfileDto profile, long lastUsedDate) {
+<span class="fc" id="L123">    return mapper(dbSession).updateLastUsedDate(profile.getKee(), lastUsedDate, system.now());</span>
+  }
+
+  public void update(DbSession dbSession, RulesProfileDto rulesProfile) {
+<span class="fc" id="L127">    QualityProfileMapper mapper = mapper(dbSession);</span>
+<span class="fc" id="L128">    long now = system.now();</span>
+<span class="fc" id="L129">    mapper.updateRuleProfile(rulesProfile, new Date(now));</span>
+<span class="fc" id="L130">  }</span>
+
+  public void update(DbSession dbSession, OrgQProfileDto profile) {
+<span class="fc" id="L133">    QualityProfileMapper mapper = mapper(dbSession);</span>
+<span class="fc" id="L134">    long now = system.now();</span>
+<span class="fc" id="L135">    mapper.updateOrgQProfile(profile, now);</span>
+<span class="fc" id="L136">  }</span>
+
+  private static void doUpdate(QualityProfileMapper mapper, QProfileDto profile, long now) {
+<span class="fc" id="L139">    mapper.updateRuleProfile(RulesProfileDto.from(profile), new Date(now));</span>
+<span class="fc" id="L140">    mapper.updateOrgQProfile(OrgQProfileDto.from(profile), now);</span>
+<span class="fc" id="L141">  }</span>
+
+  public List&lt;QProfileDto&gt; selectDefaultProfiles(DbSession dbSession, Collection&lt;String&gt; languages) {
+<span class="fc" id="L144">    return executeLargeInputs(languages, partition -&gt; mapper(dbSession).selectDefaultProfiles(partition));</span>
+  }
+
+  public List&lt;QProfileDto&gt; selectAllDefaultProfiles(DbSession dbSession) {
+<span class="fc" id="L148">    return mapper(dbSession).selectAllDefaultProfiles();</span>
+  }
+
+  public List&lt;QProfileDto&gt; selectDefaultProfilesWithoutActiveRules(DbSession dbSession, Set&lt;String&gt; languages, boolean builtIn) {
+<span class="fc" id="L152">    return executeLargeInputs(languages, partition -&gt; mapper(dbSession).selectDefaultProfilesWithoutActiveRules(partition, builtIn));</span>
+  }
+
+  @CheckForNull
+  public QProfileDto selectDefaultProfile(DbSession dbSession, String language) {
+<span class="fc" id="L157">    return mapper(dbSession).selectDefaultProfile(language);</span>
+  }
+
+  @CheckForNull
+  public String selectDefaultProfileUuid(DbSession dbSession, String language) {
+<span class="fc" id="L162">    return mapper(dbSession).selectDefaultProfileUuid(language);</span>
+  }
+
+  @CheckForNull
+  public QProfileDto selectAssociatedToProjectAndLanguage(DbSession dbSession, ProjectDto project, String language) {
+<span class="fc" id="L167">    return mapper(dbSession).selectAssociatedToProjectUuidAndLanguage(project.getUuid(), language);</span>
+  }
+
+  public List&lt;QProfileDto&gt; selectAssociatedToProjectAndLanguages(DbSession dbSession, ProjectDto project, Collection&lt;String&gt; languages) {
+<span class="fc" id="L171">    return selectAssociatedToProjectAndLanguages(dbSession, project.getUuid(), languages);</span>
+  }
+
+  public List&lt;QProfileDto&gt; selectAssociatedToProjectAndLanguages(DbSession dbSession, String projectUuid, Collection&lt;String&gt; languages) {
+<span class="fc" id="L175">    return executeLargeInputs(languages, partition -&gt; mapper(dbSession).selectAssociatedToProjectUuidAndLanguages(projectUuid, partition));</span>
+  }
+
+  public List&lt;QProfileDto&gt; selectQProfilesByProjectUuid(DbSession dbSession, String projectUuid) {
+<span class="fc" id="L179">    return mapper(dbSession).selectQProfilesByProjectUuid(projectUuid);</span>
+  }
+
+  public List&lt;QProfileDto&gt; selectByLanguage(DbSession dbSession, String language) {
+<span class="fc" id="L183">    return mapper(dbSession).selectByLanguage(language);</span>
+  }
+
+  public List&lt;QProfileDto&gt; selectChildren(DbSession dbSession, Collection&lt;QProfileDto&gt; profiles) {
+<span class="fc" id="L187">    List&lt;String&gt; uuids = profiles.stream().map(QProfileDto::getKee).toList();</span>
+<span class="fc" id="L188">    return DatabaseUtils.executeLargeInputs(uuids, chunk -&gt; mapper(dbSession).selectChildren(chunk));</span>
+  }
+
+  /**
+   * All descendants, in any order. The specified profiles are not included into results.
+   */
+  public Collection&lt;QProfileDto&gt; selectDescendants(DbSession dbSession, Collection&lt;QProfileDto&gt; profiles) {
+<span class="fc bfc" id="L195" title="All 2 branches covered.">    if (profiles.isEmpty()) {</span>
+<span class="fc" id="L196">      return emptyList();</span>
+    }
+<span class="fc" id="L198">    Collection&lt;QProfileDto&gt; children = selectChildren(dbSession, profiles);</span>
+<span class="fc" id="L199">    List&lt;QProfileDto&gt; descendants = new ArrayList&lt;&gt;(children);</span>
+<span class="fc" id="L200">    descendants.addAll(selectDescendants(dbSession, children));</span>
+<span class="fc" id="L201">    return descendants;</span>
+  }
+
+  @CheckForNull
+  public QProfileDto selectByNameAndLanguage(DbSession dbSession, String name, String language) {
+<span class="fc" id="L206">    return mapper(dbSession).selectByNameAndLanguage(name, language);</span>
+  }
+
+  @CheckForNull
+  public QProfileDto selectByRuleProfileUuid(DbSession dbSession, String ruleProfileKee) {
+<span class="fc" id="L211">    return mapper(dbSession).selectByRuleProfileUuid(ruleProfileKee);</span>
+  }
+
+  public List&lt;QProfileDto&gt; selectByNameAndLanguages(DbSession dbSession, String name, Collection&lt;String&gt; languages) {
+<span class="fc" id="L215">    return mapper(dbSession).selectByNameAndLanguages(name, languages);</span>
+  }
+
+  public Map&lt;String, Long&gt; countProjectsByProfiles(DbSession dbSession, List&lt;QProfileDto&gt; profiles) {
+<span class="fc" id="L219">    List&lt;String&gt; profileUuids = profiles.stream().map(QProfileDto::getKee).toList();</span>
+<span class="fc" id="L220">    return KeyLongValue.toMap(executeLargeInputs(profileUuids, partition -&gt; mapper(dbSession).countProjectsByProfiles(partition)));</span>
+  }
+
+  public void insertProjectProfileAssociation(DbSession dbSession, ProjectDto project, QProfileDto profile) {
+<span class="fc" id="L224">    mapper(dbSession).insertProjectProfileAssociation(uuidFactory.create(), project.getUuid(), profile.getKee());</span>
+<span class="fc" id="L225">  }</span>
+
+  public void deleteProjectProfileAssociation(DbSession dbSession, ProjectDto project, QProfileDto profile) {
+<span class="fc" id="L228">    mapper(dbSession).deleteProjectProfileAssociation(project.getUuid(), profile.getKee());</span>
+<span class="fc" id="L229">  }</span>
+
+  public void updateProjectProfileAssociation(DbSession dbSession, ProjectDto project, String newProfileUuid, String oldProfileUuid) {
+<span class="fc" id="L232">    mapper(dbSession).updateProjectProfileAssociation(project.getUuid(), newProfileUuid, oldProfileUuid);</span>
+<span class="fc" id="L233">  }</span>
+
+  public void deleteProjectAssociationsByProfileUuids(DbSession dbSession, Collection&lt;String&gt; profileUuids) {
+<span class="fc" id="L236">    QualityProfileMapper mapper = mapper(dbSession);</span>
+<span class="fc" id="L237">    DatabaseUtils.executeLargeUpdates(profileUuids, mapper::deleteProjectAssociationByProfileUuids);</span>
+<span class="fc" id="L238">  }</span>
+
+  public List&lt;ProjectQprofileAssociationDto&gt; selectSelectedProjects(DbSession dbSession, QProfileDto profile, @Nullable String query) {
+<span class="fc" id="L241">    String nameQuery = sqlQueryString(query);</span>
+<span class="fc" id="L242">    return mapper(dbSession).selectSelectedProjects(profile.getKee(), nameQuery);</span>
+  }
+
+  public List&lt;ProjectQprofileAssociationDto&gt; selectDeselectedProjects(DbSession dbSession, QProfileDto profile, @Nullable String query) {
+<span class="fc" id="L246">    String nameQuery = sqlQueryString(query);</span>
+<span class="fc" id="L247">    return mapper(dbSession).selectDeselectedProjects(profile.getKee(), nameQuery);</span>
+  }
+
+  public List&lt;ProjectQprofileAssociationDto&gt; selectProjectAssociations(DbSession dbSession, QProfileDto profile, @Nullable String query) {
+<span class="fc" id="L251">    String nameQuery = sqlQueryString(query);</span>
+<span class="fc" id="L252">    return mapper(dbSession).selectProjectAssociations(profile.getKee(), nameQuery);</span>
+  }
+
+  public List&lt;ProjectQProfileLanguageAssociationDto&gt; selectAllProjectAssociations(DbSession dbSession) {
+<span class="fc" id="L256">    return mapper(dbSession).selectAllProjectAssociations();</span>
+  }
+
+  public Collection&lt;String&gt; selectUuidsOfCustomRulesProfiles(DbSession dbSession, String language, String name) {
+<span class="fc" id="L260">    return mapper(dbSession).selectUuidsOfCustomRuleProfiles(language, name);</span>
+  }
+
+  public void renameRulesProfilesAndCommit(DbSession dbSession, Collection&lt;String&gt; rulesProfileUuids, String newName) {
+<span class="fc" id="L264">    QualityProfileMapper mapper = mapper(dbSession);</span>
+<span class="fc" id="L265">    Date now = new Date(system.now());</span>
+<span class="fc" id="L266">    executeLargeUpdates(rulesProfileUuids, partition -&gt; {</span>
+<span class="fc" id="L267">      mapper.renameRuleProfiles(newName, now, partition);</span>
+<span class="fc" id="L268">      dbSession.commit();</span>
+<span class="fc" id="L269">    });</span>
+<span class="fc" id="L270">  }</span>
+
+  public void deleteOrgQProfilesByUuids(DbSession dbSession, Collection&lt;String&gt; profileUuids) {
+<span class="fc" id="L273">    QualityProfileMapper mapper = mapper(dbSession);</span>
+<span class="fc" id="L274">    DatabaseUtils.executeLargeUpdates(profileUuids, mapper::deleteOrgQProfilesByUuids);</span>
+<span class="fc" id="L275">  }</span>
+
+  public void deleteRulesProfilesByUuids(DbSession dbSession, Collection&lt;String&gt; rulesProfileUuids) {
+<span class="fc" id="L278">    QualityProfileMapper mapper = mapper(dbSession);</span>
+<span class="fc" id="L279">    DatabaseUtils.executeLargeUpdates(rulesProfileUuids, mapper::deleteRuleProfilesByUuids);</span>
+<span class="fc" id="L280">  }</span>
+
+  public List&lt;QProfileDto&gt; selectQProfilesByRuleProfile(DbSession dbSession, RulesProfileDto rulesProfile) {
+<span class="fc" id="L283">    return mapper(dbSession).selectQProfilesByRuleProfileUuid(rulesProfile.getUuid());</span>
+  }
+
+  private static String sqlQueryString(@Nullable String query) {
+<span class="fc bfc" id="L287" title="All 2 branches covered.">    if (query == null) {</span>
+<span class="fc" id="L288">      return &quot;%&quot;;</span>
+    }
+<span class="fc" id="L290">    return &quot;%&quot; + query.toUpperCase(Locale.ENGLISH) + &quot;%&quot;;</span>
+  }
+
+  private static QualityProfileMapper mapper(DbSession dbSession) {
+<span class="fc" id="L294">    return dbSession.getMapper(QualityProfileMapper.class);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

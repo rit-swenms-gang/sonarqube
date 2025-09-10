@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EmailMessage.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.issue.notification</a> &gt; <span class="el_source">EmailMessage.java</span></div><h1>EmailMessage.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.issue.notification;
+
+import org.apache.commons.lang3.builder.ToStringBuilder;
+
+<span class="fc" id="L24">public class EmailMessage {</span>
+
+<span class="fc" id="L26">  private String from = null;</span>
+<span class="fc" id="L27">  private String to = null;</span>
+<span class="fc" id="L28">  private String subject = null;</span>
+<span class="fc" id="L29">  private String message = null;</span>
+<span class="fc" id="L30">  private boolean html = false;</span>
+<span class="fc" id="L31">  private String messageId = null;</span>
+
+  /**
+   * @param from full name of user, who initiated this message or null, if message was initiated by Sonar
+   */
+  public EmailMessage setFrom(String from) {
+<span class="fc" id="L37">    this.from = from;</span>
+<span class="fc" id="L38">    return this;</span>
+  }
+
+  /**
+   * @see #setFrom(String)
+   */
+  public String getFrom() {
+<span class="fc" id="L45">    return from;</span>
+  }
+
+  /**
+   * @param to email address where to send this message
+   */
+  public EmailMessage setTo(String to) {
+<span class="fc" id="L52">    this.to = to;</span>
+<span class="fc" id="L53">    return this;</span>
+  }
+
+  /**
+   * @see #setTo(String)
+   */
+  public String getTo() {
+<span class="fc" id="L60">    return to;</span>
+  }
+
+  /**
+   * @param subject message subject
+   */
+  public EmailMessage setSubject(String subject) {
+<span class="fc" id="L67">    this.subject = subject;</span>
+<span class="fc" id="L68">    return this;</span>
+  }
+
+  /**
+   * @see #setSubject(String)
+   */
+  public String getSubject() {
+<span class="fc" id="L75">    return subject;</span>
+  }
+
+  /**
+   * @param message message body
+   */
+  public EmailMessage setPlainTextMessage(String message) {
+<span class="fc" id="L82">    this.message = message;</span>
+<span class="fc" id="L83">    this.html = false;</span>
+<span class="fc" id="L84">    return this;</span>
+  }
+
+  /**
+   * @param message HTML message body
+   */
+  public EmailMessage setHtmlMessage(String message) {
+<span class="fc" id="L91">    this.message = message;</span>
+<span class="fc" id="L92">    this.html = true;</span>
+<span class="fc" id="L93">    return this;</span>
+  }
+
+  /**
+   * Either plain text or HTML.
+   * @see #setPlainTextMessage(String) (String)
+   * @see #setHtmlMessage(String) (String) (String)
+   */
+  public String getMessage() {
+<span class="fc" id="L102">    return message;</span>
+  }
+
+  /**
+   * @param messageId id of message for threading
+   */
+  public EmailMessage setMessageId(String messageId) {
+<span class="fc" id="L109">    this.messageId = messageId;</span>
+<span class="fc" id="L110">    return this;</span>
+  }
+
+  /**
+   * @see #setMessageId(String)
+   */
+  public String getMessageId() {
+<span class="fc" id="L117">    return messageId;</span>
+  }
+
+  public boolean isHtml() {
+<span class="fc" id="L121">    return html;</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="nc" id="L126">    return ToStringBuilder.reflectionToString(this);</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

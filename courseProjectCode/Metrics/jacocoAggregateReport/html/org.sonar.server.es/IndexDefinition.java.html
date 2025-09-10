@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IndexDefinition.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.es</a> &gt; <span class="el_source">IndexDefinition.java</span></div><h1>IndexDefinition.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.es;
+
+import java.util.HashMap;
+import java.util.Map;
+import org.sonar.api.server.ServerSide;
+import org.sonar.server.es.newindex.NewAuthorizedIndex;
+import org.sonar.server.es.newindex.NewIndex;
+import org.sonar.server.es.newindex.NewRegularIndex;
+import org.sonar.server.es.newindex.SettingsConfiguration;
+
+import static com.google.common.base.Preconditions.checkArgument;
+
+@ServerSide
+public interface IndexDefinition {
+
+<span class="fc" id="L35">  class IndexDefinitionContext {</span>
+<span class="fc" id="L36">    private final Map&lt;String, NewIndex&gt; byKey = new HashMap&lt;&gt;();</span>
+
+    public NewRegularIndex create(Index index, SettingsConfiguration settingsConfiguration) {
+<span class="fc" id="L39">      String indexName = index.getName();</span>
+<span class="fc bfc" id="L40" title="All 2 branches covered.">      checkArgument(!byKey.containsKey(indexName), String.format(&quot;Index already exists: %s&quot;, indexName));</span>
+<span class="fc" id="L41">      NewRegularIndex newIndex = new NewRegularIndex(index, settingsConfiguration);</span>
+<span class="fc" id="L42">      byKey.put(indexName, newIndex);</span>
+<span class="fc" id="L43">      return newIndex;</span>
+    }
+
+    public NewAuthorizedIndex createWithAuthorization(Index index, SettingsConfiguration settingsConfiguration) {
+<span class="fc" id="L47">      checkArgument(index.acceptsRelations(), &quot;Index with authorization must accept relations&quot;);</span>
+<span class="fc" id="L48">      String indexName = index.getName();</span>
+<span class="pc bpc" id="L49" title="1 of 2 branches missed.">      checkArgument(!byKey.containsKey(indexName), String.format(&quot;Index already exists: %s&quot;, indexName));</span>
+
+<span class="fc" id="L51">      NewAuthorizedIndex newIndex = new NewAuthorizedIndex(index, settingsConfiguration);</span>
+<span class="fc" id="L52">      byKey.put(indexName, newIndex);</span>
+<span class="fc" id="L53">      return newIndex;</span>
+    }
+
+    public Map&lt;String, NewIndex&gt; getIndices() {
+<span class="fc" id="L57">      return byKey;</span>
+    }
+  }
+
+  void define(IndexDefinitionContext context);
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

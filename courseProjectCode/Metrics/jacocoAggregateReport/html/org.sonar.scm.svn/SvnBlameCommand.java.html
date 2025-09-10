@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SvnBlameCommand.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scm.svn</a> &gt; <span class="el_source">SvnBlameCommand.java</span></div><h1>SvnBlameCommand.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scm.svn;
+
+import com.google.common.annotations.VisibleForTesting;
+import java.util.List;
+import org.sonar.api.batch.fs.FileSystem;
+import org.sonar.api.batch.fs.InputFile;
+import org.sonar.api.batch.scm.BlameCommand;
+import org.sonar.api.batch.scm.BlameLine;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.tmatesoft.svn.core.SVNAuthenticationException;
+import org.tmatesoft.svn.core.SVNErrorCode;
+import org.tmatesoft.svn.core.SVNException;
+import org.tmatesoft.svn.core.wc.SVNClientManager;
+import org.tmatesoft.svn.core.wc.SVNDiffOptions;
+import org.tmatesoft.svn.core.wc.SVNLogClient;
+import org.tmatesoft.svn.core.wc.SVNRevision;
+import org.tmatesoft.svn.core.wc.SVNStatus;
+import org.tmatesoft.svn.core.wc.SVNStatusClient;
+import org.tmatesoft.svn.core.wc.SVNStatusType;
+
+import static org.sonar.scm.svn.SvnScmSupport.newSvnClientManager;
+
+public class SvnBlameCommand extends BlameCommand {
+
+<span class="fc" id="L45">  private static final Logger LOG = LoggerFactory.getLogger(SvnBlameCommand.class);</span>
+  private final SvnConfiguration configuration;
+
+<span class="fc" id="L48">  public SvnBlameCommand(SvnConfiguration configuration) {</span>
+<span class="fc" id="L49">    this.configuration = configuration;</span>
+<span class="fc" id="L50">  }</span>
+
+  @Override
+  public void blame(final BlameInput input, final BlameOutput output) {
+<span class="fc" id="L54">    FileSystem fs = input.fileSystem();</span>
+<span class="fc" id="L55">    LOG.debug(&quot;Working directory: &quot; + fs.baseDir().getAbsolutePath());</span>
+<span class="fc" id="L56">    SVNClientManager clientManager = null;</span>
+    try {
+<span class="fc" id="L58">      clientManager = newSvnClientManager(configuration);</span>
+<span class="fc bfc" id="L59" title="All 2 branches covered.">      for (InputFile inputFile : input.filesToBlame()) {</span>
+<span class="fc" id="L60">        blame(clientManager, inputFile, output);</span>
+<span class="fc" id="L61">      }</span>
+    } finally {
+<span class="pc bpc" id="L63" title="1 of 2 branches missed.">      if (clientManager != null) {</span>
+        try {
+<span class="fc" id="L65">          clientManager.dispose();</span>
+<span class="nc" id="L66">        } catch (Exception e) {</span>
+<span class="nc" id="L67">          LOG.warn(&quot;Unable to dispose SVN ClientManager&quot;, e);</span>
+<span class="fc" id="L68">        }</span>
+      }
+    }
+<span class="fc" id="L71">  }</span>
+
+  @VisibleForTesting
+  void blame(SVNClientManager clientManager, InputFile inputFile, BlameOutput output) {
+<span class="fc" id="L75">    String filename = inputFile.relativePath();</span>
+
+<span class="fc" id="L77">    LOG.debug(&quot;Process file {}&quot;, filename);</span>
+
+<span class="fc" id="L79">    AnnotationHandler handler = new AnnotationHandler();</span>
+    try {
+<span class="fc bfc" id="L81" title="All 2 branches covered.">      if (!checkStatus(clientManager, inputFile)) {</span>
+<span class="fc" id="L82">        return;</span>
+      }
+<span class="fc" id="L84">      SVNLogClient logClient = clientManager.getLogClient();</span>
+<span class="fc" id="L85">      logClient.setDiffOptions(new SVNDiffOptions(true, true, true));</span>
+<span class="fc" id="L86">      logClient.doAnnotate(inputFile.file(), SVNRevision.UNDEFINED, SVNRevision.create(1), SVNRevision.BASE, true, true, handler, null);</span>
+<span class="fc" id="L87">    } catch (SVNAuthenticationException e) {</span>
+<span class="fc bfc" id="L88" title="All 2 branches covered.">      if(configuration.isEmpty()) {</span>
+<span class="fc" id="L89">        LOG.warn(&quot;Authentication to SVN server is required but no authentication data was passed to the scanner&quot;);</span>
+      }
+<span class="fc" id="L91">      throw new IllegalStateException(&quot;Authentication error when executing blame for file &quot; + filename, e);</span>
+<span class="nc" id="L92">    } catch (SVNException e) {</span>
+<span class="nc" id="L93">      throw new IllegalStateException(&quot;Error when executing blame for file &quot; + filename, e);</span>
+<span class="fc" id="L94">    }</span>
+
+<span class="fc" id="L96">    List&lt;BlameLine&gt; lines = handler.getLines();</span>
+<span class="pc bpc" id="L97" title="1 of 2 branches missed.">    if (lines.size() == inputFile.lines() - 1) {</span>
+      // SONARPLUGINS-3097 SVN do not report blame on last empty line
+<span class="fc" id="L99">      lines.add(lines.get(lines.size() - 1));</span>
+    }
+<span class="fc" id="L101">    output.blameResult(inputFile, lines);</span>
+<span class="fc" id="L102">  }</span>
+
+  private static boolean checkStatus(SVNClientManager clientManager, InputFile inputFile) throws SVNException {
+<span class="fc" id="L105">    SVNStatusClient statusClient = clientManager.getStatusClient();</span>
+    try {
+<span class="fc" id="L107">      SVNStatus status = statusClient.doStatus(inputFile.file(), false);</span>
+<span class="fc bfc" id="L108" title="All 2 branches covered.">      if (status == null) {</span>
+<span class="fc" id="L109">        LOG.debug(&quot;File {} returns no svn state. Skipping it.&quot;, inputFile);</span>
+<span class="fc" id="L110">        return false;</span>
+      }
+<span class="fc bfc" id="L112" title="All 2 branches covered.">      if (status.getContentsStatus() != SVNStatusType.STATUS_NORMAL) {</span>
+<span class="fc" id="L113">        LOG.debug(&quot;File {} is not versionned or contains local modifications. Skipping it.&quot;, inputFile);</span>
+<span class="fc" id="L114">        return false;</span>
+      }
+<span class="fc" id="L116">    } catch (SVNException e) {</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">      if (SVNErrorCode.WC_PATH_NOT_FOUND.equals(e.getErrorMessage().getErrorCode())</span>
+<span class="pc bpc" id="L118" title="1 of 2 branches missed.">        || SVNErrorCode.WC_NOT_WORKING_COPY.equals(e.getErrorMessage().getErrorCode())) {</span>
+<span class="fc" id="L119">        LOG.debug(&quot;File {} is not versionned. Skipping it.&quot;, inputFile);</span>
+<span class="fc" id="L120">        return false;</span>
+      }
+<span class="nc" id="L122">      throw e;</span>
+<span class="fc" id="L123">    }</span>
+<span class="fc" id="L124">    return true;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

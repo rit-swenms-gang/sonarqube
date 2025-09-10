@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ActiveRuleCountQuery.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.qualityprofile</a> &gt; <span class="el_source">ActiveRuleCountQuery.java</span></div><h1>ActiveRuleCountQuery.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.qualityprofile;
+
+import java.util.List;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.api.rule.RuleStatus;
+
+import static com.google.common.base.Preconditions.checkState;
+
+public class ActiveRuleCountQuery {
+
+  private final List&lt;String&gt; profileUuids;
+  private final RuleStatus ruleStatus;
+  private final String inheritance;
+
+<span class="fc" id="L35">  public ActiveRuleCountQuery(Builder builder) {</span>
+<span class="fc" id="L36">    this.profileUuids = builder.profiles.stream().map(QProfileDto::getKee).toList();</span>
+<span class="fc" id="L37">    this.ruleStatus = builder.ruleStatus;</span>
+<span class="fc" id="L38">    this.inheritance = builder.inheritance;</span>
+<span class="fc" id="L39">  }</span>
+
+  public List&lt;String&gt; getProfileUuids() {
+<span class="fc" id="L42">    return profileUuids;</span>
+  }
+
+  /**
+   * When no rule status is set, removed rules are not returned
+   */
+  @CheckForNull
+  public RuleStatus getRuleStatus() {
+<span class="fc" id="L50">    return ruleStatus;</span>
+  }
+
+  @CheckForNull
+  public String getInheritance() {
+<span class="fc" id="L55">    return inheritance;</span>
+  }
+
+  public static Builder builder() {
+<span class="fc" id="L59">    return new Builder();</span>
+  }
+
+<span class="fc" id="L62">  public static class Builder {</span>
+    private List&lt;QProfileDto&gt; profiles;
+    private RuleStatus ruleStatus;
+    private String inheritance;
+
+    public Builder setProfiles(List&lt;QProfileDto&gt; profiles) {
+<span class="fc" id="L68">      this.profiles = profiles;</span>
+<span class="fc" id="L69">      return this;</span>
+    }
+
+    public Builder setRuleStatus(@Nullable RuleStatus ruleStatus) {
+<span class="fc" id="L73">      this.ruleStatus = ruleStatus;</span>
+<span class="fc" id="L74">      return this;</span>
+    }
+
+    public Builder setInheritance(@Nullable String inheritance) {
+<span class="fc" id="L78">      this.inheritance = inheritance;</span>
+<span class="fc" id="L79">      return this;</span>
+    }
+
+    public ActiveRuleCountQuery build() {
+<span class="pc bpc" id="L83" title="1 of 2 branches missed.">      checkState(profiles != null, &quot;Profiles cannot be null&quot;);</span>
+<span class="fc" id="L84">      return new ActiveRuleCountQuery(this);</span>
+    }
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

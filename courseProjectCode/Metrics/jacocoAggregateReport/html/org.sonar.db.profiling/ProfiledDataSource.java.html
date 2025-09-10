@@ -1,0 +1,522 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ProfiledDataSource.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.profiling</a> &gt; <span class="el_source">ProfiledDataSource.java</span></div><h1>ProfiledDataSource.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.profiling;
+
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariConfigMXBean;
+import com.zaxxer.hikari.HikariDataSource;
+import com.zaxxer.hikari.HikariPoolMXBean;
+import com.zaxxer.hikari.metrics.MetricsTrackerFactory;
+import java.io.PrintWriter;
+import java.sql.Connection;
+import java.sql.ConnectionBuilder;
+import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
+import java.sql.ShardingKeyBuilder;
+import java.util.Properties;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
+import javax.sql.DataSource;
+import org.sonar.api.utils.log.Logger;
+import org.sonar.api.utils.log.Loggers;
+
+public class ProfiledDataSource extends HikariDataSource {
+
+<span class="fc" id="L42">  static final Logger SQL_LOGGER = Loggers.get(&quot;sql&quot;);</span>
+
+  private final HikariDataSource delegate;
+  private ConnectionInterceptor connectionInterceptor;
+
+<span class="fc" id="L47">  public ProfiledDataSource(HikariDataSource delegate, ConnectionInterceptor connectionInterceptor) {</span>
+<span class="fc" id="L48">    this.delegate = delegate;</span>
+<span class="fc" id="L49">    this.connectionInterceptor = connectionInterceptor;</span>
+<span class="fc" id="L50">  }</span>
+
+  public HikariDataSource getDelegate() {
+<span class="fc" id="L53">    return delegate;</span>
+  }
+
+  public synchronized void setConnectionInterceptor(ConnectionInterceptor ci) {
+<span class="fc" id="L57">    this.connectionInterceptor = ci;</span>
+<span class="fc" id="L58">  }</span>
+
+  @Override
+  public boolean isAutoCommit() {
+<span class="fc" id="L62">    return delegate.isAutoCommit();</span>
+  }
+
+  @Override
+  public boolean isReadOnly() {
+<span class="fc" id="L67">    return delegate.isReadOnly();</span>
+  }
+
+  @Override
+  public String getTransactionIsolation() {
+<span class="fc" id="L72">    return delegate.getTransactionIsolation();</span>
+  }
+
+  @Override
+  public void setTransactionIsolation(String defaultTransactionIsolation) {
+<span class="fc" id="L77">    delegate.setTransactionIsolation(defaultTransactionIsolation);</span>
+<span class="fc" id="L78">  }</span>
+
+  @Override
+  public String getCatalog() {
+<span class="fc" id="L82">    return delegate.getCatalog();</span>
+  }
+
+  @Override
+  public void setCatalog(String defaultCatalog) {
+<span class="fc" id="L87">    delegate.setCatalog(defaultCatalog);</span>
+<span class="fc" id="L88">  }</span>
+
+  @Override
+  public synchronized String getDriverClassName() {
+<span class="fc" id="L92">    return delegate.getDriverClassName();</span>
+  }
+
+  @Override
+  public synchronized void setDriverClassName(String driverClassName) {
+<span class="fc" id="L97">    delegate.setDriverClassName(driverClassName);</span>
+<span class="fc" id="L98">  }</span>
+
+  @Override
+  public int getMaximumPoolSize() {
+<span class="fc" id="L102">    return delegate.getMaximumPoolSize();</span>
+  }
+
+  @Override
+  public void setMaximumPoolSize(int maxActive) {
+<span class="fc" id="L107">    delegate.setMaximumPoolSize(maxActive);</span>
+<span class="fc" id="L108">  }</span>
+
+  @Override
+  public Connection getConnection() throws SQLException {
+<span class="fc" id="L112">    return connectionInterceptor.getConnection(delegate);</span>
+  }
+
+  @Override
+  public Connection getConnection(String login, String password) throws SQLException {
+<span class="nc" id="L117">    return connectionInterceptor.getConnection(this, login, password);</span>
+  }
+
+  @Override
+  public PrintWriter getLogWriter() throws SQLException {
+<span class="fc" id="L122">    return delegate.getLogWriter();</span>
+  }
+
+  @Override
+  public void setLogWriter(PrintWriter out) throws SQLException {
+<span class="nc" id="L127">    delegate.setLogWriter(out);</span>
+<span class="nc" id="L128">  }</span>
+
+  @Override
+  public void setLoginTimeout(int seconds) throws SQLException {
+<span class="fc" id="L132">    delegate.setLoginTimeout(seconds);</span>
+<span class="fc" id="L133">  }</span>
+
+  @Override
+  public int getLoginTimeout() throws SQLException {
+<span class="fc" id="L137">    return delegate.getLoginTimeout();</span>
+  }
+
+  @Override
+  public java.util.logging.Logger getParentLogger() throws SQLFeatureNotSupportedException {
+<span class="fc" id="L142">    return delegate.getParentLogger();</span>
+  }
+
+  @Override
+  public &lt;T&gt; T unwrap(Class&lt;T&gt; iface) throws SQLException {
+<span class="nc" id="L147">    return delegate.unwrap(iface);</span>
+  }
+
+  @Override
+  public boolean isWrapperFor(Class&lt;?&gt; iface) throws SQLException {
+<span class="nc" id="L152">    return delegate.isWrapperFor(iface);</span>
+  }
+
+  @Override
+  public void setMetricRegistry(Object metricRegistry) {
+<span class="nc" id="L157">    delegate.setMetricRegistry(metricRegistry);</span>
+<span class="nc" id="L158">  }</span>
+
+  @Override
+  public void setMetricsTrackerFactory(MetricsTrackerFactory metricsTrackerFactory) {
+<span class="nc" id="L162">    delegate.setMetricsTrackerFactory(metricsTrackerFactory);</span>
+<span class="nc" id="L163">  }</span>
+
+  @Override
+  public void setHealthCheckRegistry(Object healthCheckRegistry) {
+<span class="nc" id="L167">    delegate.setHealthCheckRegistry(healthCheckRegistry);</span>
+<span class="nc" id="L168">  }</span>
+
+  @Override
+  public boolean isRunning() {
+<span class="fc" id="L172">    return delegate.isRunning();</span>
+  }
+
+  @Override
+  public HikariPoolMXBean getHikariPoolMXBean() {
+<span class="fc" id="L177">    return delegate.getHikariPoolMXBean();</span>
+  }
+
+  @Override
+  public HikariConfigMXBean getHikariConfigMXBean() {
+<span class="fc" id="L182">    return delegate.getHikariConfigMXBean();</span>
+  }
+
+  @Override
+  public void evictConnection(Connection connection) {
+<span class="nc" id="L187">    delegate.evictConnection(connection);</span>
+<span class="nc" id="L188">  }</span>
+
+  @Override
+  public void close() {
+<span class="fc" id="L192">    delegate.close();</span>
+<span class="fc" id="L193">  }</span>
+
+  @Override
+  public boolean isClosed() {
+<span class="fc" id="L197">    return delegate.isClosed();</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="fc" id="L202">    return delegate.toString();</span>
+  }
+
+  @Override
+  public long getConnectionTimeout() {
+<span class="fc" id="L207">    return delegate.getConnectionTimeout();</span>
+  }
+
+  @Override
+  public void setConnectionTimeout(long connectionTimeoutMs) {
+<span class="fc" id="L212">    delegate.setConnectionTimeout(connectionTimeoutMs);</span>
+<span class="fc" id="L213">  }</span>
+
+  @Override
+  public long getIdleTimeout() {
+<span class="fc" id="L217">    return delegate.getIdleTimeout();</span>
+  }
+
+  @Override
+  public void setIdleTimeout(long idleTimeoutMs) {
+<span class="fc" id="L222">    delegate.setIdleTimeout(idleTimeoutMs);</span>
+<span class="fc" id="L223">  }</span>
+
+  @Override
+  public long getLeakDetectionThreshold() {
+<span class="fc" id="L227">    return delegate.getLeakDetectionThreshold();</span>
+  }
+
+  @Override
+  public void setLeakDetectionThreshold(long leakDetectionThresholdMs) {
+<span class="fc" id="L232">    delegate.setLeakDetectionThreshold(leakDetectionThresholdMs);</span>
+<span class="fc" id="L233">  }</span>
+
+  @Override
+  public long getMaxLifetime() {
+<span class="fc" id="L237">    return delegate.getMaxLifetime();</span>
+  }
+
+  @Override
+  public void setMaxLifetime(long maxLifetimeMs) {
+<span class="fc" id="L242">    delegate.setMaxLifetime(maxLifetimeMs);</span>
+<span class="fc" id="L243">  }</span>
+
+  @Override
+  public int getMinimumIdle() {
+<span class="fc" id="L247">    return delegate.getMinimumIdle();</span>
+  }
+
+  @Override
+  public void setMinimumIdle(int minIdle) {
+<span class="fc" id="L252">    delegate.setMinimumIdle(minIdle);</span>
+<span class="fc" id="L253">  }</span>
+
+  @Override
+  public String getPassword() {
+<span class="fc" id="L257">    return delegate.getPassword();</span>
+  }
+
+  @Override
+  public void setPassword(String password) {
+<span class="fc" id="L262">    delegate.setPassword(password);</span>
+<span class="fc" id="L263">  }</span>
+
+  @Override
+  public String getUsername() {
+<span class="fc" id="L267">    return delegate.getUsername();</span>
+  }
+
+  @Override
+  public void setUsername(String username) {
+<span class="fc" id="L272">    delegate.setUsername(username);</span>
+<span class="fc" id="L273">  }</span>
+
+  @Override
+  public long getValidationTimeout() {
+<span class="fc" id="L277">    return delegate.getValidationTimeout();</span>
+  }
+
+  @Override
+  public void setValidationTimeout(long validationTimeoutMs) {
+<span class="fc" id="L282">    delegate.setValidationTimeout(validationTimeoutMs);</span>
+<span class="fc" id="L283">  }</span>
+
+  @Override
+  public String getConnectionTestQuery() {
+<span class="fc" id="L287">    return delegate.getConnectionTestQuery();</span>
+  }
+
+  @Override
+  public void setConnectionTestQuery(String connectionTestQuery) {
+<span class="fc" id="L292">    delegate.setConnectionTestQuery(connectionTestQuery);</span>
+<span class="fc" id="L293">  }</span>
+
+  @Override
+  public String getConnectionInitSql() {
+<span class="fc" id="L297">    return delegate.getConnectionInitSql();</span>
+  }
+
+  @Override
+  public void setConnectionInitSql(String connectionInitSql) {
+<span class="fc" id="L302">    delegate.setConnectionInitSql(connectionInitSql);</span>
+<span class="fc" id="L303">  }</span>
+
+  @Override
+  public DataSource getDataSource() {
+<span class="fc" id="L307">    return delegate.getDataSource();</span>
+  }
+
+  @Override
+  public void setDataSource(DataSource dataSource) {
+<span class="nc" id="L312">    delegate.setDataSource(dataSource);</span>
+<span class="nc" id="L313">  }</span>
+
+  @Override
+  public String getDataSourceClassName() {
+<span class="fc" id="L317">    return delegate.getDataSourceClassName();</span>
+  }
+
+  @Override
+  public void setDataSourceClassName(String className) {
+<span class="fc" id="L322">    delegate.setDataSourceClassName(className);</span>
+<span class="fc" id="L323">  }</span>
+
+  @Override
+  public void addDataSourceProperty(String propertyName, Object value) {
+<span class="nc" id="L327">    delegate.addDataSourceProperty(propertyName, value);</span>
+<span class="nc" id="L328">  }</span>
+
+  @Override
+  public String getDataSourceJNDI() {
+<span class="fc" id="L332">    return delegate.getDataSourceJNDI();</span>
+  }
+
+  @Override
+  public void setDataSourceJNDI(String jndiDataSource) {
+<span class="fc" id="L337">    delegate.setDataSourceJNDI(jndiDataSource);</span>
+<span class="fc" id="L338">  }</span>
+
+  @Override
+  public Properties getDataSourceProperties() {
+<span class="fc" id="L342">    return delegate.getDataSourceProperties();</span>
+  }
+
+  @Override
+  public void setDataSourceProperties(Properties dsProperties) {
+<span class="fc" id="L347">    delegate.setDataSourceProperties(dsProperties);</span>
+<span class="fc" id="L348">  }</span>
+
+  @Override
+  public String getJdbcUrl() {
+<span class="fc" id="L352">    return delegate.getJdbcUrl();</span>
+  }
+
+  @Override
+  public void setJdbcUrl(String jdbcUrl) {
+<span class="fc" id="L357">    delegate.setJdbcUrl(jdbcUrl);</span>
+<span class="fc" id="L358">  }</span>
+
+  @Override
+  public void setAutoCommit(boolean isAutoCommit) {
+<span class="fc" id="L362">    delegate.setAutoCommit(isAutoCommit);</span>
+<span class="fc" id="L363">  }</span>
+
+  @Override
+  public boolean isAllowPoolSuspension() {
+<span class="fc" id="L367">    return delegate.isAllowPoolSuspension();</span>
+  }
+
+  @Override
+  public void setAllowPoolSuspension(boolean isAllowPoolSuspension) {
+<span class="fc" id="L372">    delegate.setAllowPoolSuspension(isAllowPoolSuspension);</span>
+<span class="fc" id="L373">  }</span>
+
+  @Override
+  public long getInitializationFailTimeout() {
+<span class="fc" id="L377">    return delegate.getInitializationFailTimeout();</span>
+  }
+
+  @Override
+  public void setInitializationFailTimeout(long initializationFailTimeout) {
+<span class="fc" id="L382">    delegate.setInitializationFailTimeout(initializationFailTimeout);</span>
+<span class="fc" id="L383">  }</span>
+
+  @Override
+  public boolean isIsolateInternalQueries() {
+<span class="fc" id="L387">    return delegate.isIsolateInternalQueries();</span>
+  }
+
+  @Override
+  public void setIsolateInternalQueries(boolean isolate) {
+<span class="fc" id="L392">    delegate.setIsolateInternalQueries(isolate);</span>
+<span class="fc" id="L393">  }</span>
+
+  @Override
+  public MetricsTrackerFactory getMetricsTrackerFactory() {
+<span class="fc" id="L397">    return delegate.getMetricsTrackerFactory();</span>
+  }
+
+  @Override
+  public Object getMetricRegistry() {
+<span class="fc" id="L402">    return delegate.getMetricRegistry();</span>
+  }
+
+  @Override
+  public Object getHealthCheckRegistry() {
+<span class="fc" id="L407">    return delegate.getHealthCheckRegistry();</span>
+  }
+
+  @Override
+  public Properties getHealthCheckProperties() {
+<span class="fc" id="L412">    return delegate.getHealthCheckProperties();</span>
+  }
+
+  @Override
+  public void setHealthCheckProperties(Properties healthCheckProperties) {
+<span class="fc" id="L417">    delegate.setHealthCheckProperties(healthCheckProperties);</span>
+<span class="fc" id="L418">  }</span>
+
+  @Override
+  public void addHealthCheckProperty(String key, String value) {
+<span class="fc" id="L422">    delegate.addHealthCheckProperty(key, value);</span>
+<span class="fc" id="L423">  }</span>
+
+  @Override
+  public long getKeepaliveTime() {
+<span class="fc" id="L427">    return delegate.getKeepaliveTime();</span>
+  }
+
+  @Override
+  public void setKeepaliveTime(long keepaliveTimeMs) {
+<span class="fc" id="L432">    delegate.setKeepaliveTime(keepaliveTimeMs);</span>
+<span class="fc" id="L433">  }</span>
+
+  @Override
+  public void setReadOnly(boolean readOnly) {
+<span class="fc" id="L437">    delegate.setReadOnly(readOnly);</span>
+<span class="fc" id="L438">  }</span>
+
+  @Override
+  public boolean isRegisterMbeans() {
+<span class="fc" id="L442">    return delegate.isRegisterMbeans();</span>
+  }
+
+  @Override
+  public void setRegisterMbeans(boolean register) {
+<span class="fc" id="L447">    delegate.setRegisterMbeans(register);</span>
+<span class="fc" id="L448">  }</span>
+
+  @Override
+  public String getPoolName() {
+<span class="fc" id="L452">    return delegate.getPoolName();</span>
+  }
+
+  @Override
+  public void setPoolName(String poolName) {
+<span class="fc" id="L457">    delegate.setPoolName(poolName);</span>
+<span class="fc" id="L458">  }</span>
+
+  @Override
+  public ScheduledExecutorService getScheduledExecutor() {
+<span class="fc" id="L462">    return delegate.getScheduledExecutor();</span>
+  }
+
+  @Override
+  public void setScheduledExecutor(ScheduledExecutorService executor) {
+<span class="fc" id="L467">    delegate.setScheduledExecutor(executor);</span>
+<span class="fc" id="L468">  }</span>
+
+  @Override
+  public String getSchema() {
+<span class="fc" id="L472">    return delegate.getSchema();</span>
+  }
+
+  @Override
+  public void setSchema(String schema) {
+<span class="fc" id="L477">    delegate.setSchema(schema);</span>
+<span class="fc" id="L478">  }</span>
+
+  @Override
+  public String getExceptionOverrideClassName() {
+<span class="fc" id="L482">    return delegate.getExceptionOverrideClassName();</span>
+  }
+
+  @Override
+  public void setExceptionOverrideClassName(String exceptionOverrideClassName) {
+<span class="fc" id="L487">    delegate.setExceptionOverrideClassName(exceptionOverrideClassName);</span>
+<span class="fc" id="L488">  }</span>
+
+  @Override
+  public ThreadFactory getThreadFactory() {
+<span class="fc" id="L492">    return delegate.getThreadFactory();</span>
+  }
+
+  @Override
+  public void setThreadFactory(ThreadFactory threadFactory) {
+<span class="fc" id="L497">    delegate.setThreadFactory(threadFactory);</span>
+<span class="fc" id="L498">  }</span>
+
+  @Override
+  public void copyStateTo(HikariConfig other) {
+<span class="fc" id="L502">    delegate.copyStateTo(other);</span>
+<span class="fc" id="L503">  }</span>
+
+  @Override
+  public void validate() {
+<span class="fc" id="L507">    delegate.validate();</span>
+<span class="fc" id="L508">  }</span>
+
+  @Override
+  public ConnectionBuilder createConnectionBuilder() throws SQLException {
+<span class="fc" id="L512">    return delegate.createConnectionBuilder();</span>
+  }
+
+  @Override
+  public ShardingKeyBuilder createShardingKeyBuilder() throws SQLException {
+<span class="fc" id="L517">    return delegate.createShardingKeyBuilder();</span>
+  }
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

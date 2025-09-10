@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Arch.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.v2.common.model</a> &gt; <span class="el_source">Arch.java</span></div><h1>Arch.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.v2.common.model;
+
+import java.util.Arrays;
+import java.util.List;
+
+import static java.lang.String.join;
+import static java.util.Locale.ENGLISH;
+
+<span class="fc" id="L28">public enum Arch {</span>
+<span class="fc" id="L29">  X64(&quot;x86_64&quot;, &quot;x86-64&quot;, &quot;amd64&quot;, &quot;x64&quot;),</span>
+<span class="fc" id="L30">  AARCH64(&quot;arm64&quot;, &quot;aarch64&quot;);</span>
+
+  private final List&lt;String&gt; aliases;
+
+<span class="fc" id="L34">  Arch(String... aliases) {</span>
+<span class="fc" id="L35">    this.aliases = Arrays.stream(aliases).toList();</span>
+<span class="fc" id="L36">  }</span>
+
+  public static Arch from(String alias) {
+<span class="fc" id="L39">    return Arrays.stream(values())</span>
+<span class="fc" id="L40">      .filter(arch -&gt; arch.aliases.contains(alias.toLowerCase(ENGLISH)))</span>
+<span class="fc" id="L41">      .findFirst()</span>
+<span class="fc" id="L42">      .orElseThrow(() -&gt; new IllegalArgumentException(String.format(&quot;Unsupported architecture: '%s'. Supported values are '%s'&quot;, alias, join(&quot;, &quot;, supportedValues()))));</span>
+  }
+
+  public static List&lt;String&gt; supportedValues() {
+<span class="fc" id="L46">    return Arrays.stream(values())</span>
+<span class="fc" id="L47">      .flatMap(arch -&gt; arch.aliases.stream())</span>
+<span class="fc" id="L48">      .toList();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

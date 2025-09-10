@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MapSettings.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.api.config.internal</a> &gt; <span class="el_source">MapSettings.java</span></div><h1>MapSettings.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.api.config.internal;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import org.sonar.api.config.Configuration;
+import org.sonar.api.config.PropertyDefinitions;
+import org.sonar.api.utils.System2;
+
+import static java.util.Collections.unmodifiableMap;
+import static java.util.Objects.requireNonNull;
+
+/**
+ * In-memory map-based implementation of {@link Settings}. It must be used
+ * &lt;b&gt;only for unit tests&lt;/b&gt;. This is not the implementation
+ * deployed at runtime, so non-test code must never cast
+ * {@link Settings} to {@link MapSettings}.
+ *
+ * @since 6.1
+ */
+public class MapSettings extends Settings {
+
+<span class="fc" id="L42">  private final Map&lt;String, String&gt; props = new HashMap&lt;&gt;();</span>
+  private final ConfigurationBridge configurationBridge;
+
+  public MapSettings() {
+<span class="fc" id="L46">    this(new PropertyDefinitions(System2.INSTANCE));</span>
+<span class="fc" id="L47">  }</span>
+
+  public MapSettings(PropertyDefinitions definitions) {
+<span class="fc" id="L50">    super(definitions, new Encryption(null));</span>
+<span class="fc" id="L51">    configurationBridge = new ConfigurationBridge(this);</span>
+<span class="fc" id="L52">  }</span>
+
+  @Override
+  protected Optional&lt;String&gt; get(String key) {
+<span class="fc" id="L56">    return Optional.ofNullable(props.get(key));</span>
+  }
+
+  @Override
+  protected void set(String key, String value) {
+<span class="fc" id="L61">    props.put(</span>
+<span class="fc" id="L62">      requireNonNull(key, &quot;key can't be null&quot;),</span>
+<span class="fc" id="L63">      requireNonNull(value, &quot;value can't be null&quot;).trim());</span>
+<span class="fc" id="L64">  }</span>
+
+  @Override
+  protected void remove(String key) {
+<span class="fc" id="L68">    props.remove(key);</span>
+<span class="fc" id="L69">  }</span>
+
+  @Override
+  public Map&lt;String, String&gt; getProperties() {
+<span class="fc" id="L73">    return unmodifiableMap(props);</span>
+  }
+
+  /**
+   * Delete all properties
+   */
+  public MapSettings clear() {
+<span class="fc" id="L80">    props.clear();</span>
+<span class="fc" id="L81">    return this;</span>
+  }
+
+  @Override
+  public MapSettings setProperty(String key, String value) {
+<span class="fc" id="L86">    return (MapSettings) super.setProperty(key, value);</span>
+  }
+
+  @Override
+  public MapSettings setProperty(String key, Integer value) {
+<span class="fc" id="L91">    return (MapSettings) super.setProperty(key, value);</span>
+  }
+
+  @Override
+  public MapSettings setProperty(String key, Boolean value) {
+<span class="fc" id="L96">    return (MapSettings) super.setProperty(key, value);</span>
+  }
+
+  @Override
+  public MapSettings setProperty(String key, Long value) {
+<span class="fc" id="L101">    return (MapSettings) super.setProperty(key, value);</span>
+  }
+
+  /**
+   * @return a {@link Configuration} proxy on top of this existing {@link Settings} implementation. Changes are reflected in the {@link Configuration} object.
+   * @since 6.5
+   */
+  public Configuration asConfig() {
+<span class="fc" id="L109">    return configurationBridge;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

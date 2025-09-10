@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractStopRequestWatcher.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.application</a> &gt; <span class="el_source">AbstractStopRequestWatcher.java</span></div><h1>AbstractStopRequestWatcher.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.application;
+
+import com.google.common.annotations.VisibleForTesting;
+import java.util.function.BooleanSupplier;
+
+public abstract class AbstractStopRequestWatcher extends Thread implements StopRequestWatcher {
+  private static final long DEFAULT_WATCHER_DELAY_MS = 500L;
+  private final BooleanSupplier stopRequestedTest;
+  private final Runnable stopAction;
+  private final long delayMs;
+
+  protected AbstractStopRequestWatcher(String threadName, BooleanSupplier stopRequestedTest, Runnable stopAction) {
+<span class="fc" id="L32">    this(threadName, stopRequestedTest, stopAction, DEFAULT_WATCHER_DELAY_MS);</span>
+<span class="fc" id="L33">  }</span>
+
+  @VisibleForTesting
+  AbstractStopRequestWatcher(String threadName, BooleanSupplier stopRequestedTest, Runnable stopAction, long delayMs) {
+<span class="fc" id="L37">    super(threadName);</span>
+<span class="fc" id="L38">    this.stopRequestedTest = stopRequestedTest;</span>
+<span class="fc" id="L39">    this.stopAction = stopAction;</span>
+<span class="fc" id="L40">    this.delayMs = delayMs;</span>
+
+    // safeguard, do not block the JVM if thread is not interrupted
+    // (method stopWatching() never called).
+<span class="fc" id="L44">    setDaemon(true);</span>
+<span class="fc" id="L45">  }</span>
+
+  @Override
+  public void run() {
+    try {
+      while (true) {
+<span class="fc bfc" id="L51" title="All 2 branches covered.">        if (stopRequestedTest.getAsBoolean()) {</span>
+<span class="fc" id="L52">          stopAction.run();</span>
+<span class="fc" id="L53">          return;</span>
+        }
+<span class="fc" id="L55">        Thread.sleep(delayMs);</span>
+      }
+<span class="fc" id="L57">    } catch (InterruptedException e) {</span>
+<span class="fc" id="L58">      interrupt();</span>
+      // stop watching the commands
+    }
+<span class="fc" id="L61">  }</span>
+
+  @VisibleForTesting
+  long getDelayMs() {
+<span class="fc" id="L65">    return delayMs;</span>
+  }
+
+  public void startWatching() {
+<span class="fc" id="L69">    start();</span>
+<span class="fc" id="L70">  }</span>
+
+  public void stopWatching() {
+    // does nothing if not started
+<span class="fc" id="L74">    interrupt();</span>
+<span class="fc" id="L75">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

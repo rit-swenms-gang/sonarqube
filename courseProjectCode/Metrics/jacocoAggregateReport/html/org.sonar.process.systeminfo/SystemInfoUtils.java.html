@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SystemInfoUtils.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.process.systeminfo</a> &gt; <span class="el_source">SystemInfoUtils.java</span></div><h1>SystemInfoUtils.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.process.systeminfo;
+
+import com.google.common.base.Joiner;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.process.systeminfo.protobuf.ProtobufSystemInfo;
+import org.sonar.process.systeminfo.protobuf.ProtobufSystemInfo.Section;
+
+import static java.util.Arrays.stream;
+
+public class SystemInfoUtils {
+
+<span class="fc" id="L37">  private static final Joiner COMMA_JOINER = Joiner.on(&quot;, &quot;);</span>
+
+  private SystemInfoUtils() {
+    // prevent instantiation
+  }
+
+  public static void setAttribute(Section.Builder section, String key, @Nullable String value) {
+<span class="fc bfc" id="L44" title="All 2 branches covered.">    if (value != null) {</span>
+<span class="fc" id="L45">      section.addAttributesBuilder()</span>
+<span class="fc" id="L46">        .setKey(key)</span>
+<span class="fc" id="L47">        .setStringValue(value)</span>
+<span class="fc" id="L48">        .build();</span>
+    }
+<span class="fc" id="L50">  }</span>
+
+  public static void setAttribute(Section.Builder section, String key, @Nullable Collection&lt;String&gt; values) {
+<span class="nc bnc" id="L53" title="All 2 branches missed.">    if (values != null) {</span>
+<span class="nc" id="L54">      section.addAttributesBuilder()</span>
+<span class="nc" id="L55">        .setKey(key)</span>
+<span class="nc" id="L56">        .addAllStringValues(values)</span>
+<span class="nc" id="L57">        .build();</span>
+    }
+<span class="nc" id="L59">  }</span>
+
+  public static void setAttribute(Section.Builder section, String key, @Nullable Boolean value) {
+<span class="fc bfc" id="L62" title="All 2 branches covered.">    if (value != null) {</span>
+<span class="fc" id="L63">      section.addAttributesBuilder()</span>
+<span class="fc" id="L64">        .setKey(key)</span>
+<span class="fc" id="L65">        .setBooleanValue(value)</span>
+<span class="fc" id="L66">        .build();</span>
+    }
+<span class="fc" id="L68">  }</span>
+
+  public static void setAttribute(Section.Builder section, String key, long value) {
+<span class="fc" id="L71">    section.addAttributesBuilder()</span>
+<span class="fc" id="L72">      .setKey(key)</span>
+<span class="fc" id="L73">      .setLongValue(value)</span>
+<span class="fc" id="L74">      .build();</span>
+<span class="fc" id="L75">  }</span>
+
+  @CheckForNull
+  public static ProtobufSystemInfo.Attribute attribute(Section section, String key) {
+<span class="fc bfc" id="L79" title="All 2 branches covered.">    for (ProtobufSystemInfo.Attribute attribute : section.getAttributesList()) {</span>
+<span class="fc bfc" id="L80" title="All 2 branches covered.">      if (attribute.getKey().equals(key)) {</span>
+<span class="fc" id="L81">        return attribute;</span>
+      }
+<span class="fc" id="L83">    }</span>
+<span class="fc" id="L84">    return null;</span>
+  }
+
+  public static List&lt;Section&gt; order(Collection&lt;Section&gt; sections, String... orderedNames) {
+<span class="fc" id="L88">    Map&lt;String, Section&gt; alphabeticalOrderedMap = new TreeMap&lt;&gt;();</span>
+<span class="fc" id="L89">    sections.forEach(section -&gt; alphabeticalOrderedMap.put(section.getName(), section));</span>
+
+<span class="fc" id="L91">    List&lt;Section&gt; result = new ArrayList&lt;&gt;(sections.size());</span>
+<span class="fc" id="L92">    stream(orderedNames).forEach(name -&gt; {</span>
+<span class="fc" id="L93">      Section section = alphabeticalOrderedMap.remove(name);</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">      if (section != null) {</span>
+<span class="fc" id="L95">        result.add(section);</span>
+      }
+<span class="fc" id="L97">    });</span>
+<span class="fc" id="L98">    result.addAll(alphabeticalOrderedMap.values());</span>
+<span class="fc" id="L99">    return result;</span>
+  }
+
+  public static void addIfNotEmpty(ProtobufSystemInfo.Section.Builder protobuf, String key, @Nullable List&lt;String&gt; values) {
+<span class="pc bpc" id="L103" title="1 of 4 branches missed.">    if (values != null &amp;&amp; !values.isEmpty()) {</span>
+<span class="fc" id="L104">      setAttribute(protobuf, key, COMMA_JOINER.join(values));</span>
+    }
+<span class="fc" id="L106">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

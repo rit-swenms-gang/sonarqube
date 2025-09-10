@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AuthorizationDao.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.permission</a> &gt; <span class="el_source">AuthorizationDao.java</span></div><h1>AuthorizationDao.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.permission;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Set;
+import javax.annotation.Nullable;
+import org.sonar.db.Dao;
+import org.sonar.db.DbSession;
+import org.sonar.db.EmailSubscriberDto;
+
+import static org.sonar.db.DatabaseUtils.executeLargeInputs;
+import static org.sonar.db.DatabaseUtils.executeLargeInputsIntoSet;
+import static org.sonar.db.permission.GlobalPermission.ADMINISTER;
+import static org.sonar.db.permission.GlobalPermission.ADMINISTER_QUALITY_GATES;
+import static org.sonar.db.permission.GlobalPermission.ADMINISTER_QUALITY_PROFILES;
+
+/**
+ * The SQL requests used to verify authorization (the permissions
+ * granted to users)
+ *
+ * @see GroupPermissionDao for CRUD of table group_roles
+ * @see UserPermissionDao for CRUD of table user_roles
+ */
+<span class="fc" id="L43">public class AuthorizationDao implements Dao {</span>
+
+  /**
+   * Loads all the global permissions granted to user
+   */
+  public Set&lt;String&gt; selectGlobalPermissions(DbSession dbSession, String userUuid) {
+<span class="fc" id="L49">    return mapper(dbSession).selectGlobalPermissions(userUuid);</span>
+  }
+
+  /**
+   * Loads all the permissions granted to anonymous user
+   */
+  public Set&lt;String&gt; selectGlobalPermissionsOfAnonymous(DbSession dbSession) {
+<span class="fc" id="L56">    return mapper(dbSession).selectGlobalPermissionsOfAnonymous();</span>
+  }
+
+  /**
+   * Loads all the permissions granted to logged-in user for the specified entity &lt;strong&gt;stored in *_ROLES
+   * tables&lt;/strong&gt;.
+   * An empty Set is returned if user has no permissions on the entity.
+   *
+   * &lt;strong&gt;This method does not support public components&lt;/strong&gt;
+   */
+  public Set&lt;String&gt; selectEntityPermissions(DbSession dbSession, String entityUuid, String userUuid) {
+<span class="fc" id="L67">    return mapper(dbSession).selectEntityPermissions(entityUuid, userUuid);</span>
+  }
+
+  public Set&lt;UserAndPermissionDto&gt; selectEntityPermissionsObtainedViaManagedGroup(DbSession dbSession, String entityUuid, String managedInstanceProvider) {
+<span class="fc" id="L71">    return mapper(dbSession).selectEntityPermissionsObtainedViaManagedGroup(entityUuid, managedInstanceProvider);</span>
+  }
+
+  /**
+   * Loads all the permissions granted to anonymous for the specified entity &lt;strong&gt;stored in *_ROLES
+   * tables&lt;/strong&gt;.
+   * An empty Set is returned if anonymous user has no permissions on the entity.
+   *
+   * &lt;strong&gt;This method does not support public components&lt;/strong&gt;
+   */
+  public Set&lt;String&gt; selectEntityPermissionsOfAnonymous(DbSession dbSession, String entityUuid) {
+<span class="fc" id="L82">    return mapper(dbSession).selectEntityPermissionsOfAnonymous(entityUuid);</span>
+  }
+
+  /**
+   * The number of users who will still have the permission if the group {@code excludedGroupUuid}
+   * is deleted. The anyone virtual group is not taken into account.
+   */
+  public int countUsersWithGlobalPermissionExcludingGroup(DbSession dbSession, String permission, String excludedGroupUuid) {
+<span class="fc" id="L90">    return mapper(dbSession).countUsersWithGlobalPermissionExcludingGroup(permission, excludedGroupUuid);</span>
+  }
+
+  /**
+   * The number of users who will still have the permission if the user {@code excludedUserId}
+   * is deleted. The anyone virtual group is not taken into account.
+   */
+  public int countUsersWithGlobalPermissionExcludingUser(DbSession dbSession, String permission, String excludedUserUuid) {
+<span class="fc" id="L98">    return mapper(dbSession).countUsersWithGlobalPermissionExcludingUser(permission, excludedUserUuid);</span>
+  }
+
+  /**
+   * The list of users who have the global permission.
+   * The anyone virtual group is not taken into account.
+   */
+  public List&lt;String&gt; selectUserUuidsWithGlobalPermission(DbSession dbSession, String permission) {
+<span class="fc" id="L106">    return mapper(dbSession).selectUserUuidsWithGlobalPermission(permission);</span>
+  }
+
+  /**
+   * The number of users who will still have the permission if the user {@code userId}
+   * is removed from group {@code groupUuid}. The anyone virtual group is not taken into account.
+   * Contrary to {@link #countUsersWithGlobalPermissionExcludingUser(DbSession, String, String)}, user
+   * still exists and may have the permission directly or through other groups.
+   */
+  public int countUsersWithGlobalPermissionExcludingGroupMember(DbSession dbSession, String permission, String groupUuid, String userUuid) {
+<span class="fc" id="L116">    return mapper(dbSession).countUsersWithGlobalPermissionExcludingGroupMember(permission, groupUuid, userUuid);</span>
+  }
+
+  /**
+   * The number of users who will still have the permission if the permission {@code permission}
+   * is removed from user {@code userId}. The anyone virtual group is not taken into account.
+   * Contrary to {@link #countUsersWithGlobalPermissionExcludingUser(DbSession, String, String)}, user
+   * still exists and may have the permission through groups.
+   */
+  public int countUsersWithGlobalPermissionExcludingUserPermission(DbSession dbSession, String permission, String userUuid) {
+<span class="fc" id="L126">    return mapper(dbSession).countUsersWithGlobalPermissionExcludingUserPermission(permission, userUuid);</span>
+  }
+
+  public Set&lt;String&gt; keepAuthorizedEntityUuids(DbSession dbSession, Collection&lt;String&gt; entityUuids, @Nullable String userUuid, ProjectPermission permission) {
+<span class="fc" id="L130">    return keepAuthorizedEntityUuids(dbSession, entityUuids, userUuid, permission.getKey());</span>
+  }
+
+  public Set&lt;String&gt; keepAuthorizedEntityUuids(DbSession dbSession, Collection&lt;String&gt; entityUuids, @Nullable String userUuid, String permission) {
+<span class="fc" id="L134">    return executeLargeInputsIntoSet(</span>
+      entityUuids,
+      partition -&gt; {
+<span class="fc bfc" id="L137" title="All 2 branches covered.">        if (userUuid == null) {</span>
+<span class="fc" id="L138">          return mapper(dbSession).keepAuthorizedEntityUuidsForAnonymous(permission, partition);</span>
+        }
+<span class="fc" id="L140">        return mapper(dbSession).keepAuthorizedEntityUuidsForUser(userUuid, permission, partition);</span>
+      },
+<span class="fc" id="L142">      partitionSize -&gt; partitionSize / 2);</span>
+  }
+
+  /**
+   * Keep only authorized user that have the given permission on a given entity.
+   * Please Note that if the permission is 'Anyone' is NOT taking into account by this method.
+   */
+  public Collection&lt;String&gt; keepAuthorizedUsersForRoleAndEntity(DbSession dbSession, Collection&lt;String&gt; userUuids, ProjectPermission permission, String entityUuid) {
+<span class="fc" id="L150">    return keepAuthorizedUsersForRoleAndEntity(dbSession, userUuids, permission.getKey(), entityUuid);</span>
+  }
+
+
+  public Collection&lt;String&gt; keepAuthorizedUsersForRoleAndEntity(DbSession dbSession, Collection&lt;String&gt; userUuids, String permission, String entityUuid) {
+<span class="fc" id="L155">    return executeLargeInputs(</span>
+      userUuids,
+<span class="fc" id="L157">      partitionOfIds -&gt; mapper(dbSession).keepAuthorizedUsersForRoleAndEntity(permission, entityUuid, partitionOfIds),</span>
+<span class="fc" id="L158">      partitionSize -&gt; partitionSize / 3);</span>
+  }
+
+  public Set&lt;EmailSubscriberDto&gt; selectQualityProfileAdministratorLogins(DbSession dbSession) {
+<span class="fc" id="L162">    return mapper(dbSession).selectEmailSubscribersWithGlobalPermission(ADMINISTER_QUALITY_PROFILES.getKey());</span>
+  }
+
+  public Set&lt;EmailSubscriberDto&gt; selectQualityGateAdministratorLogins(DbSession dbSession) {
+<span class="nc" id="L166">    return mapper(dbSession).selectEmailSubscribersWithGlobalPermission(ADMINISTER_QUALITY_GATES.getKey());</span>
+  }
+
+  public Set&lt;EmailSubscriberDto&gt; selectGlobalAdministerEmailSubscribers(DbSession dbSession) {
+<span class="fc" id="L170">    return mapper(dbSession).selectEmailSubscribersWithGlobalPermission(ADMINISTER.getKey());</span>
+  }
+
+  public Set&lt;String&gt; keepAuthorizedLoginsOnEntity(DbSession dbSession, Set&lt;String&gt; logins, String entityKey, ProjectPermission permission) {
+<span class="fc" id="L174">    return keepAuthorizedLoginsOnEntity(dbSession, logins, entityKey, permission.getKey());</span>
+  }
+
+  public Set&lt;String&gt; keepAuthorizedLoginsOnEntity(DbSession dbSession, Set&lt;String&gt; logins, String entityKey, String permission) {
+<span class="fc" id="L178">    return executeLargeInputsIntoSet(</span>
+      logins,
+<span class="fc" id="L180">      partitionOfLogins -&gt; mapper(dbSession).keepAuthorizedLoginsOnEntity(partitionOfLogins, entityKey, permission),</span>
+<span class="fc" id="L181">      partitionSize -&gt; partitionSize / 3);</span>
+  }
+
+  private static AuthorizationMapper mapper(DbSession dbSession) {
+<span class="fc" id="L185">    return dbSession.getMapper(AuthorizationMapper.class);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

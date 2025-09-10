@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultSymbolTable.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.api.batch.sensor.symbol.internal</a> &gt; <span class="el_source">DefaultSymbolTable.java</span></div><h1>DefaultSymbolTable.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.api.batch.sensor.symbol.internal;
+
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+import org.sonar.api.batch.fs.InputFile;
+import org.sonar.api.batch.fs.TextRange;
+import org.sonar.api.batch.fs.internal.DefaultInputFile;
+import org.sonar.api.batch.sensor.internal.DefaultStorable;
+import org.sonar.api.batch.sensor.internal.SensorStorage;
+import org.sonar.api.batch.sensor.symbol.NewSymbol;
+import org.sonar.api.batch.sensor.symbol.NewSymbolTable;
+
+import static java.util.Objects.requireNonNull;
+import static org.sonar.api.utils.Preconditions.checkArgument;
+import static org.sonar.api.utils.Preconditions.checkState;
+
+public class DefaultSymbolTable extends DefaultStorable implements NewSymbolTable {
+
+  private final Map&lt;TextRange, Set&lt;TextRange&gt;&gt; referencesBySymbol;
+  private DefaultInputFile inputFile;
+
+  public DefaultSymbolTable(SensorStorage storage) {
+<span class="fc" id="L45">    super(storage);</span>
+<span class="fc" id="L46">    referencesBySymbol = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L47">  }</span>
+
+  public Map&lt;TextRange, Set&lt;TextRange&gt;&gt; getReferencesBySymbol() {
+<span class="fc" id="L50">    return referencesBySymbol;</span>
+  }
+
+  @Override
+  public DefaultSymbolTable onFile(InputFile inputFile) {
+<span class="fc" id="L55">    requireNonNull(inputFile, &quot;file can't be null&quot;);</span>
+<span class="fc" id="L56">    this.inputFile = (DefaultInputFile) inputFile;</span>
+<span class="fc" id="L57">    return this;</span>
+  }
+
+  public InputFile inputFile() {
+<span class="fc" id="L61">    return inputFile;</span>
+  }
+
+  @Override
+  public NewSymbol newSymbol(int startLine, int startLineOffset, int endLine, int endLineOffset) {
+<span class="fc" id="L66">    checkInputFileNotNull();</span>
+    TextRange declarationRange;
+    try {
+<span class="fc" id="L69">      declarationRange = inputFile.newRange(startLine, startLineOffset, endLine, endLineOffset);</span>
+<span class="nc" id="L70">    } catch (Exception e) {</span>
+<span class="nc" id="L71">      throw new IllegalArgumentException(&quot;Unable to create symbol on file &quot; + inputFile, e);</span>
+<span class="fc" id="L72">    }</span>
+<span class="fc" id="L73">    return newSymbol(declarationRange);</span>
+  }
+
+  @Override
+  public NewSymbol newSymbol(TextRange range) {
+<span class="fc" id="L78">    checkInputFileNotNull();</span>
+<span class="fc" id="L79">    TreeSet&lt;TextRange&gt; references = new TreeSet&lt;&gt;((o1, o2) -&gt; o1.start().compareTo(o2.start()));</span>
+<span class="fc" id="L80">    referencesBySymbol.put(range, references);</span>
+<span class="fc" id="L81">    return new DefaultSymbol(inputFile, range, references);</span>
+  }
+
+  private static class DefaultSymbol implements NewSymbol {
+
+    private final Collection&lt;TextRange&gt; references;
+    private final DefaultInputFile inputFile;
+    private final TextRange declaration;
+
+<span class="fc" id="L90">    public DefaultSymbol(DefaultInputFile inputFile, TextRange declaration, Collection&lt;TextRange&gt; references) {</span>
+<span class="fc" id="L91">      this.inputFile = inputFile;</span>
+<span class="fc" id="L92">      this.declaration = declaration;</span>
+<span class="fc" id="L93">      this.references = references;</span>
+<span class="fc" id="L94">    }</span>
+
+    @Override
+    public NewSymbol newReference(int startLine, int startLineOffset, int endLine, int endLineOffset) {
+      TextRange referenceRange;
+      try {
+<span class="fc" id="L100">        referenceRange = inputFile.newRange(startLine, startLineOffset, endLine, endLineOffset);</span>
+<span class="nc" id="L101">      } catch (Exception e) {</span>
+<span class="nc" id="L102">        throw new IllegalArgumentException(&quot;Unable to create symbol reference on file &quot; + inputFile, e);</span>
+<span class="fc" id="L103">      }</span>
+<span class="fc" id="L104">      return newReference(referenceRange);</span>
+    }
+
+    @Override
+    public NewSymbol newReference(TextRange range) {
+<span class="fc" id="L109">      requireNonNull(range, &quot;Provided range is null&quot;);</span>
+<span class="fc bfc" id="L110" title="All 2 branches covered.">      checkArgument(!declaration.overlap(range),</span>
+        &quot;Overlapping symbol declaration and reference for symbol declared at %s and referenced at %s in file %s&quot;,
+        declaration,
+        range,
+        inputFile);
+<span class="fc" id="L115">      references.add(range);</span>
+<span class="fc" id="L116">      return this;</span>
+    }
+
+  }
+
+  @Override
+  protected void doSave() {
+<span class="fc" id="L123">    checkInputFileNotNull();</span>
+<span class="fc" id="L124">    storage.store(this);</span>
+<span class="fc" id="L125">  }</span>
+
+  private void checkInputFileNotNull() {
+<span class="pc bpc" id="L128" title="1 of 2 branches missed.">    checkState(inputFile != null, &quot;Call onFile() first&quot;);</span>
+<span class="fc" id="L129">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

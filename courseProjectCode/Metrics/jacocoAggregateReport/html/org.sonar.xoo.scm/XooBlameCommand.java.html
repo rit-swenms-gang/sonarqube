@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>XooBlameCommand.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.xoo.scm</a> &gt; <span class="el_source">XooBlameCommand.java</span></div><h1>XooBlameCommand.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.xoo.scm;
+
+import com.google.common.annotations.VisibleForTesting;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.util.Date;
+import java.util.List;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVRecord;
+import org.sonar.api.batch.fs.InputFile;
+import org.sonar.api.batch.scm.BlameCommand;
+import org.sonar.api.batch.scm.BlameLine;
+import org.sonar.api.utils.DateUtils;
+
+import static com.google.common.base.Preconditions.checkState;
+import static org.apache.commons.lang3.StringUtils.trimToNull;
+
+<span class="fc" id="L39">public class XooBlameCommand extends BlameCommand {</span>
+
+  private static final String SCM_EXTENSION = &quot;.scm&quot;;
+
+  @Override
+  public void blame(BlameInput input, BlameOutput result) {
+<span class="fc bfc" id="L45" title="All 2 branches covered.">    for (InputFile inputFile : input.filesToBlame()) {</span>
+<span class="fc" id="L46">      processFile(inputFile, result);</span>
+<span class="fc" id="L47">    }</span>
+<span class="fc" id="L48">  }</span>
+
+  @VisibleForTesting
+  protected void processFile(InputFile inputFile, BlameOutput result) {
+<span class="fc" id="L52">    File ioFile = inputFile.file();</span>
+<span class="fc" id="L53">    File scmDataFile = new File(ioFile.getParentFile(), ioFile.getName() + SCM_EXTENSION);</span>
+<span class="fc bfc" id="L54" title="All 2 branches covered.">    if (!scmDataFile.exists()) {</span>
+<span class="fc" id="L55">      return;</span>
+    }
+
+    try {
+<span class="fc" id="L59">      List&lt;BlameLine&gt; blame = readFile(scmDataFile);</span>
+<span class="fc" id="L60">      result.blameResult(inputFile, blame);</span>
+<span class="nc" id="L61">    } catch (IOException e) {</span>
+<span class="nc" id="L62">      throw new IllegalStateException(e);</span>
+<span class="fc" id="L63">    }</span>
+<span class="fc" id="L64">  }</span>
+
+  private static List&lt;BlameLine&gt; readFile(File inputStream) throws IOException {
+<span class="fc" id="L67">    Date now = new Date();</span>
+<span class="fc" id="L68">    try (CSVParser csvParser = CSVFormat.RFC4180</span>
+<span class="fc" id="L69">      .withIgnoreEmptyLines()</span>
+<span class="fc" id="L70">      .withIgnoreSurroundingSpaces()</span>
+<span class="fc" id="L71">      .parse(new FileReader(inputStream))) {</span>
+<span class="fc" id="L72">      List&lt;CSVRecord&gt; records = csvParser.getRecords();</span>
+<span class="fc" id="L73">      return records.stream()</span>
+<span class="fc" id="L74">        .map(r -&gt; convertToBlameLine(now, r))</span>
+<span class="fc" id="L75">        .toList();</span>
+    }
+  }
+
+  private static BlameLine convertToBlameLine(Date now, CSVRecord csvRecord) {
+<span class="pc bpc" id="L80" title="1 of 2 branches missed.">    checkState(csvRecord.size() &gt;= 3, &quot;Not enough fields on line %s&quot;, csvRecord);</span>
+<span class="fc" id="L81">    String revision = trimToNull(csvRecord.get(0));</span>
+<span class="fc" id="L82">    String author = trimToNull(csvRecord.get(1));</span>
+<span class="fc" id="L83">    BlameLine blameLine = new BlameLine().revision(revision).author(author);</span>
+<span class="fc" id="L84">    String dateStr = trimToNull(csvRecord.get(2));</span>
+<span class="pc bpc" id="L85" title="1 of 2 branches missed.">    if (dateStr != null) {</span>
+      // try to load a relative number of days
+      try {
+<span class="fc" id="L88">        int days = Integer.parseInt(dateStr);</span>
+<span class="fc" id="L89">        blameLine.date(DateUtils.addDays(now, days));</span>
+<span class="fc" id="L90">      } catch (NumberFormatException e) {</span>
+<span class="fc" id="L91">        Date dateTime = DateUtils.parseDateTimeQuietly(dateStr);</span>
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">        if (dateTime != null) {</span>
+<span class="nc" id="L93">          blameLine.date(dateTime);</span>
+        } else {
+          // Will throw an exception, when date is not in format &quot;yyyy-MM-dd&quot;
+<span class="fc" id="L96">          blameLine.date(DateUtils.parseDate(dateStr));</span>
+        }
+<span class="fc" id="L98">      }</span>
+    }
+<span class="fc" id="L100">    return blameLine;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

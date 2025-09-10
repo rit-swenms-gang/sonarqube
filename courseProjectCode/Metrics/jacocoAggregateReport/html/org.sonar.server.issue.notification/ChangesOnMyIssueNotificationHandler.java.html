@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ChangesOnMyIssueNotificationHandler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.issue.notification</a> &gt; <span class="el_source">ChangesOnMyIssueNotificationHandler.java</span></div><h1>ChangesOnMyIssueNotificationHandler.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.issue.notification;
+
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.SetMultimap;
+import java.util.Collection;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import javax.annotation.CheckForNull;
+import org.sonar.server.issue.notification.IssuesChangesNotificationBuilder.Change;
+import org.sonar.server.issue.notification.IssuesChangesNotificationBuilder.ChangedIssue;
+import org.sonar.server.issue.notification.IssuesChangesNotificationBuilder.User;
+import org.sonar.server.notification.EmailNotificationHandler;
+import org.sonar.server.notification.NotificationDispatcherMetadata;
+import org.sonar.server.notification.NotificationManager;
+import org.sonar.server.notification.NotificationManager.EmailRecipient;
+import org.sonar.server.notification.email.EmailNotificationChannel;
+import org.sonar.server.notification.email.EmailNotificationChannel.EmailDeliveryRequest;
+
+import static org.sonar.core.util.stream.MoreCollectors.unorderedFlattenIndex;
+import static org.sonar.core.util.stream.MoreCollectors.unorderedIndex;
+import static org.sonar.server.notification.NotificationManager.SubscriberPermissionsOnProject.ALL_MUST_HAVE_ROLE_USER;
+
+public class ChangesOnMyIssueNotificationHandler extends EmailNotificationHandler&lt;IssuesChangesNotification&gt; {
+
+  public static final String KEY = &quot;ChangesOnMyIssue&quot;;
+<span class="fc" id="L48">  private static final NotificationDispatcherMetadata METADATA = NotificationDispatcherMetadata.create(KEY)</span>
+<span class="fc" id="L49">    .setProperty(NotificationDispatcherMetadata.GLOBAL_NOTIFICATION, String.valueOf(true))</span>
+<span class="fc" id="L50">    .setProperty(NotificationDispatcherMetadata.PER_PROJECT_NOTIFICATION, String.valueOf(true));</span>
+
+  private final NotificationManager notificationManager;
+  private final IssuesChangesNotificationSerializer serializer;
+
+  public ChangesOnMyIssueNotificationHandler(NotificationManager notificationManager,
+    EmailNotificationChannel emailNotificationChannel, IssuesChangesNotificationSerializer serializer) {
+<span class="fc" id="L57">    super(emailNotificationChannel);</span>
+<span class="fc" id="L58">    this.notificationManager = notificationManager;</span>
+<span class="fc" id="L59">    this.serializer = serializer;</span>
+<span class="fc" id="L60">  }</span>
+
+  @Override
+  public Optional&lt;NotificationDispatcherMetadata&gt; getMetadata() {
+<span class="fc" id="L64">    return Optional.of(METADATA);</span>
+  }
+
+  public static NotificationDispatcherMetadata newMetadata() {
+<span class="fc" id="L68">    return METADATA;</span>
+  }
+
+  @Override
+  public Class&lt;IssuesChangesNotification&gt; getNotificationClass() {
+<span class="fc" id="L73">    return IssuesChangesNotification.class;</span>
+  }
+
+  @Override
+  public Set&lt;EmailDeliveryRequest&gt; toEmailDeliveryRequests(Collection&lt;IssuesChangesNotification&gt; notifications) {
+<span class="fc" id="L78">    Set&lt;NotificationWithProjectKeys&gt; notificationsWithPeerChangedIssues = notifications.stream()</span>
+<span class="fc" id="L79">      .map(serializer::from)</span>
+      // ignore notification of which the changeAuthor is the assignee of all changed issues
+<span class="fc bfc" id="L81" title="All 4 branches covered.">      .filter(t -&gt; t.getIssues().stream().anyMatch(issue -&gt; issue.getAssignee().isPresent() &amp;&amp; isPeerChanged(t.getChange(), issue)))</span>
+<span class="fc" id="L82">      .map(NotificationWithProjectKeys::new)</span>
+<span class="fc" id="L83">      .collect(Collectors.toSet());</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">    if (notificationsWithPeerChangedIssues.isEmpty()) {</span>
+<span class="fc" id="L85">      return ImmutableSet.of();</span>
+    }
+
+<span class="fc" id="L88">    Set&lt;String&gt; projectKeys = notificationsWithPeerChangedIssues.stream()</span>
+<span class="fc" id="L89">      .flatMap(t -&gt; t.getProjectKeys().stream())</span>
+<span class="fc" id="L90">      .collect(Collectors.toSet());</span>
+
+    // shortcut to save from building unnecessary data structures when all changed issues in notifications belong to
+    // the same project
+<span class="fc bfc" id="L94" title="All 2 branches covered.">    if (projectKeys.size() == 1) {</span>
+<span class="fc" id="L95">      Set&lt;User&gt; assigneesOfPeerChangedIssues = notificationsWithPeerChangedIssues.stream()</span>
+<span class="fc" id="L96">        .flatMap(t -&gt; t.getIssues().stream().filter(issue -&gt; isPeerChanged(t.getChange(), issue)))</span>
+<span class="fc" id="L97">        .map(ChangedIssue::getAssignee)</span>
+<span class="fc" id="L98">        .filter(Optional::isPresent)</span>
+<span class="fc" id="L99">        .map(Optional::get)</span>
+<span class="fc" id="L100">        .collect(Collectors.toSet());</span>
+<span class="fc" id="L101">      Set&lt;EmailRecipient&gt; subscribedAssignees = notificationManager.findSubscribedEmailRecipients(</span>
+        KEY,
+<span class="fc" id="L103">        projectKeys.iterator().next(),</span>
+<span class="fc" id="L104">        assigneesOfPeerChangedIssues.stream().map(User::getLogin).collect(Collectors.toSet()),</span>
+        ALL_MUST_HAVE_ROLE_USER);
+
+<span class="fc" id="L107">      return subscribedAssignees.stream()</span>
+<span class="fc" id="L108">        .flatMap(recipient -&gt; notificationsWithPeerChangedIssues.stream()</span>
+          // do not notify users of the changes they made themselves
+<span class="pc bpc" id="L110" title="1 of 2 branches missed.">          .filter(notification -&gt; !notification.getChange().isAuthorLogin(recipient.login()))</span>
+<span class="fc" id="L111">          .map(notification -&gt; toEmailDeliveryRequest(notification, recipient, projectKeys)))</span>
+<span class="fc" id="L112">        .filter(Objects::nonNull)</span>
+<span class="fc" id="L113">        .collect(Collectors.toSet());</span>
+    }
+
+<span class="fc" id="L116">    SetMultimap&lt;String, String&gt; assigneeLoginsOfPeerChangedIssuesByProjectKey = notificationsWithPeerChangedIssues.stream()</span>
+<span class="fc" id="L117">      .flatMap(notification -&gt; notification.getIssues().stream()</span>
+<span class="fc" id="L118">        .filter(issue -&gt; issue.getAssignee().isPresent())</span>
+<span class="fc" id="L119">        .filter(issue -&gt; isPeerChanged(notification.getChange(), issue)))</span>
+<span class="fc" id="L120">      .collect(unorderedIndex(t -&gt; t.getProject().getKey(), t -&gt; t.getAssignee().get().getLogin()));</span>
+
+<span class="fc" id="L122">    SetMultimap&lt;String, EmailRecipient&gt; authorizedAssigneeLoginsByProjectKey = assigneeLoginsOfPeerChangedIssuesByProjectKey.asMap().entrySet()</span>
+<span class="fc" id="L123">      .stream()</span>
+<span class="fc" id="L124">      .collect(unorderedFlattenIndex(</span>
+        Map.Entry::getKey,
+        entry -&gt; {
+<span class="fc" id="L127">          String projectKey = entry.getKey();</span>
+<span class="fc" id="L128">          Set&lt;String&gt; assigneeLogins = (Set&lt;String&gt;) entry.getValue();</span>
+<span class="fc" id="L129">          return notificationManager.findSubscribedEmailRecipients(KEY, projectKey, assigneeLogins, ALL_MUST_HAVE_ROLE_USER).stream();</span>
+        }));
+
+<span class="fc" id="L132">    SetMultimap&lt;EmailRecipient, String&gt; projectKeyByRecipient = authorizedAssigneeLoginsByProjectKey.entries().stream()</span>
+<span class="fc" id="L133">      .collect(unorderedIndex(Map.Entry::getValue, Map.Entry::getKey));</span>
+
+<span class="fc" id="L135">    return projectKeyByRecipient.asMap().entrySet()</span>
+<span class="fc" id="L136">      .stream()</span>
+<span class="fc" id="L137">      .flatMap(entry -&gt; {</span>
+<span class="fc" id="L138">        EmailRecipient recipient = entry.getKey();</span>
+<span class="fc" id="L139">        Set&lt;String&gt; subscribedProjectKeys = (Set&lt;String&gt;) entry.getValue();</span>
+<span class="fc" id="L140">        return notificationsWithPeerChangedIssues.stream()</span>
+          // do not notify users of the changes they made themselves
+<span class="fc bfc" id="L142" title="All 2 branches covered.">          .filter(notification -&gt; !notification.getChange().isAuthorLogin(recipient.login()))</span>
+<span class="fc" id="L143">          .map(notification -&gt; toEmailDeliveryRequest(notification, recipient, subscribedProjectKeys))</span>
+<span class="fc" id="L144">          .filter(Objects::nonNull);</span>
+      })
+<span class="fc" id="L146">      .collect(Collectors.toSet());</span>
+  }
+
+  /**
+   * Creates the {@link EmailDeliveryRequest} for the specified {@code recipient} with issues from the
+   * specified {@code notification} it is the assignee of.
+   *
+   * @return {@code null} when the recipient is the assignee of no issue in {@code notification}.
+   */
+  @CheckForNull
+  private static EmailDeliveryRequest toEmailDeliveryRequest(NotificationWithProjectKeys notification, EmailRecipient recipient, Set&lt;String&gt; subscribedProjectKeys) {
+<span class="fc" id="L157">    notification.getIssues();</span>
+<span class="fc" id="L158">    Set&lt;ChangedIssue&gt; recipientIssuesByProject = notification.getIssues().stream()</span>
+<span class="fc" id="L159">      .filter(issue -&gt; issue.getAssignee().filter(assignee -&gt; recipient.login().equals(assignee.getLogin())).isPresent())</span>
+<span class="fc" id="L160">      .filter(issue -&gt; subscribedProjectKeys.contains(issue.getProject().getKey()))</span>
+<span class="fc" id="L161">      .collect(Collectors.toSet());</span>
+<span class="fc bfc" id="L162" title="All 2 branches covered.">    if (recipientIssuesByProject.isEmpty()) {</span>
+<span class="fc" id="L163">      return null;</span>
+    }
+<span class="fc" id="L165">    return new EmailDeliveryRequest(</span>
+<span class="fc" id="L166">      recipient.email(),</span>
+<span class="fc" id="L167">      new ChangesOnMyIssuesNotification(notification.getChange(), recipientIssuesByProject));</span>
+  }
+
+  /**
+   * Is the author of the change the assignee of the specified issue?
+   * If not, it means the issue has been changed by a peer of the author of the change.
+   */
+  private static boolean isPeerChanged(Change change, ChangedIssue issue) {
+<span class="fc" id="L175">    Optional&lt;User&gt; assignee = issue.getAssignee();</span>
+<span class="pc bpc" id="L176" title="1 of 4 branches missed.">    return !assignee.isPresent() || !change.isAuthorLogin(assignee.get().getLogin());</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

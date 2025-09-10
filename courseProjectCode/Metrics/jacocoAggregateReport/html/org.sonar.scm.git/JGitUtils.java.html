@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JGitUtils.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scm.git</a> &gt; <span class="el_source">JGitUtils.java</span></div><h1>JGitUtils.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scm.git;
+
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.List;
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.lib.ObjectReader;
+import org.eclipse.jgit.lib.Repository;
+
+public class JGitUtils {
+
+  private JGitUtils() {
+  }
+
+  public static Repository buildRepository(Path basedir) {
+    try {
+<span class="fc" id="L37">      Repository repo = GitScmProvider.getVerifiedRepositoryBuilder(basedir).build();</span>
+<span class="fc" id="L38">      try (ObjectReader objReader = repo.getObjectDatabase().newReader()) {</span>
+        // SONARSCGIT-2 Force initialization of shallow commits to avoid later concurrent modification issue
+<span class="fc" id="L40">        objReader.getShallowCommits();</span>
+<span class="fc" id="L41">        return repo;</span>
+      }
+<span class="nc" id="L43">    } catch (IOException e) {</span>
+<span class="nc" id="L44">      throw new IllegalStateException(&quot;Unable to open Git repository&quot;, e);</span>
+    }
+  }
+
+  // Return a list of scm ignored paths relative to the baseDir.
+  public static List&lt;String&gt; getAllIgnoredPaths(Path baseDir) {
+<span class="fc" id="L50">    try (Repository repo = buildRepository(baseDir)) {</span>
+<span class="fc" id="L51">      Path workTreePath = repo.getWorkTree().toPath();</span>
+<span class="fc" id="L52">      Path baseDirAbs = baseDir.toAbsolutePath().normalize();</span>
+
+<span class="fc" id="L54">      try (Git git = new Git(repo)) {</span>
+<span class="fc" id="L55">        return git.status().call().getIgnoredNotInIndex().stream()</span>
+          // Convert to absolute path
+<span class="fc" id="L57">          .map(filePathStr -&gt; workTreePath.resolve(filePathStr).normalize())</span>
+          // Exclude any outside of the baseDir
+<span class="fc" id="L59">          .filter(filePath -&gt; filePath.startsWith(baseDirAbs))</span>
+          // Make path relative to the baseDir
+<span class="fc" id="L61">          .map(baseDir::relativize)</span>
+<span class="fc" id="L62">          .map(Path::toString)</span>
+<span class="fc" id="L63">          .sorted()</span>
+<span class="fc" id="L64">          .toList();</span>
+<span class="nc" id="L65">      } catch (GitAPIException e) {</span>
+<span class="nc" id="L66">        throw new RuntimeException(e);</span>
+      }
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

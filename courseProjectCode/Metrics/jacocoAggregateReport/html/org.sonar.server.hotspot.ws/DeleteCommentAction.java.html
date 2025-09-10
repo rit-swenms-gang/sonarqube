@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DeleteCommentAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.hotspot.ws</a> &gt; <span class="el_source">DeleteCommentAction.java</span></div><h1>DeleteCommentAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.hotspot.ws;
+
+import java.util.Objects;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.issue.IssueChangeDto;
+import org.sonar.server.exceptions.NotFoundException;
+import org.sonar.server.user.UserSession;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.lang.String.format;
+import static org.sonar.core.util.Uuids.UUID_EXAMPLE_01;
+
+public class DeleteCommentAction implements HotspotsWsAction {
+  private static final String PARAM_COMMENT = &quot;comment&quot;;
+
+  private final UserSession userSession;
+  private final DbClient dbClient;
+  private final HotspotWsSupport hotspotWsSupport;
+
+<span class="fc" id="L43">  public DeleteCommentAction(DbClient dbClient, HotspotWsSupport hotspotWsSupport, UserSession userSession) {</span>
+<span class="fc" id="L44">    this.dbClient = dbClient;</span>
+<span class="fc" id="L45">    this.hotspotWsSupport = hotspotWsSupport;</span>
+<span class="fc" id="L46">    this.userSession = userSession;</span>
+<span class="fc" id="L47">  }</span>
+
+  @Override
+  public void define(WebService.NewController controller) {
+<span class="fc" id="L51">    WebService.NewAction action = controller</span>
+<span class="fc" id="L52">      .createAction(&quot;delete_comment&quot;)</span>
+<span class="fc" id="L53">      .setHandler(this)</span>
+<span class="fc" id="L54">      .setPost(true)</span>
+<span class="fc" id="L55">      .setDescription(&quot;Delete comment from Security Hotpot.&lt;br/&gt;&quot; +</span>
+        &quot;Requires authentication and the following permission: 'Browse' on the project of the specified Security Hotspot.&quot;)
+<span class="fc" id="L57">      .setSince(&quot;8.2&quot;)</span>
+<span class="fc" id="L58">      .setInternal(true);</span>
+
+<span class="fc" id="L60">    action.createParam(PARAM_COMMENT)</span>
+<span class="fc" id="L61">      .setDescription(&quot;Comment key.&quot;)</span>
+<span class="fc" id="L62">      .setRequired(true)</span>
+<span class="fc" id="L63">      .setExampleValue(UUID_EXAMPLE_01);</span>
+<span class="fc" id="L64">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L68">    hotspotWsSupport.checkLoggedIn();</span>
+
+<span class="fc" id="L70">    String commentKey = request.mandatoryParam(PARAM_COMMENT);</span>
+
+<span class="fc" id="L72">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L73">      IssueChangeDto hotspotComment = getHotspotComment(commentKey, dbSession);</span>
+<span class="fc" id="L74">      validate(dbSession, hotspotComment);</span>
+<span class="fc" id="L75">      deleteComment(dbSession, hotspotComment.getKey());</span>
+<span class="fc" id="L76">      response.noContent();</span>
+    }
+<span class="fc" id="L78">  }</span>
+
+  private IssueChangeDto getHotspotComment(String commentKey, DbSession dbSession) {
+<span class="fc" id="L81">    return dbClient.issueChangeDao().selectCommentByKey(dbSession, commentKey)</span>
+<span class="fc" id="L82">      .orElseThrow(() -&gt; new NotFoundException(format(&quot;Comment with key '%s' does not exist&quot;, commentKey)));</span>
+  }
+
+  private void validate(DbSession dbSession, IssueChangeDto issueChangeDto) {
+<span class="fc" id="L86">    hotspotWsSupport.loadAndCheckBranch(dbSession, issueChangeDto.getIssueKey());</span>
+<span class="fc" id="L87">    checkArgument(Objects.equals(issueChangeDto.getUserUuid(), userSession.getUuid()), &quot;You can only delete your own comments&quot;);</span>
+<span class="fc" id="L88">  }</span>
+
+  private void deleteComment(DbSession dbSession, String commentKey) {
+<span class="fc" id="L91">    dbClient.issueChangeDao().deleteByKey(dbSession, commentKey);</span>
+<span class="fc" id="L92">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CeConfigurationImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.configuration</a> &gt; <span class="el_source">CeConfigurationImpl.java</span></div><h1>CeConfigurationImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.configuration;
+
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.api.config.Configuration;
+import org.sonar.api.utils.MessageException;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import static java.lang.String.format;
+import static org.sonar.process.ProcessProperties.Property.CE_GRACEFUL_STOP_TIMEOUT;
+
+/**
+ * Immutable implementation of {@link CeConfiguration} initialized at startup from {@link Configuration}.
+ */
+public class CeConfigurationImpl implements CeConfiguration {
+  private static final int DEFAULT_WORKER_THREAD_COUNT = 1;
+  private static final int MAX_WORKER_THREAD_COUNT = 10;
+  private static final int DEFAULT_WORKER_COUNT = 1;
+  // 2 seconds
+  private static final long DEFAULT_QUEUE_POLLING_DELAY = 2 * 1000L;
+  // 0 minute
+  private static final long CANCEL_WORN_OUTS_INITIAL_DELAY = 0;
+  // 2 minutes
+  private static final long CANCEL_WORN_OUTS_DELAY = 2;
+
+  @CheckForNull
+  private final WorkerCountProvider workerCountProvider;
+  private final int workerThreadCount;
+  private final long gracefulStopTimeoutInMs;
+  private int workerCount;
+
+  @Autowired(required = false)
+  public CeConfigurationImpl(Configuration configuration) {
+<span class="fc" id="L53">    this(configuration, null);</span>
+<span class="fc" id="L54">  }</span>
+
+  @Autowired(required = false)
+<span class="fc" id="L57">  public CeConfigurationImpl(Configuration configuration, @Nullable WorkerCountProvider workerCountProvider) {</span>
+<span class="fc" id="L58">    this.workerCountProvider = workerCountProvider;</span>
+<span class="fc" id="L59">    this.gracefulStopTimeoutInMs = configuration.getLong(CE_GRACEFUL_STOP_TIMEOUT.getKey())</span>
+<span class="fc" id="L60">      .orElse(Long.parseLong(CE_GRACEFUL_STOP_TIMEOUT.getDefaultValue()));</span>
+<span class="fc bfc" id="L61" title="All 2 branches covered.">    if (workerCountProvider == null) {</span>
+<span class="fc" id="L62">      this.workerCount = DEFAULT_WORKER_COUNT;</span>
+<span class="fc" id="L63">      this.workerThreadCount = DEFAULT_WORKER_THREAD_COUNT;</span>
+    } else {
+<span class="fc" id="L65">      this.workerCount = readWorkerCount(workerCountProvider);</span>
+<span class="fc" id="L66">      this.workerThreadCount = MAX_WORKER_THREAD_COUNT;</span>
+    }
+<span class="fc" id="L68">  }</span>
+
+  private static synchronized int readWorkerCount(WorkerCountProvider workerCountProvider) {
+<span class="fc" id="L71">    int value = workerCountProvider.get();</span>
+<span class="fc bfc" id="L72" title="All 4 branches covered.">    if (value &lt; DEFAULT_WORKER_COUNT || value &gt; MAX_WORKER_THREAD_COUNT) {</span>
+<span class="fc" id="L73">      throw parsingError(value);</span>
+    }
+<span class="fc" id="L75">    return value;</span>
+  }
+
+  private static MessageException parsingError(int value) {
+<span class="fc" id="L79">    return MessageException.of(format(</span>
+      &quot;Worker count '%s' is invalid. It must be an integer strictly greater than 0 and less or equal to 10&quot;,
+<span class="fc" id="L81">      value));</span>
+  }
+
+  @Override
+  public int getWorkerMaxCount() {
+<span class="fc" id="L86">    return workerThreadCount;</span>
+  }
+
+  @Override
+  public int getWorkerCount() {
+<span class="fc bfc" id="L91" title="All 2 branches covered.">    if (workerCountProvider != null) {</span>
+<span class="fc" id="L92">      workerCount = readWorkerCount(workerCountProvider);</span>
+    }
+<span class="fc" id="L94">    return workerCount;</span>
+  }
+
+  @Override
+  public long getQueuePollingDelay() {
+<span class="fc" id="L99">    return DEFAULT_QUEUE_POLLING_DELAY;</span>
+  }
+
+  @Override
+  public long getCleanTasksInitialDelay() {
+<span class="fc" id="L104">    return CANCEL_WORN_OUTS_INITIAL_DELAY;</span>
+  }
+
+  @Override
+  public long getCleanTasksDelay() {
+<span class="fc" id="L109">    return CANCEL_WORN_OUTS_DELAY;</span>
+  }
+
+  @Override
+  public long getGracefulStopTimeoutInMs() {
+<span class="fc" id="L114">    return gracefulStopTimeoutInMs;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

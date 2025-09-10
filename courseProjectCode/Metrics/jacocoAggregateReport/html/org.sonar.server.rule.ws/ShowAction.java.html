@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ShowAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.rule.ws</a> &gt; <span class="el_source">ShowAction.java</span></div><h1>ShowAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.rule.ws;
+
+import com.google.common.io.Resources;
+import java.util.Collections;
+import java.util.List;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.rule.RuleDto;
+import org.sonar.db.rule.RuleParamDto;
+import org.sonar.server.exceptions.NotFoundException;
+import org.sonarqube.ws.Rules.ShowResponse;
+
+import static java.lang.String.format;
+import static java.util.Collections.singletonList;
+import static java.util.Optional.ofNullable;
+import static org.sonar.api.issue.impact.Severity.BLOCKER;
+import static org.sonar.api.issue.impact.Severity.INFO;
+import static org.sonar.server.ws.WsUtils.writeProtobuf;
+
+/**
+ * @since 4.4
+ */
+public class ShowAction implements RulesWsAction {
+
+  public static final String PARAM_KEY = &quot;key&quot;;
+  public static final String PARAM_ACTIVES = &quot;actives&quot;;
+
+  private final DbClient dbClient;
+  private final RulesResponseFormatter rulesResponseFormatter;
+
+<span class="fc" id="L55">  public ShowAction(DbClient dbClient, RulesResponseFormatter rulesResponseFormatter) {</span>
+<span class="fc" id="L56">    this.dbClient = dbClient;</span>
+<span class="fc" id="L57">    this.rulesResponseFormatter = rulesResponseFormatter;</span>
+<span class="fc" id="L58">  }</span>
+
+  @Override
+  public void define(WebService.NewController controller) {
+<span class="fc" id="L62">    WebService.NewAction action = controller</span>
+<span class="fc" id="L63">      .createAction(&quot;show&quot;)</span>
+<span class="fc" id="L64">      .setDescription(&quot;Get detailed information about a rule&lt;br&gt;&quot;)</span>
+<span class="fc" id="L65">      .setSince(&quot;4.2&quot;)</span>
+<span class="fc" id="L66">      .setResponseExample(Resources.getResource(getClass(), &quot;show-example.json&quot;))</span>
+<span class="fc" id="L67">      .setHandler(this)</span>
+<span class="fc" id="L68">      .setChangelog(</span>
+        new Change(&quot;5.5&quot;, &quot;The field 'effortToFixDescription' in the response has been deprecated, it becomes 'gapDescription'.&quot;),
+        new Change(&quot;5.5&quot;, &quot;The field 'debtRemFnCoeff' in the response has been deprecated, it becomes 'remFnGapMultiplier'.&quot;),
+        new Change(&quot;5.5&quot;, &quot;The field 'defaultDebtRemFnCoeff' in the response has been deprecated, it becomes 'defaultRemFnGapMultiplier'.&quot;),
+        new Change(&quot;5.5&quot;, &quot;The field 'debtRemFnOffset' in the response has been deprecated, it becomes 'remFnBaseEffort'.&quot;),
+        new Change(&quot;5.5&quot;, &quot;The field 'defaultDebtRemFnOffset' in the response has been deprecated, it becomes 'defaultRemFnBaseEffort'.&quot;),
+        new Change(&quot;5.5&quot;, &quot;The field 'debtOverloaded' in the response has been deprecated, it becomes 'remFnOverloaded'.&quot;),
+        new Change(&quot;7.1&quot;, &quot;The field 'scope' has been added.&quot;),
+        new Change(&quot;9.5&quot;, &quot;The field 'htmlDesc' in the response has been deprecated, it becomes 'descriptionSections'.&quot;),
+        new Change(&quot;9.5&quot;, &quot;The field 'descriptionSections' has been added to the payload.&quot;),
+        new Change(&quot;9.6&quot;, &quot;'descriptionSections' can optionally embed a context field.&quot;),
+        new Change(&quot;9.6&quot;, &quot;'educationPrinciples' has been added.&quot;),
+        new Change(&quot;10.0&quot;, &quot;The deprecated field 'effortToFixDescription' has been removed, use 'gapDescription' instead.&quot;),
+        new Change(&quot;10.0&quot;, &quot;The deprecated field 'debtRemFnCoeff' has been removed, use 'remFnGapMultiplier' instead.&quot;),
+        new Change(&quot;10.0&quot;, &quot;The deprecated field 'defaultDebtRemFnCoeff' has been removed, use 'defaultRemFnGapMultiplier' instead.&quot;),
+        new Change(&quot;10.0&quot;, &quot;The deprecated field 'debtRemFnOffset' has been removed, use 'remFnBaseEffort' instead.&quot;),
+        new Change(&quot;10.0&quot;, &quot;The deprecated field 'defaultDebtRemFnOffset' has been removed, use 'defaultRemFnBaseEffort' instead.&quot;),
+        new Change(&quot;10.0&quot;, &quot;The deprecated field 'debtOverloaded' has been removed, use 'remFnOverloaded' instead.&quot;),
+        new Change(&quot;10.0&quot;, &quot;The field 'defaultDebtRemFnType' has been deprecated, use 'defaultRemFnType' instead&quot;),
+        new Change(&quot;10.0&quot;, &quot;The field 'debtRemFnType' has been deprecated, use 'remFnType' instead&quot;),
+        new Change(&quot;10.2&quot;, &quot;Add 'impacts', 'cleanCodeAttribute', 'cleanCodeAttributeCategory' fields to the response&quot;),
+        new Change(&quot;10.2&quot;, &quot;The field 'severity' and 'type' in the response have been deprecated, use 'impacts' instead.&quot;),
+<span class="fc" id="L90">        new Change(&quot;10.8&quot;, format(&quot;Possible values '%s' and '%s' for response field 'severity' of 'impacts' have been added.&quot;, INFO.name(), BLOCKER.name())),</span>
+        new Change(&quot;10.8&quot;, &quot;The field 'severity' and 'type' in the response  are not deprecated anymore.&quot;),
+        new Change(&quot;2025.1&quot;, &quot;The deprecated field 'htmlDesc' is not returned anymore, even if specified in the 'fields' parameter.&quot;));
+
+<span class="fc" id="L94">    action</span>
+<span class="fc" id="L95">      .createParam(PARAM_KEY)</span>
+<span class="fc" id="L96">      .setDescription(&quot;Rule key&quot;)</span>
+<span class="fc" id="L97">      .setRequired(true)</span>
+<span class="fc" id="L98">      .setExampleValue(&quot;javascript:EmptyBlock&quot;);</span>
+
+<span class="fc" id="L100">    action</span>
+<span class="fc" id="L101">      .createParam(PARAM_ACTIVES)</span>
+<span class="fc" id="L102">      .setDescription(&quot;Show rule's activations for all profiles (\&quot;active rules\&quot;)&quot;)</span>
+<span class="fc" id="L103">      .setBooleanPossibleValues()</span>
+<span class="fc" id="L104">      .setDefaultValue(false);</span>
+<span class="fc" id="L105">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L109">    RuleKey key = RuleKey.parse(request.mandatoryParam(PARAM_KEY));</span>
+<span class="fc" id="L110">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L111">      RuleDto rule = dbClient.ruleDao().selectByKey(dbSession, key)</span>
+<span class="pc" id="L112">        .orElseThrow(() -&gt; new NotFoundException(format(&quot;Rule not found: %s&quot;, key)));</span>
+
+<span class="fc" id="L114">      List&lt;RuleDto&gt; templateRules = ofNullable(rule.getTemplateUuid())</span>
+<span class="fc" id="L115">        .flatMap(templateUuid -&gt; dbClient.ruleDao().selectByUuid(rule.getTemplateUuid(), dbSession))</span>
+<span class="fc" id="L116">        .map(Collections::singletonList).orElseGet(Collections::emptyList);</span>
+
+<span class="fc" id="L118">      List&lt;RuleParamDto&gt; ruleParameters = dbClient.ruleDao().selectRuleParamsByRuleUuids(dbSession, singletonList(rule.getUuid()));</span>
+<span class="fc" id="L119">      ShowResponse showResponse = buildResponse(dbSession, request,</span>
+        new RulesResponseFormatter.SearchResult()
+<span class="fc" id="L121">          .setRules(singletonList(rule))</span>
+<span class="fc" id="L122">          .setTemplateRules(templateRules)</span>
+<span class="fc" id="L123">          .setRuleParameters(ruleParameters)</span>
+<span class="fc" id="L124">          .setTotal(1L));</span>
+<span class="fc" id="L125">      writeProtobuf(showResponse, request, response);</span>
+    }
+<span class="fc" id="L127">  }</span>
+
+  private ShowResponse buildResponse(DbSession dbSession, Request request, RulesResponseFormatter.SearchResult searchResult) {
+<span class="fc" id="L130">    ShowResponse.Builder responseBuilder = ShowResponse.newBuilder();</span>
+<span class="fc" id="L131">    RuleDto rule = searchResult.getRules().get(0);</span>
+<span class="fc" id="L132">    responseBuilder.setRule(rulesResponseFormatter.formatRule(dbSession, searchResult));</span>
+<span class="fc bfc" id="L133" title="All 2 branches covered.">    if (request.mandatoryParamAsBoolean(PARAM_ACTIVES)) {</span>
+<span class="fc" id="L134">      responseBuilder.addAllActives(rulesResponseFormatter.formatActiveRule(dbSession, rule));</span>
+    }
+<span class="fc" id="L136">    return responseBuilder.build();</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

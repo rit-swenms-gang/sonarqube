@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ShowResponseBuilder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.duplication.ws</a> &gt; <span class="el_source">ShowResponseBuilder.java</span></div><h1>ShowResponseBuilder.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.duplication.ws;
+
+import com.google.common.annotations.VisibleForTesting;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import jakarta.inject.Inject;
+import org.apache.commons.lang3.StringUtils;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.ComponentDao;
+import org.sonar.db.component.ComponentDto;
+import org.sonarqube.ws.Duplications;
+import org.sonarqube.ws.Duplications.Block;
+import org.sonarqube.ws.Duplications.ShowResponse;
+
+import static java.util.Optional.ofNullable;
+
+public class ShowResponseBuilder {
+
+  private final ComponentDao componentDao;
+
+  @Inject
+<span class="fc" id="L47">  public ShowResponseBuilder(DbClient dbClient) {</span>
+<span class="fc" id="L48">    this.componentDao = dbClient.componentDao();</span>
+<span class="fc" id="L49">  }</span>
+
+  @VisibleForTesting
+<span class="fc" id="L52">  ShowResponseBuilder(ComponentDao componentDao) {</span>
+<span class="fc" id="L53">    this.componentDao = componentDao;</span>
+<span class="fc" id="L54">  }</span>
+
+  ShowResponse build(DbSession session, List&lt;DuplicationsParser.Block&gt; blocks, @Nullable String branch, @Nullable String pullRequest) {
+<span class="fc" id="L57">    Map&lt;String, Reference&gt; refByComponentKey = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L58">    ShowResponse.Builder response = ShowResponse.newBuilder();</span>
+<span class="fc" id="L59">    blocks.stream()</span>
+<span class="fc" id="L60">      .map(block -&gt; toWsDuplication(block, refByComponentKey))</span>
+<span class="fc" id="L61">      .forEach(response::addDuplications);</span>
+
+<span class="fc" id="L63">    writeFileRefs(session, refByComponentKey, response, branch, pullRequest);</span>
+<span class="fc" id="L64">    return response.build();</span>
+  }
+
+  private static Duplications.Duplication.Builder toWsDuplication(DuplicationsParser.Block block, Map&lt;String, Reference&gt; refByComponentKey) {
+<span class="fc" id="L68">    Duplications.Duplication.Builder wsDuplication = Duplications.Duplication.newBuilder();</span>
+<span class="fc" id="L69">    block.getDuplications().stream()</span>
+<span class="fc" id="L70">      .map(duplication -&gt; toWsBlock(duplication, refByComponentKey))</span>
+<span class="fc" id="L71">      .forEach(wsDuplication::addBlocks);</span>
+
+<span class="fc" id="L73">    return wsDuplication;</span>
+  }
+
+  private static Block.Builder toWsBlock(Duplication duplication, Map&lt;String, Reference&gt; refByComponentKey) {
+<span class="fc" id="L77">    Block.Builder block = Block.newBuilder();</span>
+
+<span class="fc bfc" id="L79" title="All 2 branches covered.">    if (!duplication.removed()) {</span>
+<span class="fc" id="L80">      Reference ref = refByComponentKey.computeIfAbsent(duplication.componentDbKey(), k -&gt; new Reference(</span>
+<span class="fc" id="L81">        Integer.toString(refByComponentKey.size() + 1),</span>
+<span class="fc" id="L82">        duplication.componentDto(),</span>
+<span class="fc" id="L83">        duplication.componentDbKey()));</span>
+<span class="fc" id="L84">      block.setRef(ref.getId());</span>
+    }
+
+<span class="fc" id="L87">    block.setFrom(duplication.from());</span>
+<span class="fc" id="L88">    block.setSize(duplication.size());</span>
+
+<span class="fc" id="L90">    return block;</span>
+  }
+
+  private void writeFileRefs(DbSession session, Map&lt;String, Reference&gt; refByComponentKey, ShowResponse.Builder response, @Nullable String branch, @Nullable String pullRequest) {
+<span class="fc" id="L94">    Map&lt;String, ComponentDto&gt; projectsByUuid = new HashMap&lt;&gt;();</span>
+
+<span class="fc bfc" id="L96" title="All 2 branches covered.">    for (Map.Entry&lt;String, Reference&gt; entry : refByComponentKey.entrySet()) {</span>
+<span class="fc" id="L97">      Reference ref = entry.getValue();</span>
+<span class="fc" id="L98">      ComponentDto file = ref.getDto();</span>
+
+<span class="fc bfc" id="L100" title="All 2 branches covered.">      if (file != null) {</span>
+<span class="fc" id="L101">        ComponentDto project = getProject(file.branchUuid(), projectsByUuid, session);</span>
+<span class="fc" id="L102">        response.putFiles(ref.getId(), toWsFile(file, project, branch, pullRequest));</span>
+<span class="fc" id="L103">      } else {</span>
+<span class="fc" id="L104">        response.putFiles(ref.getId(), toWsFile(ref.getComponentKey(), branch, pullRequest));</span>
+      }
+<span class="fc" id="L106">    }</span>
+<span class="fc" id="L107">  }</span>
+
+  private static Duplications.File toWsFile(String componentKey, @Nullable String branch, @Nullable String pullRequest) {
+<span class="fc" id="L110">    Duplications.File.Builder wsFile = Duplications.File.newBuilder();</span>
+<span class="fc" id="L111">    wsFile.setKey(componentKey);</span>
+<span class="fc" id="L112">    wsFile.setName(StringUtils.substringAfterLast(componentKey, &quot;:&quot;));</span>
+<span class="fc" id="L113">    ofNullable(branch).ifPresent(wsFile::setBranch);</span>
+<span class="fc" id="L114">    ofNullable(pullRequest).ifPresent(wsFile::setPullRequest);</span>
+<span class="fc" id="L115">    return wsFile.build();</span>
+  }
+
+  private static Duplications.File toWsFile(ComponentDto file, @Nullable ComponentDto project,
+    @Nullable String branch, @Nullable String pullRequest) {
+<span class="fc" id="L120">    Duplications.File.Builder wsFile = Duplications.File.newBuilder();</span>
+<span class="fc" id="L121">    wsFile.setKey(file.getKey());</span>
+<span class="fc" id="L122">    wsFile.setUuid(file.uuid());</span>
+<span class="fc" id="L123">    wsFile.setName(file.longName());</span>
+<span class="fc" id="L124">    ofNullable(project).ifPresent(p -&gt; {</span>
+<span class="fc" id="L125">      wsFile.setProject(p.getKey());</span>
+<span class="fc" id="L126">      wsFile.setProjectUuid(p.uuid());</span>
+<span class="fc" id="L127">      wsFile.setProjectName(p.longName());</span>
+<span class="fc" id="L128">      ofNullable(branch).ifPresent(wsFile::setBranch);</span>
+<span class="fc" id="L129">      ofNullable(pullRequest).ifPresent(wsFile::setPullRequest);</span>
+<span class="fc" id="L130">    });</span>
+<span class="fc" id="L131">    return wsFile.build();</span>
+  }
+
+  private ComponentDto getProject(String projectUuid, Map&lt;String, ComponentDto&gt; projectsByUuid, DbSession session) {
+<span class="fc" id="L135">    ComponentDto project = projectsByUuid.get(projectUuid);</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">    if (project == null) {</span>
+<span class="fc" id="L137">      Optional&lt;ComponentDto&gt; projectOptional = componentDao.selectByUuid(session, projectUuid);</span>
+<span class="pc bpc" id="L138" title="1 of 2 branches missed.">      if (projectOptional.isPresent()) {</span>
+<span class="fc" id="L139">        project = projectOptional.get();</span>
+<span class="fc" id="L140">        projectsByUuid.put(project.uuid(), project);</span>
+      }
+    }
+<span class="fc" id="L143">    return project;</span>
+  }
+
+  private static class Reference {
+    private final String id;
+    private final ComponentDto dto;
+    private final String componentKey;
+
+<span class="fc" id="L151">    public Reference(String id, @Nullable ComponentDto dto, String componentKey) {</span>
+<span class="fc" id="L152">      this.id = id;</span>
+<span class="fc" id="L153">      this.dto = dto;</span>
+<span class="fc" id="L154">      this.componentKey = componentKey;</span>
+<span class="fc" id="L155">    }</span>
+
+    public String getId() {
+<span class="fc" id="L158">      return id;</span>
+    }
+
+    @CheckForNull
+    public ComponentDto getDto() {
+<span class="fc" id="L163">      return dto;</span>
+    }
+
+    public String getComponentKey() {
+<span class="fc" id="L167">      return componentKey;</span>
+    }
+
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

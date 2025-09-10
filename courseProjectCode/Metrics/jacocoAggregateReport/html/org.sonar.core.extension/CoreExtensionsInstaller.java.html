@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CoreExtensionsInstaller.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.core.extension</a> &gt; <span class="el_source">CoreExtensionsInstaller.java</span></div><h1>CoreExtensionsInstaller.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.core.extension;
+
+import java.lang.annotation.Annotation;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Optional;
+import java.util.function.Predicate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.SonarRuntime;
+import org.sonar.api.config.Configuration;
+import org.sonar.api.config.internal.MapSettings;
+import org.sonar.api.utils.AnnotationUtils;
+import org.sonar.core.platform.ExtensionContainer;
+
+import static java.util.Objects.requireNonNull;
+
+public abstract class CoreExtensionsInstaller {
+<span class="fc" id="L38">  private static final Logger LOG = LoggerFactory.getLogger(CoreExtensionsInstaller.class);</span>
+
+  private final SonarRuntime sonarRuntime;
+  private final CoreExtensionRepository coreExtensionRepository;
+  private final Class&lt;? extends Annotation&gt; supportedAnnotationType;
+
+<span class="fc" id="L44">  protected CoreExtensionsInstaller(SonarRuntime sonarRuntime, CoreExtensionRepository coreExtensionRepository, Class&lt;? extends Annotation&gt; supportedAnnotationType) {</span>
+<span class="fc" id="L45">    this.sonarRuntime = sonarRuntime;</span>
+<span class="fc" id="L46">    this.coreExtensionRepository = coreExtensionRepository;</span>
+<span class="fc" id="L47">    this.supportedAnnotationType = supportedAnnotationType;</span>
+<span class="fc" id="L48">  }</span>
+
+  public static Predicate&lt;Object&gt; noExtensionFilter() {
+<span class="fc" id="L51">    return t -&gt; true;</span>
+  }
+
+  public static Predicate&lt;Object&gt; noAdditionalSideFilter() {
+<span class="fc" id="L55">    return t -&gt; true;</span>
+  }
+
+  /**
+   * @param container            the container into which extensions will be installed
+   * @param extensionFilter      filters extensions added to {@link CoreExtension.Context}. When it returns false, the
+   *                             extension is ignored as if it had never been added to the context.
+   * @param additionalSideFilter applied on top of filtering on {@link #supportedAnnotationType} to decide whether
+   *                             extension should be added to container as an object or only as a PropertyDefinition.
+   */
+  public void install(ExtensionContainer container, Predicate&lt;Object&gt; extensionFilter, Predicate&lt;Object&gt; additionalSideFilter) {
+<span class="fc" id="L66">    coreExtensionRepository.loadedCoreExtensions()</span>
+<span class="fc" id="L67">      .forEach(coreExtension -&gt; install(container, extensionFilter, additionalSideFilter, coreExtension));</span>
+<span class="fc" id="L68">  }</span>
+
+  private void install(ExtensionContainer container, Predicate&lt;Object&gt; extensionFilter, Predicate&lt;Object&gt; additionalSideFilter, CoreExtension coreExtension) {
+<span class="fc" id="L71">    String coreExtensionName = coreExtension.getName();</span>
+    try {
+<span class="fc" id="L73">      addDeclaredExtensions(container, extensionFilter, additionalSideFilter, coreExtension);</span>
+
+<span class="fc" id="L75">      LOG.debug(&quot;Installed core extension: {}&quot;, coreExtensionName);</span>
+<span class="fc" id="L76">      coreExtensionRepository.installed(coreExtension);</span>
+<span class="nc" id="L77">    } catch (Exception e) {</span>
+<span class="nc" id="L78">      throw new RuntimeException(&quot;Failed to load core extension &quot; + coreExtensionName, e);</span>
+<span class="fc" id="L79">    }</span>
+<span class="fc" id="L80">  }</span>
+
+  private void addDeclaredExtensions(ExtensionContainer container, Predicate&lt;Object&gt; extensionFilter, Predicate&lt;Object&gt; additionalSideFilter, CoreExtension coreExtension) {
+<span class="fc" id="L83">    ContextImpl context = new ContextImpl(container, extensionFilter, additionalSideFilter, coreExtension.getName());</span>
+<span class="fc" id="L84">    coreExtension.load(context);</span>
+<span class="fc" id="L85">  }</span>
+
+  private class ContextImpl implements CoreExtension.Context {
+    private final ExtensionContainer container;
+    private final Predicate&lt;Object&gt; extensionFilter;
+    private final Predicate&lt;Object&gt; additionalSideFilter;
+    private final String extensionCategory;
+
+<span class="fc" id="L93">    public ContextImpl(ExtensionContainer container, Predicate&lt;Object&gt; extensionFilter, Predicate&lt;Object&gt; additionalSideFilter, String extensionCategory) {</span>
+<span class="fc" id="L94">      this.container = container;</span>
+<span class="fc" id="L95">      this.extensionFilter = extensionFilter;</span>
+<span class="fc" id="L96">      this.additionalSideFilter = additionalSideFilter;</span>
+<span class="fc" id="L97">      this.extensionCategory = extensionCategory;</span>
+<span class="fc" id="L98">    }</span>
+
+    @Override
+    public SonarRuntime getRuntime() {
+<span class="fc" id="L102">      return sonarRuntime;</span>
+    }
+
+    @Override
+    public Configuration getBootConfiguration() {
+<span class="fc" id="L107">      return Optional.ofNullable(container.getComponentByType(Configuration.class))</span>
+<span class="pc" id="L108">        .orElseGet(() -&gt; new MapSettings().asConfig());</span>
+    }
+
+    @Override
+    public CoreExtension.Context addExtension(Object component) {
+<span class="fc" id="L113">      requireNonNull(component, &quot;component can't be null&quot;);</span>
+<span class="fc bfc" id="L114" title="All 2 branches covered.">      if (!extensionFilter.test(component)) {</span>
+<span class="fc" id="L115">        return this;</span>
+      }
+
+<span class="fc bfc" id="L118" title="All 2 branches covered.">      if (!addSupportedExtension(container, additionalSideFilter, extensionCategory, component)) {</span>
+<span class="fc" id="L119">        container.declareExtension(extensionCategory, component);</span>
+      }
+<span class="fc" id="L121">      return this;</span>
+    }
+
+    @Override
+    public final CoreExtension.Context addExtensions(Object component, Object... otherComponents) {
+<span class="fc" id="L126">      addExtension(component);</span>
+<span class="fc" id="L127">      Arrays.stream(otherComponents).forEach(this::addExtension);</span>
+<span class="fc" id="L128">      return this;</span>
+    }
+
+    @Override
+    public void addWebApiV2ConfigurationClass(Class&lt;?&gt; clazz) {
+<span class="nc" id="L133">      container.addWebApiV2ConfigurationClass(clazz);</span>
+<span class="nc" id="L134">    }</span>
+
+    @Override
+    public &lt;T&gt; CoreExtension.Context addExtensions(Collection&lt;T&gt; components) {
+<span class="fc" id="L138">      requireNonNull(components, &quot;components can't be null&quot;);</span>
+<span class="fc" id="L139">      components.forEach(this::addExtension);</span>
+<span class="fc" id="L140">      return this;</span>
+    }
+
+    private &lt;T&gt; boolean addSupportedExtension(ExtensionContainer container, Predicate&lt;Object&gt; additionalSideFilter,
+      String extensionCategory, T component) {
+<span class="fc bfc" id="L145" title="All 4 branches covered.">      if (hasSupportedAnnotation(component) &amp;&amp; additionalSideFilter.test(component)) {</span>
+<span class="fc" id="L146">        container.addExtension(extensionCategory, component);</span>
+<span class="fc" id="L147">        return true;</span>
+      }
+<span class="fc" id="L149">      return false;</span>
+    }
+
+    private &lt;T&gt; boolean hasSupportedAnnotation(T component) {
+<span class="fc bfc" id="L153" title="All 2 branches covered.">      return AnnotationUtils.getAnnotation(component, supportedAnnotationType) != null;</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

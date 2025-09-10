@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ChangeLogLevelAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform.ws</a> &gt; <span class="el_source">ChangeLogLevelAction.java</span></div><h1>ChangeLogLevelAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform.ws;
+
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.api.utils.log.LoggerLevel;
+import org.sonar.server.user.UserSession;
+
+import static org.sonar.process.logging.LogbackHelper.allowedLogLevels;
+
+public class ChangeLogLevelAction implements SystemWsAction {
+
+  private static final String PARAM_LEVEL = &quot;level&quot;;
+
+  private final UserSession userSession;
+  private final ChangeLogLevelService service;
+
+<span class="fc" id="L37">  public ChangeLogLevelAction(UserSession userSession, ChangeLogLevelService service) {</span>
+<span class="fc" id="L38">    this.userSession = userSession;</span>
+<span class="fc" id="L39">    this.service = service;</span>
+<span class="fc" id="L40">  }</span>
+
+  @Override
+  public void define(WebService.NewController controller) {
+<span class="fc" id="L44">    WebService.NewAction newAction = controller.createAction(&quot;change_log_level&quot;)</span>
+<span class="fc" id="L45">      .setDescription(&quot;Temporarily changes level of logs. New level is not persistent and is lost &quot; +</span>
+        &quot;when restarting server. Requires system administration permission.&quot;)
+<span class="fc" id="L47">      .setSince(&quot;5.2&quot;)</span>
+<span class="fc" id="L48">      .setPost(true)</span>
+<span class="fc" id="L49">      .setHandler(this);</span>
+
+<span class="fc" id="L51">    newAction.createParam(PARAM_LEVEL)</span>
+<span class="fc" id="L52">      .setDescription(&quot;The new level. Be cautious: DEBUG, and even more TRACE, may have performance impacts.&quot;)</span>
+<span class="fc" id="L53">      .setPossibleValues(allowedLogLevels())</span>
+<span class="fc" id="L54">      .setRequired(true);</span>
+<span class="fc" id="L55">  }</span>
+
+  @Override
+  public void handle(Request wsRequest, Response wsResponse) throws InterruptedException {
+<span class="fc" id="L59">    userSession.checkIsSystemAdministrator();</span>
+
+<span class="fc" id="L61">    LoggerLevel level = LoggerLevel.valueOf(wsRequest.mandatoryParam(PARAM_LEVEL));</span>
+<span class="fc" id="L62">    service.changeLogLevel(level);</span>
+<span class="fc" id="L63">    wsResponse.noContent();</span>
+<span class="fc" id="L64">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

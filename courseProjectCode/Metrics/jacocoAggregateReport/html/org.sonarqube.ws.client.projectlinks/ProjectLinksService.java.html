@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ProjectLinksService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonarqube.ws.client.projectlinks</a> &gt; <span class="el_source">ProjectLinksService.java</span></div><h1>ProjectLinksService.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonarqube.ws.client.projectlinks;
+
+import jakarta.annotation.Generated;
+import org.sonarqube.ws.MediaTypes;
+import org.sonarqube.ws.client.BaseService;
+import org.sonarqube.ws.client.GetRequest;
+import org.sonarqube.ws.client.PostRequest;
+import org.sonarqube.ws.client.WsConnector;
+import org.sonarqube.ws.ProjectLinks.CreateWsResponse;
+import org.sonarqube.ws.ProjectLinks.SearchWsResponse;
+
+/**
+ * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/project_links&quot;&gt;Further information about this web service online&lt;/a&gt;
+ */
+@Generated(&quot;sonar-ws-generator&quot;)
+public class ProjectLinksService extends BaseService {
+
+  public ProjectLinksService(WsConnector wsConnector) {
+<span class="fc" id="L38">    super(wsConnector, &quot;api/project_links&quot;);</span>
+<span class="fc" id="L39">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/project_links/create&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 6.1
+   */
+  public CreateWsResponse create(CreateRequest request) {
+<span class="nc" id="L49">    return call(</span>
+<span class="nc" id="L50">      new PostRequest(path(&quot;create&quot;))</span>
+<span class="nc" id="L51">        .setParam(&quot;name&quot;, request.getName())</span>
+<span class="nc" id="L52">        .setParam(&quot;projectId&quot;, request.getProjectId())</span>
+<span class="nc" id="L53">        .setParam(&quot;projectKey&quot;, request.getProjectKey())</span>
+<span class="nc" id="L54">        .setParam(&quot;url&quot;, request.getUrl()),</span>
+<span class="nc" id="L55">      CreateWsResponse.parser());</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/project_links/delete&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 6.1
+   */
+  public void delete(DeleteRequest request) {
+<span class="nc" id="L66">    call(</span>
+<span class="nc" id="L67">      new PostRequest(path(&quot;delete&quot;))</span>
+<span class="nc" id="L68">        .setParam(&quot;id&quot;, request.getId())</span>
+<span class="nc" id="L69">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L70">      ).content();</span>
+<span class="nc" id="L71">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/project_links/search&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 6.1
+   */
+  public SearchWsResponse search(SearchRequest request) {
+<span class="nc" id="L81">    return call(</span>
+<span class="nc" id="L82">      new GetRequest(path(&quot;search&quot;))</span>
+<span class="nc" id="L83">        .setParam(&quot;projectId&quot;, request.getProjectId())</span>
+<span class="nc" id="L84">        .setParam(&quot;projectKey&quot;, request.getProjectKey()),</span>
+<span class="nc" id="L85">      SearchWsResponse.parser());</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PermissionTemplateService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.common.permission</a> &gt; <span class="el_source">PermissionTemplateService.java</span></div><h1>PermissionTemplateService.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.common.permission;
+
+import java.text.MessageFormat;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.apache.commons.lang3.StringUtils;
+import org.sonar.api.server.ServerSide;
+import org.sonar.core.util.UuidFactory;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.ComponentQualifiers;
+import org.sonar.db.entity.EntityDto;
+import org.sonar.db.permission.GroupPermissionDto;
+import org.sonar.db.permission.ProjectPermission;
+import org.sonar.db.permission.UserPermissionDto;
+import org.sonar.db.permission.template.PermissionTemplateCharacteristicDto;
+import org.sonar.db.permission.template.PermissionTemplateDto;
+import org.sonar.db.permission.template.PermissionTemplateGroupDto;
+import org.sonar.db.permission.template.PermissionTemplateUserDto;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.db.user.UserDto;
+import org.sonar.db.user.UserId;
+import org.sonar.server.es.Indexers;
+import org.sonar.server.exceptions.TemplateMatchingKeyException;
+import org.sonar.server.user.UserSession;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.lang.String.format;
+import static java.util.Collections.singletonList;
+import static org.sonar.api.security.DefaultGroups.isAnyone;
+import static org.sonar.db.permission.GlobalPermission.SCAN;
+
+@ServerSide
+public class PermissionTemplateService {
+
+  private final DbClient dbClient;
+  private final Indexers indexers;
+  private final UserSession userSession;
+  private final DefaultTemplatesResolver defaultTemplatesResolver;
+  private final UuidFactory uuidFactory;
+
+  public PermissionTemplateService(DbClient dbClient, Indexers indexers, UserSession userSession,
+<span class="fc" id="L69">    DefaultTemplatesResolver defaultTemplatesResolver, UuidFactory uuidFactory) {</span>
+<span class="fc" id="L70">    this.dbClient = dbClient;</span>
+<span class="fc" id="L71">    this.indexers = indexers;</span>
+<span class="fc" id="L72">    this.userSession = userSession;</span>
+<span class="fc" id="L73">    this.defaultTemplatesResolver = defaultTemplatesResolver;</span>
+<span class="fc" id="L74">    this.uuidFactory = uuidFactory;</span>
+<span class="fc" id="L75">  }</span>
+
+  public boolean wouldUserHaveScanPermissionWithDefaultTemplate(DbSession dbSession, @Nullable String userUuid, String projectKey) {
+<span class="pc bpc" id="L78" title="1 of 2 branches missed.">    if (userSession.hasPermission(SCAN)) {</span>
+<span class="nc" id="L79">      return true;</span>
+    }
+
+<span class="fc" id="L82">    ProjectDto projectDto = new ProjectDto().setKey(projectKey).setQualifier(ComponentQualifiers.PROJECT);</span>
+<span class="fc" id="L83">    PermissionTemplateDto template = findTemplate(dbSession, projectDto);</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">    if (template == null) {</span>
+<span class="fc" id="L85">      return false;</span>
+    }
+
+<span class="fc" id="L88">    List&lt;String&gt; potentialPermissions = dbClient.permissionTemplateDao().selectPotentialPermissionsByUserUuidAndTemplateUuid(dbSession, userUuid, template.getUuid());</span>
+<span class="fc" id="L89">    return potentialPermissions.contains(SCAN.getKey());</span>
+  }
+
+  /**
+   * Apply a permission template to a set of projects. Authorization to administrate these projects
+   * is not verified. The projects must exist, so the &quot;project creator&quot; permissions defined in the
+   * template are ignored.
+   */
+  public void applyAndCommit(DbSession dbSession, PermissionTemplateDto template, Collection&lt;EntityDto&gt; entities) {
+<span class="pc bpc" id="L98" title="1 of 2 branches missed.">    if (entities.isEmpty()) {</span>
+<span class="nc" id="L99">      return;</span>
+    }
+
+<span class="fc bfc" id="L102" title="All 2 branches covered.">    for (EntityDto entity : entities) {</span>
+<span class="fc" id="L103">      dbClient.groupPermissionDao().deleteByEntityUuid(dbSession, entity);</span>
+<span class="fc" id="L104">      dbClient.userPermissionDao().deleteEntityPermissions(dbSession, entity);</span>
+<span class="fc" id="L105">      copyPermissions(dbSession, template, entity, null);</span>
+<span class="fc" id="L106">    }</span>
+<span class="fc" id="L107">    indexers.commitAndIndexEntities(dbSession, entities, Indexers.EntityEvent.PERMISSION_CHANGE);</span>
+<span class="fc" id="L108">  }</span>
+
+  /**
+   * Apply the default permission template to a new project (has no permissions yet).
+   *
+   * @param projectCreatorUserId id of the user creating the project.
+   */
+  public void applyDefaultToNewComponent(DbSession dbSession, EntityDto entityDto, @Nullable String projectCreatorUserId) {
+<span class="fc" id="L116">    PermissionTemplateDto template = findTemplate(dbSession, entityDto);</span>
+<span class="pc bpc" id="L117" title="1 of 2 branches missed.">    checkArgument(template != null, &quot;Cannot retrieve default permission template&quot;);</span>
+<span class="fc" id="L118">    copyPermissions(dbSession, template, entityDto, projectCreatorUserId);</span>
+<span class="fc" id="L119">  }</span>
+
+  public boolean hasDefaultTemplateWithPermissionOnProjectCreator(DbSession dbSession, ProjectDto projectDto) {
+<span class="nc" id="L122">    PermissionTemplateDto template = findTemplate(dbSession, projectDto);</span>
+<span class="nc" id="L123">    return hasProjectCreatorPermission(dbSession, template);</span>
+  }
+
+  private boolean hasProjectCreatorPermission(DbSession dbSession, @Nullable PermissionTemplateDto template) {
+<span class="nc bnc" id="L127" title="All 2 branches missed.">    return template != null &amp;&amp; dbClient.permissionTemplateCharacteristicDao().selectByTemplateUuids(dbSession, singletonList(template.getUuid())).stream()</span>
+<span class="nc bnc" id="L128" title="All 2 branches missed.">      .anyMatch(PermissionTemplateCharacteristicDto::getWithProjectCreator);</span>
+  }
+
+  private void copyPermissions(DbSession dbSession, PermissionTemplateDto template, EntityDto entity, @Nullable String projectCreatorUserUuid) {
+<span class="fc" id="L132">    List&lt;PermissionTemplateUserDto&gt; usersPermissions = dbClient.permissionTemplateDao().selectUserPermissionsByTemplateId(dbSession, template.getUuid());</span>
+<span class="fc" id="L133">    Set&lt;String&gt; permissionTemplateUserUuids = usersPermissions.stream().map(PermissionTemplateUserDto::getUserUuid).collect(Collectors.toSet());</span>
+<span class="fc" id="L134">    Map&lt;String, UserId&gt; userIdByUuid = dbClient.userDao().selectByUuids(dbSession, permissionTemplateUserUuids).stream().collect(Collectors.toMap(UserDto::getUuid, u -&gt; u));</span>
+<span class="fc" id="L135">    usersPermissions</span>
+<span class="fc" id="L136">      .stream()</span>
+<span class="fc" id="L137">      .filter(up -&gt; permissionValidForProject(entity.isPrivate(), up.getPermission()))</span>
+<span class="fc" id="L138">      .forEach(up -&gt; {</span>
+<span class="fc" id="L139">        UserPermissionDto dto = new UserPermissionDto(uuidFactory.create(), up.getPermission(), up.getUserUuid(), entity.getUuid());</span>
+<span class="fc" id="L140">        dbClient.userPermissionDao().insert(dbSession, dto, entity, userIdByUuid.get(up.getUserUuid()), template);</span>
+<span class="fc" id="L141">      });</span>
+
+<span class="fc" id="L143">    List&lt;PermissionTemplateGroupDto&gt; groupsPermissions = dbClient.permissionTemplateDao().selectGroupPermissionsByTemplateUuid(dbSession, template.getUuid());</span>
+<span class="fc" id="L144">    groupsPermissions</span>
+<span class="fc" id="L145">      .stream()</span>
+<span class="fc" id="L146">      .filter(gp -&gt; groupNameValidForProject(entity.isPrivate(), gp.getGroupName()))</span>
+<span class="fc" id="L147">      .filter(gp -&gt; permissionValidForProject(entity.isPrivate(), gp.getPermission()))</span>
+<span class="fc" id="L148">      .forEach(gp -&gt; {</span>
+<span class="fc bfc" id="L149" title="All 2 branches covered.">        String groupUuid = isAnyone(gp.getGroupName()) ? null : gp.getGroupUuid();</span>
+<span class="fc bfc" id="L150" title="All 2 branches covered.">        String groupName = groupUuid == null ? null : dbClient.groupDao().selectByUuid(dbSession, groupUuid).getName();</span>
+<span class="fc" id="L151">        GroupPermissionDto dto = new GroupPermissionDto()</span>
+<span class="fc" id="L152">          .setUuid(uuidFactory.create())</span>
+<span class="fc" id="L153">          .setGroupUuid(groupUuid)</span>
+<span class="fc" id="L154">          .setGroupName(groupName)</span>
+<span class="fc" id="L155">          .setRole(gp.getPermission())</span>
+<span class="fc" id="L156">          .setEntityUuid(entity.getUuid())</span>
+<span class="fc" id="L157">          .setEntityName(entity.getName());</span>
+
+<span class="fc" id="L159">        dbClient.groupPermissionDao().insert(dbSession, dto, entity, template);</span>
+<span class="fc" id="L160">      });</span>
+
+<span class="fc" id="L162">    List&lt;PermissionTemplateCharacteristicDto&gt; characteristics = dbClient.permissionTemplateCharacteristicDao().selectByTemplateUuids(dbSession, singletonList(template.getUuid()));</span>
+<span class="fc bfc" id="L163" title="All 2 branches covered.">    if (projectCreatorUserUuid != null) {</span>
+<span class="fc" id="L164">      Set&lt;String&gt; permissionsForCurrentUserAlreadyInDb = usersPermissions.stream()</span>
+<span class="pc" id="L165">        .filter(userPermission -&gt; projectCreatorUserUuid.equals(userPermission.getUserUuid()))</span>
+<span class="fc" id="L166">        .map(PermissionTemplateUserDto::getPermission)</span>
+<span class="fc" id="L167">        .collect(java.util.stream.Collectors.toSet());</span>
+
+<span class="fc" id="L169">      UserDto userDto = dbClient.userDao().selectByUuid(dbSession, projectCreatorUserUuid);</span>
+<span class="fc" id="L170">      characteristics.stream()</span>
+<span class="fc" id="L171">        .filter(PermissionTemplateCharacteristicDto::getWithProjectCreator)</span>
+<span class="fc" id="L172">        .filter(up -&gt; permissionValidForProject(entity.isPrivate(), up.getPermission()))</span>
+<span class="pc bpc" id="L173" title="1 of 2 branches missed.">        .filter(characteristic -&gt; !permissionsForCurrentUserAlreadyInDb.contains(characteristic.getPermission()))</span>
+<span class="fc" id="L174">        .forEach(c -&gt; {</span>
+<span class="fc" id="L175">          UserPermissionDto dto = new UserPermissionDto(uuidFactory.create(), c.getPermission(), userDto.getUuid(), entity.getUuid());</span>
+<span class="fc" id="L176">          dbClient.userPermissionDao().insert(dbSession, dto, entity, userDto, template);</span>
+<span class="fc" id="L177">        });</span>
+    }
+<span class="fc" id="L179">  }</span>
+
+  private static boolean permissionValidForProject(boolean isPrivateEntity, String permission) {
+<span class="fc bfc" id="L182" title="All 4 branches covered.">    return isPrivateEntity || !ProjectPermission.isPublic(permission);</span>
+  }
+
+  private static boolean groupNameValidForProject(boolean isPrivateEntity, String groupName) {
+<span class="fc bfc" id="L186" title="All 4 branches covered.">    return !isPrivateEntity || !isAnyone(groupName);</span>
+  }
+
+  /**
+   * Return the permission template for the given component. If no template key pattern match then consider default
+   * template for the component qualifier.
+   */
+  @CheckForNull
+  private PermissionTemplateDto findTemplate(DbSession dbSession, EntityDto entityDto) {
+<span class="fc" id="L195">    List&lt;PermissionTemplateDto&gt; allPermissionTemplates = dbClient.permissionTemplateDao().selectAll(dbSession, null);</span>
+<span class="fc" id="L196">    List&lt;PermissionTemplateDto&gt; matchingTemplates = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L197" title="All 2 branches covered.">    for (PermissionTemplateDto permissionTemplateDto : allPermissionTemplates) {</span>
+<span class="fc" id="L198">      String keyPattern = permissionTemplateDto.getKeyPattern();</span>
+<span class="pc bpc" id="L199" title="1 of 4 branches missed.">      if (StringUtils.isNotBlank(keyPattern) &amp;&amp; entityDto.getKey().matches(keyPattern)) {</span>
+<span class="fc" id="L200">        matchingTemplates.add(permissionTemplateDto);</span>
+      }
+<span class="fc" id="L202">    }</span>
+<span class="fc" id="L203">    checkAtMostOneMatchForComponentKey(entityDto.getKey(), matchingTemplates);</span>
+<span class="pc bpc" id="L204" title="1 of 2 branches missed.">    if (matchingTemplates.size() == 1) {</span>
+<span class="nc" id="L205">      return matchingTemplates.get(0);</span>
+    }
+
+<span class="fc" id="L208">    String qualifier = entityDto.getQualifier();</span>
+<span class="fc" id="L209">    DefaultTemplatesResolver.ResolvedDefaultTemplates resolvedDefaultTemplates = defaultTemplatesResolver.resolve(dbSession);</span>
+<span class="pc bpc" id="L210" title="1 of 4 branches missed.">    switch (qualifier) {</span>
+      case ComponentQualifiers.PROJECT:
+<span class="fc" id="L212">        return dbClient.permissionTemplateDao().selectByUuid(dbSession, resolvedDefaultTemplates.getProject());</span>
+      case ComponentQualifiers.VIEW:
+<span class="fc" id="L214">        String portDefaultTemplateUuid = resolvedDefaultTemplates.getPortfolio().orElseThrow(</span>
+<span class="nc" id="L215">          () -&gt; new IllegalStateException(&quot;Failed to find default template for portfolios&quot;));</span>
+<span class="fc" id="L216">        return dbClient.permissionTemplateDao().selectByUuid(dbSession, portDefaultTemplateUuid);</span>
+      case ComponentQualifiers.APP:
+<span class="fc" id="L218">        String appDefaultTemplateUuid = resolvedDefaultTemplates.getApplication().orElseThrow(</span>
+<span class="nc" id="L219">          () -&gt; new IllegalStateException(&quot;Failed to find default template for applications&quot;));</span>
+<span class="fc" id="L220">        return dbClient.permissionTemplateDao().selectByUuid(dbSession, appDefaultTemplateUuid);</span>
+      default:
+<span class="nc" id="L222">        throw new IllegalArgumentException(format(&quot;Qualifier '%s' is not supported&quot;, qualifier));</span>
+    }
+  }
+
+  private static void checkAtMostOneMatchForComponentKey(String componentKey, List&lt;PermissionTemplateDto&gt; matchingTemplates) {
+<span class="fc bfc" id="L227" title="All 2 branches covered.">    if (matchingTemplates.size() &gt; 1) {</span>
+<span class="fc" id="L228">      StringBuilder templatesNames = new StringBuilder();</span>
+<span class="fc bfc" id="L229" title="All 2 branches covered.">      for (Iterator&lt;PermissionTemplateDto&gt; it = matchingTemplates.iterator(); it.hasNext();) {</span>
+<span class="fc" id="L230">        templatesNames.append(&quot;\&quot;&quot;).append(it.next().getName()).append(&quot;\&quot;&quot;);</span>
+<span class="fc bfc" id="L231" title="All 2 branches covered.">        if (it.hasNext()) {</span>
+<span class="fc" id="L232">          templatesNames.append(&quot;, &quot;);</span>
+        }
+      }
+<span class="fc" id="L235">      throw new TemplateMatchingKeyException(MessageFormat.format(</span>
+        &quot;The \&quot;{0}\&quot; key matches multiple permission templates: {1}.&quot;
+          + &quot; A system administrator must update these templates so that only one of them matches the key.&quot;,
+        componentKey,
+<span class="fc" id="L239">        templatesNames.toString()));</span>
+    }
+<span class="fc" id="L241">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

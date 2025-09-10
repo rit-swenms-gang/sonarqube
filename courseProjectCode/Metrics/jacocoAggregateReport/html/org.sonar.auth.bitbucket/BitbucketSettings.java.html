@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BitbucketSettings.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.auth.bitbucket</a> &gt; <span class="el_source">BitbucketSettings.java</span></div><h1>BitbucketSettings.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.auth.bitbucket;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.function.Supplier;
+import javax.annotation.CheckForNull;
+import org.sonar.api.PropertyType;
+import org.sonar.api.config.Configuration;
+import org.sonar.api.config.PropertyDefinition;
+import org.sonar.api.server.ServerSide;
+
+@ServerSide
+public class BitbucketSettings {
+
+<span class="pc" id="L34">  private static final Supplier&lt;? extends IllegalStateException&gt; DEFAULT_VALUE_MISSING = () -&gt; new IllegalStateException(&quot;Should have a default value&quot;);</span>
+  public static final String CONSUMER_KEY = &quot;sonar.auth.bitbucket.clientId.secured&quot;;
+  public static final String CONSUMER_SECRET = &quot;sonar.auth.bitbucket.clientSecret.secured&quot;;
+  public static final String ENABLED = &quot;sonar.auth.bitbucket.enabled&quot;;
+  public static final String ALLOW_USERS_TO_SIGN_UP = &quot;sonar.auth.bitbucket.allowUsersToSignUp&quot;;
+  public static final String WORKSPACE_ALLOWED_LIST = &quot;sonar.auth.bitbucket.workspaces&quot;;
+  public static final String DEFAULT_API_URL = &quot;https://api.bitbucket.org/&quot;;
+  public static final String DEFAULT_WEB_URL = &quot;https://bitbucket.org/&quot;;
+  public static final String CATEGORY = &quot;authentication&quot;;
+  public static final String SUBCATEGORY = &quot;bitbucket&quot;;
+
+  private final Configuration config;
+
+<span class="fc" id="L47">  public BitbucketSettings(Configuration config) {</span>
+<span class="fc" id="L48">    this.config = config;</span>
+<span class="fc" id="L49">  }</span>
+
+  @CheckForNull
+  public String clientId() {
+<span class="fc" id="L53">    return config.get(CONSUMER_KEY).orElse(null);</span>
+  }
+
+  @CheckForNull
+  public String clientSecret() {
+<span class="fc" id="L58">    return config.get(CONSUMER_SECRET).orElse(null);</span>
+  }
+
+  public boolean isEnabled() {
+<span class="fc bfc" id="L62" title="All 6 branches covered.">    return config.getBoolean(ENABLED).orElseThrow(DEFAULT_VALUE_MISSING) &amp;&amp; clientId() != null &amp;&amp; clientSecret() != null;</span>
+  }
+
+  public boolean allowUsersToSignUp() {
+<span class="fc" id="L66">    return config.getBoolean(ALLOW_USERS_TO_SIGN_UP).orElseThrow(DEFAULT_VALUE_MISSING);</span>
+  }
+
+  public String[] workspaceAllowedList() {
+<span class="fc" id="L70">    return config.getStringArray(WORKSPACE_ALLOWED_LIST);</span>
+  }
+
+  public String webURL() {
+<span class="fc" id="L74">    return DEFAULT_WEB_URL;</span>
+  }
+
+  public String apiURL() {
+<span class="fc" id="L78">    return DEFAULT_API_URL;</span>
+  }
+
+  public static List&lt;PropertyDefinition&gt; definitions() {
+<span class="fc" id="L82">    return Arrays.asList(</span>
+<span class="fc" id="L83">      PropertyDefinition.builder(ENABLED)</span>
+<span class="fc" id="L84">        .name(&quot;Enabled&quot;)</span>
+<span class="fc" id="L85">        .description(&quot;Enable Bitbucket users to login. Value is ignored if consumer key and secret are not defined.&quot;)</span>
+<span class="fc" id="L86">        .category(CATEGORY)</span>
+<span class="fc" id="L87">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L88">        .type(PropertyType.BOOLEAN)</span>
+<span class="fc" id="L89">        .defaultValue(String.valueOf(false))</span>
+<span class="fc" id="L90">        .index(1)</span>
+<span class="fc" id="L91">        .build(),</span>
+<span class="fc" id="L92">      PropertyDefinition.builder(CONSUMER_KEY)</span>
+<span class="fc" id="L93">        .name(&quot;OAuth consumer key&quot;)</span>
+<span class="fc" id="L94">        .description(&quot;Consumer key provided by Bitbucket when registering the consumer.&quot;)</span>
+<span class="fc" id="L95">        .category(CATEGORY)</span>
+<span class="fc" id="L96">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L97">        .index(2)</span>
+<span class="fc" id="L98">        .build(),</span>
+<span class="fc" id="L99">      PropertyDefinition.builder(CONSUMER_SECRET)</span>
+<span class="fc" id="L100">        .name(&quot;OAuth consumer secret&quot;)</span>
+<span class="fc" id="L101">        .description(&quot;Consumer secret provided by Bitbucket when registering the consumer.&quot;)</span>
+<span class="fc" id="L102">        .category(CATEGORY)</span>
+<span class="fc" id="L103">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L104">        .index(3)</span>
+<span class="fc" id="L105">        .build(),</span>
+<span class="fc" id="L106">      PropertyDefinition.builder(ALLOW_USERS_TO_SIGN_UP)</span>
+<span class="fc" id="L107">        .name(&quot;Allow users to sign up&quot;)</span>
+<span class="fc" id="L108">        .description(&quot;Allow new users to authenticate. When set to disabled, only existing users will be able to authenticate.&quot;)</span>
+<span class="fc" id="L109">        .category(CATEGORY)</span>
+<span class="fc" id="L110">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L111">        .type(PropertyType.BOOLEAN)</span>
+<span class="fc" id="L112">        .defaultValue(String.valueOf(true))</span>
+<span class="fc" id="L113">        .index(4)</span>
+<span class="fc" id="L114">        .build(),</span>
+<span class="fc" id="L115">      PropertyDefinition.builder(WORKSPACE_ALLOWED_LIST)</span>
+<span class="fc" id="L116">        .name(&quot;Workspaces&quot;)</span>
+<span class="fc" id="L117">        .description(&quot;Only members of at least one of these workspace will be able to authenticate. Keep empty to disable workspace restriction. &quot; +</span>
+          &quot;You can use either the workspace name, or the workspace slug (ex: https://bitbucket.org/{workspace-slug}). &quot; +
+          &quot;⚠ if not set, any BitBucket user will be able to authenticate to the server.&quot;)
+<span class="fc" id="L120">        .category(CATEGORY)</span>
+<span class="fc" id="L121">        .subCategory(SUBCATEGORY)</span>
+<span class="fc" id="L122">        .multiValues(true)</span>
+<span class="fc" id="L123">        .index(5)</span>
+<span class="fc" id="L124">        .build()</span>
+    );
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MigrateRemoveDuplicateScaReleases.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform.db.migration.version.v202503</a> &gt; <span class="el_source">MigrateRemoveDuplicateScaReleases.java</span></div><h1>MigrateRemoveDuplicateScaReleases.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform.db.migration.version.v202503;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+import org.sonar.db.Database;
+import org.sonar.server.platform.db.migration.step.MigrationStep;
+
+public class MigrateRemoveDuplicateScaReleases implements MigrationStep {
+  static final String SELECT_BATCH_QUERY = &quot;&quot;&quot;
+    WITH duplicate_releases AS (
+        SELECT
+            uuid,
+            ROW_NUMBER() OVER (
+                PARTITION BY component_uuid, package_url
+                ORDER BY created_at ASC
+            ) AS row_num
+        FROM sca_releases
+    )
+    SELECT
+        uuid
+    FROM duplicate_releases
+    WHERE row_num &gt; 1
+    &quot;&quot;&quot;;
+
+  static final String DELETE_BATCH_DEPENDENCIES_QUERY = &quot;&quot;&quot;
+    DELETE FROM sca_dependencies WHERE sca_release_uuid IN (?)
+    &quot;&quot;&quot;;
+
+  static final String DELETE_BATCH_ISSUES_RELEASES_CHANGES_QUERY = &quot;&quot;&quot;
+    DELETE FROM sca_issue_rels_changes WHERE sca_issues_releases_uuid IN (SELECT uuid FROM sca_issues_releases WHERE sca_release_uuid IN (?))
+    &quot;&quot;&quot;;
+
+  static final String DELETE_BATCH_ISSUES_RELEASES_QUERY = &quot;&quot;&quot;
+    DELETE FROM sca_issues_releases WHERE sca_release_uuid IN (?)
+    &quot;&quot;&quot;;
+
+  static final String DELETE_BATCH_RELEASES_QUERY = &quot;&quot;&quot;
+    DELETE FROM sca_releases WHERE uuid IN (?)
+    &quot;&quot;&quot;;
+
+  private final Database db;
+
+<span class="fc" id="L66">  public MigrateRemoveDuplicateScaReleases(Database db) {</span>
+<span class="fc" id="L67">    this.db = db;</span>
+<span class="fc" id="L68">  }</span>
+
+  private static List&lt;String&gt; findBatchOfDuplicates(Connection connection) throws SQLException {
+<span class="fc" id="L71">    List&lt;String&gt; results = new ArrayList&lt;&gt;();</span>
+
+<span class="fc" id="L73">    try (PreparedStatement preparedStatement = connection.prepareStatement(SELECT_BATCH_QUERY)) {</span>
+<span class="fc" id="L74">      preparedStatement.setMaxRows(999);</span>
+<span class="fc" id="L75">      try (ResultSet resultSet = preparedStatement.executeQuery()) {</span>
+<span class="fc bfc" id="L76" title="All 2 branches covered.">        while (resultSet.next()) {</span>
+<span class="fc" id="L77">          results.add(resultSet.getString(1));</span>
+        }
+      }
+    }
+
+<span class="fc" id="L82">    return results;</span>
+  }
+
+  private static void deleteBatch(Connection connection, String batchSql, List&lt;String&gt; duplicateReleaseUuids) throws SQLException {
+<span class="fc" id="L86">    try (PreparedStatement preparedStatement = connection.prepareStatement(batchSql)) {</span>
+<span class="fc bfc" id="L87" title="All 2 branches covered.">      for (String uuid : duplicateReleaseUuids) {</span>
+<span class="fc" id="L88">        preparedStatement.setString(1, uuid);</span>
+<span class="fc" id="L89">        preparedStatement.addBatch();</span>
+<span class="fc" id="L90">      }</span>
+<span class="fc" id="L91">      preparedStatement.executeBatch();</span>
+    }
+<span class="fc" id="L93">  }</span>
+
+  private static void deleteBatchOfDuplicates(Connection connection, List&lt;String&gt; duplicateRowUuids) throws SQLException {
+<span class="fc" id="L96">    deleteBatch(connection, DELETE_BATCH_DEPENDENCIES_QUERY, duplicateRowUuids);</span>
+<span class="fc" id="L97">    deleteBatch(connection, DELETE_BATCH_ISSUES_RELEASES_CHANGES_QUERY, duplicateRowUuids);</span>
+<span class="fc" id="L98">    deleteBatch(connection, DELETE_BATCH_ISSUES_RELEASES_QUERY, duplicateRowUuids);</span>
+<span class="fc" id="L99">    deleteBatch(connection, DELETE_BATCH_RELEASES_QUERY, duplicateRowUuids);</span>
+<span class="fc" id="L100">  }</span>
+
+  @Override
+  public void execute() throws SQLException {
+<span class="fc" id="L104">    try (var connection = db.getDataSource().getConnection()) {</span>
+<span class="fc" id="L105">      List&lt;String&gt; duplicateRowUuids = findBatchOfDuplicates(connection);</span>
+<span class="fc bfc" id="L106" title="All 2 branches covered.">      while (!duplicateRowUuids.isEmpty()) {</span>
+<span class="fc" id="L107">        deleteBatchOfDuplicates(connection, duplicateRowUuids);</span>
+<span class="fc" id="L108">        duplicateRowUuids = findBatchOfDuplicates(connection);</span>
+      }
+    }
+<span class="fc" id="L111">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

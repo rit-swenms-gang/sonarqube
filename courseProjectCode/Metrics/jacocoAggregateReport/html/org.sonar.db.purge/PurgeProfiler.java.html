@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PurgeProfiler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.purge</a> &gt; <span class="el_source">PurgeProfiler.java</span></div><h1>PurgeProfiler.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.purge;
+
+import com.google.common.annotations.VisibleForTesting;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import org.sonar.api.utils.TimeUtils;
+
+public class PurgeProfiler {
+
+<span class="fc" id="L32">  private final Map&lt;String, Long&gt; durations = new HashMap&lt;&gt;();</span>
+  private long startTime;
+  private String currentTable;
+  private final Clock clock;
+
+  public PurgeProfiler() {
+<span class="fc" id="L38">    this(new Clock());</span>
+<span class="fc" id="L39">  }</span>
+
+  @VisibleForTesting
+<span class="fc" id="L42">  PurgeProfiler(Clock clock) {</span>
+<span class="fc" id="L43">    this.clock = clock;</span>
+<span class="fc" id="L44">  }</span>
+
+  public void reset() {
+<span class="fc" id="L47">    durations.clear();</span>
+<span class="fc" id="L48">  }</span>
+
+  void start(String table) {
+<span class="fc" id="L51">    this.startTime = clock.now();</span>
+<span class="fc" id="L52">    this.currentTable = table;</span>
+<span class="fc" id="L53">  }</span>
+
+  void stop() {
+<span class="fc" id="L56">    Long cumulatedDuration = durations.getOrDefault(currentTable, 0L);</span>
+<span class="fc" id="L57">    durations.put(currentTable, cumulatedDuration + (clock.now() - startTime));</span>
+<span class="fc" id="L58">  }</span>
+
+  public List&lt;String&gt; getProfilingResult(long totalTime) {
+<span class="fc" id="L61">    List&lt;Entry&lt;String, Long&gt;&gt; data = new ArrayList&lt;&gt;(durations.entrySet());</span>
+<span class="fc" id="L62">    data.sort((o1, o2) -&gt; o2.getValue().compareTo(o1.getValue()));</span>
+<span class="fc" id="L63">    double percent = totalTime / 100.0;</span>
+<span class="fc" id="L64">    return truncateList(data).stream().map( entry -&gt;</span>
+<span class="fc" id="L65">      &quot;   o &quot; + entry.getKey() + &quot;: &quot; + TimeUtils.formatDuration(entry.getValue()) +</span>
+<span class="fc" id="L66">        &quot; (&quot; + (int) (entry.getValue() / percent) + &quot;%)&quot;</span>
+<span class="fc" id="L67">    ).toList();</span>
+  }
+
+  private static List&lt;Entry&lt;String, Long&gt;&gt; truncateList(List&lt;Entry&lt;String, Long&gt;&gt; sortedFullList) {
+<span class="fc" id="L71">    int maxSize = 10;</span>
+<span class="fc" id="L72">    List&lt;Entry&lt;String, Long&gt;&gt; result = new ArrayList&lt;&gt;(maxSize);</span>
+<span class="fc" id="L73">    int i = 0;</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">    for (Entry&lt;String, Long&gt; item : sortedFullList) {</span>
+<span class="pc bpc" id="L75" title="1 of 4 branches missed.">      if (i++ &gt;= maxSize || item.getValue() == 0) {</span>
+<span class="fc" id="L76">        return result;</span>
+      }
+<span class="fc" id="L78">      result.add(item);</span>
+<span class="fc" id="L79">    }</span>
+<span class="fc" id="L80">    return result;</span>
+  }
+
+<span class="fc" id="L83">  static class Clock {</span>
+    public long now() {
+<span class="fc" id="L85">      return System.currentTimeMillis();</span>
+    }
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

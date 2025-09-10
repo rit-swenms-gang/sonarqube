@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NodeHealth.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.process.cluster.health</a> &gt; <span class="el_source">NodeHealth.java</span></div><h1>NodeHealth.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.process.cluster.health;
+
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableSet;
+import java.io.Externalizable;
+import java.io.IOException;
+import java.io.ObjectInput;
+import java.io.ObjectOutput;
+import java.util.HashSet;
+import java.util.Objects;
+import java.util.Set;
+
+import static java.util.Objects.requireNonNull;
+
+/**
+ * &lt;p&gt;{@link Externalizable} because this class is written to and from Hazelcast.&lt;/p&gt;
+ */
+public class NodeHealth implements Externalizable {
+  private Status status;
+  private Set&lt;String&gt; causes;
+  private NodeDetails details;
+
+  /**
+   * Required for Serialization
+   */
+<span class="fc" id="L45">  public NodeHealth() {</span>
+<span class="fc" id="L46">  }</span>
+
+<span class="fc" id="L48">  private NodeHealth(Builder builder) {</span>
+<span class="fc" id="L49">    this.status = builder.status;</span>
+<span class="fc" id="L50">    this.causes = ImmutableSet.copyOf(builder.causes);</span>
+<span class="fc" id="L51">    this.details = builder.details;</span>
+<span class="fc" id="L52">  }</span>
+
+  public static Builder newNodeHealthBuilder() {
+<span class="fc" id="L55">    return new Builder();</span>
+  }
+
+  public Status getStatus() {
+<span class="fc" id="L59">    return status;</span>
+  }
+
+  public Set&lt;String&gt; getCauses() {
+<span class="fc" id="L63">    return causes;</span>
+  }
+
+  public NodeDetails getDetails() {
+<span class="fc" id="L67">    return details;</span>
+  }
+
+  @Override
+  public void writeExternal(ObjectOutput out) throws IOException {
+<span class="fc" id="L72">    out.writeInt(status.ordinal());</span>
+<span class="fc" id="L73">    out.writeInt(causes.size());</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">    for (String cause : causes) {</span>
+<span class="fc" id="L75">      out.writeUTF(cause);</span>
+<span class="fc" id="L76">    }</span>
+<span class="fc" id="L77">    out.writeObject(details);</span>
+<span class="fc" id="L78">  }</span>
+
+  @Override
+  public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
+<span class="fc" id="L82">    this.status = Status.values()[in.readInt()];</span>
+<span class="fc" id="L83">    int size = in.readInt();</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">    if (size &gt; 0) {</span>
+<span class="fc" id="L85">      Set&lt;String&gt; readCauses = new HashSet&lt;&gt;(size);</span>
+<span class="fc bfc" id="L86" title="All 2 branches covered.">      for (int i = 0; i &lt; size; i++) {</span>
+<span class="fc" id="L87">        readCauses.add(in.readUTF());</span>
+      }
+<span class="fc" id="L89">      this.causes = ImmutableSet.copyOf(readCauses);</span>
+<span class="fc" id="L90">    } else {</span>
+<span class="fc" id="L91">      this.causes = ImmutableSet.of();</span>
+    }
+<span class="fc" id="L93">    this.details = (NodeDetails) in.readObject();</span>
+<span class="fc" id="L94">  }</span>
+
+  @Override
+  public boolean equals(Object o) {
+<span class="fc bfc" id="L98" title="All 2 branches covered.">    if (this == o) {</span>
+<span class="fc" id="L99">      return true;</span>
+    }
+<span class="pc bpc" id="L101" title="1 of 4 branches missed.">    if (o == null || getClass() != o.getClass()) {</span>
+<span class="fc" id="L102">      return false;</span>
+    }
+<span class="fc" id="L104">    NodeHealth that = (NodeHealth) o;</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">    return status == that.status &amp;&amp;</span>
+<span class="pc bpc" id="L106" title="1 of 2 branches missed.">      causes.equals(that.causes) &amp;&amp;</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">      details.equals(that.details);</span>
+  }
+
+  @Override
+  public int hashCode() {
+<span class="fc" id="L112">    return Objects.hash(status, causes, details);</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="fc" id="L117">    return &quot;NodeHealth{&quot; +</span>
+      &quot;status=&quot; + status +
+      &quot;, causes=&quot; + causes +
+      &quot;, details=&quot; + details +
+      '}';
+  }
+
+  public static class Builder {
+    private static final String STATUS_CANT_BE_NULL = &quot;status can't be null&quot;;
+    private static final String DETAILS_CANT_BE_NULL = &quot;details can't be null&quot;;
+
+    private Status status;
+<span class="fc" id="L129">    private Set&lt;String&gt; causes = new HashSet&lt;&gt;(0);</span>
+    private NodeDetails details;
+
+<span class="fc" id="L132">    private Builder() {</span>
+      // use static factory method
+<span class="fc" id="L134">    }</span>
+
+    public Builder setStatus(Status status) {
+<span class="fc" id="L137">      this.status = requireNonNull(status, STATUS_CANT_BE_NULL);</span>
+<span class="fc" id="L138">      return this;</span>
+    }
+
+    public Builder clearCauses() {
+<span class="fc" id="L142">      this.causes.clear();</span>
+<span class="fc" id="L143">      return this;</span>
+    }
+
+    public Builder addCause(String cause) {
+<span class="fc" id="L147">      requireNonNull(cause, &quot;cause can't be null&quot;);</span>
+<span class="fc" id="L148">      String trimmed = cause.trim();</span>
+<span class="pc bpc" id="L149" title="1 of 2 branches missed.">      Preconditions.checkArgument(!trimmed.isEmpty(), &quot;cause can't be empty&quot;);</span>
+<span class="fc" id="L150">      causes.add(cause);</span>
+<span class="fc" id="L151">      return this;</span>
+    }
+
+    public Builder setDetails(NodeDetails details) {
+<span class="fc" id="L155">      requireNonNull(details, DETAILS_CANT_BE_NULL);</span>
+<span class="fc" id="L156">      this.details = details;</span>
+<span class="fc" id="L157">      return this;</span>
+    }
+
+    public NodeHealth build() {
+<span class="fc" id="L161">      requireNonNull(status, STATUS_CANT_BE_NULL);</span>
+<span class="fc" id="L162">      requireNonNull(details, DETAILS_CANT_BE_NULL);</span>
+<span class="fc" id="L163">      return new NodeHealth(this);</span>
+    }
+  }
+
+<span class="fc" id="L167">  public enum Status {</span>
+<span class="fc" id="L168">    GREEN, YELLOW, RED</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

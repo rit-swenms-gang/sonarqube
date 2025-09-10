@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SingleDeprecatedRuleKey.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.rule.registration</a> &gt; <span class="el_source">SingleDeprecatedRuleKey.java</span></div><h1>SingleDeprecatedRuleKey.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.rule.registration;
+
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.api.server.rule.RulesDefinition;
+import org.sonar.db.rule.DeprecatedRuleKeyDto;
+
+@Immutable
+class SingleDeprecatedRuleKey {
+  private String oldRuleKey;
+  private String oldRepositoryKey;
+  private String newRuleKey;
+  private String newRepositoryKey;
+  private String uuid;
+  private String ruleUuid;
+
+  /**
+   * static methods {@link #from(RulesDefinition.Rule)} and {@link #from(DeprecatedRuleKeyDto)} must be used
+   */
+  private SingleDeprecatedRuleKey() {
+    // empty
+  }
+
+  public static Set&lt;SingleDeprecatedRuleKey&gt; from(RulesDefinition.Rule rule) {
+<span class="fc" id="L49">    rule.deprecatedRuleKeys();</span>
+<span class="fc" id="L50">    return rule.deprecatedRuleKeys().stream()</span>
+<span class="fc" id="L51">      .map(r -&gt; new SingleDeprecatedRuleKey()</span>
+<span class="fc" id="L52">        .setNewRepositoryKey(rule.repository().key())</span>
+<span class="fc" id="L53">        .setNewRuleKey(rule.key())</span>
+<span class="fc" id="L54">        .setOldRepositoryKey(r.repository())</span>
+<span class="fc" id="L55">        .setOldRuleKey(r.rule()))</span>
+<span class="fc" id="L56">      .collect(Collectors.toSet());</span>
+  }
+
+  public static SingleDeprecatedRuleKey from(DeprecatedRuleKeyDto rule) {
+<span class="fc" id="L60">    return new SingleDeprecatedRuleKey()</span>
+<span class="fc" id="L61">      .setUuid(rule.getUuid())</span>
+<span class="fc" id="L62">      .setRuleUuid(rule.getRuleUuid())</span>
+<span class="fc" id="L63">      .setNewRepositoryKey(rule.getNewRepositoryKey())</span>
+<span class="fc" id="L64">      .setNewRuleKey(rule.getNewRuleKey())</span>
+<span class="fc" id="L65">      .setOldRepositoryKey(rule.getOldRepositoryKey())</span>
+<span class="fc" id="L66">      .setOldRuleKey(rule.getOldRuleKey());</span>
+  }
+
+  public String getOldRuleKey() {
+<span class="fc" id="L70">    return oldRuleKey;</span>
+  }
+
+  public String getOldRepositoryKey() {
+<span class="fc" id="L74">    return oldRepositoryKey;</span>
+  }
+
+  public RuleKey getOldRuleKeyAsRuleKey() {
+<span class="fc" id="L78">    return RuleKey.of(oldRepositoryKey, oldRuleKey);</span>
+  }
+
+  public RuleKey getNewRuleKeyAsRuleKey() {
+<span class="fc" id="L82">    return RuleKey.of(newRepositoryKey, newRuleKey);</span>
+  }
+
+  @CheckForNull
+  public String getNewRuleKey() {
+<span class="fc" id="L87">    return newRuleKey;</span>
+  }
+
+  @CheckForNull
+  public String getNewRepositoryKey() {
+<span class="fc" id="L92">    return newRepositoryKey;</span>
+  }
+
+  @CheckForNull
+  public String getUuid() {
+<span class="fc" id="L97">    return uuid;</span>
+  }
+
+  @CheckForNull
+  public String getRuleUuid() {
+<span class="fc" id="L102">    return ruleUuid;</span>
+  }
+
+  @Override
+  public boolean equals(Object o) {
+<span class="fc bfc" id="L107" title="All 2 branches covered.">    if (this == o) {</span>
+<span class="fc" id="L108">      return true;</span>
+    }
+<span class="fc bfc" id="L110" title="All 4 branches covered.">    if (o == null || getClass() != o.getClass()) {</span>
+<span class="fc" id="L111">      return false;</span>
+    }
+<span class="fc" id="L113">    SingleDeprecatedRuleKey that = (SingleDeprecatedRuleKey) o;</span>
+<span class="fc bfc" id="L114" title="All 2 branches covered.">    return Objects.equals(oldRuleKey, that.oldRuleKey) &amp;&amp;</span>
+<span class="pc bpc" id="L115" title="1 of 2 branches missed.">      Objects.equals(oldRepositoryKey, that.oldRepositoryKey) &amp;&amp;</span>
+<span class="pc bpc" id="L116" title="1 of 2 branches missed.">      Objects.equals(newRuleKey, that.newRuleKey) &amp;&amp;</span>
+<span class="pc bpc" id="L117" title="1 of 2 branches missed.">      Objects.equals(newRepositoryKey, that.newRepositoryKey);</span>
+  }
+
+  @Override
+  public int hashCode() {
+<span class="fc" id="L122">    return Objects.hash(oldRuleKey, oldRepositoryKey, newRuleKey, newRepositoryKey);</span>
+  }
+
+  private SingleDeprecatedRuleKey setRuleUuid(String ruleUuid) {
+<span class="fc" id="L126">    this.ruleUuid = ruleUuid;</span>
+<span class="fc" id="L127">    return this;</span>
+  }
+
+  private SingleDeprecatedRuleKey setUuid(String uuid) {
+<span class="fc" id="L131">    this.uuid = uuid;</span>
+<span class="fc" id="L132">    return this;</span>
+  }
+
+  private SingleDeprecatedRuleKey setOldRuleKey(String oldRuleKey) {
+<span class="fc" id="L136">    this.oldRuleKey = oldRuleKey;</span>
+<span class="fc" id="L137">    return this;</span>
+  }
+
+  private SingleDeprecatedRuleKey setOldRepositoryKey(String oldRepositoryKey) {
+<span class="fc" id="L141">    this.oldRepositoryKey = oldRepositoryKey;</span>
+<span class="fc" id="L142">    return this;</span>
+  }
+
+  private SingleDeprecatedRuleKey setNewRuleKey(@Nullable String newRuleKey) {
+<span class="fc" id="L146">    this.newRuleKey = newRuleKey;</span>
+<span class="fc" id="L147">    return this;</span>
+  }
+
+  private SingleDeprecatedRuleKey setNewRepositoryKey(@Nullable String newRepositoryKey) {
+<span class="fc" id="L151">    this.newRepositoryKey = newRepositoryKey;</span>
+<span class="fc" id="L152">    return this;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

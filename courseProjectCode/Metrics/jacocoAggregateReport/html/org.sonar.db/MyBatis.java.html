@@ -1,0 +1,399 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MyBatis.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db</a> &gt; <span class="el_source">MyBatis.java</span></div><h1>MyBatis.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db;
+
+import com.google.common.annotations.VisibleForTesting;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import javax.annotation.Nullable;
+import org.apache.ibatis.logging.LogFactory;
+import org.apache.ibatis.session.ExecutorType;
+import org.apache.ibatis.session.SqlSession;
+import org.apache.ibatis.session.SqlSessionFactory;
+import org.apache.ibatis.session.SqlSessionFactoryBuilder;
+import org.apache.ibatis.session.TransactionIsolationLevel;
+import org.sonar.db.alm.pat.AlmPatMapper;
+import org.sonar.db.alm.setting.AlmSettingMapper;
+import org.sonar.db.alm.setting.ProjectAlmKeyAndProject;
+import org.sonar.db.alm.setting.ProjectAlmSettingMapper;
+import org.sonar.db.audit.AuditMapper;
+import org.sonar.db.ce.CeActivityMapper;
+import org.sonar.db.ce.CeQueueMapper;
+import org.sonar.db.ce.CeScannerContextMapper;
+import org.sonar.db.ce.CeTaskCharacteristicDto;
+import org.sonar.db.ce.CeTaskCharacteristicMapper;
+import org.sonar.db.ce.CeTaskInputMapper;
+import org.sonar.db.ce.CeTaskMessageMapper;
+import org.sonar.db.common.Common;
+import org.sonar.db.component.AnalysisPropertiesMapper;
+import org.sonar.db.component.AnalysisPropertyValuePerProject;
+import org.sonar.db.component.ApplicationProjectsMapper;
+import org.sonar.db.component.BranchMapper;
+import org.sonar.db.component.ComponentDto;
+import org.sonar.db.component.ComponentKeyUpdaterMapper;
+import org.sonar.db.component.ComponentMapper;
+import org.sonar.db.component.FilePathWithHashDto;
+import org.sonar.db.component.KeyWithUuidDto;
+import org.sonar.db.component.PrBranchAnalyzedLanguageCountByProjectDto;
+import org.sonar.db.component.ProjectLinkMapper;
+import org.sonar.db.component.ResourceDto;
+import org.sonar.db.component.ScrapAnalysisPropertyDto;
+import org.sonar.db.component.SnapshotDto;
+import org.sonar.db.component.SnapshotMapper;
+import org.sonar.db.component.UuidWithBranchUuidDto;
+import org.sonar.db.component.ViewsSnapshotDto;
+import org.sonar.db.duplication.DuplicationMapper;
+import org.sonar.db.duplication.DuplicationUnitDto;
+import org.sonar.db.entity.EntityDto;
+import org.sonar.db.entity.EntityMapper;
+import org.sonar.db.es.EsQueueMapper;
+import org.sonar.db.event.EventComponentChangeMapper;
+import org.sonar.db.event.EventDto;
+import org.sonar.db.event.EventMapper;
+import org.sonar.db.issue.AnticipatedTransitionDto;
+import org.sonar.db.issue.AnticipatedTransitionMapper;
+import org.sonar.db.issue.ImpactDto;
+import org.sonar.db.issue.IssueChangeDto;
+import org.sonar.db.issue.IssueChangeMapper;
+import org.sonar.db.issue.IssueDto;
+import org.sonar.db.issue.IssueFixedMapper;
+import org.sonar.db.issue.IssueMapper;
+import org.sonar.db.issue.NewCodeReferenceIssueDto;
+import org.sonar.db.issue.PrIssueDto;
+import org.sonar.db.measure.LargestBranchNclocDto;
+import org.sonar.db.measure.MeasureMapper;
+import org.sonar.db.measure.ProjectMeasureDto;
+import org.sonar.db.measure.ProjectMeasureMapper;
+import org.sonar.db.metric.MetricMapper;
+import org.sonar.db.migrationlog.MigrationLogMapper;
+import org.sonar.db.newcodeperiod.NewCodePeriodMapper;
+import org.sonar.db.notification.NotificationQueueDto;
+import org.sonar.db.notification.NotificationQueueMapper;
+import org.sonar.db.permission.AuthorizationMapper;
+import org.sonar.db.permission.GroupPermissionDto;
+import org.sonar.db.permission.GroupPermissionMapper;
+import org.sonar.db.permission.UserPermissionDto;
+import org.sonar.db.permission.UserPermissionMapper;
+import org.sonar.db.permission.template.PermissionTemplateCharacteristicDto;
+import org.sonar.db.permission.template.PermissionTemplateCharacteristicMapper;
+import org.sonar.db.permission.template.PermissionTemplateDto;
+import org.sonar.db.permission.template.PermissionTemplateGroupDto;
+import org.sonar.db.permission.template.PermissionTemplateMapper;
+import org.sonar.db.permission.template.PermissionTemplateUserDto;
+import org.sonar.db.plugin.PluginDto;
+import org.sonar.db.plugin.PluginMapper;
+import org.sonar.db.portfolio.PortfolioDto;
+import org.sonar.db.portfolio.PortfolioMapper;
+import org.sonar.db.portfolio.PortfolioProjectDto;
+import org.sonar.db.portfolio.ReferenceDto;
+import org.sonar.db.project.ApplicationProjectDto;
+import org.sonar.db.project.ProjectBadgeTokenDto;
+import org.sonar.db.project.ProjectBadgeTokenMapper;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.db.project.ProjectExportMapper;
+import org.sonar.db.project.ProjectMapper;
+import org.sonar.db.property.InternalComponentPropertiesMapper;
+import org.sonar.db.property.InternalComponentPropertyDto;
+import org.sonar.db.property.InternalPropertiesMapper;
+import org.sonar.db.property.InternalPropertyDto;
+import org.sonar.db.property.PropertiesMapper;
+import org.sonar.db.property.ScrapPropertyDto;
+import org.sonar.db.provisioning.DevOpsPermissionsMappingDto;
+import org.sonar.db.provisioning.DevOpsPermissionsMappingMapper;
+import org.sonar.db.provisioning.GithubOrganizationGroupDto;
+import org.sonar.db.provisioning.GithubOrganizationGroupMapper;
+import org.sonar.db.purge.PurgeMapper;
+import org.sonar.db.purge.PurgeableAnalysisDto;
+import org.sonar.db.pushevent.PushEventDto;
+import org.sonar.db.pushevent.PushEventMapper;
+import org.sonar.db.qualitygate.ProjectQgateAssociationDto;
+import org.sonar.db.qualitygate.ProjectQgateAssociationMapper;
+import org.sonar.db.qualitygate.QualityGateConditionDto;
+import org.sonar.db.qualitygate.QualityGateConditionMapper;
+import org.sonar.db.qualitygate.QualityGateDto;
+import org.sonar.db.qualitygate.QualityGateGroupPermissionsMapper;
+import org.sonar.db.qualitygate.QualityGateMapper;
+import org.sonar.db.qualitygate.QualityGateUserPermissionsMapper;
+import org.sonar.db.qualityprofile.ActiveRuleDto;
+import org.sonar.db.qualityprofile.ActiveRuleMapper;
+import org.sonar.db.qualityprofile.ActiveRuleParamDto;
+import org.sonar.db.qualityprofile.DefaultQProfileMapper;
+import org.sonar.db.qualityprofile.QProfileChangeMapper;
+import org.sonar.db.qualityprofile.QProfileEditGroupsMapper;
+import org.sonar.db.qualityprofile.QProfileEditUsersMapper;
+import org.sonar.db.qualityprofile.QualityProfileExportMapper;
+import org.sonar.db.qualityprofile.QualityProfileMapper;
+import org.sonar.db.report.RegulatoryReportMapper;
+import org.sonar.db.report.ReportScheduleMapper;
+import org.sonar.db.report.ReportSubscriptionMapper;
+import org.sonar.db.rule.RuleChangeMapper;
+import org.sonar.db.rule.RuleMapper;
+import org.sonar.db.rule.RuleParamDto;
+import org.sonar.db.rule.RuleRepositoryMapper;
+import org.sonar.db.scannercache.ScannerAnalysisCacheMapper;
+import org.sonar.db.schemamigration.SchemaMigrationDto;
+import org.sonar.db.schemamigration.SchemaMigrationMapper;
+import org.sonar.db.scim.ScimGroupMapper;
+import org.sonar.db.scim.ScimUserMapper;
+import org.sonar.db.source.FileSourceMapper;
+import org.sonar.db.telemetry.TelemetryMetricsSentMapper;
+import org.sonar.db.user.ExternalGroupDto;
+import org.sonar.db.user.ExternalGroupMapper;
+import org.sonar.db.user.GroupDto;
+import org.sonar.db.user.GroupMapper;
+import org.sonar.db.user.GroupMembershipDto;
+import org.sonar.db.user.GroupMembershipMapper;
+import org.sonar.db.user.RoleMapper;
+import org.sonar.db.user.SamlMessageIdMapper;
+import org.sonar.db.user.SessionTokenMapper;
+import org.sonar.db.user.UserDismissedMessagesMapper;
+import org.sonar.db.user.UserDto;
+import org.sonar.db.user.UserGroupDto;
+import org.sonar.db.user.UserGroupMapper;
+import org.sonar.db.user.UserMapper;
+import org.sonar.db.user.UserTelemetryDto;
+import org.sonar.db.user.UserTokenCount;
+import org.sonar.db.user.UserTokenDto;
+import org.sonar.db.user.UserTokenMapper;
+import org.sonar.db.user.ai.UserAiToolUsageMapper;
+import org.sonar.db.webhook.WebhookDeliveryMapper;
+import org.sonar.db.webhook.WebhookMapper;
+import org.springframework.beans.factory.annotation.Autowired;
+
+public class MyBatis {
+  private final List&lt;MyBatisConfExtension&gt; confExtensions;
+  private final Database database;
+  private SqlSessionFactory sessionFactory;
+
+  @Autowired(required = false)
+  public MyBatis(Database database) {
+<span class="fc" id="L191">    this(database, null);</span>
+<span class="fc" id="L192">  }</span>
+
+  @Autowired(required = false)
+<span class="fc" id="L195">  public MyBatis(Database database, @Nullable MyBatisConfExtension[] confExtensions) {</span>
+<span class="fc bfc" id="L196" title="All 2 branches covered.">    this.confExtensions = confExtensions == null ? Collections.emptyList() : Arrays.asList(confExtensions);</span>
+<span class="fc" id="L197">    this.database = database;</span>
+<span class="fc" id="L198">  }</span>
+
+  public void start() {
+<span class="fc" id="L201">    LogFactory.useNoLogging();</span>
+
+<span class="fc" id="L203">    MyBatisConfBuilder confBuilder = new MyBatisConfBuilder(database);</span>
+
+    // DTO aliases, keep them sorted alphabetically
+<span class="fc" id="L206">    confBuilder.loadAlias(&quot;ActiveRule&quot;, ActiveRuleDto.class);</span>
+<span class="fc" id="L207">    confBuilder.loadAlias(&quot;ActiveRuleParam&quot;, ActiveRuleParamDto.class);</span>
+<span class="fc" id="L208">    confBuilder.loadAlias(&quot;ApplicationProject&quot;, ApplicationProjectDto.class);</span>
+<span class="fc" id="L209">    confBuilder.loadAlias(&quot;AnticipatedTransition&quot;, AnticipatedTransitionDto.class);</span>
+<span class="fc" id="L210">    confBuilder.loadAlias(&quot;CeTaskCharacteristic&quot;, CeTaskCharacteristicDto.class);</span>
+<span class="fc" id="L211">    confBuilder.loadAlias(&quot;Component&quot;, ComponentDto.class);</span>
+<span class="fc" id="L212">    confBuilder.loadAlias(&quot;DevOpsPermissionsMapping&quot;, DevOpsPermissionsMappingDto.class);</span>
+<span class="fc" id="L213">    confBuilder.loadAlias(&quot;DuplicationUnit&quot;, DuplicationUnitDto.class);</span>
+<span class="fc" id="L214">    confBuilder.loadAlias(&quot;Entity&quot;, EntityDto.class);</span>
+<span class="fc" id="L215">    confBuilder.loadAlias(&quot;Event&quot;, EventDto.class);</span>
+<span class="fc" id="L216">    confBuilder.loadAlias(&quot;ExternalGroup&quot;, ExternalGroupDto.class);</span>
+<span class="fc" id="L217">    confBuilder.loadAlias(&quot;GithubOrganizationGroup&quot;, GithubOrganizationGroupDto.class);</span>
+<span class="fc" id="L218">    confBuilder.loadAlias(&quot;FilePathWithHash&quot;, FilePathWithHashDto.class);</span>
+<span class="fc" id="L219">    confBuilder.loadAlias(&quot;KeyWithUuid&quot;, KeyWithUuidDto.class);</span>
+<span class="fc" id="L220">    confBuilder.loadAlias(&quot;Group&quot;, GroupDto.class);</span>
+<span class="fc" id="L221">    confBuilder.loadAlias(&quot;GroupMembership&quot;, GroupMembershipDto.class);</span>
+<span class="fc" id="L222">    confBuilder.loadAlias(&quot;GroupPermission&quot;, GroupPermissionDto.class);</span>
+<span class="fc" id="L223">    confBuilder.loadAlias(&quot;InternalProperty&quot;, InternalPropertyDto.class);</span>
+<span class="fc" id="L224">    confBuilder.loadAlias(&quot;InternalComponentProperty&quot;, InternalComponentPropertyDto.class);</span>
+<span class="fc" id="L225">    confBuilder.loadAlias(&quot;IssueChange&quot;, IssueChangeDto.class);</span>
+<span class="fc" id="L226">    confBuilder.loadAlias(&quot;KeyLongValue&quot;, KeyLongValue.class);</span>
+<span class="fc" id="L227">    confBuilder.loadAlias(&quot;Impact&quot;, ImpactDto.class);</span>
+<span class="fc" id="L228">    confBuilder.loadAlias(&quot;Issue&quot;, IssueDto.class);</span>
+<span class="fc" id="L229">    confBuilder.loadAlias(&quot;NewCodeReferenceIssue&quot;, NewCodeReferenceIssueDto.class);</span>
+<span class="fc" id="L230">    confBuilder.loadAlias(&quot;ProjectMeasure&quot;, ProjectMeasureDto.class);</span>
+<span class="fc" id="L231">    confBuilder.loadAlias(&quot;LargestBranchNclocDto&quot;, LargestBranchNclocDto.class);</span>
+<span class="fc" id="L232">    confBuilder.loadAlias(&quot;NotificationQueue&quot;, NotificationQueueDto.class);</span>
+<span class="fc" id="L233">    confBuilder.loadAlias(&quot;PermissionTemplateCharacteristic&quot;, PermissionTemplateCharacteristicDto.class);</span>
+<span class="fc" id="L234">    confBuilder.loadAlias(&quot;PermissionTemplateGroup&quot;, PermissionTemplateGroupDto.class);</span>
+<span class="fc" id="L235">    confBuilder.loadAlias(&quot;PermissionTemplate&quot;, PermissionTemplateDto.class);</span>
+<span class="fc" id="L236">    confBuilder.loadAlias(&quot;PermissionTemplateUser&quot;, PermissionTemplateUserDto.class);</span>
+<span class="fc" id="L237">    confBuilder.loadAlias(&quot;Plugin&quot;, PluginDto.class);</span>
+<span class="fc" id="L238">    confBuilder.loadAlias(&quot;Portfolio&quot;, PortfolioDto.class);</span>
+<span class="fc" id="L239">    confBuilder.loadAlias(&quot;PortfolioProject&quot;, PortfolioProjectDto.class);</span>
+<span class="fc" id="L240">    confBuilder.loadAlias(&quot;PortfolioReference&quot;, ReferenceDto.class);</span>
+<span class="fc" id="L241">    confBuilder.loadAlias(&quot;PrIssue&quot;, PrIssueDto.class);</span>
+<span class="fc" id="L242">    confBuilder.loadAlias(&quot;ProjectQgateAssociation&quot;, ProjectQgateAssociationDto.class);</span>
+<span class="fc" id="L243">    confBuilder.loadAlias(&quot;Project&quot;, ProjectDto.class);</span>
+<span class="fc" id="L244">    confBuilder.loadAlias(&quot;ProjectBadgeToken&quot;, ProjectBadgeTokenDto.class);</span>
+<span class="fc" id="L245">    confBuilder.loadAlias(&quot;AnalysisPropertyValuePerProject&quot;, AnalysisPropertyValuePerProject.class);</span>
+<span class="fc" id="L246">    confBuilder.loadAlias(&quot;ProjectAlmKeyAndProject&quot;, ProjectAlmKeyAndProject.class);</span>
+<span class="fc" id="L247">    confBuilder.loadAlias(&quot;PrAndBranchCountByProjectDto&quot;, PrBranchAnalyzedLanguageCountByProjectDto.class);</span>
+<span class="fc" id="L248">    confBuilder.loadAlias(&quot;PurgeableAnalysis&quot;, PurgeableAnalysisDto.class);</span>
+<span class="fc" id="L249">    confBuilder.loadAlias(&quot;PushEvent&quot;, PushEventDto.class);</span>
+<span class="fc" id="L250">    confBuilder.loadAlias(&quot;QualityGateCondition&quot;, QualityGateConditionDto.class);</span>
+<span class="fc" id="L251">    confBuilder.loadAlias(&quot;QualityGate&quot;, QualityGateDto.class);</span>
+<span class="fc" id="L252">    confBuilder.loadAlias(&quot;Resource&quot;, ResourceDto.class);</span>
+<span class="fc" id="L253">    confBuilder.loadAlias(&quot;RuleParam&quot;, RuleParamDto.class);</span>
+<span class="fc" id="L254">    confBuilder.loadAlias(&quot;SchemaMigration&quot;, SchemaMigrationDto.class);</span>
+<span class="fc" id="L255">    confBuilder.loadAlias(&quot;ScrapProperty&quot;, ScrapPropertyDto.class);</span>
+<span class="fc" id="L256">    confBuilder.loadAlias(&quot;ScrapAnalysisProperty&quot;, ScrapAnalysisPropertyDto.class);</span>
+<span class="fc" id="L257">    confBuilder.loadAlias(&quot;Snapshot&quot;, SnapshotDto.class);</span>
+<span class="fc" id="L258">    confBuilder.loadAlias(&quot;User&quot;, UserDto.class);</span>
+<span class="fc" id="L259">    confBuilder.loadAlias(&quot;UserGroup&quot;, UserGroupDto.class);</span>
+<span class="fc" id="L260">    confBuilder.loadAlias(&quot;UserPermission&quot;, UserPermissionDto.class);</span>
+<span class="fc" id="L261">    confBuilder.loadAlias(&quot;UserTelemetry&quot;, UserTelemetryDto.class);</span>
+<span class="fc" id="L262">    confBuilder.loadAlias(&quot;UserToken&quot;, UserTokenDto.class);</span>
+<span class="fc" id="L263">    confBuilder.loadAlias(&quot;UserTokenCount&quot;, UserTokenCount.class);</span>
+<span class="fc" id="L264">    confBuilder.loadAlias(&quot;UuidWithBranchUuid&quot;, UuidWithBranchUuidDto.class);</span>
+<span class="fc" id="L265">    confBuilder.loadAlias(&quot;ViewsSnapshot&quot;, ViewsSnapshotDto.class);</span>
+<span class="fc" id="L266">    confExtensions.forEach(ext -&gt; ext.loadAliases(confBuilder::loadAlias));</span>
+
+    // keep them sorted alphabetically
+<span class="fc" id="L269">    Class&lt;?&gt;[] mappers = {</span>
+      ActiveRuleMapper.class,
+      AlmPatMapper.class,
+      AlmSettingMapper.class,
+      AnalysisPropertiesMapper.class,
+      AnticipatedTransitionMapper.class,
+      ApplicationProjectsMapper.class,
+      AuditMapper.class,
+      AuthorizationMapper.class,
+      BranchMapper.class,
+      CeActivityMapper.class,
+      CeQueueMapper.class,
+      CeScannerContextMapper.class,
+      CeTaskInputMapper.class,
+      CeTaskCharacteristicMapper.class,
+      CeTaskMessageMapper.class,
+      ComponentKeyUpdaterMapper.class,
+      ComponentMapper.class,
+      DefaultQProfileMapper.class,
+      DuplicationMapper.class,
+      EntityMapper.class,
+      EsQueueMapper.class,
+      EventMapper.class,
+      EventComponentChangeMapper.class,
+      GithubOrganizationGroupMapper.class,
+      DevOpsPermissionsMappingMapper.class,
+      ExternalGroupMapper.class,
+      FileSourceMapper.class,
+      GroupMapper.class,
+      GroupMembershipMapper.class,
+      GroupPermissionMapper.class,
+      InternalComponentPropertiesMapper.class,
+      InternalPropertiesMapper.class,
+      IsAliveMapper.class,
+      IssueChangeMapper.class,
+      IssueMapper.class,
+      IssueFixedMapper.class,
+      MeasureMapper.class,
+      ProjectMeasureMapper.class,
+      MetricMapper.class,
+      MigrationLogMapper.class,
+      NewCodePeriodMapper.class,
+      NotificationQueueMapper.class,
+      PermissionTemplateCharacteristicMapper.class,
+      PermissionTemplateMapper.class,
+      PluginMapper.class,
+      PortfolioMapper.class,
+      ProjectAlmSettingMapper.class,
+      ProjectLinkMapper.class,
+      ProjectMapper.class,
+      ProjectBadgeTokenMapper.class,
+      ProjectExportMapper.class,
+      ProjectQgateAssociationMapper.class,
+      PropertiesMapper.class,
+      PurgeMapper.class,
+      PushEventMapper.class,
+      QProfileChangeMapper.class,
+      QProfileEditGroupsMapper.class,
+      QProfileEditUsersMapper.class,
+      QualityGateConditionMapper.class,
+      QualityGateMapper.class,
+      QualityGateGroupPermissionsMapper.class,
+      QualityGateUserPermissionsMapper.class,
+      QualityProfileMapper.class,
+      QualityProfileExportMapper.class,
+      RegulatoryReportMapper.class,
+      ReportScheduleMapper.class,
+      ReportSubscriptionMapper.class,
+      RoleMapper.class,
+      RuleMapper.class,
+      RuleChangeMapper.class,
+      RuleRepositoryMapper.class,
+      SamlMessageIdMapper.class,
+      ScannerAnalysisCacheMapper.class,
+      SchemaMigrationMapper.class,
+      ScimGroupMapper.class,
+      ScimUserMapper.class,
+      SessionTokenMapper.class,
+      SnapshotMapper.class,
+      TelemetryMetricsSentMapper.class,
+      UserAiToolUsageMapper.class,
+      UserDismissedMessagesMapper.class,
+      UserGroupMapper.class,
+      UserMapper.class,
+      UserPermissionMapper.class,
+      UserTokenMapper.class,
+      WebhookMapper.class,
+      WebhookDeliveryMapper.class,
+      Common.class
+    };
+<span class="fc" id="L359">    confBuilder.loadMappers(mappers);</span>
+<span class="fc" id="L360">    confExtensions.stream()</span>
+<span class="fc" id="L361">      .flatMap(MyBatisConfExtension::getMapperClasses)</span>
+<span class="fc" id="L362">      .forEach(confBuilder::loadMapper);</span>
+
+<span class="fc" id="L364">    sessionFactory = new SqlSessionFactoryBuilder().build(confBuilder.build());</span>
+<span class="fc" id="L365">  }</span>
+
+  @VisibleForTesting
+  SqlSessionFactory getSessionFactory() {
+<span class="fc" id="L369">    return sessionFactory;</span>
+  }
+
+  public DbSession openSession(boolean batch) {
+<span class="fc bfc" id="L373" title="All 2 branches covered.">    if (batch) {</span>
+<span class="fc" id="L374">      SqlSession session = sessionFactory.openSession(ExecutorType.BATCH, TransactionIsolationLevel.READ_COMMITTED);</span>
+<span class="fc" id="L375">      return new BatchSession(session);</span>
+    }
+<span class="fc" id="L377">    SqlSession session = sessionFactory.openSession(ExecutorType.REUSE, TransactionIsolationLevel.READ_COMMITTED);</span>
+<span class="fc" id="L378">    return new DbSessionImpl(session);</span>
+  }
+
+  /**
+   * Create a PreparedStatement for SELECT requests with scrolling of results
+   */
+  public PreparedStatement newScrollingSelectStatement(DbSession session, String sql) {
+<span class="fc" id="L385">    int fetchSize = database.getDialect().getScrollDefaultFetchSize();</span>
+<span class="fc" id="L386">    return newScrollingSelectStatement(session, sql, fetchSize);</span>
+  }
+
+  private static PreparedStatement newScrollingSelectStatement(DbSession session, String sql, int fetchSize) {
+    try {
+<span class="fc" id="L391">      PreparedStatement stmt = session.getConnection().prepareStatement(sql, ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);</span>
+<span class="fc" id="L392">      stmt.setFetchSize(fetchSize);</span>
+<span class="fc" id="L393">      return stmt;</span>
+<span class="nc" id="L394">    } catch (SQLException e) {</span>
+<span class="nc" id="L395">      throw new IllegalStateException(&quot;Fail to create SQL statement: &quot; + sql, e);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

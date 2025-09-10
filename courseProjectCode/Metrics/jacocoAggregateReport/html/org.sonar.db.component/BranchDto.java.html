@@ -1,0 +1,257 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BranchDto.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.component</a> &gt; <span class="el_source">BranchDto.java</span></div><h1>BranchDto.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.component;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.Objects;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.db.protobuf.DbProjectBranches;
+
+import static com.google.common.base.Preconditions.checkArgument;
+
+<span class="fc" id="L32">public class BranchDto {</span>
+  public static final String DEFAULT_MAIN_BRANCH_NAME = &quot;main&quot;;
+
+  /**
+   * Maximum length of column &quot;kee&quot;
+   */
+  public static final int KEE_MAX_LENGTH = 255;
+
+  /**
+   * Branch UUID is the projects.uuid that reference projects, branches or pull requests
+   * (projects.qualifier=&quot;TRK&quot;).
+   * Not null.
+   * Important - the table project_branches does NOT have its own UUIDs for the time being.
+   * All values must exist in projects.uuid.
+   */
+  private String uuid;
+
+  /**
+   * UUID of the project that represents the main branch.
+   * On main branches, projectUuid equals uuid.
+   * Not null.
+   */
+  private String projectUuid;
+
+  /**
+   * Key that identifies a branch or a pull request.
+   * For keyType=BRANCH, this is the name of the branch, for example &quot;feature/foo&quot;.
+   * For keyType=PULL_REQUEST, this is the ID of the pull request in some external system, for example 123 in GitHub.
+   */
+  private String kee;
+
+  /**
+   * Branch type, as provided by {@link BranchType}.
+   * Not null.
+   */
+  private BranchType branchType;
+
+  /**
+   * UUID of the branch:
+   * - in which the pull request will be merged into
+   * - that is the base of a branch.
+   * &lt;p&gt;
+   * Can be null if information is not known.
+   */
+  @Nullable
+  private String mergeBranchUuid;
+
+  /**
+   * Pull Request data, such as branch name, title, url, and provider specific attributes
+   */
+  @Nullable
+  private byte[] pullRequestBinary;
+
+  private boolean excludeFromPurge;
+
+<span class="fc" id="L87">  private boolean needIssueSync = false;</span>
+
+  private Boolean isMain;
+
+  public String getUuid() {
+<span class="fc" id="L92">    return uuid;</span>
+  }
+
+  public BranchDto setUuid(String s) {
+<span class="fc" id="L96">    this.uuid = s;</span>
+<span class="fc" id="L97">    return this;</span>
+  }
+
+  public String getProjectUuid() {
+<span class="fc" id="L101">    return projectUuid;</span>
+  }
+
+  public BranchDto setProjectUuid(String s) {
+<span class="fc" id="L105">    this.projectUuid = s;</span>
+<span class="fc" id="L106">    return this;</span>
+  }
+
+  public boolean isMain() {
+<span class="fc" id="L110">    return isMain;</span>
+  }
+
+  public BranchDto setIsMain(boolean isMain) {
+<span class="fc" id="L114">    this.isMain = isMain;</span>
+<span class="fc" id="L115">    return this;</span>
+  }
+
+  /**
+   * This is the getter used by MyBatis mapper.
+   */
+  private String getKee() {
+<span class="fc" id="L122">    return kee;</span>
+  }
+
+  public String getKey() {
+<span class="fc" id="L126">    return kee;</span>
+  }
+
+  /**
+   * This is the setter used by MyBatis mapper.
+   */
+  private void setKee(String s) {
+<span class="fc" id="L133">    this.kee = s;</span>
+<span class="fc" id="L134">  }</span>
+
+  public BranchDto setKey(String s) {
+<span class="pc bpc" id="L137" title="1 of 2 branches missed.">    checkArgument(s.length() &lt;= KEE_MAX_LENGTH, &quot;Maximum length of branch name or pull request id is %s: %s&quot;, KEE_MAX_LENGTH, s);</span>
+<span class="fc" id="L138">    setKee(s);</span>
+<span class="fc" id="L139">    return this;</span>
+  }
+
+  public BranchType getBranchType() {
+<span class="fc" id="L143">    return branchType;</span>
+  }
+
+  public BranchDto setBranchType(BranchType b) {
+<span class="fc" id="L147">    this.branchType = b;</span>
+<span class="fc" id="L148">    return this;</span>
+  }
+
+  @Nullable
+  public String getMergeBranchUuid() {
+<span class="fc" id="L153">    return mergeBranchUuid;</span>
+  }
+
+  public BranchDto setMergeBranchUuid(@Nullable String s) {
+<span class="fc" id="L157">    this.mergeBranchUuid = s;</span>
+<span class="fc" id="L158">    return this;</span>
+  }
+
+  public BranchDto setPullRequestData(DbProjectBranches.PullRequestData pullRequestData) {
+<span class="fc" id="L162">    this.pullRequestBinary = encodePullRequestData(pullRequestData);</span>
+<span class="fc" id="L163">    return this;</span>
+  }
+
+  @CheckForNull
+  public DbProjectBranches.PullRequestData getPullRequestData() {
+<span class="fc bfc" id="L168" title="All 2 branches covered.">    if (pullRequestBinary == null) {</span>
+<span class="fc" id="L169">      return null;</span>
+    }
+<span class="fc" id="L171">    return decodePullRequestData(pullRequestBinary);</span>
+  }
+
+  public boolean isExcludeFromPurge() {
+<span class="fc" id="L175">    return excludeFromPurge;</span>
+  }
+
+  public BranchDto setExcludeFromPurge(boolean excludeFromPurge) {
+<span class="fc" id="L179">    this.excludeFromPurge = excludeFromPurge;</span>
+<span class="fc" id="L180">    return this;</span>
+  }
+
+  private static byte[] encodePullRequestData(DbProjectBranches.PullRequestData pullRequestData) {
+<span class="fc" id="L184">    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();</span>
+    try {
+<span class="fc" id="L186">      pullRequestData.writeTo(outputStream);</span>
+<span class="fc" id="L187">      return outputStream.toByteArray();</span>
+<span class="nc" id="L188">    } catch (IOException e) {</span>
+<span class="nc" id="L189">      throw new IllegalStateException(&quot;Fail to serialize pull request data&quot;, e);</span>
+    }
+  }
+
+  private static DbProjectBranches.PullRequestData decodePullRequestData(byte[] pullRequestBinary) {
+<span class="fc" id="L194">    try (ByteArrayInputStream inputStream = new ByteArrayInputStream(pullRequestBinary)) {</span>
+<span class="fc" id="L195">      return DbProjectBranches.PullRequestData.parseFrom(inputStream);</span>
+<span class="nc" id="L196">    } catch (IOException e) {</span>
+<span class="nc" id="L197">      throw new IllegalStateException(&quot;Fail to deserialize pull request data&quot;, e);</span>
+    }
+  }
+
+  public boolean isNeedIssueSync() {
+<span class="fc" id="L202">    return needIssueSync;</span>
+  }
+
+  public BranchDto setNeedIssueSync(boolean needIssueSync) {
+<span class="fc" id="L206">    this.needIssueSync = needIssueSync;</span>
+<span class="fc" id="L207">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getBranchKey() {
+<span class="fc bfc" id="L212" title="All 2 branches covered.">    return branchType == BranchType.BRANCH ? kee : null;</span>
+  }
+
+  @CheckForNull
+  public String getPullRequestKey() {
+<span class="fc bfc" id="L217" title="All 2 branches covered.">    return branchType == BranchType.PULL_REQUEST ? kee : null;</span>
+  }
+
+  @Override
+  public boolean equals(Object o) {
+<span class="fc bfc" id="L222" title="All 2 branches covered.">    if (this == o) {</span>
+<span class="fc" id="L223">      return true;</span>
+    }
+<span class="pc bpc" id="L225" title="2 of 4 branches missed.">    if (o == null || getClass() != o.getClass()) {</span>
+<span class="nc" id="L226">      return false;</span>
+    }
+<span class="fc" id="L228">    BranchDto branchDto = (BranchDto) o;</span>
+<span class="fc bfc" id="L229" title="All 2 branches covered.">    return Objects.equals(uuid, branchDto.uuid) &amp;&amp;</span>
+<span class="pc bpc" id="L230" title="1 of 2 branches missed.">      Objects.equals(projectUuid, branchDto.projectUuid) &amp;&amp;</span>
+<span class="pc bpc" id="L231" title="1 of 2 branches missed.">      Objects.equals(isMain, branchDto.isMain) &amp;&amp;</span>
+<span class="pc bpc" id="L232" title="2 of 4 branches missed.">      Objects.equals(kee, branchDto.kee) &amp;&amp;</span>
+      branchType == branchDto.branchType &amp;&amp;
+<span class="pc bpc" id="L234" title="2 of 4 branches missed.">      Objects.equals(mergeBranchUuid, branchDto.mergeBranchUuid) &amp;&amp;</span>
+      needIssueSync == branchDto.needIssueSync;
+  }
+
+  @Override
+  public int hashCode() {
+<span class="fc" id="L240">    return Objects.hash(uuid, projectUuid, isMain, kee, branchType, mergeBranchUuid, needIssueSync);</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="fc" id="L245">    return &quot;BranchDto{&quot; +</span>
+      &quot;uuid='&quot; + uuid + '\'' +
+      &quot;, projectUuid='&quot; + projectUuid + '\'' +
+      &quot;, isMain='&quot; + isMain + '\'' +
+      &quot;, kee='&quot; + kee + '\'' +
+      &quot;, branchType=&quot; + branchType +
+      &quot;, mergeBranchUuid='&quot; + mergeBranchUuid + '\'' +
+      &quot;, excludeFromPurge=&quot; + excludeFromPurge +
+      &quot;, needIssueSync=&quot; + needIssueSync +
+      '}';
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

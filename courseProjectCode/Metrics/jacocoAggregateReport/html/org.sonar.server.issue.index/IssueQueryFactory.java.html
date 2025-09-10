@@ -1,0 +1,531 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IssueQueryFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.issue.index</a> &gt; <span class="el_source">IssueQueryFactory.java</span></div><h1>IssueQueryFactory.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.issue.index;
+
+import com.google.common.base.Joiner;
+import com.google.common.collect.ImmutableList;
+import java.time.Clock;
+import java.time.DateTimeException;
+import java.time.OffsetDateTime;
+import java.time.Period;
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import javax.annotation.Nullable;
+import org.apache.commons.lang3.BooleanUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.db.component.ComponentQualifiers;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.core.rule.RuleType;
+import org.sonar.api.server.ServerSide;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.BranchDto;
+import org.sonar.db.component.ComponentDto;
+import org.sonar.db.component.SnapshotDto;
+import org.sonar.db.issue.IssueFixedDto;
+import org.sonar.db.permission.GlobalPermission;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.db.rule.RuleDto;
+import org.sonar.server.issue.SearchRequest;
+import org.sonar.server.issue.index.IssueQuery.PeriodStart;
+import org.sonar.server.user.UserSession;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Strings.isNullOrEmpty;
+import static com.google.common.collect.Collections2.transform;
+import static java.lang.String.format;
+import static java.util.Collections.singleton;
+import static java.util.Collections.singletonList;
+import static org.sonar.api.issue.Issue.STATUSES;
+import static org.sonar.api.issue.Issue.STATUS_REVIEWED;
+import static org.sonar.api.issue.Issue.STATUS_TO_REVIEW;
+import static org.sonar.api.measures.CoreMetrics.ANALYSIS_FROM_SONARQUBE_9_4_KEY;
+import static org.sonar.api.utils.DateUtils.longToDate;
+import static org.sonar.api.utils.DateUtils.parseEndingDateOrDateTime;
+import static org.sonar.api.utils.DateUtils.parseStartingDateOrDateTime;
+import static org.sonar.db.permission.ProjectPermission.SCAN;
+import static org.sonar.db.permission.ProjectPermission.USER;
+import static org.sonar.db.newcodeperiod.NewCodePeriodType.REFERENCE_BRANCH;
+import static org.sonarqube.ws.client.issue.IssuesWsParameters.PARAM_COMPONENTS;
+import static org.sonarqube.ws.client.issue.IssuesWsParameters.PARAM_COMPONENT_UUIDS;
+import static org.sonarqube.ws.client.issue.IssuesWsParameters.PARAM_CREATED_AFTER;
+import static org.sonarqube.ws.client.issue.IssuesWsParameters.PARAM_CREATED_IN_LAST;
+import static org.sonarqube.ws.client.issue.IssuesWsParameters.PARAM_FIXED_IN_PULL_REQUEST;
+import static org.sonarqube.ws.client.issue.IssuesWsParameters.PARAM_IN_NEW_CODE_PERIOD;
+
+/**
+ * This component is used to create an IssueQuery, in order to transform the component and component roots keys into uuid.
+ */
+@ServerSide
+public class IssueQueryFactory {
+
+<span class="fc" id="L94">  private static final Logger LOGGER = LoggerFactory.getLogger(IssueQueryFactory.class);</span>
+
+  public static final String UNKNOWN = &quot;&lt;UNKNOWN&gt;&quot;;
+<span class="fc" id="L97">  public static final List&lt;String&gt; ISSUE_STATUSES = STATUSES.stream()</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">    .filter(s -&gt; !s.equals(STATUS_TO_REVIEW))</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">    .filter(s -&gt; !s.equals(STATUS_REVIEWED))</span>
+<span class="fc" id="L100">    .collect(ImmutableList.toImmutableList());</span>
+<span class="fc" id="L101">  public static final Set&lt;String&gt; ISSUE_TYPE_NAMES = Arrays.stream(RuleType.values())</span>
+<span class="fc bfc" id="L102" title="All 2 branches covered.">    .filter(t -&gt; t != RuleType.SECURITY_HOTSPOT)</span>
+<span class="fc" id="L103">    .map(Enum::name)</span>
+<span class="fc" id="L104">    .collect(Collectors.toSet());</span>
+<span class="fc" id="L105">  private static final ComponentDto UNKNOWN_COMPONENT = new ComponentDto().setUuid(UNKNOWN).setBranchUuid(UNKNOWN);</span>
+<span class="fc" id="L106">  private static final Set&lt;String&gt; QUALIFIERS_WITHOUT_LEAK_PERIOD = new HashSet&lt;&gt;(Arrays.asList(ComponentQualifiers.APP, ComponentQualifiers.VIEW,</span>
+    ComponentQualifiers.SUBVIEW));
+  private final DbClient dbClient;
+  private final Clock clock;
+  private final UserSession userSession;
+
+<span class="fc" id="L112">  public IssueQueryFactory(DbClient dbClient, Clock clock, UserSession userSession) {</span>
+<span class="fc" id="L113">    this.dbClient = dbClient;</span>
+<span class="fc" id="L114">    this.clock = clock;</span>
+<span class="fc" id="L115">    this.userSession = userSession;</span>
+<span class="fc" id="L116">  }</span>
+
+  public IssueQuery create(SearchRequest request) {
+<span class="fc" id="L119">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L120">      final ZoneId timeZone = parseTimeZone(request.getTimeZone()).orElse(clock.getZone());</span>
+
+<span class="fc" id="L122">      Collection&lt;RuleDto&gt; ruleDtos = ruleKeysToRuleId(dbSession, request.getRules());</span>
+<span class="fc" id="L123">      Collection&lt;String&gt; ruleUuids = ruleDtos.stream().map(RuleDto::getUuid).collect(Collectors.toSet());</span>
+<span class="fc" id="L124">      Collection&lt;String&gt; issueKeys = collectIssueKeys(dbSession, request);</span>
+
+<span class="fc bfc" id="L126" title="All 4 branches covered.">      if (request.getRules() != null &amp;&amp; request.getRules().stream().collect(Collectors.toSet()).size() != ruleDtos.size()) {</span>
+<span class="fc" id="L127">        ruleUuids.add(&quot;non-existing-uuid&quot;);</span>
+      }
+
+<span class="fc" id="L130">      IssueQuery.Builder builder = IssueQuery.builder()</span>
+<span class="fc" id="L131">        .issueKeys(issueKeys)</span>
+<span class="fc" id="L132">        .severities(request.getSeverities())</span>
+<span class="fc" id="L133">        .cleanCodeAttributesCategories(request.getCleanCodeAttributesCategories())</span>
+<span class="fc" id="L134">        .impactSoftwareQualities(request.getImpactSoftwareQualities())</span>
+<span class="fc" id="L135">        .impactSeverities(request.getImpactSeverities())</span>
+<span class="fc" id="L136">        .statuses(request.getStatuses())</span>
+<span class="fc" id="L137">        .resolutions(request.getResolutions())</span>
+<span class="fc" id="L138">        .issueStatuses(request.getIssueStatuses())</span>
+<span class="fc" id="L139">        .resolved(request.getResolved())</span>
+<span class="fc" id="L140">        .prioritizedRule(request.getPrioritizedRule())</span>
+<span class="fc" id="L141">        .fromSonarQubeUpdate(request.getFromSonarQubeUpdate())</span>
+<span class="fc" id="L142">        .rules(ruleDtos)</span>
+<span class="fc" id="L143">        .ruleUuids(ruleUuids)</span>
+<span class="fc" id="L144">        .assigneeUuids(request.getAssigneeUuids())</span>
+<span class="fc" id="L145">        .authors(request.getAuthors())</span>
+<span class="fc" id="L146">        .scopes(request.getScopes())</span>
+<span class="fc" id="L147">        .languages(request.getLanguages())</span>
+<span class="fc" id="L148">        .tags(request.getTags())</span>
+<span class="fc" id="L149">        .types(request.getTypes())</span>
+<span class="fc" id="L150">        .pciDss32(request.getPciDss32())</span>
+<span class="fc" id="L151">        .pciDss40(request.getPciDss40())</span>
+<span class="fc" id="L152">        .owaspAsvs40(request.getOwaspAsvs40())</span>
+<span class="fc" id="L153">        .owaspAsvsLevel(request.getOwaspAsvsLevel())</span>
+<span class="fc" id="L154">        .owaspMobileTop10For2024(request.getOwaspMobileTop10For2024())</span>
+<span class="fc" id="L155">        .owaspTop10(request.getOwaspTop10())</span>
+<span class="fc" id="L156">        .owaspTop10For2021(request.getOwaspTop10For2021())</span>
+<span class="fc" id="L157">        .stigAsdR5V3(request.getStigAsdV5R3())</span>
+<span class="fc" id="L158">        .casa(request.getCasa())</span>
+<span class="fc" id="L159">        .sansTop25(request.getSansTop25())</span>
+<span class="fc" id="L160">        .cwe(request.getCwe())</span>
+<span class="fc" id="L161">        .sonarsourceSecurity(request.getSonarsourceSecurity())</span>
+<span class="fc" id="L162">        .assigned(request.getAssigned())</span>
+<span class="fc" id="L163">        .createdAt(parseStartingDateOrDateTime(request.getCreatedAt(), timeZone))</span>
+<span class="fc" id="L164">        .createdBefore(parseEndingDateOrDateTime(request.getCreatedBefore(), timeZone))</span>
+<span class="fc" id="L165">        .facetMode(request.getFacetMode())</span>
+<span class="fc" id="L166">        .timeZone(timeZone)</span>
+<span class="fc" id="L167">        .codeVariants(request.getCodeVariants());</span>
+
+<span class="fc" id="L169">      List&lt;ComponentDto&gt; allComponents = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L170">      boolean effectiveOnComponentOnly = mergeDeprecatedComponentParameters(dbSession, request, allComponents);</span>
+<span class="fc" id="L171">      addComponentParameters(builder, dbSession, effectiveOnComponentOnly, allComponents, request);</span>
+      // SONAR-25108
+<span class="fc bfc" id="L173" title="All 4 branches covered.">      unsetMainBranch(builder, issueKeys != null &amp;&amp; !issueKeys.isEmpty(), allComponents, request);</span>
+
+<span class="fc" id="L175">      setCreatedAfterFromRequest(dbSession, builder, request, allComponents, timeZone);</span>
+<span class="fc" id="L176">      String sort = request.getSort();</span>
+<span class="fc bfc" id="L177" title="All 2 branches covered.">      if (!isNullOrEmpty(sort)) {</span>
+<span class="fc" id="L178">        builder.sort(sort);</span>
+<span class="fc" id="L179">        builder.asc(request.getAsc());</span>
+      }
+<span class="fc" id="L181">      return builder.build();</span>
+    }
+  }
+
+  private Collection&lt;String&gt; collectIssueKeys(DbSession dbSession, SearchRequest request) {
+<span class="fc" id="L186">    Collection&lt;String&gt; issueKeys = null;</span>
+<span class="fc bfc" id="L187" title="All 2 branches covered.">    if (request.getFixedInPullRequest() != null) {</span>
+<span class="fc" id="L188">      issueKeys = getIssuesFixedByPullRequest(dbSession, request);</span>
+    }
+<span class="fc" id="L190">    List&lt;String&gt; requestIssues = request.getIssues();</span>
+<span class="fc bfc" id="L191" title="All 4 branches covered.">    if (requestIssues != null &amp;&amp; !requestIssues.isEmpty()) {</span>
+<span class="pc bpc" id="L192" title="1 of 2 branches missed.">      if (issueKeys == null) {</span>
+<span class="fc" id="L193">        issueKeys = new ArrayList&lt;&gt;();</span>
+      }
+<span class="fc" id="L195">      issueKeys.addAll(requestIssues);</span>
+    }
+<span class="fc" id="L197">    return issueKeys;</span>
+  }
+
+  private Collection&lt;String&gt; getIssuesFixedByPullRequest(DbSession dbSession, SearchRequest request) {
+<span class="fc" id="L201">    String fixedInPullRequest = request.getFixedInPullRequest();</span>
+<span class="fc" id="L202">    checkArgument(StringUtils.isNotBlank(fixedInPullRequest), &quot;Parameter '%s' is empty&quot;, PARAM_FIXED_IN_PULL_REQUEST);</span>
+<span class="fc" id="L203">    List&lt;String&gt; componentKeys = request.getComponentKeys();</span>
+<span class="pc bpc" id="L204" title="1 of 4 branches missed.">    if (componentKeys == null || componentKeys.size() != 1) {</span>
+<span class="fc" id="L205">      throw new IllegalArgumentException(&quot;Exactly one project needs to be provided in the &quot; +</span>
+        &quot;'&quot; + PARAM_COMPONENTS + &quot;' param when used together with '&quot; + PARAM_FIXED_IN_PULL_REQUEST + &quot;' param&quot;);
+    }
+<span class="fc" id="L208">    String projectKey = componentKeys.get(0);</span>
+<span class="fc" id="L209">    ProjectDto projectDto = dbClient.projectDao().selectProjectByKey(dbSession, projectKey)</span>
+<span class="fc" id="L210">      .orElseThrow(() -&gt; new IllegalArgumentException(&quot;Project with key '&quot; + projectKey + &quot;' does not exist&quot;));</span>
+<span class="fc" id="L211">    BranchDto pullRequest = dbClient.branchDao().selectByPullRequestKey(dbSession, projectDto.getUuid(), fixedInPullRequest)</span>
+<span class="fc" id="L212">      .orElseThrow(() -&gt; new IllegalArgumentException(&quot;Pull request with key '&quot; + fixedInPullRequest + &quot;' does not exist for project &quot; +</span>
+        projectKey));
+
+<span class="fc" id="L215">    String branch = request.getBranch();</span>
+<span class="fc bfc" id="L216" title="All 2 branches covered.">    if (branch != null) {</span>
+<span class="fc" id="L217">      BranchDto targetBranch = dbClient.branchDao().selectByBranchKey(dbSession, projectDto.getUuid(), branch)</span>
+<span class="fc" id="L218">        .orElseThrow(() -&gt; new IllegalArgumentException(&quot;Branch with key '&quot; + branch + &quot;' does not exist&quot;));</span>
+<span class="pc bpc" id="L219" title="1 of 2 branches missed.">      if (!Objects.equals(targetBranch.getUuid(), pullRequest.getMergeBranchUuid())) {</span>
+<span class="fc" id="L220">        throw new IllegalArgumentException(&quot;Pull request with key '&quot; + fixedInPullRequest + &quot;' does not target branch '&quot; + branch + &quot;'&quot;);</span>
+      }
+    }
+<span class="fc" id="L223">    return dbClient.issueFixedDao().selectByPullRequest(dbSession, pullRequest.getUuid())</span>
+<span class="fc" id="L224">      .stream()</span>
+<span class="fc" id="L225">      .map(IssueFixedDto::issueKey)</span>
+<span class="fc" id="L226">      .collect(Collectors.toSet());</span>
+  }
+
+  private static Optional&lt;ZoneId&gt; parseTimeZone(@Nullable String timeZone) {
+<span class="fc bfc" id="L230" title="All 2 branches covered.">    if (timeZone == null) {</span>
+<span class="fc" id="L231">      return Optional.empty();</span>
+    }
+    try {
+<span class="fc" id="L234">      return Optional.of(ZoneId.of(timeZone));</span>
+<span class="fc" id="L235">    } catch (DateTimeException e) {</span>
+<span class="fc" id="L236">      LOGGER.warn(&quot;TimeZone '&quot; + timeZone + &quot;' cannot be parsed as a valid zone ID&quot;);</span>
+<span class="fc" id="L237">      return Optional.empty();</span>
+    }
+  }
+
+  private void setCreatedAfterFromDates(IssueQuery.Builder builder, @Nullable Date createdAfter, @Nullable String createdInLast,
+    boolean createdAfterInclusive) {
+<span class="fc" id="L243">    Date actualCreatedAfter = createdAfter;</span>
+<span class="fc bfc" id="L244" title="All 2 branches covered.">    if (createdInLast != null) {</span>
+<span class="fc" id="L245">      actualCreatedAfter = Date.from(</span>
+<span class="fc" id="L246">        OffsetDateTime.now(clock)</span>
+<span class="fc" id="L247">          .minus(Period.parse(&quot;P&quot; + createdInLast.toUpperCase(Locale.ENGLISH)))</span>
+<span class="fc" id="L248">          .toInstant());</span>
+    }
+<span class="fc" id="L250">    builder.createdAfter(actualCreatedAfter, createdAfterInclusive);</span>
+<span class="fc" id="L251">  }</span>
+
+  private void setCreatedAfterFromRequest(DbSession dbSession, IssueQuery.Builder builder, SearchRequest request,
+    List&lt;ComponentDto&gt; componentUuids, ZoneId timeZone) {
+<span class="fc" id="L255">    Date createdAfter = parseStartingDateOrDateTime(request.getCreatedAfter(), timeZone);</span>
+<span class="fc" id="L256">    String createdInLast = request.getCreatedInLast();</span>
+
+<span class="fc bfc" id="L258" title="All 2 branches covered.">    if (notInNewCodePeriod(request)) {</span>
+<span class="fc bfc" id="L259" title="All 4 branches covered.">      checkArgument(createdAfter == null || createdInLast == null, format(&quot;Parameters %s and %s cannot be set simultaneously&quot;,</span>
+        PARAM_CREATED_AFTER, PARAM_CREATED_IN_LAST));
+<span class="fc" id="L261">      setCreatedAfterFromDates(builder, createdAfter, createdInLast, true);</span>
+    } else {
+      // If the filter is on leak period
+<span class="fc bfc" id="L264" title="All 2 branches covered.">      checkArgument(createdAfter == null, &quot;Parameters '%s' and '%s' cannot be set simultaneously&quot;, PARAM_CREATED_AFTER,</span>
+        PARAM_IN_NEW_CODE_PERIOD);
+<span class="fc bfc" id="L266" title="All 2 branches covered.">      checkArgument(createdInLast == null,</span>
+<span class="fc" id="L267">        format(&quot;Parameters '%s' and '%s' cannot be set simultaneously&quot;, PARAM_CREATED_IN_LAST, PARAM_IN_NEW_CODE_PERIOD));</span>
+
+<span class="fc bfc" id="L269" title="All 2 branches covered.">      checkArgument(componentUuids.size() == 1, &quot;One and only one component must be provided when searching in new code period&quot;);</span>
+<span class="fc" id="L270">      ComponentDto component = componentUuids.iterator().next();</span>
+
+<span class="fc bfc" id="L272" title="All 4 branches covered.">      if (!QUALIFIERS_WITHOUT_LEAK_PERIOD.contains(component.qualifier()) &amp;&amp; request.getPullRequest() == null) {</span>
+<span class="fc" id="L273">        setInNewCodePeriod(dbSession, builder, component.uuid());</span>
+      }
+    }
+<span class="fc" id="L276">  }</span>
+
+  private void setInNewCodePeriod(DbSession dbSession, IssueQuery.Builder builder, String componentUuid) {
+<span class="fc" id="L279">    Optional&lt;SnapshotDto&gt; snapshot = getLastAnalysis(dbSession, componentUuid);</span>
+<span class="pc bpc" id="L280" title="1 of 4 branches missed.">    if (!snapshot.isEmpty() &amp;&amp; isLastAnalysisFromReAnalyzedReferenceBranch(dbSession, snapshot.get())) {</span>
+<span class="fc" id="L281">      builder.newCodeOnReference(true);</span>
+<span class="fc" id="L282">      return;</span>
+    }
+    // if last analysis has no period date, then no issue should be considered new.
+<span class="fc" id="L285">    Date createdAfterFromSnapshot = findCreatedAfterFromComponentUuid(snapshot);</span>
+<span class="fc" id="L286">    setCreatedAfterFromDates(builder, createdAfterFromSnapshot, null, false);</span>
+<span class="fc" id="L287">  }</span>
+
+  private static boolean notInNewCodePeriod(SearchRequest request) {
+<span class="fc" id="L290">    Boolean inNewCodePeriod = request.getInNewCodePeriod();</span>
+<span class="fc" id="L291">    inNewCodePeriod = Boolean.TRUE.equals(inNewCodePeriod);</span>
+<span class="fc bfc" id="L292" title="All 2 branches covered.">    return !inNewCodePeriod;</span>
+  }
+
+  private Date findCreatedAfterFromComponentUuid(Optional&lt;SnapshotDto&gt; snapshot) {
+<span class="fc" id="L296">    return snapshot.map(s -&gt; longToDate(s.getPeriodDate())).orElseGet(() -&gt; new Date(clock.millis()));</span>
+  }
+
+  private static boolean isLastAnalysisUsingReferenceBranch(SnapshotDto snapshot) {
+<span class="pc bpc" id="L300" title="1 of 4 branches missed.">    return !isNullOrEmpty(snapshot.getPeriodMode()) &amp;&amp; snapshot.getPeriodMode().equals(REFERENCE_BRANCH.name());</span>
+  }
+
+  private boolean isLastAnalysisFromSonarQube94Onwards(DbSession dbSession, String componentUuid) {
+<span class="fc" id="L304">    return dbClient.measureDao().selectByComponentUuid(dbSession, componentUuid)</span>
+<span class="fc" id="L305">      .filter(m -&gt; m.getMetricValues().containsKey(ANALYSIS_FROM_SONARQUBE_9_4_KEY))</span>
+<span class="fc" id="L306">      .isPresent();</span>
+  }
+
+  private Optional&lt;SnapshotDto&gt; getLastAnalysis(DbSession dbSession, String componentUuid) {
+<span class="fc" id="L310">    return dbClient.snapshotDao().selectLastAnalysisByComponentUuid(dbSession, componentUuid);</span>
+  }
+
+  private List&lt;SnapshotDto&gt; getLastAnalysis(DbSession dbSession, Set&lt;String&gt; projectUuids) {
+<span class="fc" id="L314">    return dbClient.snapshotDao().selectLastAnalysesByRootComponentUuids(dbSession, projectUuids);</span>
+  }
+
+  private boolean mergeDeprecatedComponentParameters(DbSession session, SearchRequest request, List&lt;ComponentDto&gt; allComponents) {
+<span class="fc" id="L318">    Boolean onComponentOnly = request.getOnComponentOnly();</span>
+<span class="fc" id="L319">    Collection&lt;String&gt; componentKeys = request.getComponentKeys();</span>
+<span class="fc" id="L320">    Collection&lt;String&gt; componentUuids = request.getComponentUuids();</span>
+<span class="fc" id="L321">    String branch = request.getBranch();</span>
+<span class="fc" id="L322">    String pullRequest = request.getPullRequest();</span>
+
+<span class="fc" id="L324">    boolean effectiveOnComponentOnly = false;</span>
+
+<span class="fc" id="L326">    checkArgument(atMostOneNonNullElement(componentKeys, componentUuids),</span>
+      &quot;At most one of the following parameters can be provided: %s and %s&quot;, PARAM_COMPONENTS, PARAM_COMPONENT_UUIDS);
+
+<span class="fc bfc" id="L329" title="All 2 branches covered.">    if (componentKeys != null) {</span>
+<span class="fc" id="L330">      allComponents.addAll(getComponentsFromKeys(session, componentKeys, branch, pullRequest));</span>
+<span class="fc" id="L331">      effectiveOnComponentOnly = BooleanUtils.isTrue(onComponentOnly);</span>
+<span class="fc bfc" id="L332" title="All 2 branches covered.">    } else if (componentUuids != null) {</span>
+<span class="fc" id="L333">      allComponents.addAll(getComponentsFromUuids(session, componentUuids));</span>
+<span class="fc" id="L334">      effectiveOnComponentOnly = BooleanUtils.isTrue(onComponentOnly);</span>
+    }
+
+<span class="fc" id="L337">    return effectiveOnComponentOnly;</span>
+  }
+
+  private static boolean atMostOneNonNullElement(Object... objects) {
+<span class="fc" id="L341">    return Arrays.stream(objects)</span>
+<span class="fc" id="L342">      .filter(Objects::nonNull)</span>
+<span class="fc bfc" id="L343" title="All 2 branches covered.">      .count() &lt;= 1;</span>
+  }
+
+  private void addComponentParameters(IssueQuery.Builder builder, DbSession session, boolean onComponentOnly, List&lt;ComponentDto&gt; components,
+    SearchRequest request) {
+<span class="fc" id="L348">    builder.onComponentOnly(onComponentOnly);</span>
+<span class="fc bfc" id="L349" title="All 2 branches covered.">    if (onComponentOnly) {</span>
+<span class="fc" id="L350">      builder.componentUuids(components.stream().map(ComponentDto::uuid).toList());</span>
+<span class="fc" id="L351">      setBranch(builder, components.get(0), request.getBranch(), request.getPullRequest(), session);</span>
+<span class="fc" id="L352">      return;</span>
+    }
+
+<span class="fc" id="L355">    List&lt;String&gt; projectKeys = request.getProjectKeys();</span>
+<span class="fc bfc" id="L356" title="All 2 branches covered.">    if (projectKeys != null) {</span>
+<span class="fc" id="L357">      List&lt;ComponentDto&gt; branchComponents = getComponentsFromKeys(session, projectKeys, request.getBranch(), request.getPullRequest());</span>
+<span class="fc" id="L358">      Set&lt;String&gt; projectUuids = retrieveProjectUuidsFromComponents(session, branchComponents);</span>
+<span class="fc" id="L359">      builder.projectUuids(projectUuids);</span>
+<span class="fc" id="L360">      setBranch(builder, branchComponents.get(0), request.getBranch(), request.getPullRequest(), session);</span>
+    }
+<span class="fc" id="L362">    builder.directories(request.getDirectories());</span>
+<span class="fc" id="L363">    builder.files(request.getFiles());</span>
+
+<span class="fc" id="L365">    addComponentsBasedOnQualifier(builder, session, components, request);</span>
+<span class="fc" id="L366">  }</span>
+
+  @NotNull
+  private Set&lt;String&gt; retrieveProjectUuidsFromComponents(DbSession session, List&lt;ComponentDto&gt; branchComponents) {
+<span class="fc" id="L370">    Set&lt;String&gt; branchUuids = branchComponents.stream().map(ComponentDto::branchUuid).collect(Collectors.toSet());</span>
+<span class="fc" id="L371">    return dbClient.branchDao().selectByUuids(session, branchUuids).stream()</span>
+<span class="fc" id="L372">      .map(BranchDto::getProjectUuid)</span>
+<span class="fc" id="L373">      .collect(Collectors.toSet());</span>
+  }
+
+  private void addComponentsBasedOnQualifier(IssueQuery.Builder builder, DbSession dbSession, List&lt;ComponentDto&gt; components,
+    SearchRequest request) {
+<span class="fc bfc" id="L378" title="All 2 branches covered.">    if (components.isEmpty()) {</span>
+<span class="fc" id="L379">      return;</span>
+    }
+<span class="fc bfc" id="L381" title="All 2 branches covered.">    if (components.stream().map(ComponentDto::uuid).anyMatch(uuid -&gt; uuid.equals(UNKNOWN))) {</span>
+<span class="fc" id="L382">      builder.componentUuids(singleton(UNKNOWN));</span>
+<span class="fc" id="L383">      return;</span>
+    }
+
+<span class="fc" id="L386">    Set&lt;String&gt; qualifiers = components.stream().map(ComponentDto::qualifier).collect(Collectors.toSet());</span>
+<span class="pc bpc" id="L387" title="1 of 2 branches missed.">    checkArgument(qualifiers.size() == 1, &quot;All components must have the same qualifier, found %s&quot;, String.join(&quot;,&quot;, qualifiers));</span>
+
+<span class="fc" id="L389">    setBranch(builder, components.get(0), request.getBranch(), request.getPullRequest(), dbSession);</span>
+<span class="fc" id="L390">    String qualifier = qualifiers.iterator().next();</span>
+<span class="pc bpc" id="L391" title="1 of 6 branches missed.">    switch (qualifier) {</span>
+      case ComponentQualifiers.VIEW, ComponentQualifiers.SUBVIEW:
+<span class="fc" id="L393">        addViewsOrSubViews(builder, components);</span>
+<span class="fc" id="L394">        break;</span>
+      case ComponentQualifiers.APP:
+<span class="fc" id="L396">        addApplications(builder, dbSession, components, request);</span>
+<span class="fc" id="L397">        addProjectUuidsForApplication(builder, dbSession, request);</span>
+<span class="fc" id="L398">        break;</span>
+      case ComponentQualifiers.PROJECT:
+<span class="fc" id="L400">        builder.projectUuids(retrieveProjectUuidsFromComponents(dbSession, components));</span>
+<span class="fc" id="L401">        break;</span>
+      case ComponentQualifiers.DIRECTORY:
+<span class="fc" id="L403">        addDirectories(builder, components);</span>
+<span class="fc" id="L404">        break;</span>
+      case ComponentQualifiers.FILE, ComponentQualifiers.UNIT_TEST_FILE:
+<span class="fc" id="L406">        builder.componentUuids(components.stream().map(ComponentDto::uuid).toList());</span>
+<span class="fc" id="L407">        break;</span>
+      default:
+<span class="nc" id="L409">        throw new IllegalArgumentException(&quot;Unable to set search root context for components &quot; + Joiner.on(',').join(components));</span>
+    }
+<span class="fc" id="L411">  }</span>
+
+  private BranchDto findComponentBranch(DbSession dbSession, ComponentDto componentDto) {
+<span class="fc" id="L414">    Optional&lt;BranchDto&gt; optionalBranch = dbClient.branchDao().selectByUuid(dbSession, componentDto.branchUuid());</span>
+<span class="fc" id="L415">    checkArgument(optionalBranch.isPresent(), &quot;All components must belong to a branch. This error may indicate corrupted data.&quot;);</span>
+<span class="fc" id="L416">    return optionalBranch.get();</span>
+  }
+
+  private void addProjectUuidsForApplication(IssueQuery.Builder builder, DbSession session, SearchRequest request) {
+<span class="fc" id="L420">    List&lt;String&gt; projectKeys = request.getProjectKeys();</span>
+<span class="fc bfc" id="L421" title="All 2 branches covered.">    if (projectKeys != null) {</span>
+      // On application, branch should only be applied on the application, not on projects
+<span class="fc" id="L423">      List&lt;ComponentDto&gt; appBranchComponents = getComponentsFromKeys(session, projectKeys, null, null);</span>
+<span class="fc" id="L424">      Set&lt;String&gt; appUuids = retrieveProjectUuidsFromComponents(session, appBranchComponents);</span>
+<span class="fc" id="L425">      builder.projectUuids(appUuids);</span>
+    }
+<span class="fc" id="L427">  }</span>
+
+  private void addViewsOrSubViews(IssueQuery.Builder builder, Collection&lt;ComponentDto&gt; viewOrSubViewUuids) {
+<span class="fc" id="L430">    List&lt;String&gt; filteredViewUuids = viewOrSubViewUuids.stream()</span>
+<span class="pc bpc" id="L431" title="2 of 6 branches missed.">      .filter(uuid -&gt; (userSession.hasComponentPermission(USER, uuid) || userSession.hasComponentPermission(SCAN, uuid) || userSession.hasPermission(GlobalPermission.SCAN)))</span>
+<span class="fc" id="L432">      .map(ComponentDto::uuid)</span>
+<span class="fc" id="L433">      .collect(Collectors.toCollection(ArrayList::new));</span>
+<span class="fc bfc" id="L434" title="All 2 branches covered.">    if (filteredViewUuids.isEmpty()) {</span>
+<span class="fc" id="L435">      filteredViewUuids.add(UNKNOWN);</span>
+    }
+<span class="fc" id="L437">    builder.viewUuids(filteredViewUuids);</span>
+<span class="fc" id="L438">  }</span>
+
+  private void addApplications(IssueQuery.Builder builder, DbSession dbSession, List&lt;ComponentDto&gt; appBranchComponents,
+    SearchRequest request) {
+<span class="fc" id="L442">    Set&lt;String&gt; authorizedAppBranchUuids = appBranchComponents.stream()</span>
+<span class="pc bpc" id="L443" title="1 of 4 branches missed.">      .filter(app -&gt; userSession.hasComponentPermission(USER, app) &amp;&amp; userSession.hasChildProjectsPermission(USER, app))</span>
+<span class="fc" id="L444">      .map(ComponentDto::uuid)</span>
+<span class="fc" id="L445">      .collect(Collectors.toSet());</span>
+
+<span class="fc bfc" id="L447" title="All 2 branches covered.">    builder.viewUuids(authorizedAppBranchUuids.isEmpty() ? singleton(UNKNOWN) : authorizedAppBranchUuids);</span>
+<span class="fc" id="L448">    addCreatedAfterByProjects(builder, dbSession, request, authorizedAppBranchUuids);</span>
+<span class="fc" id="L449">  }</span>
+
+  private void addCreatedAfterByProjects(IssueQuery.Builder builder, DbSession dbSession, SearchRequest request,
+    Set&lt;String&gt; appBranchUuids) {
+<span class="pc bpc" id="L453" title="1 of 4 branches missed.">    if (notInNewCodePeriod(request) || request.getPullRequest() != null) {</span>
+<span class="fc" id="L454">      return;</span>
+    }
+
+<span class="fc" id="L457">    Set&lt;String&gt; projectBranchUuids = appBranchUuids.stream()</span>
+<span class="fc" id="L458">      .flatMap(app -&gt; dbClient.componentDao().selectProjectBranchUuidsFromView(dbSession, app, app).stream())</span>
+<span class="fc" id="L459">      .collect(Collectors.toSet());</span>
+
+<span class="fc" id="L461">    List&lt;SnapshotDto&gt; snapshots = getLastAnalysis(dbSession, projectBranchUuids);</span>
+
+<span class="fc" id="L463">    Set&lt;String&gt; newCodeReferenceByProjects = snapshots</span>
+<span class="fc" id="L464">      .stream()</span>
+<span class="fc" id="L465">      .filter(s -&gt; isLastAnalysisFromReAnalyzedReferenceBranch(dbSession, s))</span>
+<span class="fc" id="L466">      .map(SnapshotDto::getRootComponentUuid)</span>
+<span class="fc" id="L467">      .collect(Collectors.toSet());</span>
+
+<span class="fc" id="L469">    Map&lt;String, PeriodStart&gt; leakByProjects = snapshots</span>
+<span class="fc" id="L470">      .stream()</span>
+<span class="pc bpc" id="L471" title="1 of 4 branches missed.">      .filter(s -&gt; s.getPeriodDate() != null &amp;&amp; !isLastAnalysisFromReAnalyzedReferenceBranch(dbSession, s))</span>
+<span class="fc" id="L472">      .collect(Collectors.toMap(SnapshotDto::getRootComponentUuid, s1 -&gt; new PeriodStart(longToDate(s1.getPeriodDate()), false)));</span>
+
+<span class="fc" id="L474">    builder.createdAfterByProjectUuids(leakByProjects);</span>
+<span class="fc" id="L475">    builder.newCodeOnReferenceByProjectUuids(newCodeReferenceByProjects);</span>
+<span class="fc" id="L476">  }</span>
+
+  private boolean isLastAnalysisFromReAnalyzedReferenceBranch(DbSession dbSession, SnapshotDto snapshot) {
+<span class="fc bfc" id="L479" title="All 2 branches covered.">    return isLastAnalysisUsingReferenceBranch(snapshot) &amp;&amp;</span>
+<span class="pc bpc" id="L480" title="1 of 2 branches missed.">      isLastAnalysisFromSonarQube94Onwards(dbSession, snapshot.getRootComponentUuid());</span>
+  }
+
+  private static void addDirectories(IssueQuery.Builder builder, List&lt;ComponentDto&gt; directories) {
+<span class="fc" id="L484">    Set&lt;String&gt; paths = directories.stream().map(ComponentDto::path).collect(Collectors.toSet());</span>
+<span class="fc" id="L485">    builder.directories(paths);</span>
+<span class="fc" id="L486">  }</span>
+
+  private List&lt;ComponentDto&gt; getComponentsFromKeys(DbSession dbSession, Collection&lt;String&gt; componentKeys, @Nullable String branch,
+    @Nullable String pullRequest) {
+<span class="fc" id="L490">    List&lt;ComponentDto&gt; componentDtos = dbClient.componentDao().selectByKeys(dbSession, componentKeys, branch, pullRequest);</span>
+<span class="pc bpc" id="L491" title="1 of 4 branches missed.">    if (!componentKeys.isEmpty() &amp;&amp; componentDtos.isEmpty()) {</span>
+<span class="fc" id="L492">      return singletonList(UNKNOWN_COMPONENT);</span>
+    }
+<span class="fc" id="L494">    return componentDtos;</span>
+  }
+
+  private List&lt;ComponentDto&gt; getComponentsFromUuids(DbSession dbSession, Collection&lt;String&gt; componentUuids) {
+<span class="fc" id="L498">    List&lt;ComponentDto&gt; componentDtos = dbClient.componentDao().selectByUuids(dbSession, componentUuids);</span>
+<span class="pc bpc" id="L499" title="2 of 4 branches missed.">    if (!componentUuids.isEmpty() &amp;&amp; componentDtos.isEmpty()) {</span>
+<span class="nc" id="L500">      return singletonList(UNKNOWN_COMPONENT);</span>
+    }
+<span class="fc" id="L502">    return componentDtos;</span>
+  }
+
+  private Collection&lt;RuleDto&gt; ruleKeysToRuleId(DbSession dbSession, @Nullable Collection&lt;String&gt; rules) {
+<span class="fc bfc" id="L506" title="All 2 branches covered.">    if (rules != null) {</span>
+<span class="fc" id="L507">      return dbClient.ruleDao().selectByKeys(dbSession, transform(rules, RuleKey::parse));</span>
+    }
+<span class="fc" id="L509">    return Collections.emptyList();</span>
+  }
+
+  private void setBranch(IssueQuery.Builder builder, ComponentDto component, @Nullable String branch, @Nullable String pullRequest,
+    DbSession session) {
+<span class="fc bfc" id="L514" title="All 4 branches covered.">    builder.branchUuid(branch == null &amp;&amp; pullRequest == null ? null : component.branchUuid());</span>
+<span class="fc bfc" id="L515" title="All 6 branches covered.">    if (UNKNOWN_COMPONENT.equals(component) || (pullRequest == null &amp;&amp; branch == null)) {</span>
+<span class="fc" id="L516">      builder.mainBranch(true);</span>
+    } else {
+<span class="fc" id="L518">      BranchDto branchDto = findComponentBranch(session, component);</span>
+<span class="fc" id="L519">      builder.mainBranch(branchDto.isMain());</span>
+    }
+<span class="fc" id="L521">  }</span>
+
+  private static void unsetMainBranch(IssueQuery.Builder builder, boolean hasIssueKey, List&lt;ComponentDto&gt; components, SearchRequest request) {
+<span class="fc" id="L524">    var pullRequest = request.getPullRequest();</span>
+<span class="fc" id="L525">    var branch = request.getBranch();</span>
+<span class="fc bfc" id="L526" title="All 10 branches covered.">    if ((components.isEmpty() || UNKNOWN_COMPONENT.equals(components.get(0)) || (pullRequest == null &amp;&amp; branch == null)) &amp;&amp; hasIssueKey) {</span>
+<span class="fc" id="L527">      builder.mainBranch(null);</span>
+    }
+<span class="fc" id="L529">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

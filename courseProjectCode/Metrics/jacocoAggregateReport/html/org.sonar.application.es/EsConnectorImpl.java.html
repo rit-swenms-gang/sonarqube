@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EsConnectorImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.application.es</a> &gt; <span class="el_source">EsConnectorImpl.java</span></div><h1>EsConnectorImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.application.es;
+
+import com.google.common.net.HostAndPort;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.GeneralSecurityException;
+import java.security.KeyStore;
+import java.util.Arrays;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import javax.annotation.Nullable;
+import javax.net.ssl.SSLContext;
+import org.apache.http.HttpHost;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.impl.client.BasicCredentialsProvider;
+import org.apache.http.ssl.SSLContextBuilder;
+import org.apache.http.ssl.SSLContexts;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
+
+public class EsConnectorImpl implements EsConnector {
+  private static final String ES_USERNAME = &quot;elastic&quot;;
+
+<span class="fc" id="L59">  private static final Logger LOG = LoggerFactory.getLogger(EsConnectorImpl.class);</span>
+
+<span class="fc" id="L61">  private final AtomicReference&lt;RestHighLevelClient&gt; restClient = new AtomicReference&lt;&gt;(null);</span>
+  private final Set&lt;HostAndPort&gt; hostAndPorts;
+  private final String searchPassword;
+  private final Path keyStorePath;
+  private final String keyStorePassword;
+
+  public EsConnectorImpl(Set&lt;HostAndPort&gt; hostAndPorts, @Nullable String searchPassword, @Nullable Path keyStorePath,
+<span class="fc" id="L68">    @Nullable String keyStorePassword) {</span>
+<span class="fc" id="L69">    this.hostAndPorts = hostAndPorts;</span>
+<span class="fc" id="L70">    this.searchPassword = searchPassword;</span>
+<span class="fc" id="L71">    this.keyStorePath = keyStorePath;</span>
+<span class="fc" id="L72">    this.keyStorePassword = keyStorePassword;</span>
+<span class="fc" id="L73">  }</span>
+
+  @Override
+  public Optional&lt;ClusterHealthStatus&gt; getClusterHealthStatus() {
+    try {
+<span class="fc" id="L78">      ClusterHealthResponse healthResponse = getRestHighLevelClient().cluster()</span>
+<span class="fc" id="L79">        .health(new ClusterHealthRequest().waitForYellowStatus().timeout(timeValueSeconds(30)), RequestOptions.DEFAULT);</span>
+<span class="fc" id="L80">      return Optional.of(healthResponse.getStatus());</span>
+<span class="nc" id="L81">    } catch (IOException e) {</span>
+<span class="nc" id="L82">      LOG.trace(&quot;Failed to check health status &quot;, e);</span>
+<span class="nc" id="L83">      return Optional.empty();</span>
+    }
+  }
+
+  @Override
+  public void stop() {
+<span class="fc" id="L89">    RestHighLevelClient restHighLevelClient = restClient.get();</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">    if (restHighLevelClient != null) {</span>
+      try {
+<span class="fc" id="L92">        restHighLevelClient.close();</span>
+<span class="nc" id="L93">      } catch (IOException e) {</span>
+<span class="nc" id="L94">        LOG.warn(&quot;Error occurred while closing Rest Client&quot;, e);</span>
+<span class="fc" id="L95">      }</span>
+    }
+<span class="fc" id="L97">  }</span>
+
+  private RestHighLevelClient getRestHighLevelClient() {
+<span class="fc" id="L100">    RestHighLevelClient res = this.restClient.get();</span>
+<span class="pc bpc" id="L101" title="1 of 2 branches missed.">    if (res != null) {</span>
+<span class="nc" id="L102">      return res;</span>
+    }
+
+<span class="fc" id="L105">    RestHighLevelClient restHighLevelClient = buildRestHighLevelClient();</span>
+<span class="fc" id="L106">    this.restClient.set(restHighLevelClient);</span>
+<span class="fc" id="L107">    return restHighLevelClient;</span>
+  }
+
+  private RestHighLevelClient buildRestHighLevelClient() {
+<span class="fc" id="L111">    HttpHost[] httpHosts = hostAndPorts.stream()</span>
+<span class="fc" id="L112">      .map(this::toHttpHost)</span>
+<span class="fc" id="L113">      .toArray(HttpHost[]::new);</span>
+
+<span class="fc" id="L115">    LOG.atDebug()</span>
+<span class="fc" id="L116">      .addArgument(Arrays.stream(httpHosts)</span>
+<span class="fc" id="L117">        .map(t -&gt; t.getHostName() + &quot;:&quot; + t.getPort())</span>
+<span class="fc" id="L118">        .collect(Collectors.joining(&quot;, &quot;)))</span>
+<span class="fc" id="L119">      .log(&quot;Connected to Elasticsearch node: [{}]&quot;);</span>
+
+<span class="fc" id="L121">    RestClientBuilder builder = RestClient.builder(httpHosts)</span>
+<span class="fc" id="L122">      .setHttpClientConfigCallback(httpClientBuilder -&gt; {</span>
+<span class="fc bfc" id="L123" title="All 2 branches covered.">        if (searchPassword != null) {</span>
+<span class="fc" id="L124">          BasicCredentialsProvider provider = getBasicCredentialsProvider(searchPassword);</span>
+<span class="fc" id="L125">          httpClientBuilder.setDefaultCredentialsProvider(provider);</span>
+        }
+
+<span class="fc bfc" id="L128" title="All 2 branches covered.">        if (keyStorePath != null) {</span>
+<span class="fc" id="L129">          SSLContext sslContext = getSSLContext(keyStorePath, keyStorePassword);</span>
+<span class="fc" id="L130">          httpClientBuilder.setSSLContext(sslContext);</span>
+        }
+
+<span class="fc" id="L133">        return httpClientBuilder;</span>
+      });
+<span class="fc" id="L135">    return new RestHighLevelClient(builder);</span>
+  }
+
+  private HttpHost toHttpHost(HostAndPort host) {
+    try {
+<span class="fc bfc" id="L140" title="All 2 branches covered.">      String scheme = keyStorePath != null ? &quot;https&quot; : HttpHost.DEFAULT_SCHEME_NAME;</span>
+<span class="pc bpc" id="L141" title="1 of 2 branches missed.">      if (&quot;true&quot;.equalsIgnoreCase(System.getProperty(&quot;java.net.preferIPv6Addresses&quot;))) {</span>
+        // host.getHost() returns IP address. This is required for HttpHost to work as we need to use IP address in the RestClient to
+        // correctly resolve the host. Otherwise, RestClient will try to find the ip using hostname, and it might fail in case of IPv6.
+<span class="nc" id="L144">        return new HttpHost(InetAddress.getByName(host.getHost()), host.getHost(), host.getPortOrDefault(9001), scheme);</span>
+      }
+<span class="fc" id="L146">      return new HttpHost(InetAddress.getByName(host.getHost()), host.getPortOrDefault(9001), scheme);</span>
+<span class="nc" id="L147">    } catch (UnknownHostException e) {</span>
+<span class="nc" id="L148">      throw new IllegalStateException(&quot;Can not resolve host [&quot; + host + &quot;]&quot;, e);</span>
+    }
+  }
+
+  private static BasicCredentialsProvider getBasicCredentialsProvider(String searchPassword) {
+<span class="fc" id="L153">    BasicCredentialsProvider provider = new BasicCredentialsProvider();</span>
+<span class="fc" id="L154">    provider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(ES_USERNAME, searchPassword));</span>
+<span class="fc" id="L155">    return provider;</span>
+  }
+
+  private static SSLContext getSSLContext(Path keyStorePath, @Nullable String keyStorePassword) {
+    try {
+<span class="fc" id="L160">      KeyStore keyStore = KeyStore.getInstance(&quot;pkcs12&quot;);</span>
+<span class="fc" id="L161">      try (InputStream is = Files.newInputStream(keyStorePath)) {</span>
+<span class="pc bpc" id="L162" title="1 of 2 branches missed.">        keyStore.load(is, keyStorePassword == null ? null : keyStorePassword.toCharArray());</span>
+      }
+<span class="fc" id="L164">      SSLContextBuilder sslBuilder = SSLContexts.custom().loadTrustMaterial(keyStore, null);</span>
+<span class="fc" id="L165">      return sslBuilder.build();</span>
+<span class="nc" id="L166">    } catch (IOException | GeneralSecurityException e) {</span>
+<span class="nc" id="L167">      throw new IllegalStateException(&quot;Failed to setup SSL context on ES client&quot;, e);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

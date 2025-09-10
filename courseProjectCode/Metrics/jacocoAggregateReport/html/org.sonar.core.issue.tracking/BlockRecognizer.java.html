@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BlockRecognizer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.core.issue.tracking</a> &gt; <span class="el_source">BlockRecognizer.java</span></div><h1>BlockRecognizer.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.core.issue.tracking;
+
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Multimap;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
+
+<span class="fc" id="L33">class BlockRecognizer&lt;RAW extends Trackable, BASE extends Trackable&gt; {</span>
+
+  /**
+   * If base source code is available, then detect code moves through block hashes.
+   * Only the issues associated to a line can be matched here.
+   */
+  void match(Input&lt;RAW&gt; rawInput, Input&lt;BASE&gt; baseInput, Tracking&lt;RAW, BASE&gt; tracking) {
+<span class="fc" id="L40">    BlockHashSequence rawHashSequence = rawInput.getBlockHashSequence();</span>
+<span class="fc" id="L41">    BlockHashSequence baseHashSequence = baseInput.getBlockHashSequence();</span>
+
+<span class="fc" id="L43">    Multimap&lt;Integer, RAW&gt; rawsByLine = groupByLine(tracking.getUnmatchedRaws(), rawHashSequence);</span>
+<span class="fc" id="L44">    Multimap&lt;Integer, BASE&gt; basesByLine = groupByLine(tracking.getUnmatchedBases(), baseHashSequence);</span>
+<span class="fc" id="L45">    Map&lt;Integer, HashOccurrence&gt; occurrencesByHash = new HashMap&lt;&gt;();</span>
+
+<span class="fc bfc" id="L47" title="All 2 branches covered.">    for (Integer line : basesByLine.keySet()) {</span>
+<span class="fc" id="L48">      int hash = baseHashSequence.getBlockHashForLine(line);</span>
+<span class="fc" id="L49">      HashOccurrence hashOccurrence = occurrencesByHash.get(hash);</span>
+<span class="pc bpc" id="L50" title="1 of 2 branches missed.">      if (hashOccurrence == null) {</span>
+        // first occurrence in base
+<span class="fc" id="L52">        hashOccurrence = new HashOccurrence();</span>
+<span class="fc" id="L53">        hashOccurrence.baseLine = line;</span>
+<span class="fc" id="L54">        hashOccurrence.baseCount = 1;</span>
+<span class="fc" id="L55">        occurrencesByHash.put(hash, hashOccurrence);</span>
+      } else {
+<span class="nc" id="L57">        hashOccurrence.baseCount++;</span>
+      }
+<span class="fc" id="L59">    }</span>
+
+<span class="fc bfc" id="L61" title="All 2 branches covered.">    for (Integer line : rawsByLine.keySet()) {</span>
+<span class="fc" id="L62">      int hash = rawHashSequence.getBlockHashForLine(line);</span>
+<span class="fc" id="L63">      HashOccurrence hashOccurrence = occurrencesByHash.get(hash);</span>
+<span class="fc bfc" id="L64" title="All 2 branches covered.">      if (hashOccurrence != null) {</span>
+<span class="fc" id="L65">        hashOccurrence.rawLine = line;</span>
+<span class="fc" id="L66">        hashOccurrence.rawCount++;</span>
+      }
+<span class="fc" id="L68">    }</span>
+
+<span class="fc bfc" id="L70" title="All 2 branches covered.">    for (HashOccurrence hashOccurrence : occurrencesByHash.values()) {</span>
+<span class="pc bpc" id="L71" title="1 of 4 branches missed.">      if (hashOccurrence.baseCount == 1 &amp;&amp; hashOccurrence.rawCount == 1) {</span>
+        // Guaranteed that baseLine has been moved to rawLine, so we can map all issues on baseLine to all issues on rawLine
+<span class="fc" id="L73">        map(rawsByLine.get(hashOccurrence.rawLine), basesByLine.get(hashOccurrence.baseLine), tracking);</span>
+<span class="fc" id="L74">        basesByLine.removeAll(hashOccurrence.baseLine);</span>
+<span class="fc" id="L75">        rawsByLine.removeAll(hashOccurrence.rawLine);</span>
+      }
+<span class="fc" id="L77">    }</span>
+
+    // Check if remaining number of lines exceeds threshold. It avoids processing too many combinations.
+<span class="pc bpc" id="L80" title="1 of 2 branches missed.">    if (isOverLimit(basesByLine.keySet().size(), rawsByLine.keySet().size())) {</span>
+<span class="nc" id="L81">      return;</span>
+    }
+
+<span class="fc" id="L84">    List&lt;LinePair&gt; possibleLinePairs = Lists.newArrayList();</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">    for (Integer baseLine : basesByLine.keySet()) {</span>
+<span class="fc bfc" id="L86" title="All 2 branches covered.">      for (Integer rawLine : rawsByLine.keySet()) {</span>
+<span class="fc" id="L87">        int weight = lengthOfMaximalBlock(baseInput.getLineHashSequence(), baseLine, rawInput.getLineHashSequence(), rawLine);</span>
+<span class="fc bfc" id="L88" title="All 2 branches covered.">        if (weight &gt; 0) {</span>
+<span class="fc" id="L89">          possibleLinePairs.add(new LinePair(baseLine, rawLine, weight));</span>
+        }
+<span class="fc" id="L91">      }</span>
+<span class="fc" id="L92">    }</span>
+<span class="fc" id="L93">    Collections.sort(possibleLinePairs, LinePairComparator.INSTANCE);</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">    for (LinePair linePair : possibleLinePairs) {</span>
+      // High probability that baseLine has been moved to rawLine, so we can map all issues on baseLine to all issues on rawLine
+<span class="fc" id="L96">      map(rawsByLine.get(linePair.rawLine), basesByLine.get(linePair.baseLine), tracking);</span>
+<span class="fc" id="L97">    }</span>
+<span class="fc" id="L98">  }</span>
+
+  static boolean isOverLimit(long a, long b) {
+<span class="fc bfc" id="L101" title="All 2 branches covered.">    return Math.multiplyExact(a, b) &gt;= 250_000;</span>
+  }
+
+  /**
+   * @param startLineA number of line from first version of text (numbering starts from 1)
+   * @param startLineB number of line from second version of text (numbering starts from 1)
+   */
+  static int lengthOfMaximalBlock(LineHashSequence hashesA, int startLineA, LineHashSequence hashesB, int startLineB) {
+<span class="fc bfc" id="L109" title="All 2 branches covered.">    if (!hashesA.getHashForLine(startLineA).equals(hashesB.getHashForLine(startLineB))) {</span>
+<span class="fc" id="L110">      return 0;</span>
+    }
+<span class="fc" id="L112">    int length = 0;</span>
+<span class="fc" id="L113">    int ai = startLineA;</span>
+<span class="fc" id="L114">    int bi = startLineB;</span>
+<span class="fc bfc" id="L115" title="All 6 branches covered.">    while (ai &lt;= hashesA.length() &amp;&amp; bi &lt;= hashesB.length() &amp;&amp; hashesA.getHashForLine(ai).equals(hashesB.getHashForLine(bi))) {</span>
+<span class="fc" id="L116">      ai++;</span>
+<span class="fc" id="L117">      bi++;</span>
+<span class="fc" id="L118">      length++;</span>
+    }
+<span class="fc" id="L120">    ai = startLineA;</span>
+<span class="fc" id="L121">    bi = startLineB;</span>
+<span class="pc bpc" id="L122" title="1 of 6 branches missed.">    while (ai &gt; 0 &amp;&amp; bi &gt; 0 &amp;&amp; hashesA.getHashForLine(ai).equals(hashesB.getHashForLine(bi))) {</span>
+<span class="fc" id="L123">      ai--;</span>
+<span class="fc" id="L124">      bi--;</span>
+<span class="fc" id="L125">      length++;</span>
+    }
+    // Note that position (startA, startB) was counted twice
+<span class="fc" id="L128">    return length - 1;</span>
+  }
+
+  private void map(Collection&lt;RAW&gt; raws, Collection&lt;BASE&gt; bases, Tracking&lt;RAW, BASE&gt; result) {
+<span class="fc bfc" id="L132" title="All 2 branches covered.">    for (RAW raw : raws) {</span>
+<span class="fc bfc" id="L133" title="All 2 branches covered.">      for (BASE base : bases) {</span>
+<span class="fc bfc" id="L134" title="All 4 branches covered.">        if (result.containsUnmatchedBase(base) &amp;&amp; base.getRuleKey().equals(raw.getRuleKey())) {</span>
+<span class="fc" id="L135">          result.match(raw, base);</span>
+<span class="fc" id="L136">          break;</span>
+        }
+<span class="fc" id="L138">      }</span>
+<span class="fc" id="L139">    }</span>
+<span class="fc" id="L140">  }</span>
+
+  private static &lt;T extends Trackable&gt; Multimap&lt;Integer, T&gt; groupByLine(Stream&lt;T&gt; trackables, BlockHashSequence hashSequence) {
+    // must use a MultiMap implementation which is not based on a Set collection because when T is a DefaultIssue
+    // its hashcode method returns the same value for all instances because it is based only on the DefaultIssue's
+    // key field which is not yet set when we do Issue Tracking
+<span class="fc" id="L146">    Multimap&lt;Integer, T&gt; result = ArrayListMultimap.create();</span>
+<span class="fc" id="L147">    trackables.forEach(trackable -&gt; {</span>
+<span class="fc" id="L148">      Integer line = trackable.getLine();</span>
+<span class="fc bfc" id="L149" title="All 2 branches covered.">      if (hashSequence.hasLine(line)) {</span>
+<span class="fc" id="L150">        result.put(line, trackable);</span>
+      }
+<span class="fc" id="L152">    });</span>
+<span class="fc" id="L153">    return result;</span>
+  }
+
+  private static class LinePair {
+    int baseLine;
+    int rawLine;
+    int weight;
+
+<span class="fc" id="L161">    public LinePair(int baseLine, int rawLine, int weight) {</span>
+<span class="fc" id="L162">      this.baseLine = baseLine;</span>
+<span class="fc" id="L163">      this.rawLine = rawLine;</span>
+<span class="fc" id="L164">      this.weight = weight;</span>
+<span class="fc" id="L165">    }</span>
+  }
+
+  private static class HashOccurrence {
+    int baseLine;
+    int rawLine;
+    int baseCount;
+    int rawCount;
+  }
+
+<span class="fc" id="L175">  private enum LinePairComparator implements Comparator&lt;LinePair&gt; {</span>
+<span class="fc" id="L176">    INSTANCE;</span>
+
+    @Override
+    public int compare(LinePair o1, LinePair o2) {
+<span class="fc" id="L180">      int weightDiff = o2.weight - o1.weight;</span>
+<span class="fc bfc" id="L181" title="All 2 branches covered.">      if (weightDiff != 0) {</span>
+<span class="fc" id="L182">        return weightDiff;</span>
+      } else {
+<span class="fc" id="L184">        return Math.abs(o1.baseLine - o1.rawLine) - Math.abs(o2.baseLine - o2.rawLine);</span>
+      }
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

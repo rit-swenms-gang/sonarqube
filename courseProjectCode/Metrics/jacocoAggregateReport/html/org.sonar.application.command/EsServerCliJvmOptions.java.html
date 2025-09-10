@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EsServerCliJvmOptions.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.application.command</a> &gt; <span class="el_source">EsServerCliJvmOptions.java</span></div><h1>EsServerCliJvmOptions.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.application.command;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
+import org.sonar.application.es.EsInstallation;
+
+class EsServerCliJvmOptions extends JvmOptions&lt;EsServerCliJvmOptions&gt; {
+
+  public EsServerCliJvmOptions(EsInstallation esInstallation) {
+<span class="fc" id="L29">    super(mandatoryOptions(esInstallation));</span>
+<span class="fc" id="L30">  }</span>
+
+  private static Map&lt;String, String&gt; mandatoryOptions(EsInstallation esInstallation) {
+<span class="fc" id="L33">    Map&lt;String, String&gt; res = new LinkedHashMap&lt;&gt;(9);</span>
+<span class="fc" id="L34">    res.put(&quot;-Xms4m&quot;, &quot;&quot;);</span>
+<span class="fc" id="L35">    res.put(&quot;-Xmx64m&quot;, &quot;&quot;);</span>
+<span class="fc" id="L36">    res.put(&quot;-XX:+UseSerialGC&quot;, &quot;&quot;);</span>
+<span class="fc" id="L37">    res.put(&quot;-Dcli.name=&quot;, &quot;server&quot;);</span>
+<span class="fc" id="L38">    res.put(&quot;-Dcli.script=&quot;, &quot;./bin/elasticsearch&quot;);</span>
+<span class="fc" id="L39">    res.put(&quot;-Dcli.libs=&quot;, &quot;lib/tools/server-cli&quot;);</span>
+<span class="fc" id="L40">    res.put(&quot;-Des.path.home=&quot;, esInstallation.getHomeDirectory().getAbsolutePath());</span>
+<span class="fc" id="L41">    res.put(&quot;-Des.path.conf=&quot;, esInstallation.getConfDirectory().getAbsolutePath());</span>
+<span class="fc" id="L42">    res.put(&quot;-Des.distribution.type=&quot;, &quot;tar&quot;);</span>
+<span class="fc" id="L43">    return res;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EnforceIssuesFilter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.issue.ignore</a> &gt; <span class="el_source">EnforceIssuesFilter.java</span></div><h1>EnforceIssuesFilter.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.issue.ignore;
+
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+import javax.annotation.concurrent.ThreadSafe;
+import org.sonar.api.batch.fs.InputComponent;
+import org.sonar.api.batch.fs.internal.DefaultInputFile;
+import org.sonar.api.batch.rule.internal.DefaultActiveRules;
+import org.sonar.api.notifications.AnalysisWarnings;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.api.scan.issue.filter.FilterableIssue;
+import org.sonar.api.scan.issue.filter.IssueFilter;
+import org.sonar.api.scan.issue.filter.IssueFilterChain;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.scanner.issue.DefaultFilterableIssue;
+import org.sonar.scanner.issue.ignore.pattern.IssueInclusionPatternInitializer;
+import org.sonar.scanner.issue.ignore.pattern.IssuePattern;
+
+@ThreadSafe
+public class EnforceIssuesFilter implements IssueFilter {
+<span class="fc" id="L42">  private static final Logger LOG = LoggerFactory.getLogger(EnforceIssuesFilter.class);</span>
+
+  private final List&lt;IssuePattern&gt; multicriteriaPatterns;
+  private final AnalysisWarnings analysisWarnings;
+  private final DefaultActiveRules activeRules;
+<span class="fc" id="L47">  private final Set&lt;RuleKey&gt; warnedDeprecatedRuleKeys = new LinkedHashSet&lt;&gt;();</span>
+
+  private boolean warnDeprecatedIssuePatternAlreadyLogged;
+
+<span class="fc" id="L51">  public EnforceIssuesFilter(IssueInclusionPatternInitializer patternInitializer, AnalysisWarnings analysisWarnings, DefaultActiveRules activeRules) {</span>
+<span class="fc" id="L52">    this.multicriteriaPatterns = List.copyOf(patternInitializer.getMulticriteriaPatterns());</span>
+<span class="fc" id="L53">    this.analysisWarnings = analysisWarnings;</span>
+<span class="fc" id="L54">    this.activeRules = activeRules;</span>
+<span class="fc" id="L55">  }</span>
+
+  @Override
+  public boolean accept(FilterableIssue issue, IssueFilterChain chain) {
+<span class="fc" id="L59">    boolean atLeastOneRuleMatched = false;</span>
+<span class="fc" id="L60">    boolean atLeastOnePatternFullyMatched = false;</span>
+<span class="fc" id="L61">    IssuePattern matchingPattern = null;</span>
+
+<span class="fc bfc" id="L63" title="All 2 branches covered.">    for (IssuePattern pattern : multicriteriaPatterns) {</span>
+<span class="fc bfc" id="L64" title="All 2 branches covered.">      if (ruleMatches(pattern, issue.ruleKey())) {</span>
+<span class="fc" id="L65">        atLeastOneRuleMatched = true;</span>
+<span class="fc" id="L66">        InputComponent component = ((DefaultFilterableIssue) issue).getComponent();</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">        if (component.isFile()) {</span>
+<span class="fc" id="L68">          DefaultInputFile file = (DefaultInputFile) component;</span>
+<span class="fc bfc" id="L69" title="All 2 branches covered.">          if (pattern.matchFile(file.getProjectRelativePath())) {</span>
+<span class="fc" id="L70">            atLeastOnePatternFullyMatched = true;</span>
+<span class="fc" id="L71">            matchingPattern = pattern;</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">          } else if (pattern.matchFile(file.getModuleRelativePath())) {</span>
+<span class="fc" id="L73">            warnOnceDeprecatedIssuePattern(</span>
+              &quot;Specifying module-relative paths at project level in property '&quot; + IssueInclusionPatternInitializer.CONFIG_KEY + &quot;' is deprecated. &quot; +
+<span class="fc" id="L75">                &quot;To continue matching files like '&quot; + file.getProjectRelativePath() + &quot;', update this property so that patterns refer to project-relative paths.&quot;);</span>
+
+<span class="fc" id="L77">            atLeastOnePatternFullyMatched = true;</span>
+<span class="fc" id="L78">            matchingPattern = pattern;</span>
+          }
+        }
+      }
+<span class="fc" id="L82">    }</span>
+
+<span class="fc bfc" id="L84" title="All 2 branches covered.">    if (atLeastOneRuleMatched) {</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">      if (atLeastOnePatternFullyMatched) {</span>
+<span class="fc" id="L86">        LOG.debug(&quot;Issue '{}' enforced by pattern '{}'&quot;, issue, matchingPattern);</span>
+      }
+<span class="fc" id="L88">      return atLeastOnePatternFullyMatched;</span>
+    } else {
+<span class="fc" id="L90">      return chain.accept(issue);</span>
+    }
+  }
+
+  private boolean ruleMatches(IssuePattern pattern, RuleKey ruleKey) {
+<span class="fc bfc" id="L95" title="All 2 branches covered.">    if (activeRules.matchesDeprecatedKeys(ruleKey, pattern.getRulePattern())) {</span>
+<span class="fc" id="L96">      String msg = String.format(&quot;A multicriteria issue enforce uses the rule key '%s' that has been changed. The pattern should be updated to '%s'&quot;,</span>
+<span class="fc" id="L97">        pattern.getRulePattern(), ruleKey);</span>
+<span class="fc" id="L98">      analysisWarnings.addUnique(msg);</span>
+<span class="pc bpc" id="L99" title="1 of 2 branches missed.">      if (warnedDeprecatedRuleKeys.add(ruleKey)) {</span>
+<span class="fc" id="L100">        LOG.warn(msg);</span>
+      }
+<span class="fc" id="L102">      return true;</span>
+    }
+<span class="fc" id="L104">    return pattern.matchRule(ruleKey);</span>
+  }
+
+  private void warnOnceDeprecatedIssuePattern(String msg) {
+<span class="fc bfc" id="L108" title="All 2 branches covered.">    if (!warnDeprecatedIssuePatternAlreadyLogged) {</span>
+<span class="fc" id="L109">      LOG.warn(msg);</span>
+<span class="fc" id="L110">      analysisWarnings.addUnique(msg);</span>
+<span class="fc" id="L111">      warnDeprecatedIssuePatternAlreadyLogged = true;</span>
+    }
+<span class="fc" id="L113">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

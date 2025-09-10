@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GsonUser.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.auth.gitlab</a> &gt; <span class="el_source">GsonUser.java</span></div><h1>GsonUser.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.auth.gitlab;
+
+import com.google.gson.Gson;
+import com.google.gson.annotations.SerializedName;
+
+/**
+ * Lite representation of JSON response of GET https://gitlab.com/api/v4/user
+ */
+public class GsonUser {
+  private long id;
+  private String username;
+  private String name;
+  private String email;
+
+  @SerializedName(&quot;access_level&quot;)
+  private int accessLevel;
+
+<span class="fc" id="L37">  public GsonUser() {</span>
+    // even if empty constructor is not required for Gson, it is strongly
+    // recommended:
+    // http://stackoverflow.com/a/18645370/229031
+<span class="fc" id="L41">  }</span>
+
+  public long getId() {
+<span class="fc" id="L44">    return id;</span>
+  }
+
+  public String getUsername() {
+<span class="fc" id="L48">    return username;</span>
+  }
+
+  public String getName() {
+<span class="fc" id="L52">    return name;</span>
+  }
+
+  public String getEmail() {
+<span class="fc" id="L56">    return email;</span>
+  }
+
+  public int getAccessLevel() {
+<span class="fc" id="L60">    return accessLevel;</span>
+  }
+
+  public static GsonUser parse(String json) {
+<span class="fc" id="L64">    Gson gson = new Gson();</span>
+<span class="fc" id="L65">    return gson.fromJson(json, GsonUser.class);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

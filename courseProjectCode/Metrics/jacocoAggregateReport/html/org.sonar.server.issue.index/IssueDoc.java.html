@@ -1,0 +1,467 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IssueDoc.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.issue.index</a> &gt; <span class="el_source">IssueDoc.java</span></div><h1>IssueDoc.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.issue.index;
+
+import com.google.common.collect.Maps;
+import java.util.Collection;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.api.issue.impact.SoftwareQuality;
+import org.sonar.api.rule.Severity;
+import org.sonar.core.rule.RuleType;
+import org.sonar.api.utils.Duration;
+import org.sonar.server.es.BaseDoc;
+import org.sonar.server.permission.index.AuthorizationDoc;
+import org.sonar.server.security.SecurityStandards;
+import org.sonar.server.security.SecurityStandards.VulnerabilityProbability;
+
+import static org.sonar.server.issue.index.IssueIndexDefinition.SUB_FIELD_SEVERITY;
+import static org.sonar.server.issue.index.IssueIndexDefinition.SUB_FIELD_SOFTWARE_QUALITY;
+import static org.sonar.server.issue.index.IssueIndexDefinition.TYPE_ISSUE;
+
+public class IssueDoc extends BaseDoc {
+
+  public IssueDoc(Map&lt;String, Object&gt; fields) {
+<span class="fc" id="L45">    super(TYPE_ISSUE, fields);</span>
+<span class="fc" id="L46">  }</span>
+
+  public IssueDoc() {
+<span class="fc" id="L49">    super(TYPE_ISSUE, Maps.newHashMapWithExpectedSize(32));</span>
+<span class="fc" id="L50">  }</span>
+
+  @Override
+  public String getId() {
+<span class="fc" id="L54">    return key();</span>
+  }
+
+  public String key() {
+<span class="fc" id="L58">    return getField(IssueIndexDefinition.FIELD_ISSUE_KEY);</span>
+  }
+
+  public String componentUuid() {
+<span class="fc" id="L62">    return getField(IssueIndexDefinition.FIELD_ISSUE_COMPONENT_UUID);</span>
+  }
+
+  public String projectUuid() {
+<span class="fc" id="L66">    return getField(IssueIndexDefinition.FIELD_ISSUE_PROJECT_UUID);</span>
+  }
+
+  public String branchUuid() {
+<span class="fc" id="L70">    return getField(IssueIndexDefinition.FIELD_ISSUE_BRANCH_UUID);</span>
+  }
+
+  public boolean isMainBranch() {
+<span class="fc" id="L74">    return getField(IssueIndexDefinition.FIELD_ISSUE_IS_MAIN_BRANCH);</span>
+  }
+
+  public String ruleUuid() {
+<span class="fc" id="L78">    return getField(IssueIndexDefinition.FIELD_ISSUE_RULE_UUID);</span>
+  }
+
+  public IssueScope scope() {
+<span class="fc" id="L82">    return IssueScope.valueOf(getField(IssueIndexDefinition.FIELD_ISSUE_SCOPE));</span>
+  }
+
+  public String language() {
+<span class="fc" id="L86">    return getField(IssueIndexDefinition.FIELD_ISSUE_LANGUAGE);</span>
+  }
+
+  public String severity() {
+<span class="fc" id="L90">    return getField(IssueIndexDefinition.FIELD_ISSUE_SEVERITY);</span>
+  }
+
+  public String cleanCodeAttributeCategory() {
+<span class="fc" id="L94">    return getField(IssueIndexDefinition.FIELD_ISSUE_CLEAN_CODE_ATTRIBUTE_CATEGORY);</span>
+  }
+
+  public Collection&lt;Map&lt;String, String&gt;&gt; impacts() {
+<span class="fc" id="L98">    return getField(IssueIndexDefinition.FIELD_ISSUE_IMPACTS);</span>
+  }
+
+  @CheckForNull
+  public Integer line() {
+<span class="fc" id="L103">    return getNullableField(IssueIndexDefinition.FIELD_ISSUE_LINE);</span>
+  }
+
+  public String status() {
+<span class="fc" id="L107">    return getField(IssueIndexDefinition.FIELD_ISSUE_STATUS);</span>
+  }
+
+  @CheckForNull
+  public String resolution() {
+<span class="fc" id="L112">    return getNullableField(IssueIndexDefinition.FIELD_ISSUE_RESOLUTION);</span>
+  }
+
+  @CheckForNull
+  public String issueStatus() {
+<span class="fc" id="L117">    return getNullableField(IssueIndexDefinition.FIELD_ISSUE_NEW_STATUS);</span>
+  }
+
+  @CheckForNull
+  public String assigneeUuid() {
+<span class="fc" id="L122">    return getNullableField(IssueIndexDefinition.FIELD_ISSUE_ASSIGNEE_UUID);</span>
+  }
+
+  /**
+   * Functional date
+   */
+  public Date creationDate() {
+<span class="fc" id="L129">    return getFieldAsDate(IssueIndexDefinition.FIELD_ISSUE_FUNC_CREATED_AT);</span>
+  }
+
+  /**
+   * Functional date
+   */
+  public Date updateDate() {
+<span class="fc" id="L136">    return getFieldAsDate(IssueIndexDefinition.FIELD_ISSUE_FUNC_UPDATED_AT);</span>
+  }
+
+  @CheckForNull
+  public Date closeDate() {
+<span class="fc" id="L141">    return getNullableFieldAsDate(IssueIndexDefinition.FIELD_ISSUE_FUNC_CLOSED_AT);</span>
+  }
+
+  @CheckForNull
+  public String authorLogin() {
+<span class="fc" id="L146">    return getNullableField(IssueIndexDefinition.FIELD_ISSUE_AUTHOR_LOGIN);</span>
+  }
+
+  public RuleType type() {
+<span class="fc" id="L150">    return RuleType.valueOf(getField(IssueIndexDefinition.FIELD_ISSUE_TYPE));</span>
+  }
+
+  @CheckForNull
+  public Duration effort() {
+<span class="fc" id="L155">    Number effort = getNullableField(IssueIndexDefinition.FIELD_ISSUE_EFFORT);</span>
+<span class="pc bpc" id="L156" title="1 of 2 branches missed.">    return (effort != null) ? Duration.create(effort.longValue()) : null;</span>
+  }
+
+  @CheckForNull
+  public String filePath() {
+<span class="fc" id="L161">    return getNullableField(IssueIndexDefinition.FIELD_ISSUE_FILE_PATH);</span>
+  }
+
+  @CheckForNull
+  public String directoryPath() {
+<span class="fc" id="L166">    return getNullableField(IssueIndexDefinition.FIELD_ISSUE_DIRECTORY_PATH);</span>
+  }
+
+  public IssueDoc setKey(@Nullable String s) {
+<span class="fc" id="L170">    setField(IssueIndexDefinition.FIELD_ISSUE_KEY, s);</span>
+<span class="fc" id="L171">    return this;</span>
+  }
+
+  public IssueDoc setComponentUuid(@Nullable String s) {
+<span class="fc" id="L175">    setField(IssueIndexDefinition.FIELD_ISSUE_COMPONENT_UUID, s);</span>
+<span class="fc" id="L176">    return this;</span>
+  }
+
+  public IssueDoc setProjectUuid(String s) {
+<span class="fc" id="L180">    setField(IssueIndexDefinition.FIELD_ISSUE_PROJECT_UUID, s);</span>
+<span class="fc" id="L181">    setParent(AuthorizationDoc.idOf(s));</span>
+<span class="fc" id="L182">    return this;</span>
+  }
+
+  public IssueDoc setBranchUuid(String s) {
+<span class="fc" id="L186">    setField(IssueIndexDefinition.FIELD_ISSUE_BRANCH_UUID, s);</span>
+<span class="fc" id="L187">    return this;</span>
+  }
+
+  public IssueDoc setIsMainBranch(boolean b) {
+<span class="fc" id="L191">    setField(IssueIndexDefinition.FIELD_ISSUE_IS_MAIN_BRANCH, b);</span>
+<span class="fc" id="L192">    return this;</span>
+  }
+
+  public IssueDoc setRuleUuid(String s) {
+<span class="fc" id="L196">    setField(IssueIndexDefinition.FIELD_ISSUE_RULE_UUID, s);</span>
+<span class="fc" id="L197">    return this;</span>
+  }
+
+  public IssueDoc setScope(IssueScope s) {
+<span class="fc" id="L201">    setField(IssueIndexDefinition.FIELD_ISSUE_SCOPE, s.toString());</span>
+<span class="fc" id="L202">    return this;</span>
+  }
+
+  public IssueDoc setLanguage(@Nullable String s) {
+<span class="fc" id="L206">    setField(IssueIndexDefinition.FIELD_ISSUE_LANGUAGE, s);</span>
+<span class="fc" id="L207">    return this;</span>
+  }
+
+  public IssueDoc setSeverity(@Nullable String s) {
+<span class="fc" id="L211">    setField(IssueIndexDefinition.FIELD_ISSUE_SEVERITY, s);</span>
+<span class="fc" id="L212">    setField(IssueIndexDefinition.FIELD_ISSUE_SEVERITY_VALUE, Severity.ALL.indexOf(s));</span>
+<span class="fc" id="L213">    return this;</span>
+  }
+
+  public IssueDoc setCleanCodeAttributeCategory(@Nullable String s) {
+<span class="fc" id="L217">    setField(IssueIndexDefinition.FIELD_ISSUE_CLEAN_CODE_ATTRIBUTE_CATEGORY, s);</span>
+<span class="fc" id="L218">    return this;</span>
+  }
+
+  public IssueDoc setLine(@Nullable Integer i) {
+<span class="fc" id="L222">    setField(IssueIndexDefinition.FIELD_ISSUE_LINE, i);</span>
+<span class="fc" id="L223">    return this;</span>
+  }
+
+  public IssueDoc setStatus(@Nullable String s) {
+<span class="fc" id="L227">    setField(IssueIndexDefinition.FIELD_ISSUE_STATUS, s);</span>
+<span class="fc" id="L228">    return this;</span>
+  }
+
+  public IssueDoc setResolution(@Nullable String s) {
+<span class="fc" id="L232">    setField(IssueIndexDefinition.FIELD_ISSUE_RESOLUTION, s);</span>
+<span class="fc" id="L233">    return this;</span>
+  }
+
+  public IssueDoc setIssueStatus(String s) {
+<span class="fc" id="L237">    setField(IssueIndexDefinition.FIELD_ISSUE_NEW_STATUS, s);</span>
+<span class="fc" id="L238">    return this;</span>
+  }
+
+  public IssueDoc setAssigneeUuid(@Nullable String s) {
+<span class="fc" id="L242">    setField(IssueIndexDefinition.FIELD_ISSUE_ASSIGNEE_UUID, s);</span>
+<span class="fc" id="L243">    return this;</span>
+  }
+
+  public IssueDoc setFuncUpdateDate(@Nullable Date d) {
+<span class="fc" id="L247">    setField(IssueIndexDefinition.FIELD_ISSUE_FUNC_UPDATED_AT, d);</span>
+<span class="fc" id="L248">    return this;</span>
+  }
+
+  public IssueDoc setFuncCreationDate(@Nullable Date d) {
+<span class="fc" id="L252">    setField(IssueIndexDefinition.FIELD_ISSUE_FUNC_CREATED_AT, d);</span>
+<span class="fc" id="L253">    return this;</span>
+  }
+
+  public IssueDoc setFuncCloseDate(@Nullable Date d) {
+<span class="fc" id="L257">    setField(IssueIndexDefinition.FIELD_ISSUE_FUNC_CLOSED_AT, d);</span>
+<span class="fc" id="L258">    return this;</span>
+  }
+
+  public IssueDoc setAuthorLogin(@Nullable String s) {
+<span class="fc" id="L262">    setField(IssueIndexDefinition.FIELD_ISSUE_AUTHOR_LOGIN, s);</span>
+<span class="fc" id="L263">    return this;</span>
+  }
+
+  public IssueDoc setEffort(@Nullable Long l) {
+<span class="fc" id="L267">    setField(IssueIndexDefinition.FIELD_ISSUE_EFFORT, l);</span>
+<span class="fc" id="L268">    return this;</span>
+  }
+
+  public IssueDoc setFilePath(@Nullable String s) {
+<span class="fc" id="L272">    setField(IssueIndexDefinition.FIELD_ISSUE_FILE_PATH, s);</span>
+<span class="fc" id="L273">    return this;</span>
+  }
+
+  public IssueDoc setDirectoryPath(@Nullable String s) {
+<span class="fc" id="L277">    setField(IssueIndexDefinition.FIELD_ISSUE_DIRECTORY_PATH, s);</span>
+<span class="fc" id="L278">    return this;</span>
+  }
+
+  @CheckForNull
+  public Collection&lt;String&gt; getTags() {
+<span class="fc" id="L283">    return getNullableField(IssueIndexDefinition.FIELD_ISSUE_TAGS);</span>
+  }
+
+  public IssueDoc setTags(@Nullable Collection&lt;String&gt; tags) {
+<span class="fc" id="L287">    setField(IssueIndexDefinition.FIELD_ISSUE_TAGS, tags);</span>
+<span class="fc" id="L288">    return this;</span>
+  }
+
+  public IssueDoc setType(RuleType type) {
+<span class="fc" id="L292">    setField(IssueIndexDefinition.FIELD_ISSUE_TYPE, type.toString());</span>
+<span class="fc" id="L293">    return this;</span>
+  }
+
+  public IssueDoc setImpacts(Map&lt;SoftwareQuality, org.sonar.api.issue.impact.Severity&gt; impacts) {
+<span class="fc" id="L297">    List&lt;Map&lt;String, String&gt;&gt; convertedMap = impacts</span>
+<span class="fc" id="L298">      .entrySet()</span>
+<span class="fc" id="L299">      .stream()</span>
+<span class="fc" id="L300">      .map(entry -&gt; Map.of(</span>
+<span class="fc" id="L301">        SUB_FIELD_SOFTWARE_QUALITY, entry.getKey().name(),</span>
+<span class="fc" id="L302">        SUB_FIELD_SEVERITY, entry.getValue().name()))</span>
+<span class="fc" id="L303">      .toList();</span>
+<span class="fc" id="L304">    setField(IssueIndexDefinition.FIELD_ISSUE_IMPACTS, convertedMap);</span>
+<span class="fc" id="L305">    return this;</span>
+  }
+
+  @CheckForNull
+  public Collection&lt;String&gt; getPciDss32() {
+<span class="nc" id="L310">    return getNullableField(IssueIndexDefinition.FIELD_ISSUE_PCI_DSS_32);</span>
+  }
+
+  public IssueDoc setPciDss32(@Nullable Collection&lt;String&gt; o) {
+<span class="fc" id="L314">    setField(IssueIndexDefinition.FIELD_ISSUE_PCI_DSS_32, o);</span>
+<span class="fc" id="L315">    return this;</span>
+  }
+
+  public IssueDoc setPciDss40(@Nullable Collection&lt;String&gt; o) {
+<span class="fc" id="L319">    setField(IssueIndexDefinition.FIELD_ISSUE_PCI_DSS_40, o);</span>
+<span class="fc" id="L320">    return this;</span>
+  }
+
+  @CheckForNull
+  public Collection&lt;String&gt; getPciDss40() {
+<span class="nc" id="L325">    return getNullableField(IssueIndexDefinition.FIELD_ISSUE_PCI_DSS_40);</span>
+  }
+
+  public IssueDoc setOwaspAsvs40(@Nullable Collection&lt;String&gt; o) {
+<span class="fc" id="L329">    setField(IssueIndexDefinition.FIELD_ISSUE_OWASP_ASVS_40, o);</span>
+<span class="fc" id="L330">    return this;</span>
+  }
+
+  @CheckForNull
+  public Collection&lt;String&gt; getOwaspAsvs40() {
+<span class="fc" id="L335">    return getNullableField(IssueIndexDefinition.FIELD_ISSUE_OWASP_ASVS_40);</span>
+  }
+
+  @CheckForNull
+  public Collection&lt;String&gt; getOwaspMobileTop10For2024() {
+<span class="nc" id="L340">    return getNullableField(IssueIndexDefinition.FIELD_ISSUE_OWASP_MOBILE_TOP_10_2024);</span>
+  }
+
+  public IssueDoc setOwaspMobileTop10For2024(@Nullable Collection&lt;String&gt; o) {
+<span class="fc" id="L344">    setField(IssueIndexDefinition.FIELD_ISSUE_OWASP_MOBILE_TOP_10_2024, o);</span>
+<span class="fc" id="L345">    return this;</span>
+  }
+
+  @CheckForNull
+  public Collection&lt;String&gt; getOwaspTop10() {
+<span class="fc" id="L350">    return getNullableField(IssueIndexDefinition.FIELD_ISSUE_OWASP_TOP_10);</span>
+  }
+
+  public IssueDoc setOwaspTop10(@Nullable Collection&lt;String&gt; o) {
+<span class="fc" id="L354">    setField(IssueIndexDefinition.FIELD_ISSUE_OWASP_TOP_10, o);</span>
+<span class="fc" id="L355">    return this;</span>
+  }
+
+  @CheckForNull
+  public Collection&lt;String&gt; getOwaspTop10For2021() {
+<span class="nc" id="L360">    return getNullableField(IssueIndexDefinition.FIELD_ISSUE_OWASP_TOP_10_2021);</span>
+  }
+
+  public IssueDoc setOwaspTop10For2021(@Nullable Collection&lt;String&gt; o) {
+<span class="fc" id="L364">    setField(IssueIndexDefinition.FIELD_ISSUE_OWASP_TOP_10_2021, o);</span>
+<span class="fc" id="L365">    return this;</span>
+  }
+
+  @CheckForNull
+  public Collection&lt;String&gt; getStigAsdV5R3() {
+<span class="fc" id="L370">    return getNullableField(IssueIndexDefinition.FIELD_ISSUE_STIG_ASD_V5R3);</span>
+  }
+
+  public IssueDoc setStigAsdV5R3(@Nullable Collection&lt;String&gt; o) {
+<span class="fc" id="L374">    setField(IssueIndexDefinition.FIELD_ISSUE_STIG_ASD_V5R3, o);</span>
+<span class="fc" id="L375">    return this;</span>
+  }
+
+  @CheckForNull
+  public Collection&lt;String&gt; getCasa() {
+<span class="fc" id="L380">    return getNullableField(IssueIndexDefinition.FIELD_ISSUE_CASA);</span>
+  }
+
+  public IssueDoc setCasa(@Nullable Collection&lt;String&gt; o) {
+<span class="fc" id="L384">    setField(IssueIndexDefinition.FIELD_ISSUE_CASA, o);</span>
+<span class="fc" id="L385">    return this;</span>
+  }
+
+  @CheckForNull
+  public Collection&lt;String&gt; getSansTop25() {
+<span class="fc" id="L390">    return getNullableField(IssueIndexDefinition.FIELD_ISSUE_SANS_TOP_25);</span>
+  }
+
+  public IssueDoc setSansTop25(@Nullable Collection&lt;String&gt; s) {
+<span class="fc" id="L394">    setField(IssueIndexDefinition.FIELD_ISSUE_SANS_TOP_25, s);</span>
+<span class="fc" id="L395">    return this;</span>
+  }
+
+  @CheckForNull
+  public Collection&lt;String&gt; getCwe() {
+<span class="fc" id="L400">    return getNullableField(IssueIndexDefinition.FIELD_ISSUE_CWE);</span>
+  }
+
+  public IssueDoc setCwe(@Nullable Collection&lt;String&gt; c) {
+<span class="fc" id="L404">    setField(IssueIndexDefinition.FIELD_ISSUE_CWE, c);</span>
+<span class="fc" id="L405">    return this;</span>
+  }
+
+  @CheckForNull
+  public SecurityStandards.SQCategory getSonarSourceSecurityCategory() {
+<span class="fc" id="L410">    String key = getNullableField(IssueIndexDefinition.FIELD_ISSUE_SQ_SECURITY_CATEGORY);</span>
+<span class="fc" id="L411">    return SecurityStandards.SQCategory.fromKey(key).orElse(null);</span>
+  }
+
+  public IssueDoc setSonarSourceSecurityCategory(@Nullable SecurityStandards.SQCategory c) {
+<span class="pc bpc" id="L415" title="1 of 2 branches missed.">    setField(IssueIndexDefinition.FIELD_ISSUE_SQ_SECURITY_CATEGORY, c == null ? null : c.getKey());</span>
+<span class="fc" id="L416">    return this;</span>
+  }
+
+  @CheckForNull
+  public VulnerabilityProbability getVulnerabilityProbability() {
+<span class="fc" id="L421">    Integer score = getNullableField(IssueIndexDefinition.FIELD_ISSUE_VULNERABILITY_PROBABILITY);</span>
+<span class="fc" id="L422">    return VulnerabilityProbability.byScore(score).orElse(null);</span>
+  }
+
+  public IssueDoc setVulnerabilityProbability(@Nullable VulnerabilityProbability v) {
+<span class="pc bpc" id="L426" title="1 of 2 branches missed.">    setField(IssueIndexDefinition.FIELD_ISSUE_VULNERABILITY_PROBABILITY, v == null ? null : v.getScore());</span>
+<span class="fc" id="L427">    return this;</span>
+  }
+
+  public boolean isNewCodeReference() {
+<span class="fc" id="L431">    return getField(IssueIndexDefinition.FIELD_ISSUE_NEW_CODE_REFERENCE);</span>
+  }
+
+  public IssueDoc setIsNewCodeReference(boolean b) {
+<span class="fc" id="L435">    setField(IssueIndexDefinition.FIELD_ISSUE_NEW_CODE_REFERENCE, b);</span>
+<span class="fc" id="L436">    return this;</span>
+  }
+
+  @CheckForNull
+  public Collection&lt;String&gt; getCodeVariants() {
+<span class="fc" id="L441">    return getNullableField(IssueIndexDefinition.FIELD_ISSUE_CODE_VARIANTS);</span>
+  }
+
+  public IssueDoc setCodeVariants(@Nullable Collection&lt;String&gt; codeVariants) {
+<span class="fc" id="L445">    setField(IssueIndexDefinition.FIELD_ISSUE_CODE_VARIANTS, codeVariants);</span>
+<span class="fc" id="L446">    return this;</span>
+  }
+
+  public boolean isPrioritizedRule() {
+<span class="nc" id="L450">    return getField(IssueIndexDefinition.FIELD_PRIORITIZED_RULE);</span>
+  }
+
+  public IssueDoc setPrioritizedRule(boolean prioritizedRule) {
+<span class="fc" id="L454">    setField(IssueIndexDefinition.FIELD_PRIORITIZED_RULE, prioritizedRule);</span>
+<span class="fc" id="L455">    return this;</span>
+  }
+
+  public boolean isFromSonarQubeUpdate() {
+<span class="nc" id="L459">    return getField(IssueIndexDefinition.FIELD_FROM_SONAR_QUBE_UPDATE);</span>
+  }
+
+  public IssueDoc setFromSonarQubeUpdate(boolean fromSonarQubeUpdate) {
+<span class="fc" id="L463">    setField(IssueIndexDefinition.FIELD_FROM_SONAR_QUBE_UPDATE, fromSonarQubeUpdate);</span>
+<span class="fc" id="L464">    return this;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

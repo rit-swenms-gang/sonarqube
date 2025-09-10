@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MeasureDao.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.measure</a> &gt; <span class="el_source">MeasureDao.java</span></div><h1>MeasureDao.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.measure;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import org.apache.ibatis.session.ResultHandler;
+import org.sonar.api.utils.System2;
+import org.sonar.db.Dao;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.ComponentDto;
+
+import static java.util.Collections.singletonList;
+import static org.sonar.api.measures.CoreMetrics.NCLOC_KEY;
+import static org.sonar.db.DatabaseUtils.executeLargeInputsWithoutOutput;
+
+public class MeasureDao implements Dao {
+
+  private final System2 system2;
+
+<span class="fc" id="L42">  public MeasureDao(System2 system2) {</span>
+<span class="fc" id="L43">    this.system2 = system2;</span>
+<span class="fc" id="L44">  }</span>
+
+  public int insert(DbSession dbSession, MeasureDto dto) {
+<span class="fc" id="L47">    dto.computeJsonValueHash();</span>
+<span class="fc" id="L48">    return mapper(dbSession).insert(dto, system2.now());</span>
+  }
+
+  /**
+   * Update a measure. The measure json value will be overwritten.
+   */
+  public int update(DbSession dbSession, MeasureDto dto) {
+<span class="fc" id="L55">    return mapper(dbSession).update(dto, system2.now());</span>
+  }
+
+  /**
+   * Unlike {@link #update(DbSession, MeasureDto)}, this method will not overwrite the entire json value,
+   * but will update the measures inside the json.
+   */
+  public int insertOrUpdate(DbSession dbSession, MeasureDto dto) {
+<span class="fc" id="L63">    long now = system2.now();</span>
+<span class="fc" id="L64">    Optional&lt;MeasureDto&gt; existingMeasureOpt = selectByComponentUuid(dbSession, dto.getComponentUuid());</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">    if (existingMeasureOpt.isPresent()) {</span>
+<span class="fc" id="L66">      MeasureDto existingDto = existingMeasureOpt.get();</span>
+<span class="fc" id="L67">      existingDto.getMetricValues().putAll(dto.getMetricValues());</span>
+<span class="fc" id="L68">      dto.getMetricValues().putAll(existingDto.getMetricValues());</span>
+<span class="fc" id="L69">      dto.computeJsonValueHash();</span>
+<span class="fc" id="L70">      return mapper(dbSession).update(dto, now);</span>
+    } else {
+<span class="fc" id="L72">      dto.computeJsonValueHash();</span>
+<span class="fc" id="L73">      return mapper(dbSession).insert(dto, now);</span>
+    }
+  }
+
+  public Optional&lt;MeasureDto&gt; selectByComponentUuid(DbSession dbSession, String componentUuid) {
+<span class="fc" id="L78">    List&lt;MeasureDto&gt; measures = mapper(dbSession).selectByComponentUuids(singletonList(componentUuid));</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">    if (!measures.isEmpty()) {</span>
+      // component_uuid column is unique. List can't have more than 1 item.
+<span class="fc" id="L81">      return Optional.of(measures.get(0));</span>
+    }
+<span class="fc" id="L83">    return Optional.empty();</span>
+  }
+
+  public Optional&lt;MeasureDto&gt; selectByComponentUuidAndMetricKeys(DbSession dbSession, String componentUuid, Collection&lt;String&gt; metricKeys) {
+<span class="fc" id="L87">    List&lt;MeasureDto&gt; measures = selectByComponentUuidsAndMetricKeys(dbSession, singletonList(componentUuid), metricKeys);</span>
+    // component_uuid column is unique. List can't have more than 1 item.
+<span class="fc bfc" id="L89" title="All 2 branches covered.">    if (measures.size() == 1) {</span>
+<span class="fc" id="L90">      return Optional.of(measures.get(0));</span>
+    }
+<span class="fc" id="L92">    return Optional.empty();</span>
+  }
+
+  /**
+   * Get the measures of the specified components and metrics.
+   * This method will scroll through the results and remove the non-requested metrics, to avoid loading all the measures in memory.
+   */
+  public List&lt;MeasureDto&gt; selectByComponentUuidsAndMetricKeys(DbSession dbSession, Collection&lt;String&gt; largeComponentUuids,
+    Collection&lt;String&gt; metricKeys) {
+<span class="fc bfc" id="L101" title="All 4 branches covered.">    if (largeComponentUuids.isEmpty() || metricKeys.isEmpty()) {</span>
+<span class="fc" id="L102">      return Collections.emptyList();</span>
+    }
+
+<span class="fc" id="L105">    List&lt;MeasureDto&gt; result = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L106">    executeLargeInputsWithoutOutput(largeComponentUuids,</span>
+<span class="fc" id="L107">      componentUuids -&gt; mapper(dbSession).scrollSelectByComponentUuids(componentUuids, resultContext -&gt; {</span>
+<span class="fc" id="L108">        MeasureDto measureDto = resultContext.getResultObject();</span>
+<span class="fc bfc" id="L109" title="All 2 branches covered.">        measureDto.getMetricValues().entrySet().removeIf(entry -&gt; !metricKeys.contains(entry.getKey()));</span>
+<span class="fc bfc" id="L110" title="All 2 branches covered.">        if (!measureDto.getMetricValues().isEmpty()) {</span>
+<span class="fc" id="L111">          result.add(measureDto);</span>
+        }
+<span class="fc" id="L113">      }));</span>
+
+<span class="fc" id="L115">    return result;</span>
+  }
+
+  public Set&lt;MeasureHash&gt; selectMeasureHashesForBranch(DbSession dbSession, String branchUuid) {
+<span class="fc" id="L119">    return mapper(dbSession).selectMeasureHashesForBranch(branchUuid);</span>
+  }
+
+  public void selectTreeByQuery(DbSession dbSession, ComponentDto baseComponent, MeasureTreeQuery query,
+    ResultHandler&lt;MeasureDto&gt; resultHandler) {
+<span class="fc bfc" id="L124" title="All 2 branches covered.">    if (query.returnsEmpty()) {</span>
+<span class="fc" id="L125">      return;</span>
+    }
+<span class="fc" id="L127">    mapper(dbSession).selectTreeByQuery(query, baseComponent.uuid(), query.getUuidPath(baseComponent), resultHandler);</span>
+<span class="fc" id="L128">  }</span>
+
+  public long findNclocOfBiggestBranch(DbSession dbSession, Collection&lt;String&gt; branchUuids) {
+<span class="fc" id="L131">    List&lt;MeasureDto&gt; branchMeasures = selectByComponentUuidsAndMetricKeys(dbSession, branchUuids, List.of(NCLOC_KEY));</span>
+
+<span class="fc" id="L133">    long maxncloc = 0;</span>
+<span class="fc bfc" id="L134" title="All 2 branches covered.">    for (MeasureDto measure : branchMeasures) {</span>
+<span class="fc" id="L135">      Long branchNcloc = measure.getLong(NCLOC_KEY);</span>
+<span class="pc bpc" id="L136" title="2 of 4 branches missed.">      if (branchNcloc != null &amp;&amp; branchNcloc &gt; maxncloc) {</span>
+<span class="fc" id="L137">        maxncloc = branchNcloc;</span>
+      }
+<span class="fc" id="L139">    }</span>
+
+<span class="fc" id="L141">    return maxncloc;</span>
+  }
+
+  private static MeasureMapper mapper(DbSession dbSession) {
+<span class="fc" id="L145">    return dbSession.getMapper(MeasureMapper.class);</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

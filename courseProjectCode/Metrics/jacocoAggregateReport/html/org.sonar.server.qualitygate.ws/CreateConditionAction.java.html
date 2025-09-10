@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CreateConditionAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.qualitygate.ws</a> &gt; <span class="el_source">CreateConditionAction.java</span></div><h1>CreateConditionAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.qualitygate.ws;
+
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.qualitygate.QualityGateConditionDto;
+import org.sonar.db.qualitygate.QualityGateDto;
+import org.sonar.server.qualitygate.QualityGateConditionsUpdater;
+import org.sonarqube.ws.Qualitygates.CreateConditionResponse;
+
+import static org.sonar.server.qualitygate.ws.QualityGatesWs.addConditionParams;
+import static org.sonar.server.qualitygate.ws.QualityGatesWsParameters.ACTION_CREATE_CONDITION;
+import static org.sonar.server.qualitygate.ws.QualityGatesWsParameters.PARAM_ERROR;
+import static org.sonar.server.qualitygate.ws.QualityGatesWsParameters.PARAM_GATE_NAME;
+import static org.sonar.server.qualitygate.ws.QualityGatesWsParameters.PARAM_METRIC;
+import static org.sonar.server.qualitygate.ws.QualityGatesWsParameters.PARAM_OPERATOR;
+import static org.sonar.server.ws.WsUtils.writeProtobuf;
+
+public class CreateConditionAction implements QualityGatesWsAction {
+
+  private final DbClient dbClient;
+  private final QualityGateConditionsUpdater qualityGateConditionsUpdater;
+  private final QualityGatesWsSupport wsSupport;
+
+<span class="fc" id="L47">  public CreateConditionAction(DbClient dbClient, QualityGateConditionsUpdater qualityGateConditionsUpdater, QualityGatesWsSupport wsSupport) {</span>
+<span class="fc" id="L48">    this.dbClient = dbClient;</span>
+<span class="fc" id="L49">    this.qualityGateConditionsUpdater = qualityGateConditionsUpdater;</span>
+<span class="fc" id="L50">    this.wsSupport = wsSupport;</span>
+<span class="fc" id="L51">  }</span>
+
+  @Override
+  public void define(WebService.NewController controller) {
+<span class="fc" id="L55">    WebService.NewAction createCondition = controller.createAction(ACTION_CREATE_CONDITION)</span>
+<span class="fc" id="L56">      .setPost(true)</span>
+<span class="fc" id="L57">      .setDescription(&quot;Add a new condition to a quality gate.&lt;br&gt;&quot; +</span>
+        &quot;Parameter 'gateName' must be provided. Requires the 'Administer Quality Gates' permission.&quot;)
+<span class="fc" id="L59">      .setSince(&quot;4.3&quot;)</span>
+<span class="fc" id="L60">      .setResponseExample(getClass().getResource(&quot;create-condition-example.json&quot;))</span>
+<span class="fc" id="L61">      .setChangelog(</span>
+        new Change(&quot;7.6&quot;, &quot;Removed optional 'warning' and 'period' parameters&quot;),
+        new Change(&quot;7.6&quot;, &quot;Made 'error' parameter mandatory&quot;),
+        new Change(&quot;7.6&quot;, &quot;Reduced the possible values of 'op' parameter to LT and GT&quot;),
+        new Change(&quot;8.4&quot;, &quot;Parameter 'gateName' added&quot;),
+        new Change(&quot;8.4&quot;, &quot;Parameter 'gateId' is deprecated. Use 'gateName' instead.&quot;),
+        new Change(&quot;10.0&quot;, &quot;Parameter 'gateId' is removed. Use 'gateName' instead.&quot;))
+<span class="fc" id="L68">      .setHandler(this);</span>
+
+<span class="fc" id="L70">    createCondition</span>
+<span class="fc" id="L71">      .createParam(PARAM_GATE_NAME)</span>
+<span class="fc" id="L72">      .setRequired(true)</span>
+<span class="fc" id="L73">      .setDescription(&quot;Name of the quality gate&quot;)</span>
+<span class="fc" id="L74">      .setExampleValue(&quot;SonarSource way&quot;);</span>
+
+<span class="fc" id="L76">    addConditionParams(createCondition);</span>
+<span class="fc" id="L77">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) {
+<span class="fc" id="L81">    String gateName = request.mandatoryParam(PARAM_GATE_NAME);</span>
+<span class="fc" id="L82">    String metric = request.mandatoryParam(PARAM_METRIC);</span>
+<span class="fc" id="L83">    String operator = request.mandatoryParam(PARAM_OPERATOR);</span>
+<span class="fc" id="L84">    String error = request.mandatoryParam(PARAM_ERROR);</span>
+
+<span class="fc" id="L86">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L87">      QualityGateDto qualityGate = wsSupport.getByName(dbSession, gateName);</span>
+
+<span class="fc" id="L89">      wsSupport.checkCanLimitedEdit(dbSession, qualityGate);</span>
+<span class="fc" id="L90">      QualityGateConditionDto condition = qualityGateConditionsUpdater.createCondition(dbSession, qualityGate, metric, operator, error);</span>
+<span class="fc" id="L91">      CreateConditionResponse.Builder createConditionResponse = CreateConditionResponse.newBuilder()</span>
+<span class="fc" id="L92">        .setId(condition.getUuid())</span>
+<span class="fc" id="L93">        .setMetric(condition.getMetricKey())</span>
+<span class="fc" id="L94">        .setError(condition.getErrorThreshold())</span>
+<span class="fc" id="L95">        .setOp(condition.getOperator());</span>
+<span class="fc" id="L96">      writeProtobuf(createConditionResponse.build(), request, response);</span>
+<span class="fc" id="L97">      dbSession.commit();</span>
+    }
+<span class="fc" id="L99">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

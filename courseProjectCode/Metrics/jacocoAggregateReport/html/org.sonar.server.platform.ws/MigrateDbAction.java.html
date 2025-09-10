@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MigrateDbAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform.ws</a> &gt; <span class="el_source">MigrateDbAction.java</span></div><h1>MigrateDbAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform.ws;
+
+import com.google.common.io.Resources;
+import java.util.Optional;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.api.utils.text.JsonWriter;
+import org.sonar.db.Database;
+import org.sonar.server.platform.db.migration.version.DatabaseVersion;
+import org.sonar.server.platform.db.migration.DatabaseMigration;
+import org.sonar.server.platform.db.migration.DatabaseMigrationState;
+
+import static com.google.common.base.Preconditions.checkState;
+import static org.sonar.server.platform.db.migration.DatabaseMigrationState.NO_CONNECTION_TO_DB;
+import static org.sonar.server.platform.db.migration.DatabaseMigrationState.UNSUPPORTED_DATABASE_MIGRATION_STATUS;
+import static org.sonar.server.platform.ws.DbMigrationJsonWriter.statusDescription;
+import static org.sonar.server.platform.ws.DbMigrationJsonWriter.write;
+import static org.sonar.server.platform.ws.DbMigrationJsonWriter.writeJustStartedResponse;
+import static org.sonar.server.platform.ws.DbMigrationJsonWriter.writeNotSupportedResponse;
+
+/**
+ * Implementation of the {@code migrate_db} action for the System WebService.
+ */
+public class MigrateDbAction implements SystemWsAction {
+
+  private final DatabaseVersion databaseVersion;
+  private final DatabaseMigrationState migrationState;
+  private final DatabaseMigration databaseMigration;
+  private final Database database;
+
+  public MigrateDbAction(DatabaseVersion databaseVersion, Database database,
+<span class="fc" id="L52">    DatabaseMigrationState migrationState, DatabaseMigration databaseMigration) {</span>
+<span class="fc" id="L53">    this.databaseVersion = databaseVersion;</span>
+<span class="fc" id="L54">    this.database = database;</span>
+<span class="fc" id="L55">    this.migrationState = migrationState;</span>
+<span class="fc" id="L56">    this.databaseMigration = databaseMigration;</span>
+<span class="fc" id="L57">  }</span>
+
+  @Override
+  public void define(WebService.NewController controller) {
+<span class="fc" id="L61">    controller.createAction(&quot;migrate_db&quot;)</span>
+<span class="fc" id="L62">      .setDescription(&quot;Migrate the database to match the current version of SonarQube.&quot; +</span>
+        &quot;&lt;br/&gt;&quot; +
+        &quot;Sending a POST request to this URL starts the DB migration. &quot; +
+        &quot;It is strongly advised to &lt;strong&gt;make a database backup&lt;/strong&gt; before invoking this WS.&quot; +
+        &quot;&lt;br/&gt;&quot; +
+<span class="fc" id="L67">        statusDescription())</span>
+<span class="fc" id="L68">      .setSince(&quot;5.2&quot;)</span>
+<span class="fc" id="L69">      .setPost(true)</span>
+<span class="fc" id="L70">      .setHandler(this)</span>
+<span class="fc" id="L71">      .setResponseExample(Resources.getResource(this.getClass(), &quot;example-migrate_db.json&quot;));</span>
+<span class="fc" id="L72">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L76">    Optional&lt;Long&gt; currentVersion = databaseVersion.getVersion();</span>
+<span class="fc" id="L77">    checkState(currentVersion.isPresent(), NO_CONNECTION_TO_DB);</span>
+
+<span class="fc" id="L79">    try (JsonWriter json = response.newJsonWriter()) {</span>
+<span class="fc" id="L80">      DatabaseVersion.Status status = databaseVersion.getStatus();</span>
+<span class="fc bfc" id="L81" title="All 4 branches covered.">      if (status == DatabaseVersion.Status.UP_TO_DATE || status == DatabaseVersion.Status.REQUIRES_DOWNGRADE) {</span>
+<span class="fc" id="L82">        write(json, migrationState);</span>
+<span class="fc bfc" id="L83" title="All 2 branches covered.">      } else if (!database.getDialect().supportsMigration()) {</span>
+<span class="fc" id="L84">        writeNotSupportedResponse(json);</span>
+      } else {
+<span class="pc bpc" id="L86" title="1 of 3 branches missed.">        switch (migrationState.getStatus()) {</span>
+          case RUNNING, FAILED, SUCCEEDED:
+<span class="fc" id="L88">            write(json, migrationState);</span>
+<span class="fc" id="L89">            break;</span>
+          case NONE:
+<span class="fc" id="L91">            databaseMigration.startIt();</span>
+<span class="fc" id="L92">            writeJustStartedResponse(json, migrationState);</span>
+<span class="fc" id="L93">            break;</span>
+          default:
+<span class="nc" id="L95">            throw new IllegalArgumentException(UNSUPPORTED_DATABASE_MIGRATION_STATUS);</span>
+        }
+      }
+    }
+<span class="fc" id="L99">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

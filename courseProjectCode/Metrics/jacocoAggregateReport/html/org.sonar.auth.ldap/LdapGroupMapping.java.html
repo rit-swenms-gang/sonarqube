@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LdapGroupMapping.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.auth.ldap</a> &gt; <span class="el_source">LdapGroupMapping.java</span></div><h1>LdapGroupMapping.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.auth.ldap;
+
+import java.util.Arrays;
+import javax.naming.NamingException;
+import javax.naming.directory.Attribute;
+import javax.naming.directory.SearchResult;
+import org.apache.commons.lang3.StringUtils;
+import org.sonar.api.config.Configuration;
+
+/**
+ * @author Evgeny Mandrikov
+ */
+public class LdapGroupMapping {
+
+  private static final String DEFAULT_ID_ATTRIBUTE = &quot;cn&quot;;
+  private static final String DEFAULT_REQUEST = &quot;(&amp;(objectClass=groupOfUniqueNames)(uniqueMember={dn}))&quot;;
+
+  private final String baseDn;
+  private final String idAttribute;
+  private final String request;
+  private final String[] requiredUserAttributes;
+
+  /**
+   * Constructs mapping from Sonar settings.
+   */
+<span class="fc" id="L45">  public LdapGroupMapping(Configuration config, String settingsPrefix) {</span>
+<span class="fc" id="L46">    this.baseDn = config.get(settingsPrefix + &quot;.group.baseDn&quot;).orElse(null);</span>
+<span class="fc" id="L47">    this.idAttribute = config.get(settingsPrefix + &quot;.group.idAttribute&quot;).orElse(DEFAULT_ID_ATTRIBUTE);</span>
+
+<span class="fc" id="L49">    String req = config.get(settingsPrefix + &quot;.group.request&quot;).orElse(DEFAULT_REQUEST);</span>
+<span class="fc" id="L50">    this.requiredUserAttributes = StringUtils.substringsBetween(req, &quot;{&quot;, &quot;}&quot;);</span>
+<span class="fc bfc" id="L51" title="All 2 branches covered.">    for (int i = 0; i &lt; requiredUserAttributes.length; i++) {</span>
+<span class="fc" id="L52">      req = StringUtils.replace(req, &quot;{&quot; + requiredUserAttributes[i] + &quot;}&quot;, &quot;{&quot; + i + &quot;}&quot;);</span>
+    }
+<span class="fc" id="L54">    this.request = req;</span>
+<span class="fc" id="L55">  }</span>
+
+  /**
+   * Search for this mapping.
+   */
+  public LdapSearch createSearch(LdapContextFactory contextFactory, SearchResult user) {
+<span class="fc" id="L61">    String[] attrs = getRequiredUserAttributes();</span>
+<span class="fc" id="L62">    String[] parameters = new String[attrs.length];</span>
+<span class="fc bfc" id="L63" title="All 2 branches covered.">    for (int i = 0; i &lt; parameters.length; i++) {</span>
+<span class="fc" id="L64">      String attr = attrs[i];</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">      if (&quot;dn&quot;.equals(attr)) {</span>
+<span class="fc" id="L66">        parameters[i] = user.getNameInNamespace();</span>
+      } else {
+<span class="fc" id="L68">        parameters[i] = getAttributeValue(user, attr);</span>
+      }
+    }
+<span class="fc" id="L71">    return new LdapSearch(contextFactory)</span>
+<span class="fc" id="L72">      .setBaseDn(getBaseDn())</span>
+<span class="fc" id="L73">      .setRequest(getRequest())</span>
+<span class="fc" id="L74">      .setParameters(parameters)</span>
+<span class="fc" id="L75">      .returns(getIdAttribute());</span>
+  }
+
+  private static String getAttributeValue(SearchResult user, String attributeId) {
+<span class="fc" id="L79">    Attribute attribute = user.getAttributes().get(attributeId);</span>
+<span class="pc bpc" id="L80" title="1 of 2 branches missed.">    if (attribute == null) {</span>
+<span class="nc" id="L81">      return null;</span>
+    }
+    try {
+<span class="fc" id="L84">      return (String) attribute.get();</span>
+<span class="nc" id="L85">    } catch (NamingException e) {</span>
+<span class="nc" id="L86">      throw new IllegalArgumentException(e);</span>
+    }
+  }
+
+  /**
+   * Base DN. For example &quot;ou=groups,o=mycompany&quot;.
+   */
+  public String getBaseDn() {
+<span class="fc" id="L94">    return baseDn;</span>
+  }
+
+  /**
+   * Group ID Attribute. For example &quot;cn&quot;.
+   */
+  public String getIdAttribute() {
+<span class="fc" id="L101">    return idAttribute;</span>
+  }
+
+  /**
+   * Request. For example:
+   * &lt;pre&gt;
+   * (&amp;(objectClass=groupOfUniqueNames)(uniqueMember={0}))
+   * (&amp;(objectClass=posixGroup)(memberUid={0}))
+   * (&amp;(|(objectClass=groupOfUniqueNames)(objectClass=posixGroup))(|(uniqueMember={0})(memberUid={1})))
+   * &lt;/pre&gt;
+   */
+  public String getRequest() {
+<span class="fc" id="L113">    return request;</span>
+  }
+
+  /**
+   * Attributes of user required for search of groups.
+   */
+  public String[] getRequiredUserAttributes() {
+<span class="fc" id="L120">    return requiredUserAttributes;</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="fc" id="L125">    return getClass().getSimpleName() + &quot;{&quot; +</span>
+<span class="fc" id="L126">      &quot;baseDn=&quot; + getBaseDn() +</span>
+<span class="fc" id="L127">      &quot;, idAttribute=&quot; + getIdAttribute() +</span>
+<span class="fc" id="L128">      &quot;, requiredUserAttributes=&quot; + Arrays.toString(getRequiredUserAttributes()) +</span>
+<span class="fc" id="L129">      &quot;, request=&quot; + getRequest() +</span>
+      &quot;}&quot;;
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

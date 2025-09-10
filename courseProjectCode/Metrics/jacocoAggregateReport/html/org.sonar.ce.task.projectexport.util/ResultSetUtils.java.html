@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ResultSetUtils.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectexport.util</a> &gt; <span class="el_source">ResultSetUtils.java</span></div><h1>ResultSetUtils.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectexport.util;
+
+import java.sql.ResultSet;
+import java.sql.SQLException;
+
+public final class ResultSetUtils {
+  private ResultSetUtils() {
+    // prevents instantiation
+  }
+
+  public static int defaultIfNull(ResultSet rs, int columnIndex, int defaultValue) throws SQLException {
+<span class="nc" id="L31">    int value = rs.getInt(columnIndex);</span>
+<span class="nc bnc" id="L32" title="All 2 branches missed.">    if (rs.wasNull()) {</span>
+<span class="nc" id="L33">      return defaultValue;</span>
+    }
+<span class="nc" id="L35">    return value;</span>
+  }
+
+  public static double defaultIfNull(ResultSet rs, int columnIndex, double defaultValue) throws SQLException {
+<span class="nc" id="L39">    double value = rs.getDouble(columnIndex);</span>
+<span class="nc bnc" id="L40" title="All 2 branches missed.">    if (rs.wasNull()) {</span>
+<span class="nc" id="L41">      return defaultValue;</span>
+    }
+<span class="nc" id="L43">    return value;</span>
+  }
+
+  public static long defaultIfNull(ResultSet rs, int columnIndex, long defaultValue) throws SQLException {
+<span class="fc" id="L47">    long value = rs.getLong(columnIndex);</span>
+<span class="fc bfc" id="L48" title="All 2 branches covered.">    if (rs.wasNull()) {</span>
+<span class="fc" id="L49">      return defaultValue;</span>
+    }
+<span class="fc" id="L51">    return value;</span>
+  }
+
+  public static String emptyIfNull(ResultSet rs, int columnIndex) throws SQLException {
+<span class="fc" id="L55">    String value = rs.getString(columnIndex);</span>
+<span class="fc bfc" id="L56" title="All 2 branches covered.">    if (value == null) {</span>
+<span class="fc" id="L57">      return &quot;&quot;;</span>
+    }
+<span class="fc" id="L59">    return value;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

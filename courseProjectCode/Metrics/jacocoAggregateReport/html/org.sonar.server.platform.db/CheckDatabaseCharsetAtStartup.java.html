@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CheckDatabaseCharsetAtStartup.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform.db</a> &gt; <span class="el_source">CheckDatabaseCharsetAtStartup.java</span></div><h1>CheckDatabaseCharsetAtStartup.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform.db;
+
+import org.sonar.api.Startable;
+import org.sonar.api.platform.ServerUpgradeStatus;
+import org.sonar.server.platform.db.migration.charset.DatabaseCharsetChecker;
+
+/**
+ * Checks charset of all existing database columns at startup, before executing db migrations. This requires
+ * to be defined in platform level 2 ({@link org.sonar.server.platform.platformlevel.PlatformLevel2}).
+ */
+public class CheckDatabaseCharsetAtStartup implements Startable {
+
+  private final ServerUpgradeStatus upgradeStatus;
+  private final DatabaseCharsetChecker charsetChecker;
+
+<span class="fc" id="L35">  public CheckDatabaseCharsetAtStartup(ServerUpgradeStatus upgradeStatus, DatabaseCharsetChecker charsetChecker) {</span>
+<span class="fc" id="L36">    this.upgradeStatus = upgradeStatus;</span>
+<span class="fc" id="L37">    this.charsetChecker = charsetChecker;</span>
+<span class="fc" id="L38">  }</span>
+
+  @Override
+  public void start() {
+<span class="fc" id="L42">    DatabaseCharsetChecker.State state = DatabaseCharsetChecker.State.STARTUP;</span>
+<span class="fc bfc" id="L43" title="All 2 branches covered.">    if (upgradeStatus.isUpgraded()) {</span>
+<span class="fc" id="L44">      state = DatabaseCharsetChecker.State.UPGRADE;</span>
+<span class="fc bfc" id="L45" title="All 2 branches covered.">    } else if (upgradeStatus.isFreshInstall()) {</span>
+<span class="fc" id="L46">      state = DatabaseCharsetChecker.State.FRESH_INSTALL;</span>
+    }
+<span class="fc" id="L48">    charsetChecker.check(state);</span>
+<span class="fc" id="L49">  }</span>
+
+  @Override
+  public void stop() {
+    // do nothing
+<span class="fc" id="L54">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

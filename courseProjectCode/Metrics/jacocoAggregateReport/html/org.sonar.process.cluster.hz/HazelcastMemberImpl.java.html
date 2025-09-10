@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HazelcastMemberImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.process.cluster.hz</a> &gt; <span class="el_source">HazelcastMemberImpl.java</span></div><h1>HazelcastMemberImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.process.cluster.hz;
+
+import com.hazelcast.cluster.Cluster;
+import com.hazelcast.cluster.Member;
+import com.hazelcast.cluster.MemberSelector;
+import com.hazelcast.core.HazelcastInstance;
+import com.hazelcast.core.HazelcastInstanceNotActiveException;
+import com.hazelcast.core.IExecutorService;
+import com.hazelcast.core.MultiExecutionCallback;
+import com.hazelcast.map.IMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.locks.Lock;
+import java.util.stream.Collectors;
+import org.slf4j.LoggerFactory;
+
+class HazelcastMemberImpl implements HazelcastMember {
+
+  private final HazelcastInstance hzInstance;
+
+<span class="fc" id="L45">  HazelcastMemberImpl(HazelcastInstance hzInstance) {</span>
+<span class="fc" id="L46">    this.hzInstance = hzInstance;</span>
+<span class="fc" id="L47">  }</span>
+
+  @Override
+  public &lt;E&gt; DistributedReference&lt;E&gt; getAtomicReference(String name) {
+<span class="fc" id="L51">    return new DistributedReference&lt;&gt;(hzInstance.getMap(name));</span>
+  }
+
+  @Override
+  public &lt;K, V&gt; Map&lt;K, V&gt; getReplicatedMap(String s) {
+<span class="fc" id="L56">    return hzInstance.getReplicatedMap(s);</span>
+  }
+
+  @Override
+  public UUID getUuid() {
+<span class="fc" id="L61">    return hzInstance.getLocalEndpoint().getUuid();</span>
+  }
+
+  @Override
+  public Set&lt;UUID&gt; getMemberUuids() {
+<span class="fc" id="L66">    return hzInstance.getCluster().getMembers().stream().map(Member::getUuid).collect(Collectors.toSet());</span>
+  }
+
+  @Override
+  public Lock getLock(String s) {
+<span class="fc" id="L71">    IMap&lt;String, UUID&gt; lockMap = hzInstance.getMap(&quot;distributedLocks&quot;);</span>
+<span class="fc" id="L72">    return new DistributedLock(lockMap, s);</span>
+  }
+
+  @Override
+  public long getClusterTime() {
+<span class="fc" id="L77">    return hzInstance.getCluster().getClusterTime();</span>
+  }
+
+  @Override
+  public Cluster getCluster() {
+<span class="fc" id="L82">    return hzInstance.getCluster();</span>
+  }
+
+  @Override
+  public &lt;T&gt; DistributedAnswer&lt;T&gt; call(DistributedCall&lt;T&gt; callable, MemberSelector memberSelector, long timeoutMs)
+    throws InterruptedException {
+
+<span class="fc" id="L89">    IExecutorService executor = hzInstance.getExecutorService(&quot;default&quot;);</span>
+<span class="fc" id="L90">    Map&lt;Member, Future&lt;T&gt;&gt; futures = executor.submitToMembers(callable, memberSelector);</span>
+    try {
+<span class="fc" id="L92">      DistributedAnswer&lt;T&gt; distributedAnswer = new DistributedAnswer&lt;&gt;();</span>
+<span class="fc" id="L93">      long maxTime = System.currentTimeMillis() + timeoutMs;</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">      for (Map.Entry&lt;Member, Future&lt;T&gt;&gt; entry : futures.entrySet()) {</span>
+<span class="fc" id="L95">        long remainingMs = Math.max(maxTime - System.currentTimeMillis(), 5L);</span>
+        try {
+<span class="fc" id="L97">          T answer = entry.getValue().get(remainingMs, TimeUnit.MILLISECONDS);</span>
+<span class="fc" id="L98">          distributedAnswer.setAnswer(entry.getKey(), answer);</span>
+<span class="fc" id="L99">        } catch (ExecutionException e) {</span>
+<span class="fc" id="L100">          distributedAnswer.setFailed(entry.getKey(), e);</span>
+<span class="fc" id="L101">        } catch (TimeoutException e) {</span>
+<span class="fc" id="L102">          distributedAnswer.setTimedOut(entry.getKey());</span>
+<span class="fc" id="L103">        }</span>
+<span class="fc" id="L104">      }</span>
+<span class="fc" id="L105">      return distributedAnswer;</span>
+    } finally {
+<span class="fc" id="L107">      futures.values().forEach(f -&gt; f.cancel(true));</span>
+    }
+  }
+
+  @Override
+  public &lt;T&gt; void callAsync(DistributedCall&lt;T&gt; callable, MemberSelector memberSelector, DistributedCallback&lt;T&gt; callback) {
+<span class="fc" id="L113">    IExecutorService executor = hzInstance.getExecutorService(&quot;default&quot;);</span>
+
+    // callback doesn't handle failures, so we need to make sure the callable won't fail!
+<span class="pc" id="L116">    executor.submitToMembers(callable, memberSelector, new MultiExecutionCallback() {</span>
+      @Override
+      public void onResponse(Member member, Object value) {
+        // nothing to do when each node responds
+<span class="nc" id="L120">      }</span>
+
+      @Override
+      public void onComplete(Map&lt;Member, Object&gt; values) {
+<span class="nc" id="L124">        callback.onComplete((Map&lt;Member, T&gt;) values);</span>
+<span class="nc" id="L125">      }</span>
+    });
+<span class="nc" id="L127">  }</span>
+
+  @Override
+  public void close() {
+    try {
+<span class="fc" id="L132">      hzInstance.shutdown();</span>
+<span class="nc" id="L133">    } catch (HazelcastInstanceNotActiveException e) {</span>
+<span class="nc" id="L134">      LoggerFactory.getLogger(getClass()).debug(&quot;Unable to shutdown Hazelcast member&quot;, e);</span>
+<span class="fc" id="L135">    }</span>
+<span class="fc" id="L136">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NodeHealthProviderImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.health</a> &gt; <span class="el_source">NodeHealthProviderImpl.java</span></div><h1>NodeHealthProviderImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.health;
+
+import java.util.function.Supplier;
+import org.sonar.api.config.Configuration;
+import org.sonar.api.platform.Server;
+import org.sonar.process.NetworkUtils;
+import org.sonar.process.cluster.health.NodeDetails;
+import org.sonar.process.cluster.health.NodeHealth;
+import org.sonar.process.cluster.health.NodeHealthProvider;
+
+import static java.lang.String.format;
+import static org.sonar.process.ProcessProperties.Property.CLUSTER_NODE_HOST;
+import static org.sonar.process.ProcessProperties.Property.CLUSTER_NODE_NAME;
+import static org.sonar.process.ProcessProperties.Property.CLUSTER_NODE_HZ_PORT;
+import static org.sonar.process.cluster.health.NodeDetails.newNodeDetailsBuilder;
+import static org.sonar.process.cluster.health.NodeHealth.newNodeHealthBuilder;
+
+public class NodeHealthProviderImpl implements NodeHealthProvider {
+  private final HealthChecker healthChecker;
+  private final NodeHealth.Builder nodeHealthBuilder;
+  private final NodeDetails nodeDetails;
+
+<span class="fc" id="L42">  public NodeHealthProviderImpl(Configuration configuration, HealthChecker healthChecker, Server server, NetworkUtils networkUtils) {</span>
+<span class="fc" id="L43">    this.healthChecker = healthChecker;</span>
+<span class="fc" id="L44">    this.nodeHealthBuilder = newNodeHealthBuilder();</span>
+<span class="fc" id="L45">    this.nodeDetails = newNodeDetailsBuilder()</span>
+<span class="fc" id="L46">      .setName(computeName(configuration))</span>
+<span class="fc" id="L47">      .setType(NodeDetails.Type.APPLICATION)</span>
+<span class="fc" id="L48">      .setHost(computeHost(configuration, networkUtils))</span>
+<span class="fc" id="L49">      .setPort(computePort(configuration))</span>
+<span class="fc" id="L50">      .setStartedAt(server.getStartedAt().getTime())</span>
+<span class="fc" id="L51">      .build();</span>
+<span class="fc" id="L52">  }</span>
+
+  private static String computeName(Configuration configuration) {
+<span class="fc" id="L55">    return configuration.get(CLUSTER_NODE_NAME.getKey())</span>
+<span class="fc" id="L56">      .orElseThrow(missingPropertyISE(CLUSTER_NODE_NAME.getKey()));</span>
+  }
+
+  private static String computeHost(Configuration configuration, NetworkUtils networkUtils) {
+<span class="fc" id="L60">    return configuration.get(CLUSTER_NODE_HOST.getKey())</span>
+<span class="fc bfc" id="L61" title="All 2 branches covered.">      .filter(s -&gt; !s.isEmpty())</span>
+<span class="fc" id="L62">      .orElseGet(networkUtils::getHostname);</span>
+  }
+
+  private static int computePort(Configuration configuration) {
+<span class="fc" id="L66">    return configuration.getInt(CLUSTER_NODE_HZ_PORT.getKey())</span>
+<span class="fc" id="L67">      .orElseThrow(missingPropertyISE(CLUSTER_NODE_HZ_PORT.getKey()));</span>
+  }
+
+  private static Supplier&lt;IllegalStateException&gt; missingPropertyISE(String propertyName) {
+<span class="fc" id="L71">    return () -&gt; new IllegalStateException(format(&quot;Property %s is not defined&quot;, propertyName));</span>
+  }
+
+  @Override
+  public NodeHealth get() {
+<span class="fc" id="L76">    Health nodeHealth = healthChecker.checkNode();</span>
+<span class="fc" id="L77">    this.nodeHealthBuilder</span>
+<span class="fc" id="L78">      .clearCauses()</span>
+<span class="fc" id="L79">      .setStatus(NodeHealth.Status.valueOf(nodeHealth.getStatus().name()));</span>
+<span class="fc" id="L80">    nodeHealth.getCauses().forEach(this.nodeHealthBuilder::addCause);</span>
+
+<span class="fc" id="L82">    return this.nodeHealthBuilder</span>
+<span class="fc" id="L83">      .setDetails(nodeDetails)</span>
+<span class="fc" id="L84">      .build();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

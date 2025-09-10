@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserEditorNewValue.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.audit.model</a> &gt; <span class="el_source">UserEditorNewValue.java</span></div><h1>UserEditorNewValue.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.audit.model;
+
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.db.qualitygate.QualityGateDto;
+import org.sonar.db.qualitygate.QualityGateUserPermissionsDto;
+import org.sonar.db.qualityprofile.QProfileDto;
+import org.sonar.db.qualityprofile.QProfileEditUsersDto;
+import org.sonar.db.user.UserDto;
+
+public class UserEditorNewValue extends AbstractEditorNewValue {
+
+  /**
+   * @deprecated The uuids in the audit logs are not product requirement anymore and will be removed in 11.x
+   */
+  @Deprecated(since = &quot;10.2&quot;)
+  @Nullable
+  private String userUuid;
+  @Nullable
+  private String userLogin;
+
+<span class="fc" id="L41">  public UserEditorNewValue(QualityGateUserPermissionsDto qualityGateUserPermissionsDto, String qualityGateName, String userLogin) {</span>
+<span class="fc" id="L42">    this.qualityGateUuid = qualityGateUserPermissionsDto.getQualityGateUuid();</span>
+<span class="fc" id="L43">    this.qualityGateName = qualityGateName;</span>
+<span class="fc" id="L44">    this.userUuid = qualityGateUserPermissionsDto.getUserUuid();</span>
+<span class="fc" id="L45">    this.userLogin = userLogin;</span>
+<span class="fc" id="L46">  }</span>
+
+<span class="fc" id="L48">  public UserEditorNewValue(QualityGateDto qualityGateDto, UserDto userDto) {</span>
+<span class="fc" id="L49">    this.qualityGateUuid = qualityGateDto.getUuid();</span>
+<span class="fc" id="L50">    this.qualityGateName = qualityGateDto.getName();</span>
+<span class="fc" id="L51">    this.userUuid = userDto.getUuid();</span>
+<span class="fc" id="L52">    this.userLogin = userDto.getLogin();</span>
+<span class="fc" id="L53">  }</span>
+
+<span class="fc" id="L55">  public UserEditorNewValue(QualityGateDto qualityGateDto) {</span>
+<span class="fc" id="L56">    this.qualityGateUuid = qualityGateDto.getUuid();</span>
+<span class="fc" id="L57">    this.qualityGateName = qualityGateDto.getName();</span>
+<span class="fc" id="L58">  }</span>
+
+<span class="fc" id="L60">  public UserEditorNewValue(UserDto userDto) {</span>
+<span class="fc" id="L61">    this.userUuid = userDto.getUuid();</span>
+<span class="fc" id="L62">    this.userLogin = userDto.getLogin();</span>
+<span class="fc" id="L63">  }</span>
+
+<span class="fc" id="L65">  public UserEditorNewValue(QProfileEditUsersDto qProfileEditUsersDto, String qualityProfileName, String userLogin) {</span>
+<span class="fc" id="L66">    this.qualityProfileUuid = qProfileEditUsersDto.getQProfileUuid();</span>
+<span class="fc" id="L67">    this.qualityProfileName = qualityProfileName;</span>
+<span class="fc" id="L68">    this.userUuid = qProfileEditUsersDto.getUserUuid();</span>
+<span class="fc" id="L69">    this.userLogin = userLogin;</span>
+<span class="fc" id="L70">  }</span>
+
+<span class="fc" id="L72">  public UserEditorNewValue(QProfileDto qProfileDto, UserDto userDto) {</span>
+<span class="fc" id="L73">    this.qualityProfileUuid = qProfileDto.getKee();</span>
+<span class="fc" id="L74">    this.qualityProfileName = qProfileDto.getName();</span>
+<span class="fc" id="L75">    this.userUuid = userDto.getUuid();</span>
+<span class="fc" id="L76">    this.userLogin = userDto.getLogin();</span>
+<span class="fc" id="L77">  }</span>
+
+<span class="fc" id="L79">  public UserEditorNewValue(QProfileDto qProfileDto) {</span>
+<span class="fc" id="L80">    this.qualityProfileUuid = qProfileDto.getKee();</span>
+<span class="fc" id="L81">    this.qualityProfileName = qProfileDto.getName();</span>
+<span class="fc" id="L82">  }</span>
+
+  /**
+   * @deprecated The uuids in the audit logs are not product requirement anymore and will be removed in 11.x
+   */
+  @Deprecated(since = &quot;10.2&quot;)
+  @CheckForNull
+  public String getUserUuid() {
+<span class="fc" id="L90">    return this.userUuid;</span>
+  }
+
+  @CheckForNull
+  public String getUserLogin() {
+<span class="fc" id="L95">    return this.userLogin;</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="fc" id="L100">    StringBuilder sb = new StringBuilder(&quot;{&quot;);</span>
+<span class="fc" id="L101">    addField(sb, &quot;\&quot;qualityGateUuid\&quot;: &quot;, this.qualityGateUuid, true);</span>
+<span class="fc" id="L102">    addField(sb, &quot;\&quot;qualityGateName\&quot;: &quot;, this.qualityGateName, true);</span>
+<span class="fc" id="L103">    addField(sb, &quot;\&quot;qualityProfileUuid\&quot;: &quot;, this.qualityProfileUuid, true);</span>
+<span class="fc" id="L104">    addField(sb, &quot;\&quot;qualityProfileName\&quot;: &quot;, this.qualityProfileName, true);</span>
+<span class="fc" id="L105">    addField(sb, &quot;\&quot;userUuid\&quot;: &quot;, this.userUuid, true);</span>
+<span class="fc" id="L106">    addField(sb, &quot;\&quot;userLogin\&quot;: &quot;, this.userLogin, true);</span>
+<span class="fc" id="L107">    endString(sb);</span>
+<span class="fc" id="L108">    return sb.toString();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RuleRestResponse.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.v2.api.rule.response</a> &gt; <span class="el_source">RuleRestResponse.java</span></div><h1>RuleRestResponse.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.v2.api.rule.response;
+
+import io.swagger.v3.oas.annotations.media.Schema;
+import java.util.List;
+import javax.annotation.Nullable;
+import org.sonar.server.v2.api.rule.enums.CleanCodeAttributeCategoryRestEnum;
+import org.sonar.server.v2.api.rule.enums.CleanCodeAttributeRestEnum;
+import org.sonar.server.v2.api.rule.enums.RuleStatusRestEnum;
+import org.sonar.server.v2.api.rule.enums.RuleTypeRestEnum;
+import org.sonar.server.v2.api.rule.resource.Impact;
+import org.sonar.server.v2.api.rule.resource.Parameter;
+
+@Schema(accessMode = Schema.AccessMode.READ_ONLY)
+<span class="fc" id="L33">public record RuleRestResponse(</span>
+  String id,
+  String key,
+  String repositoryKey,
+  String name,
+  @Nullable
+  String severity,
+  RuleTypeRestEnum type,
+  List&lt;Impact&gt; impacts,
+  @Nullable
+  CleanCodeAttributeRestEnum cleanCodeAttribute,
+  @Nullable
+  CleanCodeAttributeCategoryRestEnum cleanCodeAttributeCategory,
+  @Nullable
+  RuleStatusRestEnum status,
+  boolean external,
+  @Nullable
+  String createdAt,
+  List&lt;RuleDescriptionSectionRestResponse&gt; descriptionSections,
+  @Schema(accessMode = Schema.AccessMode.READ_WRITE)
+  String markdownDescription,
+  @Nullable
+  String gapDescription,
+  @Nullable
+  String htmlNote,
+  @Nullable
+  String markdownNote,
+  List&lt;String&gt; educationPrinciples,
+  boolean template,
+  @Nullable
+  String templateId,
+  @Schema(accessMode = Schema.AccessMode.READ_WRITE)
+  List&lt;String&gt; tags,
+  List&lt;String&gt; systemTags,
+  @Nullable
+  String languageKey,
+  @Nullable
+  String languageName,
+  List&lt;Parameter&gt; parameters,
+  String remediationFunctionType,
+  String remediationFunctionGapMultiplier,
+  String remediationFunctionBaseEffort
+) {
+
+
+  public static final class Builder {
+    private String id;
+    private String key;
+    private String repositoryKey;
+    private String name;
+    private String severity;
+    private RuleTypeRestEnum type;
+    private List&lt;Impact&gt; impacts;
+    private CleanCodeAttributeRestEnum cleanCodeAttribute;
+    private CleanCodeAttributeCategoryRestEnum cleanCodeAttributeCategory;
+    private RuleStatusRestEnum status;
+    private boolean external;
+    private String createdAt;
+    private List&lt;RuleDescriptionSectionRestResponse&gt; descriptionSections;
+    private String markdownDescription;
+    private String gapDescription;
+    private String htmlNote;
+    private String markdownNote;
+    private List&lt;String&gt; educationPrinciples;
+    private boolean template;
+    private String templateId;
+    private List&lt;String&gt; tags;
+    private List&lt;String&gt; systemTags;
+    private String languageKey;
+    private String languageName;
+    private List&lt;Parameter&gt; parameters;
+    private String remediationFunctionType;
+    private String remediationFunctionGapMultiplier;
+    private String remediationFunctionBaseEffort;
+
+    private Builder() {
+    }
+
+    public static Builder builder() {
+<span class="fc" id="L112">      return new Builder();</span>
+    }
+
+    public Builder setId(String id) {
+<span class="fc" id="L116">      this.id = id;</span>
+<span class="fc" id="L117">      return this;</span>
+    }
+
+    public Builder setKey(String key) {
+<span class="fc" id="L121">      this.key = key;</span>
+<span class="fc" id="L122">      return this;</span>
+    }
+
+    public Builder setRepositoryKey(String repositoryKey) {
+<span class="fc" id="L126">      this.repositoryKey = repositoryKey;</span>
+<span class="fc" id="L127">      return this;</span>
+    }
+
+    public Builder setName(String name) {
+<span class="fc" id="L131">      this.name = name;</span>
+<span class="fc" id="L132">      return this;</span>
+    }
+
+    public Builder setSeverity(@Nullable String severity) {
+<span class="fc" id="L136">      this.severity = severity;</span>
+<span class="fc" id="L137">      return this;</span>
+    }
+
+    public Builder setType(RuleTypeRestEnum type) {
+<span class="fc" id="L141">      this.type = type;</span>
+<span class="fc" id="L142">      return this;</span>
+    }
+
+    public Builder setImpacts(List&lt;Impact&gt; impacts) {
+<span class="fc" id="L146">      this.impacts = impacts;</span>
+<span class="fc" id="L147">      return this;</span>
+    }
+
+    public Builder setCleanCodeAttribute(@Nullable CleanCodeAttributeRestEnum cleanCodeAttribute) {
+<span class="fc" id="L151">      this.cleanCodeAttribute = cleanCodeAttribute;</span>
+<span class="fc" id="L152">      return this;</span>
+    }
+
+    public Builder setCleanCodeAttributeCategory(@Nullable CleanCodeAttributeCategoryRestEnum cleanCodeAttributeCategory) {
+<span class="fc" id="L156">      this.cleanCodeAttributeCategory = cleanCodeAttributeCategory;</span>
+<span class="fc" id="L157">      return this;</span>
+    }
+
+    public Builder setStatus(RuleStatusRestEnum status) {
+<span class="fc" id="L161">      this.status = status;</span>
+<span class="fc" id="L162">      return this;</span>
+    }
+
+    public Builder setExternal(boolean external) {
+<span class="fc" id="L166">      this.external = external;</span>
+<span class="fc" id="L167">      return this;</span>
+    }
+
+    public Builder setCreatedAt(@Nullable String createdAt) {
+<span class="fc" id="L171">      this.createdAt = createdAt;</span>
+<span class="fc" id="L172">      return this;</span>
+    }
+
+    public Builder setDescriptionSections(List&lt;RuleDescriptionSectionRestResponse&gt; descriptionSections) {
+<span class="fc" id="L176">      this.descriptionSections = descriptionSections;</span>
+<span class="fc" id="L177">      return this;</span>
+    }
+
+    public Builder setMarkdownDescription(String markdownDescription) {
+<span class="nc" id="L181">      this.markdownDescription = markdownDescription;</span>
+<span class="nc" id="L182">      return this;</span>
+    }
+
+    public Builder setGapDescription(@Nullable String gapDescription) {
+<span class="fc" id="L186">      this.gapDescription = gapDescription;</span>
+<span class="fc" id="L187">      return this;</span>
+    }
+
+    public Builder setHtmlNote(@Nullable String htmlNote) {
+<span class="fc" id="L191">      this.htmlNote = htmlNote;</span>
+<span class="fc" id="L192">      return this;</span>
+    }
+
+    public Builder setMarkdownNote(@Nullable String markdownNote) {
+<span class="fc" id="L196">      this.markdownNote = markdownNote;</span>
+<span class="fc" id="L197">      return this;</span>
+    }
+
+    public Builder setEducationPrinciples(List&lt;String&gt; educationPrinciples) {
+<span class="fc" id="L201">      this.educationPrinciples = educationPrinciples;</span>
+<span class="fc" id="L202">      return this;</span>
+    }
+
+    public Builder setTemplate(boolean template) {
+<span class="fc" id="L206">      this.template = template;</span>
+<span class="fc" id="L207">      return this;</span>
+    }
+
+    public Builder setTemplateId(@Nullable String templateId) {
+<span class="fc" id="L211">      this.templateId = templateId;</span>
+<span class="fc" id="L212">      return this;</span>
+    }
+
+    public Builder setTags(List&lt;String&gt; tags) {
+<span class="fc" id="L216">      this.tags = tags;</span>
+<span class="fc" id="L217">      return this;</span>
+    }
+
+    public Builder setSystemTags(List&lt;String&gt; systemTags) {
+<span class="fc" id="L221">      this.systemTags = systemTags;</span>
+<span class="fc" id="L222">      return this;</span>
+    }
+
+    public Builder setLanguageKey(@Nullable String languageKey) {
+<span class="fc" id="L226">      this.languageKey = languageKey;</span>
+<span class="fc" id="L227">      return this;</span>
+    }
+
+    public Builder setLanguageName(@Nullable String languageName) {
+<span class="fc" id="L231">      this.languageName = languageName;</span>
+<span class="fc" id="L232">      return this;</span>
+    }
+
+    public Builder setParameters(List&lt;Parameter&gt; parameters) {
+<span class="fc" id="L236">      this.parameters = parameters;</span>
+<span class="fc" id="L237">      return this;</span>
+    }
+
+    public Builder setRemediationFunctionType(@Nullable String remediationFunctionType) {
+<span class="fc" id="L241">      this.remediationFunctionType = remediationFunctionType;</span>
+<span class="fc" id="L242">      return this;</span>
+    }
+
+    public Builder setRemediationFunctionGapMultiplier(@Nullable String remediationFunctionGapMultiplier) {
+<span class="fc" id="L246">      this.remediationFunctionGapMultiplier = remediationFunctionGapMultiplier;</span>
+<span class="fc" id="L247">      return this;</span>
+    }
+
+    public Builder setRemediationFunctionBaseEffort(@Nullable String remediationFunctionBaseEffort) {
+<span class="fc" id="L251">      this.remediationFunctionBaseEffort = remediationFunctionBaseEffort;</span>
+<span class="fc" id="L252">      return this;</span>
+    }
+
+    public RuleRestResponse build() {
+<span class="fc" id="L256">      return new RuleRestResponse(id, key, repositoryKey, name, severity, type, impacts, cleanCodeAttribute, cleanCodeAttributeCategory,</span>
+        status, external, createdAt, descriptionSections, markdownDescription, gapDescription, htmlNote, markdownNote,
+        educationPrinciples, template, templateId, tags, systemTags, languageKey, languageName, parameters, remediationFunctionType,
+        remediationFunctionGapMultiplier, remediationFunctionBaseEffort);
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

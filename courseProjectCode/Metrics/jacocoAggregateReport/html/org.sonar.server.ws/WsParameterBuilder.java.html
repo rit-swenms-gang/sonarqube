@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WsParameterBuilder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.ws</a> &gt; <span class="el_source">WsParameterBuilder.java</span></div><h1>WsParameterBuilder.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.ws;
+
+import java.util.Locale;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
+import org.sonar.server.component.ComponentType;
+import org.sonar.server.component.ComponentTypes;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.core.i18n.I18n;
+
+import static java.lang.String.format;
+
+public class WsParameterBuilder {
+  private static final String PARAM_QUALIFIER = &quot;qualifier&quot;;
+  private static final String PARAM_QUALIFIERS = &quot;qualifiers&quot;;
+
+  private WsParameterBuilder() {
+    // static methods only
+  }
+
+  public static WebService.NewParam createRootQualifierParameter(WebService.NewAction action, QualifierParameterContext context) {
+<span class="fc" id="L42">    return action.createParam(PARAM_QUALIFIER)</span>
+<span class="fc" id="L43">      .setDescription(&quot;Project qualifier. Filter the results with the specified qualifier. Possible values are:&quot; + buildRootQualifiersDescription(context))</span>
+<span class="fc" id="L44">      .setPossibleValues(getRootQualifiers(context.getResourceTypes()));</span>
+  }
+
+  public static WebService.NewParam createRootQualifiersParameter(WebService.NewAction action, QualifierParameterContext context) {
+<span class="fc" id="L48">    return action.createParam(PARAM_QUALIFIERS)</span>
+<span class="fc" id="L49">      .setDescription(&quot;Comma-separated list of component qualifiers. Filter the results with the specified qualifiers. &quot; +</span>
+<span class="fc" id="L50">        &quot;Possible values are:&quot; + buildRootQualifiersDescription(context))</span>
+<span class="fc" id="L51">      .setPossibleValues(getRootQualifiers(context.getResourceTypes()));</span>
+  }
+
+  public static WebService.NewParam createDefaultTemplateQualifierParameter(WebService.NewAction action, QualifierParameterContext context) {
+<span class="fc" id="L55">    return action.createParam(PARAM_QUALIFIER)</span>
+<span class="fc" id="L56">      .setDescription(&quot;Project qualifier. Filter the results with the specified qualifier. Possible values are:&quot; + buildDefaultTemplateQualifiersDescription(context))</span>
+<span class="fc" id="L57">      .setPossibleValues(getDefaultTemplateQualifiers(context.getResourceTypes()));</span>
+  }
+
+  public static WebService.NewParam createQualifiersParameter(WebService.NewAction action, QualifierParameterContext context) {
+<span class="fc" id="L61">    return createQualifiersParameter(action, context, getAllQualifiers(context.getResourceTypes()));</span>
+  }
+
+  public static WebService.NewParam createQualifiersParameter(WebService.NewAction action, QualifierParameterContext context, Set&lt;String&gt; availableQualifiers) {
+<span class="fc" id="L65">    Set&lt;String&gt; filteredQualifiers = getAllQualifiers(context.getResourceTypes()).stream().filter(availableQualifiers::contains)</span>
+<span class="fc" id="L66">      .collect(Collectors.toSet());</span>
+<span class="fc" id="L67">    return action.createParam(PARAM_QUALIFIERS)</span>
+<span class="fc" id="L68">      .setDescription(</span>
+        &quot;Comma-separated list of component qualifiers. Filter the results with the specified qualifiers. Possible values are:&quot;
+<span class="fc" id="L70">          + buildQualifiersDescription(context, filteredQualifiers))</span>
+<span class="fc" id="L71">      .setPossibleValues(filteredQualifiers);</span>
+  }
+
+  private static Set&lt;String&gt; getRootQualifiers(ComponentTypes componentTypes) {
+<span class="fc" id="L75">    return componentTypes.getRoots().stream()</span>
+<span class="fc" id="L76">      .map(ComponentType::getQualifier)</span>
+<span class="fc" id="L77">      .collect(Collectors.toCollection(TreeSet::new));</span>
+  }
+
+  private static Set&lt;String&gt; getDefaultTemplateQualifiers(ComponentTypes componentTypes) {
+<span class="fc" id="L81">    return componentTypes.getRoots().stream()</span>
+<span class="fc" id="L82">      .map(ComponentType::getQualifier)</span>
+<span class="fc" id="L83">      .collect(Collectors.toCollection(TreeSet::new));</span>
+  }
+
+  private static Set&lt;String&gt; getAllQualifiers(ComponentTypes componentTypes) {
+<span class="fc" id="L87">    return componentTypes.getAll().stream()</span>
+<span class="fc bfc" id="L88" title="All 2 branches covered.">      .filter(r -&gt; !r.getBooleanProperty(&quot;ignored&quot;))</span>
+<span class="fc" id="L89">      .map(ComponentType::getQualifier)</span>
+<span class="fc" id="L90">      .collect(Collectors.toCollection(TreeSet::new));</span>
+  }
+
+  private static String buildDefaultTemplateQualifiersDescription(QualifierParameterContext context) {
+<span class="fc" id="L94">    return buildQualifiersDescription(context, getDefaultTemplateQualifiers(context.getResourceTypes()));</span>
+  }
+
+  private static String buildRootQualifiersDescription(QualifierParameterContext context) {
+<span class="fc" id="L98">    return buildQualifiersDescription(context, getRootQualifiers(context.getResourceTypes()));</span>
+  }
+
+  private static String buildQualifiersDescription(QualifierParameterContext context, Set&lt;String&gt; qualifiers) {
+<span class="fc" id="L102">    StringBuilder description = new StringBuilder();</span>
+<span class="fc" id="L103">    description.append(&quot;&lt;ul&gt;&quot;);</span>
+<span class="fc" id="L104">    String qualifierPattern = &quot;&lt;li&gt;%s - %s&lt;/li&gt;&quot;;</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">    for (String qualifier : qualifiers) {</span>
+<span class="fc" id="L106">      description.append(format(qualifierPattern, qualifier, qualifierLabel(context, qualifier)));</span>
+<span class="fc" id="L107">    }</span>
+<span class="fc" id="L108">    description.append(&quot;&lt;/ul&gt;&quot;);</span>
+
+<span class="fc" id="L110">    return description.toString();</span>
+  }
+
+  private static String qualifierLabel(QualifierParameterContext context, String qualifier) {
+<span class="fc" id="L114">    String qualifiersPropertyPrefix = &quot;qualifiers.&quot;;</span>
+<span class="fc" id="L115">    return context.getI18n().message(Locale.ENGLISH, qualifiersPropertyPrefix + qualifier, &quot;no description available&quot;);</span>
+  }
+
+  public static class QualifierParameterContext {
+    private final I18n i18n;
+    private final ComponentTypes componentTypes;
+
+<span class="fc" id="L122">    private QualifierParameterContext(I18n i18n, ComponentTypes componentTypes) {</span>
+<span class="fc" id="L123">      this.i18n = i18n;</span>
+<span class="fc" id="L124">      this.componentTypes = componentTypes;</span>
+<span class="fc" id="L125">    }</span>
+
+    public static QualifierParameterContext newQualifierParameterContext(I18n i18n, ComponentTypes componentTypes) {
+<span class="fc" id="L128">      return new QualifierParameterContext(i18n, componentTypes);</span>
+    }
+
+    public I18n getI18n() {
+<span class="fc" id="L132">      return i18n;</span>
+    }
+
+    public ComponentTypes getResourceTypes() {
+<span class="fc" id="L136">      return componentTypes;</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

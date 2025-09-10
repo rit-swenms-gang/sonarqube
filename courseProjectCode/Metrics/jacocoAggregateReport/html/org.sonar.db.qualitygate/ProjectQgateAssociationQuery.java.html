@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ProjectQgateAssociationQuery.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.qualitygate</a> &gt; <span class="el_source">ProjectQgateAssociationQuery.java</span></div><h1>ProjectQgateAssociationQuery.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.qualitygate;
+
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableSet;
+import java.util.Locale;
+import java.util.Set;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.apache.commons.lang3.StringUtils;
+import org.sonar.db.DaoUtils;
+import org.sonar.db.WildcardPosition;
+
+public class ProjectQgateAssociationQuery {
+
+  public static final int DEFAULT_PAGE_INDEX = 1;
+  public static final int DEFAULT_PAGE_SIZE = 100;
+
+  public static final String ANY = &quot;all&quot;;
+  public static final String IN = &quot;selected&quot;;
+  public static final String OUT = &quot;deselected&quot;;
+<span class="fc" id="L40">  public static final Set&lt;String&gt; AVAILABLE_MEMBERSHIP = ImmutableSet.of(ANY, IN, OUT);</span>
+
+  private final String gateUuid;
+  private final String membership;
+
+  private final String projectSearch;
+
+  // for internal use in MyBatis
+  private final String projectSearchUpperLikeSql;
+
+  // max results per page
+  private final int pageSize;
+
+  // index of selected page. Start with 1.
+  private final int pageIndex;
+
+<span class="fc" id="L56">  private ProjectQgateAssociationQuery(Builder builder) {</span>
+<span class="fc" id="L57">    this.gateUuid = builder.qualityGate.getUuid();</span>
+<span class="fc" id="L58">    this.membership = builder.membership;</span>
+<span class="fc" id="L59">    this.projectSearch = builder.projectSearch;</span>
+<span class="fc bfc" id="L60" title="All 2 branches covered.">    if (this.projectSearch == null) {</span>
+<span class="fc" id="L61">      this.projectSearchUpperLikeSql = null;</span>
+    } else {
+<span class="fc" id="L63">      this.projectSearchUpperLikeSql = DaoUtils.buildLikeValue(projectSearch.toUpperCase(Locale.ENGLISH), WildcardPosition.BEFORE_AND_AFTER);</span>
+    }
+
+<span class="fc" id="L66">    this.pageSize = builder.pageSize;</span>
+<span class="fc" id="L67">    this.pageIndex = builder.pageIndex;</span>
+<span class="fc" id="L68">  }</span>
+
+  public String gateUuid() {
+<span class="nc" id="L71">    return gateUuid;</span>
+  }
+
+  @CheckForNull
+  public String membership() {
+<span class="fc" id="L76">    return membership;</span>
+  }
+
+  /**
+   * Search for projects containing a given string
+   */
+  @CheckForNull
+  public String projectSearch() {
+<span class="fc" id="L84">    return projectSearch;</span>
+  }
+
+  public int pageSize() {
+<span class="fc" id="L88">    return pageSize;</span>
+  }
+
+  public int pageIndex() {
+<span class="fc" id="L92">    return pageIndex;</span>
+  }
+
+  public static Builder builder() {
+<span class="fc" id="L96">    return new Builder();</span>
+  }
+
+  public static class Builder {
+    private QualityGateDto qualityGate;
+    private String membership;
+    private String projectSearch;
+
+<span class="fc" id="L104">    private Integer pageIndex = DEFAULT_PAGE_INDEX;</span>
+<span class="fc" id="L105">    private Integer pageSize = DEFAULT_PAGE_SIZE;</span>
+
+<span class="fc" id="L107">    private Builder() {</span>
+<span class="fc" id="L108">    }</span>
+
+    public Builder qualityGate(QualityGateDto qualityGate) {
+<span class="fc" id="L111">      this.qualityGate = qualityGate;</span>
+<span class="fc" id="L112">      return this;</span>
+    }
+
+    public Builder membership(@Nullable String membership) {
+<span class="fc" id="L116">      this.membership = membership;</span>
+<span class="fc" id="L117">      return this;</span>
+    }
+
+    public Builder projectSearch(@Nullable String s) {
+<span class="fc" id="L121">      this.projectSearch = StringUtils.defaultIfBlank(s, null);</span>
+<span class="fc" id="L122">      return this;</span>
+    }
+
+    public Builder pageSize(@Nullable Integer i) {
+<span class="fc" id="L126">      this.pageSize = i;</span>
+<span class="fc" id="L127">      return this;</span>
+    }
+
+    public Builder pageIndex(@Nullable Integer i) {
+<span class="fc" id="L131">      this.pageIndex = i;</span>
+<span class="fc" id="L132">      return this;</span>
+    }
+
+    private void initMembership() {
+<span class="fc bfc" id="L136" title="All 2 branches covered.">      if (membership == null) {</span>
+<span class="fc" id="L137">        membership = ProjectQgateAssociationQuery.ANY;</span>
+      } else {
+<span class="fc" id="L139">        Preconditions.checkArgument(AVAILABLE_MEMBERSHIP.contains(membership),</span>
+          &quot;Membership is not valid (got &quot; + membership + &quot;). Available values are &quot; + AVAILABLE_MEMBERSHIP);
+      }
+<span class="fc" id="L142">    }</span>
+
+    private void initPageSize() {
+<span class="fc bfc" id="L145" title="All 2 branches covered.">      if (pageSize == null) {</span>
+<span class="fc" id="L146">        pageSize = DEFAULT_PAGE_SIZE;</span>
+      }
+<span class="fc" id="L148">    }</span>
+
+    private void initPageIndex() {
+<span class="pc bpc" id="L151" title="1 of 2 branches missed.">      if (pageIndex == null) {</span>
+<span class="nc" id="L152">        pageIndex = DEFAULT_PAGE_INDEX;</span>
+      }
+<span class="pc bpc" id="L154" title="1 of 2 branches missed.">      Preconditions.checkArgument(pageIndex &gt; 0, &quot;Page index must be greater than 0 (got &quot; + pageIndex + &quot;)&quot;);</span>
+<span class="fc" id="L155">    }</span>
+
+    public ProjectQgateAssociationQuery build() {
+<span class="fc" id="L158">      initMembership();</span>
+<span class="fc" id="L159">      initPageIndex();</span>
+<span class="fc" id="L160">      initPageSize();</span>
+<span class="fc" id="L161">      return new ProjectQgateAssociationQuery(this);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AnalysisPropertyDto.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.component</a> &gt; <span class="el_source">AnalysisPropertyDto.java</span></div><h1>AnalysisPropertyDto.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.component;
+
+import java.util.Objects;
+
+import static java.util.Objects.requireNonNull;
+
+<span class="fc" id="L26">public class AnalysisPropertyDto {</span>
+
+  private String uuid;
+  private String analysisUuid;
+  private String key;
+  private String value;
+  private Long createdAt;
+
+
+  public String getUuid() {
+<span class="fc" id="L36">    return uuid;</span>
+  }
+
+  public AnalysisPropertyDto setUuid(String uuid) {
+<span class="fc" id="L40">    requireNonNull(uuid, &quot;uuid cannot be null&quot;);</span>
+<span class="fc" id="L41">    this.uuid = uuid;</span>
+<span class="fc" id="L42">    return this;</span>
+  }
+
+  public String getAnalysisUuid() {
+<span class="fc" id="L46">    return analysisUuid;</span>
+  }
+
+  public AnalysisPropertyDto setAnalysisUuid(String analysisUuid) {
+<span class="fc" id="L50">    requireNonNull(analysisUuid, &quot;analysisUuid cannot be null&quot;);</span>
+<span class="fc" id="L51">    this.analysisUuid = analysisUuid;</span>
+<span class="fc" id="L52">    return this;</span>
+  }
+
+  public String getKey() {
+<span class="fc" id="L56">    return key;</span>
+  }
+
+  public AnalysisPropertyDto setKey(String key) {
+<span class="fc" id="L60">    requireNonNull(key, &quot;key cannot be null&quot;);</span>
+<span class="fc" id="L61">    this.key = key;</span>
+<span class="fc" id="L62">    return this;</span>
+  }
+
+  public String getValue() {
+<span class="fc" id="L66">    return value;</span>
+  }
+
+  public AnalysisPropertyDto setValue(String value) {
+<span class="fc" id="L70">    requireNonNull(value, &quot;value cannot be null&quot;);</span>
+<span class="fc" id="L71">    this.value = value;</span>
+<span class="fc" id="L72">    return this;</span>
+  }
+
+  public Long getCreatedAt() {
+<span class="nc" id="L76">    return createdAt;</span>
+  }
+
+  public AnalysisPropertyDto setCreatedAt(Long createdAt) {
+<span class="fc" id="L80">    this.createdAt = createdAt;</span>
+<span class="fc" id="L81">    return this;</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="nc" id="L86">    return &quot;AnalysisPropertyDto{&quot; + &quot;uuid='&quot; + uuid + '\'' +</span>
+      &quot;, analysisUuid='&quot; + analysisUuid + '\'' +
+      &quot;, key='&quot; + key + '\'' +
+      &quot;, value='&quot; + value + &quot;'&quot; +
+      &quot;, createdAt=&quot; + createdAt +
+      '}';
+  }
+
+  @Override
+  public boolean equals(Object o) {
+<span class="fc bfc" id="L96" title="All 2 branches covered.">    if (this == o) {</span>
+<span class="fc" id="L97">      return true;</span>
+    }
+<span class="pc bpc" id="L99" title="1 of 2 branches missed.">    if (!(o instanceof AnalysisPropertyDto)) {</span>
+<span class="nc" id="L100">      return false;</span>
+    }
+<span class="fc" id="L102">    AnalysisPropertyDto that = (AnalysisPropertyDto) o;</span>
+<span class="fc bfc" id="L103" title="All 2 branches covered.">    return Objects.equals(uuid, that.uuid) &amp;&amp;</span>
+<span class="fc bfc" id="L104" title="All 2 branches covered.">      Objects.equals(analysisUuid, that.analysisUuid) &amp;&amp;</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">      Objects.equals(key, that.key) &amp;&amp;</span>
+<span class="fc bfc" id="L106" title="All 2 branches covered.">      Objects.equals(value, that.value) &amp;&amp;</span>
+<span class="pc bpc" id="L107" title="1 of 2 branches missed.">      Objects.equals(createdAt, that.createdAt);</span>
+  }
+
+  @Override
+  public int hashCode() {
+<span class="fc" id="L112">    return Objects.hash(uuid, analysisUuid, key, value, createdAt);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

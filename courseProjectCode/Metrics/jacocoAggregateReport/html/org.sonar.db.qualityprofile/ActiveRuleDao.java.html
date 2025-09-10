@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ActiveRuleDao.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.qualityprofile</a> &gt; <span class="el_source">ActiveRuleDao.java</span></div><h1>ActiveRuleDao.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.qualityprofile;
+
+import com.google.common.base.Preconditions;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.core.util.UuidFactory;
+import org.sonar.db.Dao;
+import org.sonar.db.DatabaseUtils;
+import org.sonar.db.DbSession;
+import org.sonar.db.rule.RuleParamDto;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.util.Collections.emptyList;
+import static org.sonar.db.DatabaseUtils.executeLargeInputs;
+import static org.sonar.db.DatabaseUtils.executeLargeInputsWithoutOutput;
+import static org.sonar.db.KeyLongValue.toMap;
+
+public class ActiveRuleDao implements Dao {
+
+  private static final String QUALITY_PROFILE_IS_NOT_PERSISTED = &quot;Quality profile is not persisted (missing id)&quot;;
+  private static final String RULE_IS_NOT_PERSISTED = &quot;Rule is not persisted&quot;;
+  private static final String RULE_PARAM_IS_NOT_PERSISTED = &quot;Rule param is not persisted&quot;;
+  private static final String ACTIVE_RULE_IS_NOT_PERSISTED = &quot;ActiveRule is not persisted&quot;;
+  private static final String ACTIVE_RULE_IS_ALREADY_PERSISTED = &quot;ActiveRule is already persisted&quot;;
+  private static final String ACTIVE_RULE_PARAM_IS_NOT_PERSISTED = &quot;ActiveRuleParam is not persisted&quot;;
+  private static final String ACTIVE_RULE_PARAM_IS_ALREADY_PERSISTED = &quot;ActiveRuleParam is already persisted&quot;;
+
+  private final UuidFactory uuidFactory;
+
+<span class="fc" id="L55">  public ActiveRuleDao(UuidFactory uuidFactory) {</span>
+<span class="fc" id="L56">    this.uuidFactory = uuidFactory;</span>
+<span class="fc" id="L57">  }</span>
+
+  public Optional&lt;ActiveRuleDto&gt; selectByKey(DbSession dbSession, ActiveRuleKey key) {
+<span class="fc" id="L60">    return Optional.ofNullable(mapper(dbSession).selectByKey(key.getRuleProfileUuid(), key.getRuleKey().repository(), key.getRuleKey().rule()));</span>
+  }
+
+  public List&lt;OrgActiveRuleDto&gt; selectByOrgRuleUuid(DbSession dbSession, String ruleUuid) {
+<span class="fc" id="L64">    return mapper(dbSession).selectOrgByRuleUuid(ruleUuid);</span>
+  }
+
+  public List&lt;ActiveRuleDto&gt; selectByRuleUuid(DbSession dbSession, String ruleUuid) {
+<span class="fc" id="L68">    return mapper(dbSession).selectByRuleUuid(ruleUuid);</span>
+  }
+
+  public List&lt;ActiveRuleDto&gt; selectByRepository(DbSession dbSession, String repositoryKey, String repositoryLanguage) {
+<span class="fc" id="L72">    return mapper(dbSession).selectByRepository(repositoryKey, repositoryLanguage);</span>
+  }
+
+  public List&lt;OrgActiveRuleDto&gt; selectByRuleUuids(DbSession dbSession, List&lt;String&gt; uuids) {
+<span class="fc" id="L76">    return executeLargeInputs(uuids, chunk -&gt; mapper(dbSession).selectByRuleUuids(chunk));</span>
+  }
+
+  public Set&lt;RuleKey&gt; selectPrioritizedRules(DbSession dbSession, Set&lt;String&gt; qprofileUuids) {
+<span class="fc" id="L80">    List&lt;OrgActiveRuleDto&gt; orgActiveDtos = mapper(dbSession).selectPrioritizedRules(qprofileUuids);</span>
+<span class="fc" id="L81">    return orgActiveDtos.stream().map(ActiveRuleDto::getRuleKey).collect(Collectors.toSet());</span>
+  }
+
+  /**
+   * Active rule on removed rule are NOT returned
+   */
+  public List&lt;OrgActiveRuleDto&gt; selectByProfileUuid(DbSession dbSession, String profileUuid) {
+<span class="fc" id="L88">    return selectByProfileUuids(dbSession, List.of(profileUuid));</span>
+  }
+
+  /**
+   * Active rule on removed rule are NOT returned
+   */
+  public List&lt;OrgActiveRuleDto&gt; selectByProfileUuids(DbSession dbSession, Collection&lt;String&gt; profileUuids) {
+<span class="fc" id="L95">    return mapper(dbSession).selectByProfileUuids(profileUuids);</span>
+  }
+
+  public List&lt;OrgActiveRuleDto&gt; selectByTypeAndProfileUuids(DbSession dbSession, List&lt;Integer&gt; types, List&lt;String&gt; uuids) {
+<span class="fc" id="L99">    return executeLargeInputs(uuids, chunk -&gt; mapper(dbSession).selectByTypeAndProfileUuids(types, chunk));</span>
+  }
+
+  public List&lt;OrgActiveRuleDto&gt; selectByHotspotAndSoftwareQualityAndProfileUuids(DbSession dbSession, String softwareQuality,
+    List&lt;String&gt; uuids) {
+<span class="fc" id="L104">    return executeLargeInputs(uuids, chunk -&gt; mapper(dbSession).selectByHotspotAndSoftwareQualityAndProfileUuids(softwareQuality, chunk));</span>
+  }
+
+  public List&lt;OrgActiveRuleDto&gt; selectByProfile(DbSession dbSession, QProfileDto profile) {
+<span class="fc" id="L108">    return selectByProfileUuid(dbSession, profile.getKee());</span>
+  }
+
+  public List&lt;ActiveRuleDto&gt; selectByRuleProfile(DbSession dbSession, RulesProfileDto ruleProfileDto) {
+<span class="fc" id="L112">    return mapper(dbSession).selectByRuleProfileUuid(ruleProfileDto.getUuid());</span>
+  }
+
+  public Collection&lt;ActiveRuleDto&gt; selectByRulesAndRuleProfileUuids(DbSession dbSession, Collection&lt;String&gt; ruleUuids, Collection&lt;String&gt; ruleProfileUuids) {
+<span class="fc bfc" id="L116" title="All 4 branches covered.">    if (ruleUuids.isEmpty() || ruleProfileUuids.isEmpty()) {</span>
+<span class="fc" id="L117">      return emptyList();</span>
+    }
+<span class="fc" id="L119">    ActiveRuleMapper mapper = mapper(dbSession);</span>
+<span class="fc" id="L120">    return executeLargeInputs(ruleUuids,</span>
+<span class="fc" id="L121">      ruleUuidsChunk -&gt; executeLargeInputs(ruleProfileUuids, chunk -&gt; mapper.selectByRuleUuidsAndRuleProfileUuids(ruleUuidsChunk, chunk)));</span>
+  }
+
+  public ActiveRuleDto insert(DbSession dbSession, ActiveRuleDto item) {
+<span class="fc bfc" id="L125" title="All 2 branches covered.">    checkArgument(item.getProfileUuid() != null, QUALITY_PROFILE_IS_NOT_PERSISTED);</span>
+<span class="fc bfc" id="L126" title="All 2 branches covered.">    checkArgument(item.getRuleUuid() != null, RULE_IS_NOT_PERSISTED);</span>
+<span class="fc bfc" id="L127" title="All 2 branches covered.">    checkArgument(item.getUuid() == null, ACTIVE_RULE_IS_ALREADY_PERSISTED);</span>
+
+<span class="fc" id="L129">    item.setUuid(uuidFactory.create());</span>
+<span class="fc" id="L130">    mapper(dbSession).insert(item);</span>
+<span class="fc" id="L131">    return item;</span>
+  }
+
+  public ActiveRuleDto update(DbSession dbSession, ActiveRuleDto item) {
+<span class="fc bfc" id="L135" title="All 2 branches covered.">    checkArgument(item.getProfileUuid() != null, QUALITY_PROFILE_IS_NOT_PERSISTED);</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">    checkArgument(item.getRuleUuid() != null, ActiveRuleDao.RULE_IS_NOT_PERSISTED);</span>
+<span class="fc bfc" id="L137" title="All 2 branches covered.">    checkArgument(item.getUuid() != null, ACTIVE_RULE_IS_NOT_PERSISTED);</span>
+<span class="fc" id="L138">    mapper(dbSession).update(item);</span>
+<span class="fc" id="L139">    return item;</span>
+  }
+
+  public Optional&lt;ActiveRuleDto&gt; delete(DbSession dbSession, ActiveRuleKey key) {
+<span class="fc" id="L143">    Optional&lt;ActiveRuleDto&gt; activeRule = selectByKey(dbSession, key);</span>
+<span class="fc bfc" id="L144" title="All 2 branches covered.">    if (activeRule.isPresent()) {</span>
+<span class="fc" id="L145">      mapper(dbSession).deleteParameters(activeRule.get().getUuid());</span>
+<span class="fc" id="L146">      mapper(dbSession).delete(activeRule.get().getUuid());</span>
+    }
+<span class="fc" id="L148">    return activeRule;</span>
+  }
+
+  public void deleteByRuleProfileUuids(DbSession dbSession, Collection&lt;String&gt; rulesProfileUuids) {
+<span class="fc" id="L152">    ActiveRuleMapper mapper = mapper(dbSession);</span>
+<span class="fc" id="L153">    DatabaseUtils.executeLargeUpdates(rulesProfileUuids, mapper::deleteByRuleProfileUuids);</span>
+<span class="fc" id="L154">  }</span>
+
+  public void deleteByUuids(DbSession dbSession, List&lt;String&gt; activeRuleUuids) {
+<span class="fc" id="L157">    ActiveRuleMapper mapper = mapper(dbSession);</span>
+<span class="fc" id="L158">    DatabaseUtils.executeLargeUpdates(activeRuleUuids, mapper::deleteByUuids);</span>
+<span class="fc" id="L159">  }</span>
+
+  public void deleteParametersByRuleProfileUuids(DbSession dbSession, Collection&lt;String&gt; rulesProfileUuids) {
+<span class="fc" id="L162">    ActiveRuleMapper mapper = mapper(dbSession);</span>
+<span class="fc" id="L163">    DatabaseUtils.executeLargeUpdates(rulesProfileUuids, mapper::deleteParametersByRuleProfileUuids);</span>
+<span class="fc" id="L164">  }</span>
+
+  /**
+   * Nested DTO ActiveRuleParams
+   */
+  public List&lt;ActiveRuleParamDto&gt; selectParamsByActiveRuleUuid(DbSession dbSession, String activeRuleUuid) {
+<span class="fc" id="L170">    return mapper(dbSession).selectParamsByActiveRuleUuid(activeRuleUuid);</span>
+  }
+
+  public List&lt;ActiveRuleParamDto&gt; selectParamsByActiveRuleUuids(final DbSession dbSession, List&lt;String&gt; activeRuleUuids) {
+<span class="fc" id="L174">    return executeLargeInputs(activeRuleUuids, mapper(dbSession)::selectParamsByActiveRuleUuids);</span>
+  }
+
+  public List&lt;ActiveRuleParamDto&gt; selectAllParamsByProfileUuids(final DbSession dbSession, Collection&lt;String&gt; profileUuids) {
+<span class="fc" id="L178">    return mapper(dbSession).selectAllParamsByProfileUuids(profileUuids);</span>
+  }
+
+  public ActiveRuleParamDto insertParam(DbSession dbSession, ActiveRuleDto activeRule, ActiveRuleParamDto activeRuleParam) {
+<span class="fc bfc" id="L182" title="All 2 branches covered.">    checkArgument(activeRule.getUuid() != null, ACTIVE_RULE_IS_NOT_PERSISTED);</span>
+<span class="fc bfc" id="L183" title="All 2 branches covered.">    checkArgument(activeRuleParam.getUuid() == null, ACTIVE_RULE_PARAM_IS_ALREADY_PERSISTED);</span>
+<span class="fc" id="L184">    Preconditions.checkNotNull(activeRuleParam.getRulesParameterUuid(), RULE_PARAM_IS_NOT_PERSISTED);</span>
+
+<span class="fc" id="L186">    activeRuleParam.setActiveRuleUuid(activeRule.getUuid());</span>
+<span class="fc" id="L187">    activeRuleParam.setUuid(uuidFactory.create());</span>
+<span class="fc" id="L188">    mapper(dbSession).insertParameter(activeRuleParam);</span>
+<span class="fc" id="L189">    return activeRuleParam;</span>
+  }
+
+  public void updateParam(DbSession dbSession, ActiveRuleParamDto activeRuleParam) {
+<span class="fc" id="L193">    Preconditions.checkNotNull(activeRuleParam.getUuid(), ACTIVE_RULE_PARAM_IS_NOT_PERSISTED);</span>
+<span class="fc" id="L194">    mapper(dbSession).updateParameter(activeRuleParam);</span>
+<span class="fc" id="L195">  }</span>
+
+  public void deleteParam(DbSession dbSession, ActiveRuleParamDto activeRuleParam) {
+<span class="fc" id="L198">    Preconditions.checkNotNull(activeRuleParam.getUuid(), ACTIVE_RULE_PARAM_IS_NOT_PERSISTED);</span>
+<span class="fc" id="L199">    deleteParamByUuid(dbSession, activeRuleParam.getUuid());</span>
+<span class="fc" id="L200">  }</span>
+
+  public void deleteParamByUuid(DbSession dbSession, String uuid) {
+<span class="fc" id="L203">    mapper(dbSession).deleteParameter(uuid);</span>
+<span class="fc" id="L204">  }</span>
+
+  public void deleteParamsByRuleParam(DbSession dbSession, RuleParamDto param) {
+<span class="fc" id="L207">    List&lt;ActiveRuleDto&gt; activeRules = selectByRuleUuid(dbSession, param.getRuleUuid());</span>
+<span class="fc bfc" id="L208" title="All 2 branches covered.">    for (ActiveRuleDto activeRule : activeRules) {</span>
+<span class="fc bfc" id="L209" title="All 2 branches covered.">      for (ActiveRuleParamDto activeParam : selectParamsByActiveRuleUuid(dbSession, activeRule.getUuid())) {</span>
+<span class="pc bpc" id="L210" title="1 of 2 branches missed.">        if (activeParam.getKey().equals(param.getName())) {</span>
+<span class="fc" id="L211">          deleteParam(dbSession, activeParam);</span>
+        }
+<span class="fc" id="L213">      }</span>
+<span class="fc" id="L214">    }</span>
+<span class="fc" id="L215">  }</span>
+
+  public void deleteParamsByActiveRuleUuids(DbSession dbSession, List&lt;String&gt; activeRuleUuids) {
+<span class="fc" id="L218">    ActiveRuleMapper mapper = mapper(dbSession);</span>
+<span class="fc" id="L219">    DatabaseUtils.executeLargeUpdates(activeRuleUuids, mapper::deleteParamsByActiveRuleUuids);</span>
+<span class="fc" id="L220">  }</span>
+
+  public Map&lt;String, Long&gt; countActiveRulesByQuery(DbSession dbSession, ActiveRuleCountQuery query) {
+<span class="fc" id="L223">    return toMap(executeLargeInputs(query.getProfileUuids(),</span>
+<span class="fc" id="L224">      partition -&gt; mapper(dbSession).countActiveRulesByQuery(partition, query.getRuleStatus(), query.getInheritance())));</span>
+  }
+
+  public void scrollAllForIndexing(DbSession dbSession, Consumer&lt;IndexedActiveRuleDto&gt; consumer) {
+<span class="fc" id="L228">    mapper(dbSession).scrollAllForIndexing(context -&gt; {</span>
+<span class="fc" id="L229">      IndexedActiveRuleDto dto = context.getResultObject();</span>
+<span class="fc" id="L230">      consumer.accept(dto);</span>
+<span class="fc" id="L231">    });</span>
+<span class="fc" id="L232">  }</span>
+
+  public void scrollByUuidsForIndexing(DbSession dbSession, Collection&lt;String&gt; uuids, Consumer&lt;IndexedActiveRuleDto&gt; consumer) {
+<span class="fc" id="L235">    ActiveRuleMapper mapper = mapper(dbSession);</span>
+<span class="fc" id="L236">    executeLargeInputsWithoutOutput(uuids,</span>
+<span class="fc" id="L237">      pageOfIds -&gt; mapper</span>
+<span class="fc" id="L238">        .scrollByUuidsForIndexing(pageOfIds, context -&gt; {</span>
+<span class="fc" id="L239">          IndexedActiveRuleDto dto = context.getResultObject();</span>
+<span class="fc" id="L240">          consumer.accept(dto);</span>
+<span class="fc" id="L241">        }));</span>
+<span class="fc" id="L242">  }</span>
+
+  public void scrollByRuleProfileForIndexing(DbSession dbSession, String ruleProfileUuid, Consumer&lt;IndexedActiveRuleDto&gt; consumer) {
+<span class="fc" id="L245">    mapper(dbSession).scrollByRuleProfileUuidForIndexing(ruleProfileUuid, context -&gt; {</span>
+<span class="fc" id="L246">      IndexedActiveRuleDto dto = context.getResultObject();</span>
+<span class="fc" id="L247">      consumer.accept(dto);</span>
+<span class="fc" id="L248">    });</span>
+<span class="fc" id="L249">  }</span>
+
+  public int countMissingRules(DbSession dbSession, String rulesProfileUuid, String compareToRulesProfileUuid) {
+<span class="fc" id="L252">    return mapper(dbSession).countMissingRules(rulesProfileUuid, compareToRulesProfileUuid);</span>
+  }
+
+  private static ActiveRuleMapper mapper(DbSession dbSession) {
+<span class="fc" id="L256">    return dbSession.getMapper(ActiveRuleMapper.class);</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

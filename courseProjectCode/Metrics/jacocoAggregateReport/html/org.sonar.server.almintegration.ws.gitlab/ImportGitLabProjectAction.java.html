@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ImportGitLabProjectAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.almintegration.ws.gitlab</a> &gt; <span class="el_source">ImportGitLabProjectAction.java</span></div><h1>ImportGitLabProjectAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.almintegration.ws.gitlab;
+
+import javax.annotation.Nullable;
+import jakarta.inject.Inject;
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.db.alm.setting.ALM;
+import org.sonar.db.alm.setting.AlmSettingDto;
+import org.sonar.server.almintegration.ws.AlmIntegrationsWsAction;
+import org.sonar.server.almintegration.ws.ImportHelper;
+import org.sonar.server.common.project.ImportProjectRequest;
+import org.sonar.server.common.project.ImportProjectService;
+import org.sonar.server.common.project.ImportedProject;
+import org.sonarqube.ws.Projects.CreateWsResponse;
+
+import static org.sonar.server.almintegration.ws.ImportHelper.PARAM_ALM_SETTING;
+import static org.sonar.server.common.newcodeperiod.NewCodeDefinitionResolver.NEW_CODE_PERIOD_TYPE_DESCRIPTION_PROJECT_CREATION;
+import static org.sonar.server.common.newcodeperiod.NewCodeDefinitionResolver.NEW_CODE_PERIOD_VALUE_DESCRIPTION_PROJECT_CREATION;
+import static org.sonar.server.ws.WsUtils.writeProtobuf;
+import static org.sonarqube.ws.client.project.ProjectsWsParameters.PARAM_NEW_CODE_DEFINITION_TYPE;
+import static org.sonarqube.ws.client.project.ProjectsWsParameters.PARAM_NEW_CODE_DEFINITION_VALUE;
+
+public class ImportGitLabProjectAction implements AlmIntegrationsWsAction {
+
+  public static final String PARAM_GITLAB_PROJECT_ID = &quot;gitlabProjectId&quot;;
+
+  private final ImportProjectService importProjectService;
+  private final ImportHelper importHelper;
+
+  @Inject
+<span class="fc" id="L52">  public ImportGitLabProjectAction(ImportProjectService importProjectService, ImportHelper importHelper) {</span>
+<span class="fc" id="L53">    this.importProjectService = importProjectService;</span>
+<span class="fc" id="L54">    this.importHelper = importHelper;</span>
+<span class="fc" id="L55">  }</span>
+
+  @Override
+  public void define(WebService.NewController context) {
+<span class="fc" id="L59">    WebService.NewAction action = context.createAction(&quot;import_gitlab_project&quot;)</span>
+<span class="fc" id="L60">      .setDescription(&quot;Import a GitLab project to SonarQube, creating a new project and configuring MR decoration&lt;br/&gt;&quot; +</span>
+        &quot;Requires the 'Create Projects' permission&quot;)
+<span class="fc" id="L62">      .setPost(true)</span>
+<span class="fc" id="L63">      .setSince(&quot;8.5&quot;)</span>
+<span class="fc" id="L64">      .setHandler(this)</span>
+<span class="fc" id="L65">      .setChangelog(</span>
+        new Change(&quot;10.5&quot;, &quot;This endpoint is deprecated, please use its API v2 version /api/v2/dop-translation/bound-projects&quot;),
+<span class="fc" id="L67">        new Change(&quot;10.3&quot;, String.format(&quot;Parameter %s becomes optional if you have only one configuration for GitLab&quot;, PARAM_ALM_SETTING)))</span>
+<span class="fc" id="L68">      .setDeprecatedSince(&quot;10.5&quot;);</span>
+
+<span class="fc" id="L70">    action.createParam(ImportHelper.PARAM_ALM_SETTING)</span>
+<span class="fc" id="L71">      .setDescription(&quot;DevOps Platform configuration key. This parameter is optional if you have only one GitLab integration.&quot;);</span>
+
+<span class="fc" id="L73">    action.createParam(PARAM_GITLAB_PROJECT_ID)</span>
+<span class="fc" id="L74">      .setRequired(true)</span>
+<span class="fc" id="L75">      .setDescription(&quot;GitLab project ID&quot;);</span>
+
+<span class="fc" id="L77">    action.createParam(PARAM_NEW_CODE_DEFINITION_TYPE)</span>
+<span class="fc" id="L78">      .setDescription(NEW_CODE_PERIOD_TYPE_DESCRIPTION_PROJECT_CREATION)</span>
+<span class="fc" id="L79">      .setSince(&quot;10.1&quot;);</span>
+
+<span class="fc" id="L81">    action.createParam(PARAM_NEW_CODE_DEFINITION_VALUE)</span>
+<span class="fc" id="L82">      .setDescription(NEW_CODE_PERIOD_VALUE_DESCRIPTION_PROJECT_CREATION)</span>
+<span class="fc" id="L83">      .setSince(&quot;10.1&quot;);</span>
+<span class="fc" id="L84">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L88">    CreateWsResponse createResponse = doHandle(request);</span>
+<span class="fc" id="L89">    writeProtobuf(createResponse, request, response);</span>
+<span class="fc" id="L90">  }</span>
+
+  private CreateWsResponse doHandle(Request request) {
+<span class="fc" id="L93">    importHelper.checkProvisionProjectPermission();</span>
+<span class="fc" id="L94">    AlmSettingDto almSettingDto = importHelper.getAlmSettingDtoForAlm(request, ALM.GITLAB);</span>
+<span class="fc" id="L95">    String gitlabProjectId = request.mandatoryParam(PARAM_GITLAB_PROJECT_ID);</span>
+<span class="fc" id="L96">    String newCodeDefinitionType = request.param(PARAM_NEW_CODE_DEFINITION_TYPE);</span>
+<span class="fc" id="L97">    String newCodeDefinitionValue = request.param(PARAM_NEW_CODE_DEFINITION_VALUE);</span>
+<span class="fc" id="L98">    ImportedProject importedProject = importProjectService.importProject(toServiceRequest(almSettingDto, gitlabProjectId, newCodeDefinitionType, newCodeDefinitionValue));</span>
+
+<span class="fc" id="L100">    return ImportHelper.toCreateResponse(importedProject.projectDto());</span>
+  }
+
+  private static ImportProjectRequest toServiceRequest(AlmSettingDto almSettingDto, String gitlabProjectId, @Nullable String newCodeDefinitionType,
+    @Nullable String newCodeDefinitionValue) {
+<span class="fc" id="L105">    return new ImportProjectRequest(null, null, almSettingDto.getUuid(), gitlabProjectId, null, newCodeDefinitionType, newCodeDefinitionValue, false);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

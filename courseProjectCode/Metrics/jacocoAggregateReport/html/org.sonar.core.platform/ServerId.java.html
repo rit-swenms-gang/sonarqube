@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ServerId.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.core.platform</a> &gt; <span class="el_source">ServerId.java</span></div><h1>ServerId.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.core.platform;
+
+import com.google.common.collect.ImmutableSet;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
+import org.sonar.api.CoreProperties;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static org.sonar.core.platform.ServerId.Format.DEPRECATED;
+import static org.sonar.core.platform.ServerId.Format.NO_DATABASE_ID;
+import static org.sonar.core.platform.ServerId.Format.WITH_DATABASE_ID;
+
+@Immutable
+public final class ServerId {
+
+  public static final char SPLIT_CHARACTER = '-';
+  public static final int DATABASE_ID_LENGTH = 8;
+  public static final int DEPRECATED_SERVER_ID_LENGTH = 14;
+  public static final int NOT_UUID_DATASET_ID_LENGTH = 15;
+  public static final int UUID_DATASET_ID_LENGTH = 20;
+<span class="fc" id="L45">  private static final Set&lt;Integer&gt; ALLOWED_LENGTHS = ImmutableSet.of(</span>
+<span class="fc" id="L46">    DEPRECATED_SERVER_ID_LENGTH,</span>
+<span class="fc" id="L47">    NOT_UUID_DATASET_ID_LENGTH,</span>
+<span class="fc" id="L48">    NOT_UUID_DATASET_ID_LENGTH + 1 + DATABASE_ID_LENGTH,</span>
+<span class="fc" id="L49">    UUID_DATASET_ID_LENGTH,</span>
+<span class="fc" id="L50">    UUID_DATASET_ID_LENGTH + 1 + DATABASE_ID_LENGTH);</span>
+
+<span class="fc" id="L52">  public enum Format {</span>
+    /* server id format before 6.1 (see SONAR-6992) */
+<span class="fc" id="L54">    DEPRECATED,</span>
+    /* server id format before 6.7.5 and 7.3 (see LICENSE-96) */
+<span class="fc" id="L56">    NO_DATABASE_ID,</span>
+<span class="fc" id="L57">    WITH_DATABASE_ID</span>
+  }
+
+  private final String databaseId;
+  private final String datasetId;
+  private final Format format;
+
+<span class="fc" id="L64">  private ServerId(@Nullable String databaseId, String datasetId) {</span>
+<span class="fc" id="L65">    this.databaseId = databaseId;</span>
+<span class="fc" id="L66">    this.datasetId = datasetId;</span>
+<span class="fc" id="L67">    this.format = computeFormat(databaseId, datasetId);</span>
+<span class="fc" id="L68">  }</span>
+
+  public Optional&lt;String&gt; getDatabaseId() {
+<span class="fc" id="L71">    return Optional.ofNullable(databaseId);</span>
+  }
+
+  public String getDatasetId() {
+<span class="fc" id="L75">    return datasetId;</span>
+  }
+
+  public Format getFormat() {
+<span class="fc" id="L79">    return format;</span>
+  }
+
+  private static Format computeFormat(@Nullable String databaseId, String datasetId) {
+<span class="fc bfc" id="L83" title="All 2 branches covered.">    if (databaseId != null) {</span>
+<span class="fc" id="L84">      return WITH_DATABASE_ID;</span>
+    }
+<span class="fc bfc" id="L86" title="All 2 branches covered.">    if (isDate(datasetId)) {</span>
+<span class="fc" id="L87">      return DEPRECATED;</span>
+    }
+<span class="fc" id="L89">    return NO_DATABASE_ID;</span>
+  }
+
+  public static ServerId parse(String serverId) {
+<span class="fc" id="L93">    String trimmed = serverId.trim();</span>
+
+<span class="fc" id="L95">    int length = trimmed.length();</span>
+<span class="fc bfc" id="L96" title="All 2 branches covered.">    checkArgument(length &gt; 0, &quot;serverId can't be empty&quot;);</span>
+<span class="fc" id="L97">    checkArgument(ALLOWED_LENGTHS.contains(length), &quot;serverId does not have a supported length&quot;);</span>
+<span class="fc bfc" id="L98" title="All 6 branches covered.">    if (length == DEPRECATED_SERVER_ID_LENGTH || length == UUID_DATASET_ID_LENGTH || length == NOT_UUID_DATASET_ID_LENGTH) {</span>
+<span class="fc" id="L99">      return new ServerId(null, trimmed);</span>
+    }
+
+<span class="fc" id="L102">    int splitCharIndex = trimmed.indexOf(SPLIT_CHARACTER);</span>
+<span class="pc bpc" id="L103" title="1 of 2 branches missed.">    if (splitCharIndex == -1) {</span>
+<span class="nc" id="L104">      return new ServerId(null, trimmed);</span>
+    }
+<span class="fc bfc" id="L106" title="All 2 branches covered.">    checkArgument(splitCharIndex == DATABASE_ID_LENGTH, &quot;Unrecognized serverId format. Parts have wrong length&quot;);</span>
+<span class="fc" id="L107">    return of(trimmed.substring(0, splitCharIndex), trimmed.substring(splitCharIndex + 1));</span>
+  }
+
+  public static ServerId of(@Nullable String databaseId, String datasetId) {
+<span class="fc bfc" id="L111" title="All 2 branches covered.">    if (databaseId != null) {</span>
+<span class="fc" id="L112">      int databaseIdLength = databaseId.length();</span>
+<span class="fc bfc" id="L113" title="All 2 branches covered.">      checkArgument(databaseIdLength == DATABASE_ID_LENGTH, &quot;Illegal databaseId length (%s)&quot;, databaseIdLength);</span>
+    }
+<span class="fc" id="L115">    int datasetIdLength = datasetId.length();</span>
+<span class="fc bfc" id="L116" title="All 6 branches covered.">    checkArgument(datasetIdLength == DEPRECATED_SERVER_ID_LENGTH</span>
+      || datasetIdLength == NOT_UUID_DATASET_ID_LENGTH
+      || datasetIdLength == UUID_DATASET_ID_LENGTH, &quot;Illegal datasetId length (%s)&quot;, datasetIdLength);
+<span class="fc" id="L119">    return new ServerId(databaseId, datasetId);</span>
+  }
+
+
+  /**
+   * Checks whether the specified value is a date according to the old format of the {@link CoreProperties#SERVER_ID}.
+   */
+  private static boolean isDate(String value) {
+    try {
+<span class="fc" id="L128">      new SimpleDateFormat(&quot;yyyyMMddHHmmss&quot;).parse(value);</span>
+<span class="fc" id="L129">      return true;</span>
+<span class="fc" id="L130">    } catch (ParseException e) {</span>
+<span class="fc" id="L131">      return false;</span>
+    }
+  }
+
+  @Override
+  public String toString() {
+<span class="fc bfc" id="L137" title="All 2 branches covered.">    if (databaseId == null) {</span>
+<span class="fc" id="L138">      return datasetId;</span>
+    }
+<span class="fc" id="L140">    return databaseId + SPLIT_CHARACTER + datasetId;</span>
+  }
+
+  @Override
+  public boolean equals(Object o) {
+<span class="fc bfc" id="L145" title="All 2 branches covered.">    if (this == o) {</span>
+<span class="fc" id="L146">      return true;</span>
+    }
+<span class="pc bpc" id="L148" title="1 of 4 branches missed.">    if (o == null || getClass() != o.getClass()) {</span>
+<span class="fc" id="L149">      return false;</span>
+    }
+<span class="fc" id="L151">    ServerId serverId = (ServerId) o;</span>
+<span class="fc bfc" id="L152" title="All 2 branches covered.">    return Objects.equals(databaseId, serverId.databaseId) &amp;&amp;</span>
+<span class="fc bfc" id="L153" title="All 2 branches covered.">      Objects.equals(datasetId, serverId.datasetId);</span>
+  }
+
+  @Override
+  public int hashCode() {
+<span class="fc" id="L158">    return Objects.hash(databaseId, datasetId);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

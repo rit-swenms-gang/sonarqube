@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CeProcessingSchedulerImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.taskprocessor</a> &gt; <span class="el_source">CeProcessingSchedulerImpl.java</span></div><h1>CeProcessingSchedulerImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.taskprocessor;
+
+import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListenableScheduledFuture;
+import com.google.common.util.concurrent.MoreExecutors;
+import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.ce.configuration.CeConfiguration;
+
+import static com.google.common.util.concurrent.Futures.addCallback;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+
+public class CeProcessingSchedulerImpl implements CeProcessingScheduler {
+<span class="fc" id="L39">  private static final Logger LOG = LoggerFactory.getLogger(CeProcessingSchedulerImpl.class);</span>
+  // 30 seconds
+  private static final long DELAY_BETWEEN_DISABLED_TASKS = 30 * 1000L;
+
+  private final CeProcessingSchedulerExecutorService executorService;
+  private final long delayBetweenEnabledTasks;
+  private final TimeUnit timeUnit;
+  private final ChainingCallback[] chainingCallbacks;
+  private final CeWorkerController ceWorkerController;
+  private final long gracefulStopTimeoutInMs;
+
+  public CeProcessingSchedulerImpl(CeConfiguration ceConfiguration,
+    CeProcessingSchedulerExecutorService processingExecutorService, CeWorkerFactory ceCeWorkerFactory,
+<span class="fc" id="L52">    CeWorkerController ceWorkerController) {</span>
+<span class="fc" id="L53">    this.executorService = processingExecutorService;</span>
+
+<span class="fc" id="L55">    this.delayBetweenEnabledTasks = ceConfiguration.getQueuePollingDelay();</span>
+<span class="fc" id="L56">    this.gracefulStopTimeoutInMs = ceConfiguration.getGracefulStopTimeoutInMs();</span>
+<span class="fc" id="L57">    this.ceWorkerController = ceWorkerController;</span>
+<span class="fc" id="L58">    this.timeUnit = MILLISECONDS;</span>
+
+<span class="fc" id="L60">    int threadWorkerCount = ceConfiguration.getWorkerMaxCount();</span>
+<span class="fc" id="L61">    this.chainingCallbacks = new ChainingCallback[threadWorkerCount];</span>
+<span class="fc bfc" id="L62" title="All 2 branches covered.">    for (int i = 0; i &lt; threadWorkerCount; i++) {</span>
+<span class="fc" id="L63">      CeWorker worker = ceCeWorkerFactory.create(i);</span>
+<span class="fc" id="L64">      chainingCallbacks[i] = new ChainingCallback(worker);</span>
+    }
+<span class="fc" id="L66">  }</span>
+
+  @Override
+  public void startScheduling() {
+<span class="fc bfc" id="L70" title="All 2 branches covered.">    for (ChainingCallback chainingCallback : chainingCallbacks) {</span>
+<span class="fc" id="L71">      ListenableScheduledFuture&lt;CeWorker.Result&gt; future = executorService.schedule(chainingCallback.worker, delayBetweenEnabledTasks, timeUnit);</span>
+<span class="fc" id="L72">      addCallback(future, chainingCallback, MoreExecutors.directExecutor());</span>
+    }
+<span class="fc" id="L74">  }</span>
+
+  /**
+   * This method is stopping all the workers and giving them a very large delay before killing them.
+   * &lt;p&gt;
+   * It supports being interrupted (eg. by a hard stop).
+   */
+  public void gracefulStopScheduling() {
+<span class="fc" id="L82">    LOG.info(&quot;Gracefully stopping workers...&quot;);</span>
+<span class="fc" id="L83">    requestAllWorkersToStop();</span>
+    try {
+<span class="fc" id="L85">      waitForInProgressWorkersToFinish(gracefulStopTimeoutInMs);</span>
+
+<span class="pc bpc" id="L87" title="1 of 2 branches missed.">      if (ceWorkerController.hasAtLeastOneProcessingWorker()) {</span>
+<span class="nc" id="L88">        LOG.info(&quot;Graceful stop period ended but some in-progress task did not finish. Tasks will be interrupted.&quot;);</span>
+      }
+
+<span class="fc" id="L91">      interruptAllWorkers();</span>
+<span class="nc" id="L92">    } catch (InterruptedException e) {</span>
+<span class="nc" id="L93">      LOG.debug(&quot;Graceful stop was interrupted&quot;);</span>
+<span class="nc" id="L94">      Thread.currentThread().interrupt();</span>
+<span class="fc" id="L95">    }</span>
+<span class="fc" id="L96">  }</span>
+
+  /**
+   * This method is stopping all the workers and hardly giving them a delay before killing them.
+   * &lt;p&gt;
+   * If interrupted, it will interrupt any worker still in-progress before returning.
+   */
+  public void hardStopScheduling() {
+    // nothing to do if graceful stop went through
+<span class="pc bpc" id="L105" title="1 of 2 branches missed.">    if (Arrays.stream(chainingCallbacks).allMatch(ChainingCallback::isInterrupted)) {</span>
+<span class="nc" id="L106">      return;</span>
+    }
+
+<span class="fc" id="L109">    LOG.info(&quot;Hard stopping workers...&quot;);</span>
+<span class="fc" id="L110">    requestAllWorkersToStop();</span>
+    try {
+<span class="fc" id="L112">      waitForInProgressWorkersToFinish(350);</span>
+<span class="nc" id="L113">    } catch (InterruptedException e) {</span>
+<span class="nc" id="L114">      LOG.debug(&quot;Grace period of hard stop has been interrupted: {}&quot;, e.getMessage(), e);</span>
+<span class="nc" id="L115">      Thread.currentThread().interrupt();</span>
+<span class="fc" id="L116">    }</span>
+
+<span class="pc bpc" id="L118" title="1 of 2 branches missed.">    if (ceWorkerController.hasAtLeastOneProcessingWorker()) {</span>
+<span class="nc" id="L119">      LOG.info(&quot;Some in-progress tasks are getting killed.&quot;);</span>
+    }
+
+    // Interrupting the tasks
+<span class="fc" id="L123">    interruptAllWorkers();</span>
+<span class="fc" id="L124">  }</span>
+
+  private void interruptAllWorkers() {
+    // Interrupting the tasks
+<span class="fc" id="L128">    Arrays.stream(chainingCallbacks).forEach(t -&gt; t.stop(true));</span>
+<span class="fc" id="L129">  }</span>
+
+  private void waitForInProgressWorkersToFinish(long shutdownTimeoutInMs) throws InterruptedException {
+    // Workers have some time to complete their in progress tasks
+<span class="fc" id="L133">    long until = System.currentTimeMillis() + shutdownTimeoutInMs;</span>
+<span class="fc" id="L134">    LOG.debug(&quot;Waiting for workers to finish in-progress tasks for at most {}ms&quot;, shutdownTimeoutInMs);</span>
+<span class="pc bpc" id="L135" title="2 of 4 branches missed.">    while (System.currentTimeMillis() &lt; until &amp;&amp; ceWorkerController.hasAtLeastOneProcessingWorker()) {</span>
+<span class="nc" id="L136">      Thread.sleep(200L);</span>
+    }
+<span class="fc" id="L138">  }</span>
+
+  private void requestAllWorkersToStop() {
+    // Requesting all workers to stop
+<span class="fc" id="L142">    Arrays.stream(chainingCallbacks).forEach(t -&gt; t.stop(false));</span>
+<span class="fc" id="L143">  }</span>
+
+  private class ChainingCallback implements FutureCallback&lt;CeWorker.Result&gt; {
+<span class="fc" id="L146">    private volatile boolean keepRunning = true;</span>
+<span class="fc" id="L147">    private volatile boolean interrupted = false;</span>
+    private final CeWorker worker;
+
+    @CheckForNull
+    private ListenableFuture&lt;CeWorker.Result&gt; workerFuture;
+
+<span class="fc" id="L153">    public ChainingCallback(CeWorker worker) {</span>
+<span class="fc" id="L154">      this.worker = worker;</span>
+<span class="fc" id="L155">    }</span>
+
+    @Override
+    public void onSuccess(@Nullable CeWorker.Result result) {
+<span class="fc bfc" id="L159" title="All 2 branches covered.">      if (keepRunning) {</span>
+<span class="pc bpc" id="L160" title="1 of 2 branches missed.">        if (result == null) {</span>
+<span class="nc" id="L161">          chainWithEnabledTaskDelay();</span>
+        } else {
+<span class="fc bfc" id="L163" title="All 3 branches covered.">          switch (result) {</span>
+            case DISABLED:
+<span class="fc" id="L165">              chainWithDisabledTaskDelay();</span>
+<span class="fc" id="L166">              break;</span>
+            case NO_TASK:
+<span class="fc" id="L168">              chainWithEnabledTaskDelay();</span>
+<span class="fc" id="L169">              break;</span>
+            case TASK_PROCESSED:
+            default:
+<span class="fc" id="L172">              chainWithoutDelay();</span>
+          }
+        }
+      }
+<span class="fc" id="L176">    }</span>
+
+    @Override
+    public void onFailure(Throwable t) {
+<span class="fc bfc" id="L180" title="All 2 branches covered.">      if (t instanceof Error) {</span>
+<span class="fc" id="L181">        LOG.error(&quot;Compute Engine execution failed. Scheduled processing interrupted.&quot;, t);</span>
+<span class="fc bfc" id="L182" title="All 2 branches covered.">      } else if (keepRunning) {</span>
+<span class="fc" id="L183">        chainWithoutDelay();</span>
+      }
+<span class="fc" id="L185">    }</span>
+
+    private void chainWithoutDelay() {
+<span class="fc" id="L188">      workerFuture = executorService.submit(worker);</span>
+<span class="fc" id="L189">      addCallback();</span>
+<span class="fc" id="L190">    }</span>
+
+    private void chainWithEnabledTaskDelay() {
+<span class="fc" id="L193">      workerFuture = executorService.schedule(worker, delayBetweenEnabledTasks, timeUnit);</span>
+<span class="fc" id="L194">      addCallback();</span>
+<span class="fc" id="L195">    }</span>
+
+    private void chainWithDisabledTaskDelay() {
+<span class="fc" id="L198">      workerFuture = executorService.schedule(worker, DELAY_BETWEEN_DISABLED_TASKS, timeUnit);</span>
+<span class="fc" id="L199">      addCallback();</span>
+<span class="fc" id="L200">    }</span>
+
+    private void addCallback() {
+<span class="pc bpc" id="L203" title="1 of 2 branches missed.">      if (workerFuture != null) {</span>
+<span class="fc" id="L204">        Futures.addCallback(workerFuture, this, MoreExecutors.directExecutor());</span>
+      }
+<span class="fc" id="L206">    }</span>
+
+    public void stop(boolean interrupt) {
+<span class="fc" id="L209">      keepRunning = false;</span>
+<span class="fc" id="L210">      interrupted = true;</span>
+<span class="fc bfc" id="L211" title="All 2 branches covered.">      if (workerFuture != null) {</span>
+<span class="fc" id="L212">        workerFuture.cancel(interrupt);</span>
+      }
+<span class="fc" id="L214">    }</span>
+
+    public boolean isInterrupted() {
+<span class="fc" id="L217">      return interrupted;</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

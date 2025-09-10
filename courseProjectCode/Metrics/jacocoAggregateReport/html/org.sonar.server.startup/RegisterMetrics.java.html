@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RegisterMetrics.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.startup</a> &gt; <span class="el_source">RegisterMetrics.java</span></div><h1>RegisterMetrics.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.startup;
+
+import com.google.common.annotations.VisibleForTesting;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import org.sonar.api.Startable;
+import org.sonar.api.measures.CoreMetrics;
+import org.sonar.api.measures.Metric;
+import org.sonar.api.measures.Metrics;
+import org.sonar.api.utils.log.Logger;
+import org.sonar.api.utils.log.Loggers;
+import org.sonar.api.utils.log.Profiler;
+import org.sonar.core.util.UuidFactory;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.metric.MetricDto;
+import org.sonar.server.metric.MetricToDto;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import static com.google.common.collect.Lists.newArrayList;
+import static org.sonar.db.metric.RemovedMetricConverter.REMOVED_METRIC;
+
+public class RegisterMetrics implements Startable {
+
+<span class="fc" id="L46">  private static final Logger LOG = Loggers.get(RegisterMetrics.class);</span>
+
+  private final DbClient dbClient;
+  private final UuidFactory uuidFactory;
+  private final Metrics[] metricsRepositories;
+
+  @Autowired(required = false)
+<span class="fc" id="L53">  public RegisterMetrics(DbClient dbClient, UuidFactory uuidFactory, Metrics[] metricsRepositories) {</span>
+<span class="fc" id="L54">    this.dbClient = dbClient;</span>
+<span class="fc" id="L55">    this.uuidFactory = uuidFactory;</span>
+<span class="fc" id="L56">    this.metricsRepositories = metricsRepositories;</span>
+<span class="fc" id="L57">  }</span>
+
+  /**
+   * Used when no plugin is defining Metrics
+   */
+  @Autowired(required = false)
+  public RegisterMetrics(DbClient dbClient, UuidFactory uuidFactory) {
+<span class="fc" id="L64">    this(dbClient, uuidFactory, new Metrics[] {});</span>
+<span class="fc" id="L65">  }</span>
+
+  @Override
+  public void start() {
+<span class="fc" id="L69">    List&lt;Metric&gt; metricsToRegister = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L70">    metricsToRegister.addAll(CoreMetrics.getMetrics());</span>
+<span class="fc" id="L71">    metricsToRegister.addAll(getPluginMetrics());</span>
+<span class="fc" id="L72">    metricsToRegister.removeIf(m -&gt; REMOVED_METRIC.equals(m.getKey()));</span>
+<span class="fc" id="L73">    register(metricsToRegister);</span>
+<span class="fc" id="L74">  }</span>
+
+  @Override
+  public void stop() {
+    // nothing to do
+<span class="nc" id="L79">  }</span>
+
+  void register(Iterable&lt;Metric&gt; metrics) {
+<span class="fc" id="L82">    Profiler profiler = Profiler.create(LOG).startInfo(&quot;Register metrics&quot;);</span>
+<span class="fc" id="L83">    try (DbSession session = dbClient.openSession(true)) {</span>
+<span class="fc" id="L84">      save(session, metrics);</span>
+<span class="fc" id="L85">      sanitizeQualityGates(session);</span>
+<span class="fc" id="L86">      session.commit();</span>
+    }
+<span class="fc" id="L88">    profiler.stopDebug();</span>
+<span class="fc" id="L89">  }</span>
+
+  private void sanitizeQualityGates(DbSession session) {
+<span class="fc" id="L92">    dbClient.gateConditionDao().deleteConditionsWithInvalidMetrics(session);</span>
+<span class="fc" id="L93">  }</span>
+
+  private void save(DbSession session, Iterable&lt;Metric&gt; metrics) {
+<span class="fc" id="L96">    Map&lt;String, MetricDto&gt; basesByKey = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L97">    var allMetrics = dbClient.metricDao().selectAll(session);</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">    for (MetricDto base : allMetrics) {</span>
+<span class="fc" id="L99">      basesByKey.put(base.getKey(), base);</span>
+<span class="fc" id="L100">    }</span>
+
+<span class="fc bfc" id="L102" title="All 2 branches covered.">    for (Metric metric : metrics) {</span>
+<span class="fc" id="L103">      MetricDto dto = MetricToDto.INSTANCE.apply(metric);</span>
+<span class="fc" id="L104">      MetricDto base = basesByKey.get(metric.getKey());</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">      if (base == null) {</span>
+        // new metric, never installed
+<span class="fc" id="L107">        dto.setUuid(uuidFactory.create());</span>
+<span class="fc" id="L108">        dbClient.metricDao().insert(session, dto);</span>
+      } else {
+<span class="fc" id="L110">        dto.setUuid(base.getUuid());</span>
+<span class="fc" id="L111">        dbClient.metricDao().update(session, dto);</span>
+      }
+<span class="fc" id="L113">      basesByKey.remove(metric.getKey());</span>
+<span class="fc" id="L114">    }</span>
+
+<span class="fc bfc" id="L116" title="All 2 branches covered.">    for (MetricDto nonUpdatedBase : basesByKey.values()) {</span>
+<span class="pc bpc" id="L117" title="1 of 2 branches missed.">      if (dbClient.metricDao().disableByKey(session, nonUpdatedBase.getKey())) {</span>
+<span class="fc" id="L118">        LOG.info(&quot;Disable metric {} [{}]&quot;, nonUpdatedBase.getShortName(), nonUpdatedBase.getKey());</span>
+      }
+<span class="fc" id="L120">    }</span>
+<span class="fc" id="L121">  }</span>
+
+  @VisibleForTesting
+  List&lt;Metric&gt; getPluginMetrics() {
+<span class="fc" id="L125">    List&lt;Metric&gt; metricsToRegister = newArrayList();</span>
+<span class="fc" id="L126">    Map&lt;String, Metrics&gt; metricsByRepository = new HashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L127" title="All 2 branches covered.">    for (Metrics metrics : metricsRepositories) {</span>
+<span class="fc" id="L128">      checkMetrics(metricsByRepository, metrics);</span>
+<span class="fc" id="L129">      metricsToRegister.addAll(metrics.getMetrics());</span>
+    }
+
+<span class="fc" id="L132">    return metricsToRegister;</span>
+  }
+
+  private static void checkMetrics(Map&lt;String, Metrics&gt; metricsByRepository, Metrics metrics) {
+<span class="fc bfc" id="L136" title="All 2 branches covered.">    for (Metric metric : metrics.getMetrics()) {</span>
+<span class="fc" id="L137">      String metricKey = metric.getKey();</span>
+<span class="fc bfc" id="L138" title="All 2 branches covered.">      if (CoreMetrics.getMetrics().contains(metric)) {</span>
+<span class="fc" id="L139">        throw new IllegalStateException(String.format(&quot;Metric [%s] is already defined by SonarQube&quot;, metricKey));</span>
+      }
+<span class="fc" id="L141">      Metrics anotherRepository = metricsByRepository.get(metricKey);</span>
+<span class="fc bfc" id="L142" title="All 2 branches covered.">      if (anotherRepository != null) {</span>
+<span class="fc" id="L143">        throw new IllegalStateException(String.format(&quot;Metric [%s] is already defined by the repository [%s]&quot;, metricKey, anotherRepository));</span>
+      }
+<span class="fc" id="L145">      metricsByRepository.put(metricKey, metrics);</span>
+<span class="fc" id="L146">    }</span>
+<span class="fc" id="L147">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NetworkUtilsImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.process</a> &gt; <span class="el_source">NetworkUtilsImpl.java</span></div><h1>NetworkUtilsImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.process;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.net.InetAddresses;
+import java.io.IOException;
+import java.net.Inet6Address;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.ServerSocket;
+import java.net.SocketException;
+import java.net.UnknownHostException;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Optional;
+import java.util.OptionalInt;
+import java.util.Set;
+import java.util.function.Predicate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import static java.lang.String.format;
+
+public class NetworkUtilsImpl implements NetworkUtils {
+
+<span class="fc" id="L44">  private static final Set&lt;Integer&gt; PORTS_ALREADY_ALLOCATED = new HashSet&lt;&gt;();</span>
+  private static final int PORT_MAX_TRIES = 50;
+<span class="fc" id="L46">  private static final Logger LOG = LoggerFactory.getLogger(NetworkUtilsImpl.class);</span>
+
+<span class="fc" id="L48">  public static final NetworkUtils INSTANCE = new NetworkUtilsImpl();</span>
+
+<span class="fc" id="L50">  NetworkUtilsImpl() {</span>
+    // prevent instantiation
+<span class="fc" id="L52">  }</span>
+
+  @Override
+  public int getNextLoopbackAvailablePort() {
+<span class="fc" id="L56">    return getNextAvailablePort(InetAddress.getLoopbackAddress(), PortAllocator.INSTANCE);</span>
+  }
+
+  @Override
+  public OptionalInt getNextAvailablePort(String hostOrAddress) {
+<span class="fc" id="L61">    return OptionalInt.of(toInetAddress(hostOrAddress)</span>
+<span class="fc" id="L62">      .map(t -&gt; getNextAvailablePort(t, PortAllocator.INSTANCE))</span>
+<span class="pc" id="L63">      .orElseThrow(() -&gt; new IllegalArgumentException(format(&quot;Can not resolve address %s&quot;, hostOrAddress))));</span>
+  }
+
+  /**
+   * Warning - the allocated ports are kept in memory and are never clean-up. Besides the memory consumption,
+   * that means that ports already allocated are never freed. As a consequence
+   * no more than ~64512 calls to this method are allowed.
+   */
+  @VisibleForTesting
+  static int getNextAvailablePort(InetAddress address, PortAllocator portAllocator) {
+<span class="pc bpc" id="L73" title="1 of 2 branches missed.">    for (int i = 0; i &lt; PORT_MAX_TRIES; i++) {</span>
+<span class="fc" id="L74">      int port = portAllocator.getAvailable(address);</span>
+<span class="pc bpc" id="L75" title="1 of 2 branches missed.">      if (isValidPort(port)) {</span>
+<span class="fc" id="L76">        PORTS_ALREADY_ALLOCATED.add(port);</span>
+<span class="fc" id="L77">        return port;</span>
+      }
+    }
+<span class="nc" id="L80">    throw new IllegalStateException(&quot;Fail to find an available port on &quot; + address);</span>
+  }
+
+  private static boolean isValidPort(int port) {
+<span class="pc bpc" id="L84" title="2 of 4 branches missed.">    return port &gt; 1023 &amp;&amp; !PORTS_ALREADY_ALLOCATED.contains(port);</span>
+  }
+
+<span class="fc" id="L87">  static class PortAllocator {</span>
+
+<span class="fc" id="L89">    private static final PortAllocator INSTANCE = new PortAllocator();</span>
+
+    int getAvailable(InetAddress address) {
+<span class="fc" id="L92">      try (ServerSocket socket = new ServerSocket(0, 50, address)) {</span>
+<span class="fc" id="L93">        return socket.getLocalPort();</span>
+<span class="nc" id="L94">      } catch (IOException e) {</span>
+<span class="nc" id="L95">        throw new IllegalStateException(&quot;Fail to find an available port on &quot; + address, e);</span>
+      }
+    }
+  }
+
+  @Override
+  public String getHostname() {
+    try {
+<span class="fc" id="L103">      return InetAddress.getLocalHost().getHostName();</span>
+<span class="nc" id="L104">    } catch (UnknownHostException e) {</span>
+<span class="nc" id="L105">      LOG.trace(&quot;Failed to get hostname&quot;, e);</span>
+<span class="nc" id="L106">      return &quot;unresolved hostname&quot;;</span>
+    }
+  }
+
+  @Override
+  public Optional&lt;InetAddress&gt; toInetAddress(String hostOrAddress) {
+    try {
+<span class="fc bfc" id="L113" title="All 2 branches covered.">      if (InetAddresses.isInetAddress(hostOrAddress)) {</span>
+<span class="fc" id="L114">        return Optional.of(InetAddresses.forString(hostOrAddress));</span>
+      }
+<span class="fc" id="L116">      return Optional.of(InetAddress.getByName(hostOrAddress));</span>
+<span class="fc" id="L117">    } catch (UnknownHostException e) {</span>
+<span class="fc" id="L118">      LOG.trace(&quot;toInetAddress({}) failed&quot;, hostOrAddress, e);</span>
+<span class="fc" id="L119">      return Optional.empty();</span>
+    }
+  }
+
+  @Override
+  public boolean isLocal(String hostOrAddress) {
+    try {
+<span class="fc" id="L126">      Optional&lt;InetAddress&gt; inetAddress = toInetAddress(hostOrAddress);</span>
+<span class="pc bpc" id="L127" title="1 of 2 branches missed.">      if (inetAddress.isPresent()) {</span>
+<span class="fc" id="L128">        var addr = inetAddress.get();</span>
+<span class="pc bpc" id="L129" title="1 of 4 branches missed.">        if (addr.isAnyLocalAddress() || addr.isLoopbackAddress()) {</span>
+<span class="fc" id="L130">          return true;</span>
+        }
+<span class="pc bpc" id="L132" title="1 of 2 branches missed.">        return NetworkInterface.getByInetAddress(addr) != null;</span>
+      }
+<span class="nc" id="L134">      return false;</span>
+<span class="nc" id="L135">    } catch (SocketException e) {</span>
+<span class="nc" id="L136">      LOG.trace(&quot;isLocalInetAddress({}) failed&quot;, hostOrAddress, e);</span>
+<span class="nc" id="L137">      return false;</span>
+    }
+  }
+
+  @Override
+  public boolean isLoopback(String hostOrAddress) {
+<span class="fc" id="L143">    return toInetAddress(hostOrAddress)</span>
+<span class="fc" id="L144">      .filter(InetAddress::isLoopbackAddress)</span>
+<span class="fc" id="L145">      .isPresent();</span>
+  }
+
+  @Override
+  public boolean isIpv6Address(String hostOrAddress) {
+<span class="fc" id="L150">    Optional&lt;InetAddress&gt; inetAddress = toInetAddress(hostOrAddress);</span>
+<span class="fc" id="L151">    boolean ipv6Preferred = Boolean.parseBoolean(System.getProperty(&quot;java.net.preferIPv6Addresses&quot;));</span>
+
+<span class="pc bpc" id="L153" title="1 of 4 branches missed.">    if (inetAddress.isEmpty() || inetAddress.get().isLoopbackAddress()) {</span>
+<span class="fc" id="L154">      return ipv6Preferred;</span>
+    }
+<span class="fc" id="L156">    return inetAddress.get() instanceof Inet6Address;</span>
+  }
+
+  @Override
+  public Optional&lt;InetAddress&gt; getLocalInetAddress(Predicate&lt;InetAddress&gt; predicate) {
+    try {
+<span class="fc" id="L162">      return Collections.list(NetworkInterface.getNetworkInterfaces()).stream()</span>
+<span class="fc" id="L163">        .flatMap(ni -&gt; Collections.list(ni.getInetAddresses()).stream())</span>
+<span class="pc bpc" id="L164" title="1 of 2 branches missed.">        .filter(a -&gt; a.getHostAddress() != null)</span>
+<span class="fc" id="L165">        .filter(predicate)</span>
+<span class="fc" id="L166">        .findFirst();</span>
+<span class="nc" id="L167">    } catch (SocketException e) {</span>
+<span class="nc" id="L168">      LOG.trace(&quot;getLocalInetAddress(Predicate&lt;InetAddress&gt;) failed&quot;, e);</span>
+<span class="nc" id="L169">      throw new IllegalStateException(&quot;Can not retrieve network interfaces&quot;, e);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

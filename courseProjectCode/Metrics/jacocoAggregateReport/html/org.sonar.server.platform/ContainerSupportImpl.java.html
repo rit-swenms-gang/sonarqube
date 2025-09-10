@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContainerSupportImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform</a> &gt; <span class="el_source">ContainerSupportImpl.java</span></div><h1>ContainerSupportImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform;
+
+import com.google.common.annotations.VisibleForTesting;
+import java.util.Objects;
+import java.util.Scanner;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.utils.System2;
+import org.sonar.server.util.Paths2;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
+
+public class ContainerSupportImpl implements ContainerSupport {
+
+<span class="fc" id="L34">  private static final Logger LOG = LoggerFactory.getLogger(ContainerSupportImpl.class);</span>
+  private static final String CONTAINER_FILE_PATH = &quot;/run/.containerenv&quot;;
+  private static final String DOCKER = &quot;docker&quot;;
+  private static final String PODMAN = &quot;podman&quot;;
+  private static final String BUILDAH = &quot;buildah&quot;;
+  private static final String CONTAINER_D = &quot;containerd&quot;;
+  private static final String GENERAL_CONTAINER = &quot;general_container&quot;;
+  private static final String IS_HELM_OPENSHIFT_ENABLED = &quot;IS_HELM_OPENSHIFT_ENABLED&quot;;
+  private static final String IS_HELM_AUTOSCALING_ENABLED = &quot;IS_HELM_AUTOSCALING_ENABLED&quot;;
+
+<span class="fc" id="L44">  private static final String[] MOUNT_GREP_COMMAND = {&quot;bash&quot;, &quot;-c&quot;, &quot;mount | grep 'overlay on /'&quot;};</span>
+<span class="fc" id="L45">  private static final String[] CAT_COMMAND = {&quot;bash&quot;, &quot;-c&quot;, &quot;cat /run/.containerenv&quot;};</span>
+
+  private final System2 system2;
+  private final Paths2 paths2;
+  private String containerContextCache;
+
+<span class="fc" id="L51">  public ContainerSupportImpl(Paths2 paths2, System2 system2) {</span>
+<span class="fc" id="L52">    this.paths2 = paths2;</span>
+<span class="fc" id="L53">    this.system2 = system2;</span>
+
+<span class="fc" id="L55">    populateCache();</span>
+<span class="fc" id="L56">  }</span>
+
+  @VisibleForTesting
+  void populateCache() {
+<span class="fc bfc" id="L60" title="All 2 branches covered.">    if (isDocker()) {</span>
+<span class="fc" id="L61">      containerContextCache = DOCKER;</span>
+<span class="fc bfc" id="L62" title="All 2 branches covered.">    } else if (isPodman()) {</span>
+<span class="fc" id="L63">      containerContextCache = PODMAN;</span>
+<span class="fc bfc" id="L64" title="All 2 branches covered.">    } else if (isBuildah()) {</span>
+<span class="fc" id="L65">      containerContextCache = BUILDAH;</span>
+<span class="fc bfc" id="L66" title="All 2 branches covered.">    } else if (isContainerd()) {</span>
+<span class="fc" id="L67">      containerContextCache = CONTAINER_D;</span>
+<span class="fc bfc" id="L68" title="All 2 branches covered.">    } else if (isGeneralContainer()) {</span>
+<span class="fc" id="L69">      containerContextCache = GENERAL_CONTAINER;</span>
+    } else {
+<span class="fc" id="L71">      containerContextCache = null;</span>
+    }
+<span class="fc" id="L73">  }</span>
+
+  @Override
+  public boolean isRunningInContainer() {
+<span class="fc bfc" id="L77" title="All 2 branches covered.">    return containerContextCache != null;</span>
+  }
+
+  @Override
+  public String getContainerContext() {
+<span class="fc" id="L82">    return containerContextCache;</span>
+  }
+
+  @Override
+  public boolean isRunningOnHelmOpenshift() {
+<span class="fc" id="L87">    return &quot;true&quot;.equals(system2.envVariable(IS_HELM_OPENSHIFT_ENABLED));</span>
+  }
+
+  @Override
+  public boolean isHelmAutoscalingEnabled() {
+<span class="fc" id="L92">    return &quot;true&quot;.equals(system2.envVariable(IS_HELM_AUTOSCALING_ENABLED));</span>
+  }
+
+  private boolean isDocker() {
+<span class="pc bpc" id="L96" title="1 of 4 branches missed.">    return getMountOverlays().contains(&quot;/docker&quot;) &amp;&amp; paths2.exists(&quot;/.dockerenv&quot;);</span>
+  }
+
+  private boolean isPodman() {
+<span class="pc bpc" id="L100" title="1 of 4 branches missed.">    return Objects.equals(system2.envVariable(&quot;container&quot;), PODMAN) &amp;&amp; paths2.exists(CONTAINER_FILE_PATH);</span>
+  }
+
+  private boolean isBuildah() {
+<span class="fc bfc" id="L104" title="All 4 branches covered.">    return paths2.exists(CONTAINER_FILE_PATH) &amp;&amp; readContainerenvFile().contains(&quot;engine=\&quot;buildah-&quot;);</span>
+  }
+
+  private boolean isContainerd() {
+<span class="fc" id="L108">    return getMountOverlays().contains(&quot;/containerd&quot;);</span>
+  }
+
+  private boolean isGeneralContainer() {
+<span class="fc" id="L112">    return paths2.exists(CONTAINER_FILE_PATH);</span>
+  }
+
+  @VisibleForTesting
+  String getMountOverlays() {
+<span class="fc" id="L117">    return executeCommand(MOUNT_GREP_COMMAND);</span>
+  }
+
+  @VisibleForTesting
+  String readContainerenvFile() {
+<span class="fc" id="L122">    return executeCommand(CAT_COMMAND);</span>
+  }
+
+  private static String executeCommand(String[] command) {
+    try {
+<span class="fc" id="L127">      Process process = new ProcessBuilder().command(command).start();</span>
+<span class="fc" id="L128">      try (Scanner scanner = new Scanner(process.getInputStream(), UTF_8)) {</span>
+<span class="fc" id="L129">        scanner.useDelimiter(&quot;\n&quot;);</span>
+<span class="nc" id="L130">        return scanner.next();</span>
+      } finally {
+<span class="fc" id="L132">        process.destroy();</span>
+      }
+<span class="fc" id="L134">    } catch (Exception e) {</span>
+<span class="fc" id="L135">      LOG.debug(&quot;Failed to execute command&quot;, e);</span>
+<span class="fc" id="L136">      return &quot;&quot;;</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DeprecatedHandler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.v2.common</a> &gt; <span class="el_source">DeprecatedHandler.java</span></div><h1>DeprecatedHandler.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.v2.common;
+
+import java.lang.reflect.Field;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.event.Level;
+import org.sonar.server.user.ThreadLocalUserSession;
+import org.sonar.server.user.UserSession;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.core.MethodParameter;
+import org.springframework.stereotype.Component;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.method.HandlerMethod;
+import org.springframework.web.servlet.HandlerInterceptor;
+
+import static org.sonar.process.logging.LogbackHelper.DEPRECATION_LOGGER_NAME;
+
+/**
+ * Interceptor that logs deprecation warnings for deprecated web services and parameters that are used. The only thing this handler will not
+ * log is used deprecated fields of {@link org.springframework.web.bind.annotation.RequestBody()}. This needs to be covered at some point.
+ * &lt;/p&gt;
+ */
+@Component
+public class DeprecatedHandler implements HandlerInterceptor {
+
+<span class="fc" id="L47">  private static final Logger LOGGER = LoggerFactory.getLogger(DEPRECATION_LOGGER_NAME);</span>
+
+  private final UserSession userSession;
+
+<span class="fc" id="L51">  public DeprecatedHandler(UserSession userSession) {</span>
+<span class="fc" id="L52">    this.userSession = userSession;</span>
+<span class="fc" id="L53">  }</span>
+
+  @Override
+  public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
+<span class="fc bfc" id="L57" title="All 2 branches covered.">    if (handler instanceof HandlerMethod handlerMethod) {</span>
+<span class="fc" id="L58">      preHandle(handlerMethod, request);</span>
+    } else {
+<span class="fc" id="L60">      LOGGER.debug(&quot;Handler is not a HandlerMethod, skipping deprecated check.&quot;);</span>
+    }
+
+<span class="fc" id="L63">    return true;</span>
+  }
+
+  private void preHandle(HandlerMethod handlerMethod, HttpServletRequest request) {
+<span class="fc" id="L67">    Level logLevel = getLogLevel();</span>
+<span class="fc" id="L68">    Deprecated deprecatedEndpoint = handlerMethod.getMethodAnnotation(Deprecated.class);</span>
+<span class="fc bfc" id="L69" title="All 2 branches covered.">    if (deprecatedEndpoint != null) {</span>
+<span class="fc" id="L70">      logDeprecatedWebServiceMessage(logLevel, deprecatedEndpoint.since());</span>
+    }
+
+<span class="fc" id="L73">    handleParams(handlerMethod, logLevel, request);</span>
+<span class="fc" id="L74">  }</span>
+
+  private static void handleParams(HandlerMethod handlerMethod, Level logLevel, HttpServletRequest request) {
+<span class="fc bfc" id="L77" title="All 2 branches covered.">    for (MethodParameter param : handlerMethod.getMethodParameters()) {</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">      if (isV2ParameterObject(param)) {</span>
+<span class="fc" id="L79">        checkDeprecatedFields(param.getParameterType(), logLevel, request);</span>
+<span class="fc bfc" id="L80" title="All 2 branches covered.">      } else if (isUsedDeprecatedRequestParam(request, param)) {</span>
+<span class="fc" id="L81">        String paramName = param.getParameterAnnotation(RequestParam.class).name();</span>
+<span class="fc" id="L82">        String deprecatedSince = param.getParameterAnnotation(Deprecated.class).since();</span>
+<span class="fc" id="L83">        logDeprecatedParamMessage(logLevel, paramName, deprecatedSince);</span>
+      }
+    }
+<span class="fc" id="L86">  }</span>
+
+  private static void checkDeprecatedFields(Class&lt;?&gt; clazz, Level logLevel, HttpServletRequest request) {
+<span class="fc bfc" id="L89" title="All 2 branches covered.">    for (Field field : clazz.getDeclaredFields()) {</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">      if (isUsedDeprecatedField(request, field)) {</span>
+<span class="fc" id="L91">        String deprecatedSince = field.getAnnotation(Deprecated.class).since();</span>
+<span class="fc" id="L92">        logDeprecatedParamMessage(logLevel, field.getName(), deprecatedSince);</span>
+      }
+
+<span class="pc bpc" id="L95" title="1 of 2 branches missed.">      if (isApiV2Param(field.getType())) {</span>
+<span class="nc" id="L96">        checkDeprecatedFields(field.getType(), logLevel, request);</span>
+      }
+    }
+<span class="fc" id="L99">  }</span>
+
+  private Level getLogLevel() {
+<span class="fc bfc" id="L102" title="All 2 branches covered.">    return isAuthenticatedBrowserSessionOrUnauthenticatedUser() ? Level.DEBUG : Level.WARN;</span>
+  }
+
+  private boolean isAuthenticatedBrowserSessionOrUnauthenticatedUser() {
+<span class="pc bpc" id="L106" title="1 of 2 branches missed.">    return userSession instanceof ThreadLocalUserSession threadLocalUserSession</span>
+<span class="pc bpc" id="L107" title="1 of 2 branches missed.">      &amp;&amp; (threadLocalUserSession.hasSession()</span>
+<span class="fc bfc" id="L108" title="All 4 branches covered.">      &amp;&amp; (!userSession.isLoggedIn() || userSession.isAuthenticatedBrowserSession()));</span>
+  }
+
+  private static void logDeprecatedWebServiceMessage(Level logLevel, String deprecatedSince) {
+<span class="fc" id="L112">    LOGGER.atLevel(logLevel).log(&quot;Web service is deprecated since {} and will be removed in a future version.&quot;, deprecatedSince);</span>
+<span class="fc" id="L113">  }</span>
+
+  private static void logDeprecatedParamMessage(Level logLevel, String field, String deprecatedSince) {
+<span class="fc" id="L116">    LOGGER.atLevel(logLevel).log(&quot;Parameter '{}' is deprecated since {} and will be removed in a future version.&quot;, field, deprecatedSince);</span>
+<span class="fc" id="L117">  }</span>
+
+  private static boolean isUsedDeprecatedRequestParam(HttpServletRequest request, MethodParameter param) {
+<span class="fc bfc" id="L120" title="All 2 branches covered.">    return param.hasParameterAnnotation(Deprecated.class) &amp;&amp;</span>
+<span class="pc bpc" id="L121" title="1 of 2 branches missed.">      param.hasParameterAnnotation(RequestParam.class) &amp;&amp;</span>
+<span class="fc bfc" id="L122" title="All 2 branches covered.">      request.getParameter(param.getParameterAnnotation(RequestParam.class).name()) != null;</span>
+  }
+
+  private static boolean isUsedDeprecatedField(HttpServletRequest request, Field field) {
+<span class="fc bfc" id="L126" title="All 4 branches covered.">    return field.getAnnotation(Deprecated.class) != null &amp;&amp; request.getParameter(field.getName()) != null;</span>
+  }
+
+  private static boolean isV2ParameterObject(MethodParameter param) {
+<span class="pc bpc" id="L130" title="1 of 4 branches missed.">    return param.hasParameterAnnotation(ParameterObject.class) &amp;&amp; isApiV2Param(param.getParameterType());</span>
+  }
+
+  private static boolean isApiV2Param(Class&lt;?&gt; clazz) {
+<span class="fc" id="L134">    return clazz.getTypeName().startsWith(&quot;org.sonar.server.v2&quot;);</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

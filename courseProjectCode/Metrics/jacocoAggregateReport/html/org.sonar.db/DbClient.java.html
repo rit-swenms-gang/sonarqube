@@ -1,0 +1,663 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DbClient.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db</a> &gt; <span class="el_source">DbClient.java</span></div><h1>DbClient.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db;
+
+import java.util.IdentityHashMap;
+import java.util.Map;
+import org.sonar.db.alm.pat.AlmPatDao;
+import org.sonar.db.alm.setting.AlmSettingDao;
+import org.sonar.db.alm.setting.ProjectAlmSettingDao;
+import org.sonar.db.audit.AuditDao;
+import org.sonar.db.ce.CeActivityDao;
+import org.sonar.db.ce.CeQueueDao;
+import org.sonar.db.ce.CeScannerContextDao;
+import org.sonar.db.ce.CeTaskCharacteristicDao;
+import org.sonar.db.ce.CeTaskInputDao;
+import org.sonar.db.ce.CeTaskMessageDao;
+import org.sonar.db.component.AnalysisPropertiesDao;
+import org.sonar.db.component.ApplicationProjectsDao;
+import org.sonar.db.component.BranchDao;
+import org.sonar.db.component.ComponentDao;
+import org.sonar.db.component.ComponentKeyUpdaterDao;
+import org.sonar.db.component.ProjectLinkDao;
+import org.sonar.db.component.SnapshotDao;
+import org.sonar.db.duplication.DuplicationDao;
+import org.sonar.db.entity.EntityDao;
+import org.sonar.db.es.EsQueueDao;
+import org.sonar.db.event.EventComponentChangeDao;
+import org.sonar.db.event.EventDao;
+import org.sonar.db.issue.AnticipatedTransitionDao;
+import org.sonar.db.issue.IssueChangeDao;
+import org.sonar.db.issue.IssueDao;
+import org.sonar.db.issue.IssueFixedDao;
+import org.sonar.db.measure.MeasureDao;
+import org.sonar.db.measure.ProjectMeasureDao;
+import org.sonar.db.metric.MetricDao;
+import org.sonar.db.migrationlog.MigrationLogDao;
+import org.sonar.db.newcodeperiod.NewCodePeriodDao;
+import org.sonar.db.notification.NotificationQueueDao;
+import org.sonar.db.permission.AuthorizationDao;
+import org.sonar.db.permission.GroupPermissionDao;
+import org.sonar.db.permission.UserPermissionDao;
+import org.sonar.db.permission.template.PermissionTemplateCharacteristicDao;
+import org.sonar.db.permission.template.PermissionTemplateDao;
+import org.sonar.db.plugin.PluginDao;
+import org.sonar.db.portfolio.PortfolioDao;
+import org.sonar.db.project.ProjectBadgeTokenDao;
+import org.sonar.db.project.ProjectDao;
+import org.sonar.db.project.ProjectExportDao;
+import org.sonar.db.property.InternalComponentPropertiesDao;
+import org.sonar.db.property.InternalPropertiesDao;
+import org.sonar.db.property.PropertiesDao;
+import org.sonar.db.provisioning.DevOpsPermissionsMappingDao;
+import org.sonar.db.provisioning.GithubOrganizationGroupDao;
+import org.sonar.db.purge.PurgeDao;
+import org.sonar.db.pushevent.PushEventDao;
+import org.sonar.db.qualitygate.ProjectQgateAssociationDao;
+import org.sonar.db.qualitygate.QualityGateConditionDao;
+import org.sonar.db.qualitygate.QualityGateDao;
+import org.sonar.db.qualitygate.QualityGateGroupPermissionsDao;
+import org.sonar.db.qualitygate.QualityGateUserPermissionsDao;
+import org.sonar.db.qualityprofile.ActiveRuleDao;
+import org.sonar.db.qualityprofile.DefaultQProfileDao;
+import org.sonar.db.qualityprofile.QProfileChangeDao;
+import org.sonar.db.qualityprofile.QProfileEditGroupsDao;
+import org.sonar.db.qualityprofile.QProfileEditUsersDao;
+import org.sonar.db.qualityprofile.QualityProfileDao;
+import org.sonar.db.qualityprofile.QualityProfileExportDao;
+import org.sonar.db.report.RegulatoryReportDao;
+import org.sonar.db.report.ReportScheduleDao;
+import org.sonar.db.report.ReportSubscriptionDao;
+import org.sonar.db.rule.RuleChangeDao;
+import org.sonar.db.rule.RuleDao;
+import org.sonar.db.rule.RuleRepositoryDao;
+import org.sonar.db.scannercache.ScannerAnalysisCacheDao;
+import org.sonar.db.schemamigration.SchemaMigrationDao;
+import org.sonar.db.scim.ScimGroupDao;
+import org.sonar.db.scim.ScimUserDao;
+import org.sonar.db.source.FileSourceDao;
+import org.sonar.db.telemetry.TelemetryMetricsSentDao;
+import org.sonar.db.user.ExternalGroupDao;
+import org.sonar.db.user.GroupDao;
+import org.sonar.db.user.GroupMembershipDao;
+import org.sonar.db.user.RoleDao;
+import org.sonar.db.user.SamlMessageIdDao;
+import org.sonar.db.user.SessionTokensDao;
+import org.sonar.db.user.UserDao;
+import org.sonar.db.user.UserDismissedMessagesDao;
+import org.sonar.db.user.UserGroupDao;
+import org.sonar.db.user.UserTokenDao;
+import org.sonar.db.user.ai.UserAiToolUsageDao;
+import org.sonar.db.webhook.WebhookDao;
+import org.sonar.db.webhook.WebhookDeliveryDao;
+
+public class DbClient {
+
+  private final Database database;
+  private final MyBatis myBatis;
+  private final DBSessions dbSessions;
+
+  private final SchemaMigrationDao schemaMigrationDao;
+  private final AuthorizationDao authorizationDao;
+  private final QualityProfileDao qualityProfileDao;
+  private final QualityProfileExportDao qualityProfileExportDao;
+  private final PropertiesDao propertiesDao;
+  private final AlmSettingDao almSettingDao;
+  private final AlmPatDao almPatDao;
+  private final AuditDao auditDao;
+  private final ProjectAlmSettingDao projectAlmSettingDao;
+  private final InternalComponentPropertiesDao internalComponentPropertiesDao;
+  private final InternalPropertiesDao internalPropertiesDao;
+  private final SnapshotDao snapshotDao;
+  private final ComponentDao componentDao;
+  private final ComponentKeyUpdaterDao componentKeyUpdaterDao;
+  private final MeasureDao measureDao;
+  private final ProjectMeasureDao projectMeasureDao;
+  private final UserDao userDao;
+  private final UserGroupDao userGroupDao;
+  private final UserTokenDao userTokenDao;
+  private final UserAiToolUsageDao userAiToolUsageDao;
+  private final GroupMembershipDao groupMembershipDao;
+  private final RoleDao roleDao;
+  private final GroupPermissionDao groupPermissionDao;
+  private final PermissionTemplateDao permissionTemplateDao;
+  private final PermissionTemplateCharacteristicDao permissionTemplateCharacteristicDao;
+  private final IssueDao issueDao;
+  private final RegulatoryReportDao regulatoryReportDao;
+  private final IssueChangeDao issueChangeDao;
+  private final CeActivityDao ceActivityDao;
+  private final CeQueueDao ceQueueDao;
+  private final CeTaskInputDao ceTaskInputDao;
+  private final CeTaskCharacteristicDao ceTaskCharacteristicsDao;
+  private final CeScannerContextDao ceScannerContextDao;
+  private final CeTaskMessageDao ceTaskMessageDao;
+  private final FileSourceDao fileSourceDao;
+  private final ProjectLinkDao projectLinkDao;
+  private final EventDao eventDao;
+  private final EventComponentChangeDao eventComponentChangeDao;
+  private final PushEventDao pushEventDao;
+  private final PurgeDao purgeDao;
+  private final QualityGateDao qualityGateDao;
+  private final QualityGateConditionDao gateConditionDao;
+  private final QualityGateGroupPermissionsDao qualityGateGroupPermissionsDao;
+  private final QualityGateUserPermissionsDao qualityGateUserPermissionsDao;
+  private final ProjectQgateAssociationDao projectQgateAssociationDao;
+  private final DuplicationDao duplicationDao;
+  private final NotificationQueueDao notificationQueueDao;
+  private final MetricDao metricDao;
+  private final MigrationLogDao migrationLogDao;
+  private final GroupDao groupDao;
+  private final ExternalGroupDao externalGroupDao;
+  private final RuleDao ruleDao;
+  private final RuleRepositoryDao ruleRepositoryDao;
+  private final ActiveRuleDao activeRuleDao;
+  private final QProfileChangeDao qProfileChangeDao;
+  private final UserPermissionDao userPermissionDao;
+  private final DefaultQProfileDao defaultQProfileDao;
+  private final EsQueueDao esQueueDao;
+  private final PluginDao pluginDao;
+  private final BranchDao branchDao;
+  private final AnalysisPropertiesDao analysisPropertiesDao;
+  private final QProfileEditUsersDao qProfileEditUsersDao;
+  private final QProfileEditGroupsDao qProfileEditGroupsDao;
+  private final WebhookDao webhookDao;
+  private final WebhookDeliveryDao webhookDeliveryDao;
+  private final NewCodePeriodDao newCodePeriodDao;
+  private final ProjectDao projectDao;
+  private final PortfolioDao portfolioDao;
+  private final SessionTokensDao sessionTokensDao;
+  private final SamlMessageIdDao samlMessageIdDao;
+  private final UserDismissedMessagesDao userDismissedMessagesDao;
+  private final ApplicationProjectsDao applicationProjectsDao;
+  private final ProjectBadgeTokenDao projectBadgeTokenDao;
+  private final ScannerAnalysisCacheDao scannerAnalysisCacheDao;
+  private final ScimUserDao scimUserDao;
+  private final ScimGroupDao scimGroupDao;
+  private final EntityDao entityDao;
+  private final AnticipatedTransitionDao anticipatedTransitionDao;
+  private final ReportScheduleDao reportScheduleDao;
+  private final ReportSubscriptionDao reportSubscriptionDao;
+  private final GithubOrganizationGroupDao githubOrganizationGroupDao;
+  private final DevOpsPermissionsMappingDao devopsPermissionsMappingDao;
+  private final RuleChangeDao ruleChangeDao;
+  private final ProjectExportDao projectExportDao;
+  private final IssueFixedDao issueFixedDao;
+  private final TelemetryMetricsSentDao telemetryMetricsSentDao;
+
+<span class="fc" id="L204">  public DbClient(Database database, MyBatis myBatis, DBSessions dbSessions, Dao... daos) {</span>
+<span class="fc" id="L205">    this.database = database;</span>
+<span class="fc" id="L206">    this.myBatis = myBatis;</span>
+<span class="fc" id="L207">    this.dbSessions = dbSessions;</span>
+
+<span class="fc" id="L209">    Map&lt;Class, Dao&gt; map = new IdentityHashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L210" title="All 2 branches covered.">    for (Dao dao : daos) {</span>
+<span class="fc" id="L211">      map.put(dao.getClass(), dao);</span>
+    }
+<span class="fc" id="L213">    almSettingDao = getDao(map, AlmSettingDao.class);</span>
+<span class="fc" id="L214">    auditDao = getDao(map, AuditDao.class);</span>
+<span class="fc" id="L215">    almPatDao = getDao(map, AlmPatDao.class);</span>
+<span class="fc" id="L216">    projectAlmSettingDao = getDao(map, ProjectAlmSettingDao.class);</span>
+<span class="fc" id="L217">    schemaMigrationDao = getDao(map, SchemaMigrationDao.class);</span>
+<span class="fc" id="L218">    authorizationDao = getDao(map, AuthorizationDao.class);</span>
+<span class="fc" id="L219">    qualityProfileDao = getDao(map, QualityProfileDao.class);</span>
+<span class="fc" id="L220">    qualityProfileExportDao = getDao(map, QualityProfileExportDao.class);</span>
+<span class="fc" id="L221">    propertiesDao = getDao(map, PropertiesDao.class);</span>
+<span class="fc" id="L222">    internalPropertiesDao = getDao(map, InternalPropertiesDao.class);</span>
+<span class="fc" id="L223">    snapshotDao = getDao(map, SnapshotDao.class);</span>
+<span class="fc" id="L224">    componentDao = getDao(map, ComponentDao.class);</span>
+<span class="fc" id="L225">    componentKeyUpdaterDao = getDao(map, ComponentKeyUpdaterDao.class);</span>
+<span class="fc" id="L226">    measureDao = getDao(map, MeasureDao.class);</span>
+<span class="fc" id="L227">    projectMeasureDao = getDao(map, ProjectMeasureDao.class);</span>
+<span class="fc" id="L228">    userDao = getDao(map, UserDao.class);</span>
+<span class="fc" id="L229">    userGroupDao = getDao(map, UserGroupDao.class);</span>
+<span class="fc" id="L230">    userTokenDao = getDao(map, UserTokenDao.class);</span>
+<span class="fc" id="L231">    userAiToolUsageDao = getDao(map, UserAiToolUsageDao.class);</span>
+<span class="fc" id="L232">    groupMembershipDao = getDao(map, GroupMembershipDao.class);</span>
+<span class="fc" id="L233">    roleDao = getDao(map, RoleDao.class);</span>
+<span class="fc" id="L234">    groupPermissionDao = getDao(map, GroupPermissionDao.class);</span>
+<span class="fc" id="L235">    permissionTemplateDao = getDao(map, PermissionTemplateDao.class);</span>
+<span class="fc" id="L236">    permissionTemplateCharacteristicDao = getDao(map, PermissionTemplateCharacteristicDao.class);</span>
+<span class="fc" id="L237">    issueDao = getDao(map, IssueDao.class);</span>
+<span class="fc" id="L238">    issueChangeDao = getDao(map, IssueChangeDao.class);</span>
+<span class="fc" id="L239">    ceActivityDao = getDao(map, CeActivityDao.class);</span>
+<span class="fc" id="L240">    ceQueueDao = getDao(map, CeQueueDao.class);</span>
+<span class="fc" id="L241">    ceTaskInputDao = getDao(map, CeTaskInputDao.class);</span>
+<span class="fc" id="L242">    ceTaskCharacteristicsDao = getDao(map, CeTaskCharacteristicDao.class);</span>
+<span class="fc" id="L243">    ceScannerContextDao = getDao(map, CeScannerContextDao.class);</span>
+<span class="fc" id="L244">    ceTaskMessageDao = getDao(map, CeTaskMessageDao.class);</span>
+<span class="fc" id="L245">    fileSourceDao = getDao(map, FileSourceDao.class);</span>
+<span class="fc" id="L246">    projectLinkDao = getDao(map, ProjectLinkDao.class);</span>
+<span class="fc" id="L247">    eventDao = getDao(map, EventDao.class);</span>
+<span class="fc" id="L248">    eventComponentChangeDao = getDao(map, EventComponentChangeDao.class);</span>
+<span class="fc" id="L249">    pushEventDao = getDao(map, PushEventDao.class);</span>
+<span class="fc" id="L250">    purgeDao = getDao(map, PurgeDao.class);</span>
+<span class="fc" id="L251">    qualityGateDao = getDao(map, QualityGateDao.class);</span>
+<span class="fc" id="L252">    qualityGateUserPermissionsDao = getDao(map, QualityGateUserPermissionsDao.class);</span>
+<span class="fc" id="L253">    gateConditionDao = getDao(map, QualityGateConditionDao.class);</span>
+<span class="fc" id="L254">    qualityGateGroupPermissionsDao = getDao(map, QualityGateGroupPermissionsDao.class);</span>
+<span class="fc" id="L255">    projectQgateAssociationDao = getDao(map, ProjectQgateAssociationDao.class);</span>
+<span class="fc" id="L256">    duplicationDao = getDao(map, DuplicationDao.class);</span>
+<span class="fc" id="L257">    regulatoryReportDao = getDao(map, RegulatoryReportDao.class);</span>
+<span class="fc" id="L258">    notificationQueueDao = getDao(map, NotificationQueueDao.class);</span>
+<span class="fc" id="L259">    metricDao = getDao(map, MetricDao.class);</span>
+<span class="fc" id="L260">    migrationLogDao = getDao(map, MigrationLogDao.class);</span>
+<span class="fc" id="L261">    groupDao = getDao(map, GroupDao.class);</span>
+<span class="fc" id="L262">    githubOrganizationGroupDao = getDao(map, GithubOrganizationGroupDao.class);</span>
+<span class="fc" id="L263">    devopsPermissionsMappingDao = getDao(map, DevOpsPermissionsMappingDao.class);</span>
+<span class="fc" id="L264">    externalGroupDao = getDao(map, ExternalGroupDao.class);</span>
+<span class="fc" id="L265">    ruleDao = getDao(map, RuleDao.class);</span>
+<span class="fc" id="L266">    ruleRepositoryDao = getDao(map, RuleRepositoryDao.class);</span>
+<span class="fc" id="L267">    activeRuleDao = getDao(map, ActiveRuleDao.class);</span>
+<span class="fc" id="L268">    qProfileChangeDao = getDao(map, QProfileChangeDao.class);</span>
+<span class="fc" id="L269">    userPermissionDao = getDao(map, UserPermissionDao.class);</span>
+<span class="fc" id="L270">    defaultQProfileDao = getDao(map, DefaultQProfileDao.class);</span>
+<span class="fc" id="L271">    esQueueDao = getDao(map, EsQueueDao.class);</span>
+<span class="fc" id="L272">    pluginDao = getDao(map, PluginDao.class);</span>
+<span class="fc" id="L273">    branchDao = getDao(map, BranchDao.class);</span>
+<span class="fc" id="L274">    analysisPropertiesDao = getDao(map, AnalysisPropertiesDao.class);</span>
+<span class="fc" id="L275">    qProfileEditUsersDao = getDao(map, QProfileEditUsersDao.class);</span>
+<span class="fc" id="L276">    qProfileEditGroupsDao = getDao(map, QProfileEditGroupsDao.class);</span>
+<span class="fc" id="L277">    webhookDao = getDao(map, WebhookDao.class);</span>
+<span class="fc" id="L278">    webhookDeliveryDao = getDao(map, WebhookDeliveryDao.class);</span>
+<span class="fc" id="L279">    internalComponentPropertiesDao = getDao(map, InternalComponentPropertiesDao.class);</span>
+<span class="fc" id="L280">    newCodePeriodDao = getDao(map, NewCodePeriodDao.class);</span>
+<span class="fc" id="L281">    projectDao = getDao(map, ProjectDao.class);</span>
+<span class="fc" id="L282">    projectBadgeTokenDao = getDao(map, ProjectBadgeTokenDao.class);</span>
+<span class="fc" id="L283">    portfolioDao = getDao(map, PortfolioDao.class);</span>
+<span class="fc" id="L284">    sessionTokensDao = getDao(map, SessionTokensDao.class);</span>
+<span class="fc" id="L285">    samlMessageIdDao = getDao(map, SamlMessageIdDao.class);</span>
+<span class="fc" id="L286">    userDismissedMessagesDao = getDao(map, UserDismissedMessagesDao.class);</span>
+<span class="fc" id="L287">    applicationProjectsDao = getDao(map, ApplicationProjectsDao.class);</span>
+<span class="fc" id="L288">    scannerAnalysisCacheDao = getDao(map, ScannerAnalysisCacheDao.class);</span>
+<span class="fc" id="L289">    scimUserDao = getDao(map, ScimUserDao.class);</span>
+<span class="fc" id="L290">    scimGroupDao = getDao(map, ScimGroupDao.class);</span>
+<span class="fc" id="L291">    entityDao = getDao(map, EntityDao.class);</span>
+<span class="fc" id="L292">    reportScheduleDao = getDao(map, ReportScheduleDao.class);</span>
+<span class="fc" id="L293">    reportSubscriptionDao = getDao(map, ReportSubscriptionDao.class);</span>
+<span class="fc" id="L294">    anticipatedTransitionDao = getDao(map, AnticipatedTransitionDao.class);</span>
+<span class="fc" id="L295">    ruleChangeDao = getDao(map, RuleChangeDao.class);</span>
+<span class="fc" id="L296">    projectExportDao = getDao(map, ProjectExportDao.class);</span>
+<span class="fc" id="L297">    issueFixedDao = getDao(map, IssueFixedDao.class);</span>
+<span class="fc" id="L298">    telemetryMetricsSentDao = getDao(map, TelemetryMetricsSentDao.class);</span>
+<span class="fc" id="L299">  }</span>
+
+  public DbSession openSession(boolean batch) {
+<span class="fc" id="L302">    return dbSessions.openSession(batch);</span>
+  }
+
+  public Database getDatabase() {
+<span class="fc" id="L306">    return database;</span>
+  }
+
+  public AlmSettingDao almSettingDao() {
+<span class="fc" id="L310">    return almSettingDao;</span>
+  }
+
+  public AlmPatDao almPatDao() {
+<span class="fc" id="L314">    return almPatDao;</span>
+  }
+
+  public ApplicationProjectsDao applicationProjectsDao() {
+<span class="fc" id="L318">    return applicationProjectsDao;</span>
+  }
+
+  public AuditDao auditDao() {
+<span class="fc" id="L322">    return auditDao;</span>
+  }
+
+  public ProjectAlmSettingDao projectAlmSettingDao() {
+<span class="fc" id="L326">    return projectAlmSettingDao;</span>
+  }
+
+  public SchemaMigrationDao schemaMigrationDao() {
+<span class="fc" id="L330">    return schemaMigrationDao;</span>
+  }
+
+  public AuthorizationDao authorizationDao() {
+<span class="fc" id="L334">    return authorizationDao;</span>
+  }
+
+  public IssueDao issueDao() {
+<span class="fc" id="L338">    return issueDao;</span>
+  }
+
+  public RegulatoryReportDao regulatoryReportDao() {
+<span class="fc" id="L342">    return regulatoryReportDao;</span>
+  }
+
+  public IssueChangeDao issueChangeDao() {
+<span class="fc" id="L346">    return issueChangeDao;</span>
+  }
+
+  public IssueFixedDao issueFixedDao() {
+<span class="fc" id="L350">    return issueFixedDao;</span>
+  }
+
+  public TelemetryMetricsSentDao telemetryMetricsSentDao() {
+<span class="fc" id="L354">    return telemetryMetricsSentDao;</span>
+  }
+
+  public QualityProfileDao qualityProfileDao() {
+<span class="fc" id="L358">    return qualityProfileDao;</span>
+  }
+
+  public QualityProfileExportDao qualityProfileExportDao() {
+<span class="fc" id="L362">    return qualityProfileExportDao;</span>
+  }
+
+  public PropertiesDao propertiesDao() {
+<span class="fc" id="L366">    return propertiesDao;</span>
+  }
+
+  public InternalPropertiesDao internalPropertiesDao() {
+<span class="fc" id="L370">    return internalPropertiesDao;</span>
+  }
+
+  public SnapshotDao snapshotDao() {
+<span class="fc" id="L374">    return snapshotDao;</span>
+  }
+
+  public AnalysisPropertiesDao analysisPropertiesDao() {
+<span class="fc" id="L378">    return analysisPropertiesDao;</span>
+  }
+
+  public ComponentDao componentDao() {
+<span class="fc" id="L382">    return componentDao;</span>
+  }
+
+  public ProjectDao projectDao() {
+<span class="fc" id="L386">    return projectDao;</span>
+  }
+
+  public PortfolioDao portfolioDao() {
+<span class="fc" id="L390">    return portfolioDao;</span>
+  }
+
+  public ComponentKeyUpdaterDao componentKeyUpdaterDao() {
+<span class="fc" id="L394">    return componentKeyUpdaterDao;</span>
+  }
+
+  public MeasureDao measureDao() {
+<span class="fc" id="L398">    return measureDao;</span>
+  }
+
+  public ProjectMeasureDao projectMeasureDao() {
+<span class="fc" id="L402">    return projectMeasureDao;</span>
+  }
+
+  public UserDao userDao() {
+<span class="fc" id="L406">    return userDao;</span>
+  }
+
+  public UserAiToolUsageDao userAiToolUsageDao() {
+<span class="fc" id="L410">    return userAiToolUsageDao;</span>
+  }
+
+  public UserGroupDao userGroupDao() {
+<span class="fc" id="L414">    return userGroupDao;</span>
+  }
+
+  public UserTokenDao userTokenDao() {
+<span class="fc" id="L418">    return userTokenDao;</span>
+  }
+
+  public GroupMembershipDao groupMembershipDao() {
+<span class="fc" id="L422">    return groupMembershipDao;</span>
+  }
+
+  public RoleDao roleDao() {
+<span class="fc" id="L426">    return roleDao;</span>
+  }
+
+  public GroupPermissionDao groupPermissionDao() {
+<span class="fc" id="L430">    return groupPermissionDao;</span>
+  }
+
+  public PermissionTemplateDao permissionTemplateDao() {
+<span class="fc" id="L434">    return permissionTemplateDao;</span>
+  }
+
+  public PermissionTemplateCharacteristicDao permissionTemplateCharacteristicDao() {
+<span class="fc" id="L438">    return permissionTemplateCharacteristicDao;</span>
+  }
+
+  public CeActivityDao ceActivityDao() {
+<span class="fc" id="L442">    return ceActivityDao;</span>
+  }
+
+  public CeQueueDao ceQueueDao() {
+<span class="fc" id="L446">    return ceQueueDao;</span>
+  }
+
+  public CeTaskInputDao ceTaskInputDao() {
+<span class="fc" id="L450">    return ceTaskInputDao;</span>
+  }
+
+  public CeTaskCharacteristicDao ceTaskCharacteristicsDao() {
+<span class="fc" id="L454">    return ceTaskCharacteristicsDao;</span>
+  }
+
+  public CeScannerContextDao ceScannerContextDao() {
+<span class="fc" id="L458">    return ceScannerContextDao;</span>
+  }
+
+  public CeTaskMessageDao ceTaskMessageDao() {
+<span class="fc" id="L462">    return ceTaskMessageDao;</span>
+  }
+
+  public FileSourceDao fileSourceDao() {
+<span class="fc" id="L466">    return fileSourceDao;</span>
+  }
+
+  public ProjectLinkDao projectLinkDao() {
+<span class="fc" id="L470">    return projectLinkDao;</span>
+  }
+
+  public EventDao eventDao() {
+<span class="fc" id="L474">    return eventDao;</span>
+  }
+
+  public EventComponentChangeDao eventComponentChangeDao() {
+<span class="fc" id="L478">    return eventComponentChangeDao;</span>
+  }
+
+  public PushEventDao pushEventDao() {
+<span class="fc" id="L482">    return pushEventDao;</span>
+  }
+
+  public PurgeDao purgeDao() {
+<span class="fc" id="L486">    return purgeDao;</span>
+  }
+
+  public QualityGateDao qualityGateDao() {
+<span class="fc" id="L490">    return qualityGateDao;</span>
+  }
+
+  public QualityGateConditionDao gateConditionDao() {
+<span class="fc" id="L494">    return gateConditionDao;</span>
+  }
+
+  public QualityGateUserPermissionsDao qualityGateUserPermissionDao() {
+<span class="fc" id="L498">    return qualityGateUserPermissionsDao;</span>
+  }
+
+  public QualityGateGroupPermissionsDao qualityGateGroupPermissionsDao() {
+<span class="fc" id="L502">    return qualityGateGroupPermissionsDao;</span>
+  }
+
+  public ProjectQgateAssociationDao projectQgateAssociationDao() {
+<span class="fc" id="L506">    return projectQgateAssociationDao;</span>
+  }
+
+  public DuplicationDao duplicationDao() {
+<span class="fc" id="L510">    return duplicationDao;</span>
+  }
+
+  public NotificationQueueDao notificationQueueDao() {
+<span class="fc" id="L514">    return notificationQueueDao;</span>
+  }
+
+  public MetricDao metricDao() {
+<span class="fc" id="L518">    return metricDao;</span>
+  }
+
+  public MigrationLogDao migrationLogDao() {
+<span class="fc" id="L522">    return migrationLogDao;</span>
+  }
+
+  public GroupDao groupDao() {
+<span class="fc" id="L526">    return groupDao;</span>
+  }
+
+  public GithubOrganizationGroupDao githubOrganizationGroupDao() {
+<span class="fc" id="L530">    return githubOrganizationGroupDao;</span>
+  }
+
+  public DevOpsPermissionsMappingDao githubPermissionsMappingDao() {
+<span class="fc" id="L534">    return devopsPermissionsMappingDao;</span>
+  }
+
+  public ExternalGroupDao externalGroupDao() {
+<span class="fc" id="L538">    return externalGroupDao;</span>
+  }
+
+  public RuleDao ruleDao() {
+<span class="fc" id="L542">    return ruleDao;</span>
+  }
+
+  public RuleRepositoryDao ruleRepositoryDao() {
+<span class="fc" id="L546">    return ruleRepositoryDao;</span>
+  }
+
+  public ActiveRuleDao activeRuleDao() {
+<span class="fc" id="L550">    return activeRuleDao;</span>
+  }
+
+  public QProfileChangeDao qProfileChangeDao() {
+<span class="fc" id="L554">    return qProfileChangeDao;</span>
+  }
+
+  public UserPermissionDao userPermissionDao() {
+<span class="fc" id="L558">    return userPermissionDao;</span>
+  }
+
+  public DefaultQProfileDao defaultQProfileDao() {
+<span class="fc" id="L562">    return defaultQProfileDao;</span>
+  }
+
+  public EsQueueDao esQueueDao() {
+<span class="fc" id="L566">    return esQueueDao;</span>
+  }
+
+  public PluginDao pluginDao() {
+<span class="fc" id="L570">    return pluginDao;</span>
+  }
+
+  public BranchDao branchDao() {
+<span class="fc" id="L574">    return branchDao;</span>
+  }
+
+  public QProfileEditUsersDao qProfileEditUsersDao() {
+<span class="fc" id="L578">    return qProfileEditUsersDao;</span>
+  }
+
+  public QProfileEditGroupsDao qProfileEditGroupsDao() {
+<span class="fc" id="L582">    return qProfileEditGroupsDao;</span>
+  }
+
+  protected &lt;K extends Dao&gt; K getDao(Map&lt;Class, Dao&gt; map, Class&lt;K&gt; clazz) {
+<span class="fc" id="L586">    return (K) map.get(clazz);</span>
+  }
+
+  // should be removed. Still used by some old DAO in sonar-server
+
+  public MyBatis getMyBatis() {
+<span class="fc" id="L592">    return myBatis;</span>
+  }
+
+  public WebhookDao webhookDao() {
+<span class="fc" id="L596">    return webhookDao;</span>
+  }
+
+  public WebhookDeliveryDao webhookDeliveryDao() {
+<span class="fc" id="L600">    return webhookDeliveryDao;</span>
+  }
+
+  public InternalComponentPropertiesDao internalComponentPropertiesDao() {
+<span class="nc" id="L604">    return internalComponentPropertiesDao;</span>
+  }
+
+  public NewCodePeriodDao newCodePeriodDao() {
+<span class="fc" id="L608">    return newCodePeriodDao;</span>
+  }
+
+  public SessionTokensDao sessionTokensDao() {
+<span class="fc" id="L612">    return sessionTokensDao;</span>
+  }
+
+  public SamlMessageIdDao samlMessageIdDao() {
+<span class="fc" id="L616">    return samlMessageIdDao;</span>
+  }
+
+  public UserDismissedMessagesDao userDismissedMessagesDao() {
+<span class="fc" id="L620">    return userDismissedMessagesDao;</span>
+  }
+
+  public ProjectBadgeTokenDao projectBadgeTokenDao() {
+<span class="fc" id="L624">    return projectBadgeTokenDao;</span>
+  }
+
+  public ScannerAnalysisCacheDao scannerAnalysisCacheDao() {
+<span class="fc" id="L628">    return scannerAnalysisCacheDao;</span>
+  }
+
+  public ScimUserDao scimUserDao() {
+<span class="fc" id="L632">    return scimUserDao;</span>
+  }
+
+  public ScimGroupDao scimGroupDao() {
+<span class="fc" id="L636">    return scimGroupDao;</span>
+  }
+
+  public EntityDao entityDao() {
+<span class="fc" id="L640">    return entityDao;</span>
+  }
+
+  public ReportScheduleDao reportScheduleDao() {
+<span class="fc" id="L644">    return reportScheduleDao;</span>
+  }
+
+  public ReportSubscriptionDao reportSubscriptionDao() {
+<span class="fc" id="L648">    return reportSubscriptionDao;</span>
+  }
+
+  public AnticipatedTransitionDao anticipatedTransitionDao() {
+<span class="fc" id="L652">    return anticipatedTransitionDao;</span>
+  }
+
+  public RuleChangeDao ruleChangeDao() {
+<span class="fc" id="L656">    return ruleChangeDao;</span>
+  }
+
+  public ProjectExportDao projectExportDao() {
+<span class="fc" id="L660">    return projectExportDao;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

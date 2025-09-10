@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CpdExecutor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.cpd</a> &gt; <span class="el_source">CpdExecutor.java</span></div><h1>CpdExecutor.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.cpd;
+
+import jakarta.inject.Inject;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.batch.fs.InputComponent;
+import org.sonar.api.batch.fs.internal.DefaultInputComponent;
+import org.sonar.api.batch.fs.internal.DefaultInputFile;
+import org.sonar.duplications.block.Block;
+import org.sonar.duplications.detector.suffixtree.SuffixTreeCloneDetectionAlgorithm;
+import org.sonar.duplications.index.CloneGroup;
+import org.sonar.duplications.index.ClonePart;
+import org.sonar.duplications.index.PackedMemoryCloneIndex.ResourceBlocks;
+import org.sonar.scanner.cpd.index.SonarCpdBlockIndex;
+import org.sonar.scanner.protocol.output.ScannerReport;
+import org.sonar.scanner.protocol.output.ScannerReport.Duplicate;
+import org.sonar.scanner.protocol.output.ScannerReport.Duplication;
+import org.sonar.scanner.report.ReportPublisher;
+import org.sonar.scanner.scan.filesystem.InputComponentStore;
+import org.sonar.scanner.util.ProgressReport;
+
+/**
+ * Runs on the root module, at the end of the project analysis.
+ * It executes copy paste detection involving all files of all modules, which were indexed during sensors execution for each module.
+ * The sensors are responsible for handling exclusions and block sizes.
+ */
+public class CpdExecutor {
+<span class="fc" id="L59">  private static final Logger LOG = LoggerFactory.getLogger(CpdExecutor.class);</span>
+  // timeout for the computation of duplicates in a file (seconds)
+  private static final int TIMEOUT = 5 * 60 * 1000;
+  static final int MAX_CLONE_GROUP_PER_FILE = 100;
+  static final int MAX_CLONE_PART_PER_GROUP = 100;
+
+  private final SonarCpdBlockIndex index;
+  private final ReportPublisher publisher;
+  private final InputComponentStore componentStore;
+  private final ProgressReport progressReport;
+  private final CpdSettings settings;
+  private final ExecutorService executorService;
+<span class="fc" id="L71">  private int count = 0;</span>
+  private int total;
+
+  @Inject
+  public CpdExecutor(CpdSettings settings, SonarCpdBlockIndex index, ReportPublisher publisher, InputComponentStore inputComponentCache) {
+<span class="fc" id="L76">    this(settings, index, publisher, inputComponentCache, Executors.newSingleThreadExecutor());</span>
+<span class="fc" id="L77">  }</span>
+
+<span class="fc" id="L79">  public CpdExecutor(CpdSettings settings, SonarCpdBlockIndex index, ReportPublisher publisher, InputComponentStore inputComponentCache, ExecutorService executorService) {</span>
+<span class="fc" id="L80">    this.settings = settings;</span>
+<span class="fc" id="L81">    this.index = index;</span>
+<span class="fc" id="L82">    this.publisher = publisher;</span>
+<span class="fc" id="L83">    this.componentStore = inputComponentCache;</span>
+<span class="fc" id="L84">    this.progressReport = new ProgressReport(&quot;CPD computation&quot;, TimeUnit.SECONDS.toMillis(10));</span>
+<span class="fc" id="L85">    this.executorService = executorService;</span>
+<span class="fc" id="L86">  }</span>
+
+  public void execute() {
+<span class="fc" id="L89">    execute(TIMEOUT);</span>
+<span class="fc" id="L90">  }</span>
+
+  void execute(long timeout) {
+<span class="fc" id="L93">    List&lt;FileBlocks&gt; components = new ArrayList&lt;&gt;(index.noResources());</span>
+<span class="fc" id="L94">    Iterator&lt;ResourceBlocks&gt; it = index.iterator();</span>
+
+<span class="fc bfc" id="L96" title="All 2 branches covered.">    while (it.hasNext()) {</span>
+<span class="fc" id="L97">      ResourceBlocks resourceBlocks = it.next();</span>
+<span class="fc" id="L98">      Optional&lt;FileBlocks&gt; fileBlocks = toFileBlocks(resourceBlocks.resourceId(), resourceBlocks.blocks());</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">      if (!fileBlocks.isPresent()) {</span>
+<span class="fc" id="L100">        continue;</span>
+      }
+<span class="fc" id="L102">      components.add(fileBlocks.get());</span>
+<span class="fc" id="L103">    }</span>
+
+<span class="fc" id="L105">    int filesWithoutBlocks = index.noIndexedFiles() - index.noResources();</span>
+<span class="pc bpc" id="L106" title="1 of 4 branches missed.">    if (filesWithoutBlocks &gt; 0 &amp;&amp; LOG.isInfoEnabled()) {</span>
+<span class="fc" id="L107">      LOG.info(&quot;CPD Executor {} {} had no CPD blocks&quot;, filesWithoutBlocks, pluralize(filesWithoutBlocks));</span>
+    }
+
+<span class="fc" id="L110">    total = components.size();</span>
+<span class="fc" id="L111">    progressReport.start(String.format(&quot;CPD Executor Calculating CPD for %d %s&quot;, total, pluralize(total)));</span>
+    try {
+<span class="fc bfc" id="L113" title="All 2 branches covered.">      for (FileBlocks fileBlocks : components) {</span>
+<span class="fc" id="L114">        runCpdAnalysis(executorService, fileBlocks.getInputFile(), fileBlocks.getBlocks(), timeout);</span>
+<span class="fc" id="L115">        count++;</span>
+<span class="fc" id="L116">      }</span>
+<span class="fc" id="L117">      progressReport.stopAndLogTotalTime(&quot;CPD Executor CPD calculation finished&quot;);</span>
+<span class="nc" id="L118">    } catch (Exception e) {</span>
+<span class="nc" id="L119">      progressReport.stop(&quot;&quot;);</span>
+<span class="nc" id="L120">      throw e;</span>
+    } finally {
+<span class="fc" id="L122">      executorService.shutdown();</span>
+    }
+<span class="fc" id="L124">  }</span>
+
+  private static String pluralize(int files) {
+<span class="fc bfc" id="L127" title="All 2 branches covered.">    return files == 1 ? &quot;file&quot; : &quot;files&quot;;</span>
+  }
+
+  void runCpdAnalysis(ExecutorService executorService, DefaultInputFile inputFile, Collection&lt;Block&gt; fileBlocks, long timeout) {
+<span class="fc bfc" id="L131" title="All 2 branches covered.">    if (LOG.isDebugEnabled()) {</span>
+<span class="fc" id="L132">      LOG.debug(&quot;Detection of duplications for {}&quot;, inputFile.absolutePath());</span>
+    }
+<span class="fc" id="L134">    progressReport.message(String.format(&quot;%d/%d - current file: %s&quot;, count, total, inputFile.absolutePath()));</span>
+
+    List&lt;CloneGroup&gt; duplications;
+<span class="fc" id="L137">    Future&lt;List&lt;CloneGroup&gt;&gt; futureResult = executorService.submit(() -&gt; SuffixTreeCloneDetectionAlgorithm.detect(index, fileBlocks));</span>
+    try {
+<span class="fc" id="L139">      duplications = futureResult.get(timeout, TimeUnit.MILLISECONDS);</span>
+<span class="fc" id="L140">    } catch (TimeoutException e) {</span>
+<span class="fc" id="L141">      LOG.warn(&quot;Timeout during detection of duplications for {}&quot;, inputFile.absolutePath());</span>
+<span class="fc" id="L142">      futureResult.cancel(true);</span>
+<span class="fc" id="L143">      return;</span>
+<span class="nc" id="L144">    } catch (Exception e) {</span>
+<span class="nc" id="L145">      throw new IllegalStateException(&quot;Fail during detection of duplication for &quot; + inputFile.absolutePath(), e);</span>
+<span class="fc" id="L146">    }</span>
+
+    List&lt;CloneGroup&gt; filtered;
+<span class="pc bpc" id="L149" title="1 of 2 branches missed.">    if (!&quot;java&quot;.equalsIgnoreCase(inputFile.language())) {</span>
+<span class="fc" id="L150">      int minTokens = settings.getMinimumTokens(inputFile.language());</span>
+<span class="fc" id="L151">      Predicate&lt;CloneGroup&gt; minimumTokensPredicate = DuplicationPredicates.numberOfUnitsNotLessThan(minTokens);</span>
+<span class="fc" id="L152">      filtered = duplications.stream()</span>
+<span class="fc" id="L153">        .filter(minimumTokensPredicate)</span>
+<span class="fc" id="L154">        .toList();</span>
+<span class="fc" id="L155">    } else {</span>
+<span class="nc" id="L156">      filtered = duplications;</span>
+    }
+
+<span class="fc" id="L159">    saveDuplications(inputFile, filtered);</span>
+<span class="fc" id="L160">  }</span>
+
+  final void saveDuplications(final DefaultInputComponent component, List&lt;CloneGroup&gt; duplications) {
+<span class="fc bfc" id="L163" title="All 2 branches covered.">    if (duplications.size() &gt; MAX_CLONE_GROUP_PER_FILE) {</span>
+<span class="fc" id="L164">      LOG.warn(&quot;Too many duplication groups on file {}. Keep only the first {} groups.&quot;, component, MAX_CLONE_GROUP_PER_FILE);</span>
+    }
+<span class="fc" id="L166">    Iterable&lt;ScannerReport.Duplication&gt; reportDuplications = duplications.stream()</span>
+<span class="fc" id="L167">      .limit(MAX_CLONE_GROUP_PER_FILE)</span>
+<span class="fc" id="L168">      .map(</span>
+<span class="fc" id="L169">        new Function&lt;CloneGroup, Duplication&gt;() {</span>
+<span class="fc" id="L170">          private final ScannerReport.Duplication.Builder dupBuilder = ScannerReport.Duplication.newBuilder();</span>
+<span class="fc" id="L171">          private final ScannerReport.Duplicate.Builder blockBuilder = ScannerReport.Duplicate.newBuilder();</span>
+
+          @Override
+          public ScannerReport.Duplication apply(CloneGroup input) {
+<span class="fc" id="L175">            return toReportDuplication(component, dupBuilder, blockBuilder, input);</span>
+          }
+
+        })::iterator;
+<span class="fc" id="L179">    publisher.getWriter().writeComponentDuplications(component.scannerId(), reportDuplications);</span>
+<span class="fc" id="L180">  }</span>
+
+  private Optional&lt;FileBlocks&gt; toFileBlocks(String componentKey, Collection&lt;Block&gt; fileBlocks) {
+<span class="fc" id="L183">    DefaultInputFile component = (DefaultInputFile) componentStore.getByKey(componentKey);</span>
+<span class="fc bfc" id="L184" title="All 2 branches covered.">    if (component == null) {</span>
+<span class="fc" id="L185">      LOG.error(&quot;Resource not found in component store: {}. Skipping CPD computation for it&quot;, componentKey);</span>
+<span class="fc" id="L186">      return Optional.empty();</span>
+    }
+<span class="fc" id="L188">    return Optional.of(new FileBlocks(component, fileBlocks));</span>
+  }
+
+  private Duplication toReportDuplication(InputComponent component, Duplication.Builder dupBuilder, Duplicate.Builder blockBuilder, CloneGroup input) {
+<span class="fc" id="L192">    dupBuilder.clear();</span>
+<span class="fc" id="L193">    ClonePart originBlock = input.getOriginPart();</span>
+<span class="fc" id="L194">    blockBuilder.clear();</span>
+<span class="fc" id="L195">    dupBuilder.setOriginPosition(ScannerReport.TextRange.newBuilder()</span>
+<span class="fc" id="L196">      .setStartLine(originBlock.getStartLine())</span>
+<span class="fc" id="L197">      .setEndLine(originBlock.getEndLine())</span>
+<span class="fc" id="L198">      .build());</span>
+<span class="fc" id="L199">    int clonePartCount = 0;</span>
+<span class="fc bfc" id="L200" title="All 2 branches covered.">    for (ClonePart duplicate : input.getCloneParts()) {</span>
+<span class="fc bfc" id="L201" title="All 2 branches covered.">      if (!duplicate.equals(originBlock)) {</span>
+<span class="fc" id="L202">        clonePartCount++;</span>
+<span class="fc bfc" id="L203" title="All 2 branches covered.">        if (clonePartCount &gt; MAX_CLONE_PART_PER_GROUP) {</span>
+<span class="fc" id="L204">          LOG.warn(&quot;Too many duplication references on file {} for block at line {}. Keep only the first {} references.&quot;,</span>
+<span class="fc" id="L205">            component, originBlock.getStartLine(), MAX_CLONE_PART_PER_GROUP);</span>
+<span class="fc" id="L206">          break;</span>
+        }
+<span class="fc" id="L208">        blockBuilder.clear();</span>
+<span class="fc" id="L209">        String componentKey = duplicate.getResourceId();</span>
+<span class="fc bfc" id="L210" title="All 2 branches covered.">        if (!component.key().equals(componentKey)) {</span>
+<span class="fc" id="L211">          DefaultInputComponent sameProjectComponent = (DefaultInputComponent) componentStore.getByKey(componentKey);</span>
+<span class="fc" id="L212">          blockBuilder.setOtherFileRef(sameProjectComponent.scannerId());</span>
+        }
+<span class="fc" id="L214">        dupBuilder.addDuplicate(blockBuilder</span>
+<span class="fc" id="L215">          .setRange(ScannerReport.TextRange.newBuilder()</span>
+<span class="fc" id="L216">            .setStartLine(duplicate.getStartLine())</span>
+<span class="fc" id="L217">            .setEndLine(duplicate.getEndLine())</span>
+<span class="fc" id="L218">            .build())</span>
+<span class="fc" id="L219">          .build());</span>
+      }
+<span class="fc" id="L221">    }</span>
+<span class="fc" id="L222">    return dupBuilder.build();</span>
+  }
+
+  private static class FileBlocks {
+    private final DefaultInputFile inputFile;
+    private final Collection&lt;Block&gt; blocks;
+
+<span class="fc" id="L229">    public FileBlocks(DefaultInputFile inputFile, Collection&lt;Block&gt; blocks) {</span>
+<span class="fc" id="L230">      this.inputFile = inputFile;</span>
+<span class="fc" id="L231">      this.blocks = blocks;</span>
+<span class="fc" id="L232">    }</span>
+
+    public DefaultInputFile getInputFile() {
+<span class="fc" id="L235">      return inputFile;</span>
+    }
+
+    public Collection&lt;Block&gt; getBlocks() {
+<span class="fc" id="L239">      return blocks;</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

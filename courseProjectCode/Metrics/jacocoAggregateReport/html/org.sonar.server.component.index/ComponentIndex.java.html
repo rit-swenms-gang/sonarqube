@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ComponentIndex.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.component.index</a> &gt; <span class="el_source">ComponentIndex.java</span></div><h1>ComponentIndex.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.component.index;
+
+import com.google.common.annotations.VisibleForTesting;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
+import javax.annotation.Nullable;
+import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
+import org.elasticsearch.search.aggregations.bucket.filter.ParsedFilters;
+import org.elasticsearch.search.aggregations.metrics.ParsedTopHits;
+import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.ScoreSortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
+import org.sonar.api.utils.System2;
+import org.sonar.server.es.EsClient;
+import org.sonar.server.es.SearchIdResult;
+import org.sonar.server.es.SearchOptions;
+import org.sonar.server.es.textsearch.ComponentTextSearchFeature;
+import org.sonar.server.es.textsearch.ComponentTextSearchFeatureRepertoire;
+import org.sonar.server.es.textsearch.ComponentTextSearchQueryFactory;
+import org.sonar.server.es.textsearch.ComponentTextSearchQueryFactory.ComponentTextSearchQuery;
+import org.sonar.server.permission.index.WebAuthorizationTypeSupport;
+
+import static java.util.Optional.ofNullable;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
+import static org.sonar.server.component.index.ComponentIndexDefinition.FIELD_KEY;
+import static org.sonar.server.component.index.ComponentIndexDefinition.FIELD_NAME;
+import static org.sonar.server.component.index.ComponentIndexDefinition.FIELD_QUALIFIER;
+import static org.sonar.server.component.index.ComponentIndexDefinition.NAME_ANALYZERS;
+import static org.sonar.server.component.index.ComponentIndexDefinition.TYPE_COMPONENT;
+import static org.sonar.server.es.IndexType.FIELD_INDEX_TYPE;
+import static org.sonar.server.es.newindex.DefaultIndexSettingsElement.SORTABLE_ANALYZER;
+
+public class ComponentIndex {
+
+  private static final String FILTERS_AGGREGATION_NAME = &quot;filters&quot;;
+  private static final String DOCS_AGGREGATION_NAME = &quot;docs&quot;;
+
+  private final EsClient client;
+  private final WebAuthorizationTypeSupport authorizationTypeSupport;
+  private final System2 system2;
+
+<span class="fc" id="L78">  public ComponentIndex(EsClient client, WebAuthorizationTypeSupport authorizationTypeSupport, System2 system2) {</span>
+<span class="fc" id="L79">    this.client = client;</span>
+<span class="fc" id="L80">    this.authorizationTypeSupport = authorizationTypeSupport;</span>
+<span class="fc" id="L81">    this.system2 = system2;</span>
+<span class="fc" id="L82">  }</span>
+
+  public SearchIdResult&lt;String&gt; search(ComponentQuery query, SearchOptions searchOptions) {
+<span class="fc" id="L85">    SearchSourceBuilder source = new SearchSourceBuilder()</span>
+<span class="fc" id="L86">      .fetchSource(false)</span>
+<span class="fc" id="L87">      .trackTotalHits(true)</span>
+<span class="fc" id="L88">      .from(searchOptions.getOffset())</span>
+<span class="fc" id="L89">      .size(searchOptions.getLimit());</span>
+
+<span class="fc" id="L91">    BoolQueryBuilder esQuery = boolQuery();</span>
+<span class="fc" id="L92">    esQuery.filter(authorizationTypeSupport.createQueryFilter());</span>
+<span class="fc" id="L93">    setNullable(query.getQuery(), q -&gt; {</span>
+<span class="fc" id="L94">      ComponentTextSearchQuery componentTextSearchQuery = ComponentTextSearchQuery.builder()</span>
+<span class="fc" id="L95">        .setQueryText(q)</span>
+<span class="fc" id="L96">        .setFieldKey(FIELD_KEY)</span>
+<span class="fc" id="L97">        .setFieldName(FIELD_NAME)</span>
+<span class="fc" id="L98">        .build();</span>
+<span class="fc" id="L99">      esQuery.must(ComponentTextSearchQueryFactory.createQuery(componentTextSearchQuery, ComponentTextSearchFeatureRepertoire.values()));</span>
+<span class="fc" id="L100">    });</span>
+<span class="fc" id="L101">    setEmptiable(query.getQualifiers(), q -&gt; esQuery.must(termsQuery(FIELD_QUALIFIER, q)));</span>
+<span class="fc" id="L102">    source.sort(SORTABLE_ANALYZER.subField(FIELD_NAME), SortOrder.ASC);</span>
+
+<span class="fc" id="L104">    source.query(esQuery);</span>
+
+<span class="fc" id="L106">    SearchRequest request = EsClient.prepareSearch(TYPE_COMPONENT.getMainType()).source(source);</span>
+
+<span class="fc" id="L108">    return new SearchIdResult&lt;&gt;(client.search(request), id -&gt; id, system2.getDefaultTimeZone().toZoneId());</span>
+  }
+
+  public ComponentIndexResults searchSuggestions(SuggestionQuery query) {
+<span class="fc" id="L112">    return searchSuggestions(query, ComponentTextSearchFeatureRepertoire.values());</span>
+  }
+
+  @VisibleForTesting
+  ComponentIndexResults searchSuggestions(SuggestionQuery query, ComponentTextSearchFeature... features) {
+<span class="fc" id="L117">    Collection&lt;String&gt; qualifiers = query.getQualifiers();</span>
+<span class="fc bfc" id="L118" title="All 2 branches covered.">    if (qualifiers.isEmpty()) {</span>
+<span class="fc" id="L119">      return ComponentIndexResults.newBuilder().build();</span>
+    }
+
+<span class="fc" id="L122">    SearchSourceBuilder source = new SearchSourceBuilder()</span>
+<span class="fc" id="L123">      .query(createQuery(query, features))</span>
+<span class="fc" id="L124">      .aggregation(createAggregation(query))</span>
+
+      // the search hits are part of the aggregations
+<span class="fc" id="L127">      .size(0);</span>
+
+<span class="fc" id="L129">    SearchRequest request = EsClient.prepareSearch(TYPE_COMPONENT.getMainType())</span>
+<span class="fc" id="L130">      .source(source);</span>
+<span class="fc" id="L131">    SearchResponse response = client.search(request);</span>
+
+<span class="fc" id="L133">    return aggregationsToQualifiers(response);</span>
+  }
+
+  private static HighlightBuilder.Field createHighlighterField() {
+<span class="fc" id="L137">    HighlightBuilder.Field field = new HighlightBuilder.Field(FIELD_NAME);</span>
+<span class="fc" id="L138">    field.highlighterType(&quot;fvh&quot;);</span>
+<span class="fc" id="L139">    field.matchedFields(</span>
+<span class="fc" id="L140">      Stream.concat(</span>
+<span class="fc" id="L141">        Stream.of(FIELD_NAME),</span>
+        Arrays
+<span class="fc" id="L143">          .stream(NAME_ANALYZERS)</span>
+<span class="fc" id="L144">          .map(a -&gt; a.subField(FIELD_NAME)))</span>
+<span class="fc" id="L145">        .toArray(String[]::new));</span>
+<span class="fc" id="L146">    return field;</span>
+  }
+
+  private static FiltersAggregationBuilder createAggregation(SuggestionQuery query) {
+<span class="fc" id="L150">    return AggregationBuilders.filters(</span>
+      FILTERS_AGGREGATION_NAME,
+<span class="fc" id="L152">      query.getQualifiers().stream().map(q -&gt; new KeyedFilter(q, termQuery(FIELD_QUALIFIER, q))).toArray(KeyedFilter[]::new))</span>
+<span class="fc" id="L153">      .subAggregation(createSubAggregation(query));</span>
+  }
+
+  private static TopHitsAggregationBuilder createSubAggregation(SuggestionQuery query) {
+<span class="fc" id="L157">    return AggregationBuilders.topHits(DOCS_AGGREGATION_NAME)</span>
+<span class="fc" id="L158">      .highlighter(new HighlightBuilder()</span>
+<span class="fc" id="L159">        .encoder(&quot;html&quot;)</span>
+<span class="fc" id="L160">        .preTags(&quot;&lt;mark&gt;&quot;)</span>
+<span class="fc" id="L161">        .postTags(&quot;&lt;/mark&gt;&quot;)</span>
+<span class="fc" id="L162">        .field(createHighlighterField()))</span>
+<span class="fc" id="L163">      .from(query.getSkip())</span>
+<span class="fc" id="L164">      .size(query.getLimit())</span>
+<span class="fc" id="L165">      .sort(new ScoreSortBuilder())</span>
+<span class="fc" id="L166">      .sort(new FieldSortBuilder(ComponentIndexDefinition.FIELD_NAME))</span>
+<span class="fc" id="L167">      .fetchSource(false);</span>
+  }
+
+  private QueryBuilder createQuery(SuggestionQuery query, ComponentTextSearchFeature... features) {
+<span class="fc" id="L171">    BoolQueryBuilder esQuery = boolQuery();</span>
+<span class="fc" id="L172">    esQuery.filter(termQuery(FIELD_INDEX_TYPE, TYPE_COMPONENT.getName()));</span>
+<span class="fc" id="L173">    esQuery.filter(authorizationTypeSupport.createQueryFilter());</span>
+<span class="fc" id="L174">    ComponentTextSearchQuery componentTextSearchQuery = ComponentTextSearchQuery.builder()</span>
+<span class="fc" id="L175">      .setQueryText(query.getQuery())</span>
+<span class="fc" id="L176">      .setFieldKey(FIELD_KEY)</span>
+<span class="fc" id="L177">      .setFieldName(FIELD_NAME)</span>
+<span class="fc" id="L178">      .setRecentlyBrowsedKeys(query.getRecentlyBrowsedKeys())</span>
+<span class="fc" id="L179">      .setFavoriteKeys(query.getFavoriteKeys())</span>
+<span class="fc" id="L180">      .build();</span>
+<span class="fc" id="L181">    return esQuery.must(ComponentTextSearchQueryFactory.createQuery(componentTextSearchQuery, features));</span>
+  }
+
+  private static ComponentIndexResults aggregationsToQualifiers(SearchResponse response) {
+<span class="fc" id="L185">    ParsedFilters filtersAgg = response.getAggregations().get(FILTERS_AGGREGATION_NAME);</span>
+<span class="fc" id="L186">    List&lt;ParsedFilters.ParsedBucket&gt; buckets = (List&lt;ParsedFilters.ParsedBucket&gt;) filtersAgg.getBuckets();</span>
+<span class="fc" id="L187">    return ComponentIndexResults.newBuilder()</span>
+<span class="fc" id="L188">      .setQualifiers(</span>
+<span class="fc" id="L189">        buckets.stream().map(ComponentIndex::bucketToQualifier))</span>
+<span class="fc" id="L190">      .build();</span>
+  }
+
+  private static ComponentHitsPerQualifier bucketToQualifier(ParsedFilters.ParsedBucket bucket) {
+<span class="fc" id="L194">    ParsedTopHits docs = bucket.getAggregations().get(DOCS_AGGREGATION_NAME);</span>
+
+<span class="fc" id="L196">    SearchHits hitList = docs.getHits();</span>
+<span class="fc" id="L197">    SearchHit[] hits = hitList.getHits();</span>
+
+<span class="fc" id="L199">    return new ComponentHitsPerQualifier(bucket.getKey(), ComponentHit.fromSearchHits(hits), getTotalHits(hitList.getTotalHits()).value);</span>
+  }
+
+  private static TotalHits getTotalHits(@Nullable TotalHits totalHits) {
+<span class="pc" id="L203">    return ofNullable(totalHits).orElseThrow(() -&gt; new IllegalStateException(&quot;Could not get total hits of search results&quot;));</span>
+  }
+
+  private static &lt;T&gt; void setNullable(@Nullable T parameter, Consumer&lt;T&gt; consumer) {
+<span class="fc bfc" id="L207" title="All 2 branches covered.">    if (parameter != null) {</span>
+<span class="fc" id="L208">      consumer.accept(parameter);</span>
+    }
+<span class="fc" id="L210">  }</span>
+
+  private static &lt;T&gt; void setEmptiable(Collection&lt;T&gt; parameter, Consumer&lt;Collection&lt;T&gt;&gt; consumer) {
+<span class="fc bfc" id="L213" title="All 2 branches covered.">    if (!parameter.isEmpty()) {</span>
+<span class="fc" id="L214">      consumer.accept(parameter);</span>
+    }
+<span class="fc" id="L216">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

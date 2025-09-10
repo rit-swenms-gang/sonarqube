@@ -1,0 +1,331 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RulesResponseFormatter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.rule.ws</a> &gt; <span class="el_source">RulesResponseFormatter.java</span></div><h1>RulesResponseFormatter.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.rule.ws;
+
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.ListMultimap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Multimap;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.apache.commons.lang3.StringUtils;
+import org.sonar.api.issue.impact.Severity;
+import org.sonar.api.issue.impact.SoftwareQuality;
+import org.sonar.api.resources.Language;
+import org.sonar.api.resources.Languages;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.api.server.ServerSide;
+import org.sonar.api.utils.DateUtils;
+import org.sonar.core.rule.ImpactFormatter;
+import org.sonar.core.util.stream.MoreCollectors;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.qualityprofile.ActiveRuleDto;
+import org.sonar.db.qualityprofile.ActiveRuleKey;
+import org.sonar.db.qualityprofile.ActiveRuleParamDto;
+import org.sonar.db.qualityprofile.OrgActiveRuleDto;
+import org.sonar.db.qualityprofile.QProfileDto;
+import org.sonar.db.rule.DeprecatedRuleKeyDto;
+import org.sonar.db.rule.RuleDto;
+import org.sonar.db.rule.RuleParamDto;
+import org.sonar.db.user.UserDto;
+import org.sonar.server.es.Facets;
+import org.sonar.server.qualityprofile.ActiveRuleInheritance;
+import org.sonarqube.ws.Common;
+import org.sonarqube.ws.Rules;
+
+import static com.google.common.base.Strings.nullToEmpty;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonList;
+import static java.util.Optional.ofNullable;
+import static org.sonar.server.rule.ws.RulesWsParameters.FIELD_DEPRECATED_KEYS;
+
+@ServerSide
+public class RulesResponseFormatter {
+  private final DbClient dbClient;
+  private final RuleWsSupport ruleWsSupport;
+  private final RuleMapper mapper;
+  private final Languages languages;
+
+<span class="fc" id="L76">  public RulesResponseFormatter(DbClient dbClient, RuleWsSupport ruleWsSupport, RuleMapper mapper, Languages languages) {</span>
+<span class="fc" id="L77">    this.dbClient = dbClient;</span>
+<span class="fc" id="L78">    this.ruleWsSupport = ruleWsSupport;</span>
+<span class="fc" id="L79">    this.mapper = mapper;</span>
+<span class="fc" id="L80">    this.languages = languages;</span>
+<span class="fc" id="L81">  }</span>
+
+  public List&lt;Rules.Rule&gt; formatRulesSearch(DbSession dbSession, SearchResult result, Set&lt;String&gt; fields) {
+<span class="fc" id="L84">    List&lt;RuleDto&gt; rules = result.getRules();</span>
+<span class="fc" id="L85">    Map&lt;String, UserDto&gt; usersByUuid = ruleWsSupport.getUsersByUuid(dbSession, rules);</span>
+<span class="fc" id="L86">    Map&lt;String, List&lt;DeprecatedRuleKeyDto&gt;&gt; deprecatedRuleKeysByRuleUuid = getDeprecatedRuleKeysByRuleUuid(dbSession, rules, fields);</span>
+
+<span class="fc" id="L88">    return rules.stream()</span>
+<span class="fc" id="L89">      .map(rule -&gt; mapper.toWsRule(rule, result, fields, usersByUuid, deprecatedRuleKeysByRuleUuid))</span>
+<span class="fc" id="L90">      .toList();</span>
+  }
+
+  public List&lt;Rules.Rule&gt; formatRulesList(DbSession dbSession, SearchResult result) {
+<span class="fc" id="L94">    Set&lt;String&gt; fields = Set.of(&quot;repo&quot;, &quot;name&quot;, &quot;severity&quot;, &quot;lang&quot;, &quot;internalKey&quot;, &quot;templateKey&quot;, &quot;params&quot;, &quot;actives&quot;, &quot;createdAt&quot;, &quot;updatedAt&quot;, &quot;deprecatedKeys&quot;, &quot;langName&quot;);</span>
+<span class="fc" id="L95">    return formatRulesSearch(dbSession, result, fields);</span>
+  }
+
+  private Map&lt;String, List&lt;DeprecatedRuleKeyDto&gt;&gt; getDeprecatedRuleKeysByRuleUuid(DbSession dbSession, List&lt;RuleDto&gt; rules, Set&lt;String&gt; fields) {
+<span class="fc bfc" id="L99" title="All 2 branches covered.">    if (!RuleMapper.shouldReturnField(fields, FIELD_DEPRECATED_KEYS)) {</span>
+<span class="fc" id="L100">      return Collections.emptyMap();</span>
+    }
+
+<span class="fc" id="L103">    Set&lt;String&gt; ruleUuidsSet = rules.stream()</span>
+<span class="fc" id="L104">      .map(RuleDto::getUuid)</span>
+<span class="fc" id="L105">      .collect(Collectors.toSet());</span>
+<span class="fc bfc" id="L106" title="All 2 branches covered.">    if (ruleUuidsSet.isEmpty()) {</span>
+<span class="fc" id="L107">      return Collections.emptyMap();</span>
+    } else {
+<span class="fc" id="L109">      return dbClient.ruleDao().selectDeprecatedRuleKeysByRuleUuids(dbSession, ruleUuidsSet).stream()</span>
+<span class="fc" id="L110">        .collect(Collectors.groupingBy(DeprecatedRuleKeyDto::getRuleUuid));</span>
+    }
+  }
+
+  public Rules.QProfiles formatQualityProfiles(DbSession dbSession, Set&lt;String&gt; profileUuids) {
+<span class="fc" id="L115">    Rules.QProfiles.Builder result = Rules.QProfiles.newBuilder();</span>
+<span class="fc bfc" id="L116" title="All 2 branches covered.">    if (profileUuids.isEmpty()) {</span>
+<span class="fc" id="L117">      return result.build();</span>
+    }
+
+    // load profiles
+<span class="fc" id="L121">    Map&lt;String, QProfileDto&gt; profilesByUuid = dbClient.qualityProfileDao().selectByUuids(dbSession, new ArrayList&lt;&gt;(profileUuids))</span>
+<span class="fc" id="L122">      .stream()</span>
+<span class="fc" id="L123">      .collect(Collectors.toMap(QProfileDto::getKee, Function.identity()));</span>
+
+    // load associated parents
+<span class="fc" id="L126">    List&lt;String&gt; parentUuids = profilesByUuid.values().stream()</span>
+<span class="fc" id="L127">      .map(QProfileDto::getParentKee)</span>
+<span class="fc" id="L128">      .filter(StringUtils::isNotEmpty)</span>
+<span class="pc bnc" id="L129" title="All 2 branches missed.">      .filter(uuid -&gt; !profilesByUuid.containsKey(uuid))</span>
+<span class="fc" id="L130">      .toList();</span>
+<span class="pc bpc" id="L131" title="1 of 2 branches missed.">    if (!parentUuids.isEmpty()) {</span>
+<span class="nc" id="L132">      dbClient.qualityProfileDao().selectByUuids(dbSession, parentUuids)</span>
+<span class="nc" id="L133">        .forEach(p -&gt; profilesByUuid.put(p.getKee(), p));</span>
+    }
+
+<span class="fc" id="L136">    profilesByUuid.values().forEach(p -&gt; writeProfile(result, p));</span>
+
+<span class="fc" id="L138">    return result.build();</span>
+  }
+
+  public Rules.Actives formatActiveRules(DbSession dbSession, @Nullable QProfileDto profile, List&lt;RuleDto&gt; rules) {
+<span class="fc" id="L142">    Rules.Actives.Builder activesBuilder = Rules.Actives.newBuilder();</span>
+
+<span class="fc bfc" id="L144" title="All 2 branches covered.">    if (profile != null) {</span>
+      // Load details of active rules on the selected profile
+<span class="fc" id="L146">      List&lt;OrgActiveRuleDto&gt; activeRules = dbClient.activeRuleDao().selectByProfile(dbSession, profile);</span>
+<span class="fc" id="L147">      Map&lt;RuleKey, OrgActiveRuleDto&gt; activeRuleByRuleKey = activeRules.stream()</span>
+<span class="fc" id="L148">        .collect(Collectors.toMap(ActiveRuleDto::getRuleKey, Function.identity()));</span>
+<span class="fc" id="L149">      ListMultimap&lt;ActiveRuleKey, ActiveRuleParamDto&gt; activeRuleParamsByActiveRuleKey = loadParams(dbSession, activeRules);</span>
+
+<span class="fc bfc" id="L151" title="All 2 branches covered.">      for (RuleDto rule : rules) {</span>
+<span class="fc" id="L152">        OrgActiveRuleDto activeRule = activeRuleByRuleKey.get(rule.getKey());</span>
+<span class="pc bpc" id="L153" title="1 of 2 branches missed.">        if (activeRule != null) {</span>
+<span class="fc" id="L154">          writeActiveRules(rule.getKey(), singletonList(activeRule), activeRuleParamsByActiveRuleKey, activesBuilder);</span>
+        }
+<span class="fc" id="L156">      }</span>
+<span class="fc" id="L157">    } else {</span>
+      // Load details of all active rules
+<span class="fc" id="L159">      List&lt;String&gt; ruleUuids = Lists.transform(rules, RuleDto::getUuid);</span>
+<span class="fc" id="L160">      List&lt;OrgActiveRuleDto&gt; activeRules = dbClient.activeRuleDao().selectByRuleUuids(dbSession, ruleUuids);</span>
+<span class="fc" id="L161">      Multimap&lt;RuleKey, OrgActiveRuleDto&gt; activeRulesByRuleKey = activeRules.stream()</span>
+<span class="fc" id="L162">        .collect(MoreCollectors.index(OrgActiveRuleDto::getRuleKey));</span>
+<span class="fc" id="L163">      ListMultimap&lt;ActiveRuleKey, ActiveRuleParamDto&gt; activeRuleParamsByActiveRuleKey = loadParams(dbSession, activeRules);</span>
+<span class="fc" id="L164">      rules.forEach(rule -&gt; writeActiveRules(rule.getKey(), activeRulesByRuleKey.get(rule.getKey()), activeRuleParamsByActiveRuleKey, activesBuilder));</span>
+    }
+
+<span class="fc" id="L167">    return activesBuilder.build();</span>
+  }
+
+  private static void writeActiveRules(RuleKey ruleKey, Collection&lt;OrgActiveRuleDto&gt; activeRules,
+    ListMultimap&lt;ActiveRuleKey, ActiveRuleParamDto&gt; activeRuleParamsByActiveRuleKey, Rules.Actives.Builder activesBuilder) {
+<span class="fc" id="L172">    Rules.ActiveList.Builder activeRulesListResponse = Rules.ActiveList.newBuilder();</span>
+<span class="fc bfc" id="L173" title="All 2 branches covered.">    for (OrgActiveRuleDto activeRule : activeRules) {</span>
+<span class="fc" id="L174">      activeRulesListResponse.addActiveList(buildActiveRuleResponse(activeRule, activeRuleParamsByActiveRuleKey.get(activeRule.getKey())));</span>
+<span class="fc" id="L175">    }</span>
+<span class="fc" id="L176">    activesBuilder</span>
+<span class="fc" id="L177">      .getMutableActives()</span>
+<span class="fc" id="L178">      .put(ruleKey.toString(), activeRulesListResponse.build());</span>
+<span class="fc" id="L179">  }</span>
+
+  private ListMultimap&lt;ActiveRuleKey, ActiveRuleParamDto&gt; loadParams(DbSession dbSession, List&lt;OrgActiveRuleDto&gt; activeRules) {
+<span class="fc" id="L182">    Map&lt;String, ActiveRuleKey&gt; activeRuleUuidsByKey = new HashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L183" title="All 2 branches covered.">    for (OrgActiveRuleDto activeRule : activeRules) {</span>
+<span class="fc" id="L184">      activeRuleUuidsByKey.put(activeRule.getUuid(), activeRule.getKey());</span>
+<span class="fc" id="L185">    }</span>
+<span class="fc" id="L186">    List&lt;ActiveRuleParamDto&gt; activeRuleParams = dbClient.activeRuleDao().selectParamsByActiveRuleUuids(dbSession, Lists.transform(activeRules, ActiveRuleDto::getUuid));</span>
+<span class="fc" id="L187">    ListMultimap&lt;ActiveRuleKey, ActiveRuleParamDto&gt; activeRuleParamsByActiveRuleKey = ArrayListMultimap.create(activeRules.size(), 10);</span>
+<span class="fc bfc" id="L188" title="All 2 branches covered.">    for (ActiveRuleParamDto activeRuleParam : activeRuleParams) {</span>
+<span class="fc" id="L189">      ActiveRuleKey activeRuleKey = activeRuleUuidsByKey.get(activeRuleParam.getActiveRuleUuid());</span>
+<span class="fc" id="L190">      activeRuleParamsByActiveRuleKey.put(activeRuleKey, activeRuleParam);</span>
+<span class="fc" id="L191">    }</span>
+
+<span class="fc" id="L193">    return activeRuleParamsByActiveRuleKey;</span>
+  }
+
+  public List&lt;Rules.Active&gt; formatActiveRule(DbSession dbSession, RuleDto rule) {
+<span class="fc" id="L197">    List&lt;OrgActiveRuleDto&gt; activeRules = dbClient.activeRuleDao().selectByOrgRuleUuid(dbSession, rule.getUuid());</span>
+<span class="fc" id="L198">    Map&lt;String, ActiveRuleKey&gt; activeRuleUuidsByKey = new HashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L199" title="All 2 branches covered.">    for (OrgActiveRuleDto activeRuleDto : activeRules) {</span>
+<span class="fc" id="L200">      activeRuleUuidsByKey.put(activeRuleDto.getUuid(), activeRuleDto.getKey());</span>
+<span class="fc" id="L201">    }</span>
+
+<span class="fc" id="L203">    List&lt;String&gt; activeRuleUuids = activeRules.stream().map(ActiveRuleDto::getUuid).toList();</span>
+<span class="fc" id="L204">    List&lt;ActiveRuleParamDto&gt; activeRuleParams = dbClient.activeRuleDao().selectParamsByActiveRuleUuids(dbSession, activeRuleUuids);</span>
+<span class="fc" id="L205">    ListMultimap&lt;ActiveRuleKey, ActiveRuleParamDto&gt; activeRuleParamsByActiveRuleKey = ArrayListMultimap.create(activeRules.size(), 10);</span>
+<span class="fc bfc" id="L206" title="All 2 branches covered.">    for (ActiveRuleParamDto activeRuleParamDto : activeRuleParams) {</span>
+<span class="fc" id="L207">      ActiveRuleKey activeRuleKey = activeRuleUuidsByKey.get(activeRuleParamDto.getActiveRuleUuid());</span>
+<span class="fc" id="L208">      activeRuleParamsByActiveRuleKey.put(activeRuleKey, activeRuleParamDto);</span>
+<span class="fc" id="L209">    }</span>
+
+<span class="fc" id="L211">    return activeRules.stream()</span>
+<span class="fc" id="L212">      .map(activeRule -&gt; buildActiveRuleResponse(activeRule, activeRuleParamsByActiveRuleKey.get(activeRule.getKey())))</span>
+<span class="fc" id="L213">      .toList();</span>
+  }
+
+  private static Rules.Active buildActiveRuleResponse(OrgActiveRuleDto activeRule, List&lt;ActiveRuleParamDto&gt; parameters) {
+<span class="fc" id="L217">    Rules.Active.Builder builder = Rules.Active.newBuilder();</span>
+<span class="fc" id="L218">    builder.setQProfile(activeRule.getOrgProfileUuid());</span>
+<span class="fc" id="L219">    String inheritance = activeRule.getInheritance();</span>
+<span class="pc bpc" id="L220" title="1 of 2 branches missed.">    builder.setInherit(inheritance != null ? inheritance : ActiveRuleInheritance.NONE.name());</span>
+<span class="fc" id="L221">    builder.setSeverity(activeRule.getSeverityString());</span>
+<span class="fc" id="L222">    builder.setPrioritizedRule(activeRule.isPrioritizedRule());</span>
+<span class="fc" id="L223">    builder.setCreatedAt(DateUtils.formatDateTime(activeRule.getCreatedAt()));</span>
+<span class="fc" id="L224">    builder.setUpdatedAt(DateUtils.formatDateTime(activeRule.getUpdatedAt()));</span>
+<span class="fc" id="L225">    builder.setImpacts(mapImpacts(activeRule.getImpacts()));</span>
+<span class="fc" id="L226">    Rules.Active.Param.Builder paramBuilder = Rules.Active.Param.newBuilder();</span>
+<span class="fc bfc" id="L227" title="All 2 branches covered.">    for (ActiveRuleParamDto parameter : parameters) {</span>
+<span class="fc" id="L228">      builder.addParams(paramBuilder.clear()</span>
+<span class="fc" id="L229">        .setKey(parameter.getKey())</span>
+<span class="fc" id="L230">        .setValue(nullToEmpty(parameter.getValue())));</span>
+<span class="fc" id="L231">    }</span>
+
+<span class="fc" id="L233">    return builder.build();</span>
+  }
+
+  private void writeProfile(Rules.QProfiles.Builder profilesResponse, QProfileDto profile) {
+<span class="fc" id="L237">    Rules.QProfile.Builder profileResponse = Rules.QProfile.newBuilder();</span>
+<span class="fc" id="L238">    ofNullable(profile.getName()).ifPresent(profileResponse::setName);</span>
+
+<span class="pc bpc" id="L240" title="1 of 2 branches missed.">    if (profile.getLanguage() != null) {</span>
+<span class="fc" id="L241">      profileResponse.setLang(profile.getLanguage());</span>
+<span class="fc" id="L242">      Language language = languages.get(profile.getLanguage());</span>
+<span class="pc bpc" id="L243" title="1 of 2 branches missed.">      String langName = language == null ? profile.getLanguage() : language.getName();</span>
+<span class="fc" id="L244">      profileResponse.setLangName(langName);</span>
+    }
+<span class="fc" id="L246">    ofNullable(profile.getParentKee()).ifPresent(profileResponse::setParent);</span>
+
+<span class="fc" id="L248">    profilesResponse.putQProfiles(profile.getKee(), profileResponse.build());</span>
+<span class="fc" id="L249">  }</span>
+
+  public Rules.Rule formatRule(DbSession dbSession, SearchResult searchResult) {
+<span class="fc" id="L252">    RuleDto rule = searchResult.getRules().get(0);</span>
+<span class="fc" id="L253">    return mapper.toWsRule(rule, searchResult, Collections.emptySet(),</span>
+<span class="fc" id="L254">      ruleWsSupport.getUsersByUuid(dbSession, searchResult.getRules()), emptyMap());</span>
+  }
+
+  public static Rules.Impacts mapImpacts(Map&lt;SoftwareQuality, Severity&gt; impacts) {
+<span class="fc" id="L258">    Rules.Impacts.Builder impactsBuilder = Rules.Impacts.newBuilder();</span>
+<span class="fc" id="L259">    impacts.forEach((quality, severity) -&gt; impactsBuilder.addImpacts(Common.Impact.newBuilder()</span>
+<span class="fc" id="L260">      .setSoftwareQuality(Common.SoftwareQuality.valueOf(quality.name()))</span>
+<span class="fc" id="L261">      .setSeverity(ImpactFormatter.mapImpactSeverity(severity))));</span>
+<span class="fc" id="L262">    return impactsBuilder.build();</span>
+  }
+
+  static class SearchResult {
+    private List&lt;RuleDto&gt; rules;
+    private final ListMultimap&lt;String, RuleParamDto&gt; ruleParamsByRuleUuid;
+    private final Map&lt;String, RuleDto&gt; templateRulesByRuleUuid;
+    private Long total;
+    private Facets facets;
+
+<span class="fc" id="L272">    public SearchResult() {</span>
+<span class="fc" id="L273">      this.rules = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L274">      this.ruleParamsByRuleUuid = ArrayListMultimap.create();</span>
+<span class="fc" id="L275">      this.templateRulesByRuleUuid = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L276">    }</span>
+
+    public List&lt;RuleDto&gt; getRules() {
+<span class="fc" id="L279">      return rules;</span>
+    }
+
+    public SearchResult setRules(List&lt;RuleDto&gt; rules) {
+<span class="fc" id="L283">      this.rules = rules;</span>
+<span class="fc" id="L284">      return this;</span>
+    }
+
+    public ListMultimap&lt;String, RuleParamDto&gt; getRuleParamsByRuleUuid() {
+<span class="fc" id="L288">      return ruleParamsByRuleUuid;</span>
+    }
+
+    public SearchResult setRuleParameters(List&lt;RuleParamDto&gt; ruleParams) {
+<span class="fc" id="L292">      ruleParamsByRuleUuid.clear();</span>
+<span class="fc bfc" id="L293" title="All 2 branches covered.">      for (RuleParamDto ruleParam : ruleParams) {</span>
+<span class="fc" id="L294">        ruleParamsByRuleUuid.put(ruleParam.getRuleUuid(), ruleParam);</span>
+<span class="fc" id="L295">      }</span>
+<span class="fc" id="L296">      return this;</span>
+    }
+
+    public Map&lt;String, RuleDto&gt; getTemplateRulesByRuleUuid() {
+<span class="fc" id="L300">      return templateRulesByRuleUuid;</span>
+    }
+
+    public SearchResult setTemplateRules(List&lt;RuleDto&gt; templateRules) {
+<span class="fc" id="L304">      templateRulesByRuleUuid.clear();</span>
+<span class="fc bfc" id="L305" title="All 2 branches covered.">      for (RuleDto templateRule : templateRules) {</span>
+<span class="fc" id="L306">        templateRulesByRuleUuid.put(templateRule.getUuid(), templateRule);</span>
+<span class="fc" id="L307">      }</span>
+<span class="fc" id="L308">      return this;</span>
+    }
+
+    public Long getTotal() {
+<span class="fc" id="L312">      return total;</span>
+    }
+
+    public SearchResult setTotal(Long total) {
+<span class="fc" id="L316">      this.total = total;</span>
+<span class="fc" id="L317">      return this;</span>
+    }
+
+    @CheckForNull
+    public Facets getFacets() {
+<span class="fc" id="L322">      return facets;</span>
+    }
+
+    public SearchResult setFacets(Facets facets) {
+<span class="fc" id="L326">      this.facets = facets;</span>
+<span class="fc" id="L327">      return this;</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

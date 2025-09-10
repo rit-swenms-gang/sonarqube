@@ -1,0 +1,343 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ComponentIssuesLoader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.issue</a> &gt; <span class="el_source">ComponentIssuesLoader.java</span></div><h1>ComponentIssuesLoader.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.issue;
+
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import org.apache.ibatis.session.ResultContext;
+import org.apache.ibatis.session.ResultHandler;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.config.Configuration;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.api.rule.RuleStatus;
+import org.sonar.api.utils.System2;
+import org.sonar.ce.task.projectanalysis.qualityprofile.ActiveRulesHolder;
+import org.sonar.core.issue.DefaultIssue;
+import org.sonar.core.issue.FieldDiffs;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.issue.IssueChangeDto;
+import org.sonar.db.issue.IssueDto;
+import org.sonar.db.issue.IssueMapper;
+
+import static com.google.common.base.Preconditions.checkState;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.unmodifiableList;
+import static java.util.stream.Collectors.groupingBy;
+import static org.sonar.api.issue.Issue.STATUS_CLOSED;
+import static org.sonar.server.issue.IssueFieldsSetter.FROM_BRANCH;
+import static org.sonar.server.issue.IssueFieldsSetter.STATUS;
+
+public class ComponentIssuesLoader {
+  private static final int DEFAULT_CLOSED_ISSUES_MAX_AGE = 30;
+  static final int NUMBER_STATUS_AND_BRANCH_CHANGES_TO_KEEP = 15;
+  private static final String PROPERTY_CLOSED_ISSUE_MAX_AGE = &quot;sonar.issuetracking.closedissues.maxage&quot;;
+
+  private final DbClient dbClient;
+  private final RuleRepository ruleRepository;
+  private final ActiveRulesHolder activeRulesHolder;
+  private final System2 system2;
+  private final int closedIssueMaxAge;
+  private final IssueChangesToDeleteRepository issueChangesToDeleteRepository;
+
+  public ComponentIssuesLoader(DbClient dbClient, RuleRepository ruleRepository, ActiveRulesHolder activeRulesHolder,
+<span class="fc" id="L69">    Configuration configuration, System2 system2, IssueChangesToDeleteRepository issueChangesToDeleteRepository) {</span>
+<span class="fc" id="L70">    this.dbClient = dbClient;</span>
+<span class="fc" id="L71">    this.activeRulesHolder = activeRulesHolder;</span>
+<span class="fc" id="L72">    this.ruleRepository = ruleRepository;</span>
+<span class="fc" id="L73">    this.system2 = system2;</span>
+<span class="fc" id="L74">    this.closedIssueMaxAge = configuration.get(PROPERTY_CLOSED_ISSUE_MAX_AGE)</span>
+<span class="fc" id="L75">      .map(ComponentIssuesLoader::safelyParseClosedIssueMaxAge)</span>
+<span class="fc bfc" id="L76" title="All 2 branches covered.">      .filter(i -&gt; i &gt;= 0)</span>
+<span class="fc" id="L77">      .orElse(DEFAULT_CLOSED_ISSUES_MAX_AGE);</span>
+<span class="fc" id="L78">    this.issueChangesToDeleteRepository = issueChangesToDeleteRepository;</span>
+<span class="fc" id="L79">  }</span>
+
+  public List&lt;DefaultIssue&gt; loadOpenIssues(String componentUuid) {
+<span class="fc" id="L82">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L83">      return loadOpenIssues(componentUuid, dbSession);</span>
+    }
+  }
+
+  public List&lt;DefaultIssue&gt; loadOpenIssuesWithChanges(String componentUuid) {
+<span class="fc" id="L88">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L89">      List&lt;DefaultIssue&gt; result = loadOpenIssues(componentUuid, dbSession);</span>
+<span class="fc" id="L90">      return loadChanges(dbSession, result);</span>
+    }
+  }
+
+  /**
+   * Loads all comments and changes EXCEPT old changes involving a status change or a move between branches.
+   */
+  public List&lt;DefaultIssue&gt; loadChanges(DbSession dbSession, Collection&lt;DefaultIssue&gt; issues) {
+<span class="fc" id="L98">    Map&lt;String, List&lt;IssueChangeDto&gt;&gt; changeDtoByIssueKey = dbClient.issueChangeDao()</span>
+<span class="fc" id="L99">      .selectByIssueKeys(dbSession, issues.stream().map(DefaultIssue::key).toList())</span>
+<span class="fc" id="L100">      .stream()</span>
+<span class="fc" id="L101">      .collect(groupingBy(IssueChangeDto::getIssueKey));</span>
+
+<span class="fc" id="L103">    issues.forEach(i -&gt; setFilteredChanges(changeDtoByIssueKey, i));</span>
+<span class="fc" id="L104">    return new ArrayList&lt;&gt;(issues);</span>
+  }
+
+  /**
+   * Loads the most recent diff changes of the specified issues which contain the latest status and resolution of the issue.
+   */
+  public void loadLatestDiffChangesForReopeningOfClosedIssues(Collection&lt;DefaultIssue&gt; issues) {
+<span class="fc bfc" id="L111" title="All 2 branches covered.">    if (issues.isEmpty()) {</span>
+<span class="fc" id="L112">      return;</span>
+    }
+
+<span class="fc" id="L115">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L116">      loadLatestDiffChangesForReopeningOfClosedIssues(dbSession, issues);</span>
+    }
+<span class="fc" id="L118">  }</span>
+
+  /**
+   * Load closed issues for the specified Component, which have at least one line diff in changelog AND are
+   * not manual vulnerabilities.
+   * &lt;p&gt;
+   * Closed issues do not have a line number in DB (it is unset when the issue is closed), this method
+   * returns {@link DefaultIssue} objects which line number is populated from the most recent diff logging
+   * the removal of the line. Closed issues which do not have such diff are not loaded.
+   * &lt;p&gt;
+   * To not depend on purge configuration of closed issues, only issues which close date is less than 30 days ago at
+   * 00H00 are returned.
+   */
+  public List&lt;DefaultIssue&gt; loadClosedIssues(String componentUuid) {
+<span class="fc bfc" id="L132" title="All 2 branches covered.">    if (closedIssueMaxAge == 0) {</span>
+<span class="fc" id="L133">      return emptyList();</span>
+    }
+
+<span class="fc" id="L136">    Date date = new Date(system2.now());</span>
+<span class="fc" id="L137">    long closeDateAfter = date.toInstant()</span>
+<span class="fc" id="L138">      .minus(closedIssueMaxAge, ChronoUnit.DAYS)</span>
+<span class="fc" id="L139">      .truncatedTo(ChronoUnit.DAYS)</span>
+<span class="fc" id="L140">      .toEpochMilli();</span>
+<span class="fc" id="L141">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L142">      return loadClosedIssues(dbSession, componentUuid, closeDateAfter);</span>
+    }
+  }
+
+  private static Integer safelyParseClosedIssueMaxAge(String str) {
+    try {
+<span class="fc" id="L148">      return Integer.parseInt(str);</span>
+<span class="fc" id="L149">    } catch (NumberFormatException e) {</span>
+<span class="fc" id="L150">      LoggerFactory.getLogger(ComponentIssuesLoader.class)</span>
+<span class="fc" id="L151">        .warn(&quot;Value of property {} should be an integer &gt;= 0: {}&quot;, PROPERTY_CLOSED_ISSUE_MAX_AGE, str);</span>
+<span class="fc" id="L152">      return null;</span>
+    }
+  }
+
+  /**
+   * To be efficient both in term of memory and speed:
+   * &lt;ul&gt;
+   *   &lt;li&gt;only diff changes are loaded from DB, sorted by issue and then change creation date&lt;/li&gt;
+   *   &lt;li&gt;data from DB is streamed&lt;/li&gt;
+   *   &lt;li&gt;only the latest change(s) with status and resolution are added to the {@link DefaultIssue} objects&lt;/li&gt;
+   * &lt;/ul&gt;
+   *
+   * While loading the changes for the issues, this class will also collect old status changes that should be deleted.
+   */
+  private void loadLatestDiffChangesForReopeningOfClosedIssues(DbSession dbSession, Collection&lt;DefaultIssue&gt; issues) {
+<span class="fc" id="L167">    Map&lt;String, DefaultIssue&gt; issuesByKey = issues.stream().collect(Collectors.toMap(DefaultIssue::key, Function.identity()));</span>
+<span class="fc" id="L168">    CollectIssueChangesToDeleteResultHandler collectChangesToDelete = new CollectIssueChangesToDeleteResultHandler(issueChangesToDeleteRepository);</span>
+<span class="fc" id="L169">    CollectLastStatusAndResolution collectLastStatusAndResolution = new CollectLastStatusAndResolution(issuesByKey);</span>
+
+<span class="fc" id="L171">    dbClient.issueChangeDao().scrollDiffChangesOfIssues(dbSession, issuesByKey.keySet(), resultContext -&gt; {</span>
+<span class="fc" id="L172">        IssueChangeDto issueChangeDto = resultContext.getResultObject();</span>
+<span class="fc" id="L173">        FieldDiffs fieldDiffs = issueChangeDto.toFieldDiffs();</span>
+
+<span class="fc" id="L175">        collectChangesToDelete.handle(issueChangeDto, fieldDiffs);</span>
+<span class="fc" id="L176">        collectLastStatusAndResolution.handle(issueChangeDto, fieldDiffs);</span>
+<span class="fc" id="L177">      });</span>
+<span class="fc" id="L178">  }</span>
+
+  private List&lt;DefaultIssue&gt; loadOpenIssues(String componentUuid, DbSession dbSession) {
+<span class="fc" id="L181">    List&lt;DefaultIssue&gt; result = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L182">    dbSession.getMapper(IssueMapper.class).scrollNonClosedByComponentUuid(componentUuid, resultContext -&gt; {</span>
+<span class="fc" id="L183">      DefaultIssue issue = (resultContext.getResultObject()).toDefaultIssue();</span>
+<span class="fc" id="L184">      Rule rule = ruleRepository.getByKey(issue.ruleKey());</span>
+
+      // TODO this field should be set outside this class
+<span class="pc bpc" id="L187" title="4 of 6 branches missed.">      if ((!rule.isExternal() &amp;&amp; !isActive(issue.ruleKey())) || rule.getStatus() == RuleStatus.REMOVED) {</span>
+<span class="fc" id="L188">        issue.setOnDisabledRule(true);</span>
+        // TODO to be improved, why setOnDisabledRule(true) is not enough ?
+<span class="fc" id="L190">        issue.setBeingClosed(true);</span>
+      }
+<span class="fc" id="L192">      issue.setSelectedAt(System.currentTimeMillis());</span>
+<span class="fc" id="L193">      result.add(issue);</span>
+<span class="fc" id="L194">    });</span>
+<span class="fc" id="L195">    return unmodifiableList(result);</span>
+  }
+
+  private void setFilteredChanges(Map&lt;String, List&lt;IssueChangeDto&gt;&gt; changeDtoByIssueKey, DefaultIssue i) {
+<span class="fc" id="L199">    List&lt;IssueChangeDto&gt; sortedIssueChanges = changeDtoByIssueKey.computeIfAbsent(i.key(), k -&gt; emptyList()).stream()</span>
+<span class="fc" id="L200">      .sorted(Comparator.comparing(IssueChangeDto::getIssueChangeCreationDate).reversed())</span>
+<span class="fc" id="L201">      .toList();</span>
+
+<span class="fc" id="L203">    int statusCount = 0;</span>
+<span class="fc" id="L204">    int branchCount = 0;</span>
+
+<span class="fc bfc" id="L206" title="All 2 branches covered.">    for (IssueChangeDto c : sortedIssueChanges) {</span>
+<span class="pc bpc" id="L207" title="1 of 3 branches missed.">      switch (c.getChangeType()) {</span>
+        case IssueChangeDto.TYPE_FIELD_CHANGE:
+<span class="fc" id="L209">          FieldDiffs fieldDiffs = c.toFieldDiffs();</span>
+          // To limit the amount of changes that copied issues carry over, we only keep the 15 most recent changes that involve a status change or a move between branches.
+<span class="fc bfc" id="L211" title="All 2 branches covered.">          if (fieldDiffs.get(STATUS) != null) {</span>
+<span class="fc" id="L212">            statusCount++;</span>
+<span class="fc bfc" id="L213" title="All 2 branches covered.">            if (statusCount &gt; NUMBER_STATUS_AND_BRANCH_CHANGES_TO_KEEP) {</span>
+<span class="fc" id="L214">              issueChangesToDeleteRepository.add(c.getUuid());</span>
+<span class="fc" id="L215">              break;</span>
+            }
+          }
+<span class="fc bfc" id="L218" title="All 2 branches covered.">          if (fieldDiffs.get(FROM_BRANCH) != null) {</span>
+<span class="fc" id="L219">            branchCount++;</span>
+<span class="fc bfc" id="L220" title="All 2 branches covered.">            if (branchCount &gt; NUMBER_STATUS_AND_BRANCH_CHANGES_TO_KEEP) {</span>
+<span class="fc" id="L221">              issueChangesToDeleteRepository.add(c.getUuid());</span>
+<span class="fc" id="L222">              break;</span>
+            }
+          }
+<span class="fc" id="L225">          i.addChange(c.toFieldDiffs());</span>
+<span class="fc" id="L226">          break;</span>
+        case IssueChangeDto.TYPE_COMMENT:
+<span class="fc" id="L228">          i.addComment(c.toComment());</span>
+<span class="fc" id="L229">          break;</span>
+        default:
+<span class="nc" id="L231">          throw new IllegalStateException(&quot;Unknown change type: &quot; + c.getChangeType());</span>
+      }
+<span class="fc" id="L233">    }</span>
+<span class="fc" id="L234">  }</span>
+
+  private boolean isActive(RuleKey ruleKey) {
+<span class="fc" id="L237">    return activeRulesHolder.get(ruleKey).isPresent();</span>
+  }
+
+  private static List&lt;DefaultIssue&gt; loadClosedIssues(DbSession dbSession, String componentUuid, long closeDateAfter) {
+<span class="fc" id="L241">    ClosedIssuesResultHandler handler = new ClosedIssuesResultHandler();</span>
+<span class="fc" id="L242">    dbSession.getMapper(IssueMapper.class).scrollClosedByComponentUuid(componentUuid, closeDateAfter, handler);</span>
+<span class="fc" id="L243">    return unmodifiableList(handler.issues);</span>
+  }
+
+<span class="fc" id="L246">  private static class ClosedIssuesResultHandler implements ResultHandler&lt;IssueDto&gt; {</span>
+<span class="fc" id="L247">    private final List&lt;DefaultIssue&gt; issues = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L248">    private String previousIssueKey = null;</span>
+
+    @Override
+    public void handleResult(ResultContext&lt;? extends IssueDto&gt; resultContext) {
+<span class="fc" id="L252">      IssueDto resultObject = resultContext.getResultObject();</span>
+
+      // issue are ordered by most recent change first, only the first row for a given issue is of interest
+<span class="pc bpc" id="L255" title="1 of 4 branches missed.">      if (previousIssueKey != null &amp;&amp; previousIssueKey.equals(resultObject.getKey())) {</span>
+<span class="nc" id="L256">        return;</span>
+      }
+
+<span class="fc" id="L259">      FieldDiffs fieldDiffs = FieldDiffs.parse(resultObject.getClosedChangeData()</span>
+<span class="pc" id="L260">        .orElseThrow(() -&gt; new IllegalStateException(&quot;Close change data should be populated&quot;)));</span>
+<span class="fc" id="L261">      checkState(Optional.ofNullable(fieldDiffs.get(&quot;status&quot;))</span>
+<span class="fc" id="L262">        .map(FieldDiffs.Diff::newValue)</span>
+<span class="fc" id="L263">        .filter(STATUS_CLOSED::equals)</span>
+<span class="fc" id="L264">        .isPresent(), &quot;Close change data should have a status diff with new value %s&quot;, STATUS_CLOSED);</span>
+<span class="fc" id="L265">      Integer line = Optional.ofNullable(fieldDiffs.get(&quot;line&quot;))</span>
+<span class="fc" id="L266">        .map(diff -&gt; (String) diff.oldValue())</span>
+<span class="pc bpc" id="L267" title="1 of 2 branches missed.">        .filter(str -&gt; !str.isEmpty())</span>
+<span class="fc" id="L268">        .map(Integer::parseInt)</span>
+<span class="fc" id="L269">        .orElse(null);</span>
+
+<span class="fc" id="L271">      previousIssueKey = resultObject.getKey();</span>
+<span class="fc" id="L272">      DefaultIssue issue = resultObject.toDefaultIssue();</span>
+<span class="fc" id="L273">      issue.setLine(line);</span>
+<span class="fc" id="L274">      issue.setSelectedAt(System.currentTimeMillis());</span>
+
+<span class="fc" id="L276">      issues.add(issue);</span>
+<span class="fc" id="L277">    }</span>
+  }
+
+  private static class CollectLastStatusAndResolution {
+    private final Map&lt;String, DefaultIssue&gt; issuesByKey;
+<span class="fc" id="L282">    private DefaultIssue currentIssue = null;</span>
+<span class="fc" id="L283">    private boolean previousStatusFound = false;</span>
+<span class="fc" id="L284">    private boolean previousResolutionFound = false;</span>
+
+<span class="fc" id="L286">    private CollectLastStatusAndResolution(Map&lt;String, DefaultIssue&gt; issuesByKey) {</span>
+<span class="fc" id="L287">      this.issuesByKey = issuesByKey;</span>
+<span class="fc" id="L288">    }</span>
+
+    /**
+     * Assumes that changes are sorted by issue key and date desc
+     */
+    public void handle(IssueChangeDto issueChangeDto, FieldDiffs fieldDiffs) {
+<span class="pc bpc" id="L294" title="1 of 4 branches missed.">      if (currentIssue == null || !currentIssue.key().equals(issueChangeDto.getIssueKey())) {</span>
+<span class="fc" id="L295">        currentIssue = issuesByKey.get(issueChangeDto.getIssueKey());</span>
+<span class="fc" id="L296">        previousStatusFound = false;</span>
+<span class="fc" id="L297">        previousResolutionFound = false;</span>
+      }
+
+<span class="pc bpc" id="L300" title="1 of 2 branches missed.">      if (currentIssue != null) {</span>
+<span class="fc bfc" id="L301" title="All 2 branches covered.">        boolean hasPreviousStatus = fieldDiffs.get(&quot;status&quot;) != null;</span>
+<span class="fc bfc" id="L302" title="All 2 branches covered.">        boolean hasPreviousResolution = fieldDiffs.get(&quot;resolution&quot;) != null;</span>
+
+<span class="fc bfc" id="L304" title="All 8 branches covered.">        if ((!previousStatusFound &amp;&amp; hasPreviousStatus) || (!previousResolutionFound &amp;&amp; hasPreviousResolution)) {</span>
+<span class="fc" id="L305">          currentIssue.addChange(fieldDiffs);</span>
+        }
+<span class="fc" id="L307">        previousStatusFound |= hasPreviousStatus;</span>
+<span class="fc" id="L308">        previousResolutionFound |= hasPreviousResolution;</span>
+      }
+<span class="fc" id="L310">    }</span>
+  }
+
+  /**
+   * Collects issue changes related to status changes that should be cleaned up.
+   * If we have more than 15 status changes recorded for an issue, only the 15 most recent ones should be kept.
+   */
+  private static class CollectIssueChangesToDeleteResultHandler {
+    private final IssueChangesToDeleteRepository issueChangesToDeleteRepository;
+    private String currentIssueKey;
+    private int statusChangeCount;
+
+<span class="fc" id="L322">    public CollectIssueChangesToDeleteResultHandler(IssueChangesToDeleteRepository issueChangesToDeleteRepository) {</span>
+<span class="fc" id="L323">      this.issueChangesToDeleteRepository = issueChangesToDeleteRepository;</span>
+<span class="fc" id="L324">    }</span>
+
+    /**
+     * Assumes that changes are sorted by issue key and date desc
+     */
+    public void handle(IssueChangeDto dto, FieldDiffs fieldDiffs) {
+<span class="pc bpc" id="L330" title="1 of 4 branches missed.">      if (currentIssueKey == null || !currentIssueKey.equals(dto.getIssueKey())) {</span>
+<span class="fc" id="L331">        currentIssueKey = dto.getIssueKey();</span>
+<span class="fc" id="L332">        statusChangeCount = 0;</span>
+      }
+<span class="fc bfc" id="L334" title="All 2 branches covered.">      if (fieldDiffs.get(STATUS) != null) {</span>
+<span class="fc" id="L335">        statusChangeCount++;</span>
+<span class="fc bfc" id="L336" title="All 2 branches covered.">        if (statusChangeCount &gt; NUMBER_STATUS_AND_BRANCH_CHANGES_TO_KEEP) {</span>
+<span class="fc" id="L337">          issueChangesToDeleteRepository.add(dto.getUuid());</span>
+        }
+      }
+<span class="fc" id="L340">    }</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

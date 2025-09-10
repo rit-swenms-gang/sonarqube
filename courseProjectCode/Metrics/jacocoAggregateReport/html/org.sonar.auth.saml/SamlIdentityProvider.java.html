@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SamlIdentityProvider.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.auth.saml</a> &gt; <span class="el_source">SamlIdentityProvider.java</span></div><h1>SamlIdentityProvider.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.auth.saml;
+
+import java.util.regex.Pattern;
+import org.sonar.api.server.ServerSide;
+import org.sonar.api.server.authentication.Display;
+import org.sonar.api.server.authentication.OAuth2IdentityProvider;
+import org.sonar.api.server.authentication.UserIdentity;
+
+@ServerSide
+public class SamlIdentityProvider implements OAuth2IdentityProvider {
+
+<span class="fc" id="L31">  private static final Pattern HTTPS_PATTERN = Pattern.compile(&quot;https?://&quot;);</span>
+  public static final String KEY = &quot;saml&quot;;
+
+  public static final String RSA_SHA_256_URL = &quot;http://www.w3.org/2001/04/xmldsig-more#rsa-sha256&quot;;
+
+  private final SamlAuthenticator samlAuthenticator;
+  private final SamlSettings samlSettings;
+
+<span class="fc" id="L39">  public SamlIdentityProvider(SamlSettings samlSettings, SamlAuthenticator samlAuthenticator) {</span>
+<span class="fc" id="L40">    this.samlSettings = samlSettings;</span>
+<span class="fc" id="L41">    this.samlAuthenticator = samlAuthenticator;</span>
+<span class="fc" id="L42">  }</span>
+
+  @Override
+  public String getKey() {
+<span class="fc" id="L46">    return KEY;</span>
+  }
+
+  @Override
+  public String getName() {
+<span class="fc" id="L51">    return samlSettings.getProviderName();</span>
+  }
+
+  @Override
+  public Display getDisplay() {
+<span class="fc" id="L56">    return Display.builder()</span>
+<span class="fc" id="L57">      .setIconPath(&quot;/images/saml.png&quot;)</span>
+<span class="fc" id="L58">      .setBackgroundColor(&quot;#444444&quot;)</span>
+<span class="fc" id="L59">      .build();</span>
+  }
+
+  @Override
+  public boolean isEnabled() {
+<span class="fc" id="L64">    return samlSettings.isEnabled();</span>
+  }
+
+  @Override
+  public boolean allowsUsersToSignUp() {
+<span class="fc" id="L69">    return true;</span>
+  }
+
+  @Override
+  public void init(InitContext context) {
+<span class="fc" id="L74">    samlAuthenticator.initLogin(context.getCallbackUrl(), context.generateCsrfState(),</span>
+<span class="fc" id="L75">      context.getHttpRequest(), context.getHttpResponse());</span>
+<span class="fc" id="L76">  }</span>
+
+  @Override
+  public void callback(CallbackContext context) {
+
+<span class="fc" id="L81">    UserIdentity userIdentity = samlAuthenticator.onCallback(context, context.getHttpRequest());</span>
+<span class="fc" id="L82">    context.authenticate(userIdentity);</span>
+<span class="fc" id="L83">    context.redirectToRequestedPage();</span>
+
+<span class="fc" id="L85">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

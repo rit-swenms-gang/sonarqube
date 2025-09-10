@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>QProfileName.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.qualityprofile.builtin</a> &gt; <span class="el_source">QProfileName.java</span></div><h1>QProfileName.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.qualityprofile.builtin;
+
+import javax.annotation.Nullable;
+
+public class QProfileName {
+  private final String lang;
+  private final String name;
+
+<span class="fc" id="L28">  public QProfileName(String lang, String name) {</span>
+<span class="fc" id="L29">    this.lang = lang;</span>
+<span class="fc" id="L30">    this.name = name;</span>
+<span class="fc" id="L31">  }</span>
+
+  public String getLanguage() {
+<span class="fc" id="L34">    return lang;</span>
+  }
+
+  public String getName() {
+<span class="fc" id="L38">    return name;</span>
+  }
+
+  public static QProfileName createFor(String lang, String name){
+<span class="fc" id="L42">    return new QProfileName(lang, name);</span>
+  }
+
+  @Override
+  public boolean equals(@Nullable Object o) {
+<span class="pc bpc" id="L47" title="1 of 2 branches missed.">    if (this == o) {</span>
+<span class="nc" id="L48">      return true;</span>
+    }
+<span class="pc bpc" id="L50" title="2 of 4 branches missed.">    if (o == null || getClass() != o.getClass()) {</span>
+<span class="nc" id="L51">      return false;</span>
+    }
+<span class="fc" id="L53">    QProfileName that = (QProfileName) o;</span>
+<span class="pc bpc" id="L54" title="1 of 2 branches missed.">    if (!lang.equals(that.lang)) {</span>
+<span class="nc" id="L55">      return false;</span>
+    }
+<span class="fc" id="L57">    return name.equals(that.name);</span>
+  }
+
+  @Override
+  public int hashCode() {
+<span class="fc" id="L62">    int result = lang.hashCode();</span>
+<span class="fc" id="L63">    result = 31 * result + name.hashCode();</span>
+<span class="fc" id="L64">    return result;</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="fc" id="L69">    return String.format(&quot;%s/%s&quot;, lang, name);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ProjectConfigurationLoaderImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.setting</a> &gt; <span class="el_source">ProjectConfigurationLoaderImpl.java</span></div><h1>ProjectConfigurationLoaderImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.setting;
+
+import java.util.List;
+import javax.annotation.Nullable;
+import org.sonar.api.config.Configuration;
+import org.sonar.api.config.internal.Settings;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.BranchDto;
+import org.sonar.db.property.PropertyDto;
+
+public class ProjectConfigurationLoaderImpl implements ProjectConfigurationLoader {
+  private final Settings globalSettings;
+  private final DbClient dbClient;
+
+<span class="fc" id="L35">  public ProjectConfigurationLoaderImpl(Settings globalSettings, DbClient dbClient) {</span>
+<span class="fc" id="L36">    this.globalSettings = globalSettings;</span>
+<span class="fc" id="L37">    this.dbClient = dbClient;</span>
+<span class="fc" id="L38">  }</span>
+
+  @Override
+  public Configuration loadBranchConfiguration(DbSession dbSession, BranchDto branch) {
+<span class="fc" id="L42">    return loadProjectAndBranchConfiguration(dbSession, branch.getProjectUuid(), branch.getUuid());</span>
+  }
+
+  @Override
+  public Configuration loadProjectConfiguration(DbSession dbSession, String projectUuid) {
+<span class="nc" id="L47">    return loadProjectAndBranchConfiguration(dbSession, projectUuid, null);</span>
+  }
+
+  private Configuration loadProjectAndBranchConfiguration(DbSession dbSession, String projectUuid, @Nullable String branchUuid) {
+<span class="fc" id="L51">    ChildSettings projectSettings = internalLoadProjectConfiguration(dbSession, projectUuid);</span>
+
+<span class="pc bpc" id="L53" title="1 of 2 branches missed.">    if (branchUuid == null) {</span>
+<span class="nc" id="L54">      return projectSettings.asConfiguration();</span>
+    }
+
+<span class="fc" id="L57">    ChildSettings settings = new ChildSettings(projectSettings);</span>
+<span class="fc" id="L58">    dbClient.propertiesDao()</span>
+<span class="fc" id="L59">      .selectEntityProperties(dbSession, branchUuid)</span>
+<span class="fc" id="L60">      .forEach(property -&gt; settings.setProperty(property.getKey(), property.getValue()));</span>
+<span class="fc" id="L61">    return settings.asConfiguration();</span>
+  }
+
+  private ChildSettings internalLoadProjectConfiguration(DbSession dbSession, String uuid) {
+<span class="fc" id="L65">    ChildSettings settings = new ChildSettings(globalSettings);</span>
+<span class="fc" id="L66">    List&lt;PropertyDto&gt; propertyDtos = dbClient.propertiesDao().selectEntityProperties(dbSession, uuid);</span>
+<span class="fc" id="L67">    propertyDtos.forEach(property -&gt; settings.setProperty(property.getKey(), property.getValue()));</span>
+<span class="fc" id="L68">    return settings;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

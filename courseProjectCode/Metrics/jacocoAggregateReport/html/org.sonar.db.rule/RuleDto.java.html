@@ -1,0 +1,669 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RuleDto.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.rule</a> &gt; <span class="el_source">RuleDto.java</span></div><h1>RuleDto.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.rule;
+
+import com.google.common.base.Splitter;
+import com.google.common.collect.ImmutableSet;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.apache.commons.lang3.builder.HashCodeBuilder;
+import org.sonar.api.issue.impact.Severity;
+import org.sonar.api.issue.impact.SoftwareQuality;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.api.rule.RuleStatus;
+import org.sonar.api.rules.CleanCodeAttribute;
+import org.sonar.core.rule.RuleType;
+import org.sonar.db.issue.ImpactDto;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.lang.String.format;
+import static java.util.Collections.emptySet;
+import static java.util.Optional.ofNullable;
+import static org.sonar.db.rule.RuleDescriptionSectionDto.DEFAULT_KEY;
+
+<span class="fc" id="L48">public class RuleDto {</span>
+
+  static final String ERROR_MESSAGE_SECTION_ALREADY_EXISTS = &quot;A section with key '%s' and context key '%s' already exists&quot;;
+
+<span class="fc" id="L52">  public enum Format {</span>
+<span class="fc" id="L53">    HTML, MARKDOWN</span>
+  }
+
+<span class="fc" id="L56">  public enum Scope {</span>
+<span class="fc" id="L57">    MAIN, TEST, ALL</span>
+  }
+
+<span class="fc" id="L60">  private static final Splitter SPLITTER = Splitter.on(',').trimResults().omitEmptyStrings();</span>
+
+<span class="fc" id="L62">  private String uuid = null;</span>
+<span class="fc" id="L63">  private String repositoryKey = null;</span>
+<span class="fc" id="L64">  private String ruleKey = null;</span>
+
+<span class="fc" id="L66">  private final Set&lt;RuleDescriptionSectionDto&gt; ruleDescriptionSectionDtos = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L67">  private String educationPrinciplesField = null;</span>
+
+  /**
+   * Description format can be null on external rule, otherwise it should never be null
+   */
+<span class="fc" id="L72">  private RuleDto.Format descriptionFormat = null;</span>
+<span class="fc" id="L73">  private RuleStatus status = null;</span>
+
+<span class="fc" id="L75">  private final Set&lt;ImpactDto&gt; defaultImpacts = new HashSet&lt;&gt;();</span>
+
+<span class="fc" id="L77">  private String name = null;</span>
+<span class="fc" id="L78">  private String configKey = null;</span>
+
+  /**
+   * Severity can be null on external rule, otherwise it should never be null
+   */
+<span class="fc" id="L83">  private Integer severity = null;</span>
+
+<span class="fc" id="L85">  private boolean isTemplate = false;</span>
+
+  /**
+   * This flag specify that this is an external rule, meaning that generated issues from this rule will be provided by the analyzer without being activated on a quality profile.
+   */
+<span class="fc" id="L90">  private boolean isExternal = false;</span>
+
+  /**
+   * When an external rule is defined as ad hoc, it means that it's not defined using {@link org.sonar.api.server.rule.RulesDefinition.Context#createExternalRepository(String, String)}.
+   * As the opposite, an external rule not being defined as ad hoc is declared by using {@link org.sonar.api.server.rule.RulesDefinition.Context#createExternalRepository(String, String)}.
+   * This flag is only used for external rules (it can only be set to true for when {@link #isExternal()} is true)
+   */
+<span class="fc" id="L97">  private boolean isAdHoc = false;</span>
+
+<span class="fc" id="L99">  private String language = null;</span>
+<span class="fc" id="L100">  private String templateUuid = null;</span>
+<span class="fc" id="L101">  private String defRemediationFunction = null;</span>
+<span class="fc" id="L102">  private String defRemediationGapMultiplier = null;</span>
+<span class="fc" id="L103">  private String defRemediationBaseEffort = null;</span>
+<span class="fc" id="L104">  private String gapDescription = null;</span>
+<span class="fc" id="L105">  private Set&lt;String&gt; systemTags = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L106">  private Set&lt;String&gt; tags = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L107">  private String securityStandardsField = null;</span>
+<span class="fc" id="L108">  private int type = 0;</span>
+<span class="fc" id="L109">  private CleanCodeAttribute cleanCodeAttribute = null;</span>
+<span class="fc" id="L110">  private Scope scope = null;</span>
+
+<span class="fc" id="L112">  private RuleKey key = null;</span>
+
+<span class="fc" id="L114">  private String pluginKey = null;</span>
+<span class="fc" id="L115">  private String noteData = null;</span>
+<span class="fc" id="L116">  private String noteUserUuid = null;</span>
+<span class="fc" id="L117">  private Long noteCreatedAt = null;</span>
+<span class="fc" id="L118">  private Long noteUpdatedAt = null;</span>
+<span class="fc" id="L119">  private String remediationFunction = null;</span>
+<span class="fc" id="L120">  private String remediationGapMultiplier = null;</span>
+<span class="fc" id="L121">  private String remediationBaseEffort = null;</span>
+
+  /**
+   * Name of on ad hoc rule.
+   */
+<span class="fc" id="L126">  private String adHocName = null;</span>
+
+  /**
+   * Optional description of on ad hoc rule.
+   */
+<span class="fc" id="L131">  private String adHocDescription = null;</span>
+
+  /**
+   * Severity of on ad hoc rule.
+   * When {@link RuleDto#isAdHoc()} is true, this field should always be set
+   */
+<span class="fc" id="L137">  private String adHocSeverity = null;</span>
+
+  /**
+   * Type of on ad hoc rule.
+   * When {@link RuleDto#isAdHoc()} is true, this field should always be set
+   */
+<span class="fc" id="L143">  private Integer adHocType = null;</span>
+<span class="fc" id="L144">  private long createdAt = 0;</span>
+<span class="fc" id="L145">  private long updatedAt = 0;</span>
+
+  public RuleKey getKey() {
+<span class="fc bfc" id="L148" title="All 2 branches covered.">    if (key == null) {</span>
+<span class="fc" id="L149">      key = RuleKey.of(getRepositoryKey(), getRuleKey());</span>
+    }
+<span class="fc" id="L151">    return key;</span>
+  }
+
+  RuleDto setKey(RuleKey key) {
+<span class="fc" id="L155">    this.key = key;</span>
+<span class="fc" id="L156">    setRepositoryKey(key.repository());</span>
+<span class="fc" id="L157">    setRuleKey(key.rule());</span>
+<span class="fc" id="L158">    return this;</span>
+  }
+
+  public String getUuid() {
+<span class="fc" id="L162">    return uuid;</span>
+  }
+
+  public RuleDto setUuid(String uuid) {
+<span class="fc" id="L166">    this.uuid = uuid;</span>
+<span class="fc" id="L167">    return this;</span>
+  }
+
+  public String getRepositoryKey() {
+<span class="fc" id="L171">    return repositoryKey;</span>
+  }
+
+  public RuleDto setRepositoryKey(String repositoryKey) {
+<span class="pc bpc" id="L175" title="1 of 2 branches missed.">    checkArgument(repositoryKey.length() &lt;= 255, &quot;Rule repository is too long: %s&quot;, repositoryKey);</span>
+<span class="fc" id="L176">    this.repositoryKey = repositoryKey;</span>
+<span class="fc" id="L177">    return this;</span>
+  }
+
+  public String getRuleKey() {
+<span class="fc" id="L181">    return ruleKey;</span>
+  }
+
+  public RuleDto setRuleKey(String ruleKey) {
+<span class="fc bfc" id="L185" title="All 2 branches covered.">    checkArgument(ruleKey.length() &lt;= 200, &quot;Rule key is too long: %s&quot;, ruleKey);</span>
+<span class="fc" id="L186">    this.ruleKey = ruleKey;</span>
+<span class="fc" id="L187">    return this;</span>
+  }
+
+  public RuleDto setRuleKey(RuleKey ruleKey) {
+<span class="fc" id="L191">    this.repositoryKey = ruleKey.repository();</span>
+<span class="fc" id="L192">    this.ruleKey = ruleKey.rule();</span>
+<span class="fc" id="L193">    this.key = ruleKey;</span>
+<span class="fc" id="L194">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getPluginKey() {
+<span class="fc" id="L199">    return pluginKey;</span>
+  }
+
+  public RuleDto setPluginKey(@Nullable String pluginKey) {
+<span class="fc" id="L203">    this.pluginKey = pluginKey;</span>
+<span class="fc" id="L204">    return this;</span>
+  }
+
+  public Set&lt;RuleDescriptionSectionDto&gt; getRuleDescriptionSectionDtos() {
+<span class="fc" id="L208">    return ruleDescriptionSectionDtos;</span>
+  }
+
+  @CheckForNull
+  public RuleDescriptionSectionDto getDefaultRuleDescriptionSection() {
+<span class="fc" id="L213">    return ruleDescriptionSectionDtos.stream()</span>
+<span class="fc" id="L214">      .filter(ruleDesc -&gt; ruleDesc.getKey().equals(DEFAULT_KEY))</span>
+<span class="fc" id="L215">      .findAny()</span>
+<span class="fc" id="L216">      .orElse(null);</span>
+  }
+
+  public RuleDto replaceRuleDescriptionSectionDtos(Collection&lt;RuleDescriptionSectionDto&gt; ruleDescriptionSectionDtos) {
+<span class="fc" id="L220">    this.ruleDescriptionSectionDtos.clear();</span>
+<span class="fc" id="L221">    ruleDescriptionSectionDtos.forEach(this::addRuleDescriptionSectionDto);</span>
+<span class="fc" id="L222">    return this;</span>
+  }
+
+  public RuleDto addRuleDescriptionSectionDto(RuleDescriptionSectionDto ruleDescriptionSectionDto) {
+<span class="fc bfc" id="L226" title="All 2 branches covered.">    checkArgument(!hasDescriptionSectionWithSameKeyAndContext(ruleDescriptionSectionDto),</span>
+<span class="fc" id="L227">      ERROR_MESSAGE_SECTION_ALREADY_EXISTS, ruleDescriptionSectionDto.getKey(),</span>
+<span class="fc" id="L228">      Optional.ofNullable(ruleDescriptionSectionDto.getContext()).map(RuleDescriptionSectionContextDto::getKey).orElse(null));</span>
+<span class="fc" id="L229">    ruleDescriptionSectionDtos.add(ruleDescriptionSectionDto);</span>
+<span class="fc" id="L230">    return this;</span>
+  }
+
+  private boolean hasDescriptionSectionWithSameKeyAndContext(RuleDescriptionSectionDto ruleDescriptionSectionDto) {
+<span class="fc" id="L234">    return ruleDescriptionSectionDtos.stream()</span>
+<span class="fc" id="L235">      .anyMatch(ruleDesc -&gt; hasSameKeyAndContextKey(ruleDescriptionSectionDto, ruleDesc));</span>
+  }
+
+  private static boolean hasSameKeyAndContextKey(RuleDescriptionSectionDto ruleDescriptionSectionDto, RuleDescriptionSectionDto other) {
+<span class="fc bfc" id="L239" title="All 2 branches covered.">    if (!ruleDescriptionSectionDto.getKey().equals(other.getKey())) {</span>
+<span class="fc" id="L240">      return false;</span>
+    }
+
+<span class="fc" id="L243">    String contextKey = ofNullable(ruleDescriptionSectionDto.getContext()).map(RuleDescriptionSectionContextDto::getKey).orElse(null);</span>
+<span class="fc" id="L244">    String otherContextKey = ofNullable(other.getContext()).map(RuleDescriptionSectionContextDto::getKey).orElse(null);</span>
+<span class="fc" id="L245">    return Objects.equals(contextKey, otherContextKey);</span>
+  }
+
+  public Set&lt;String&gt; getEducationPrinciples() {
+<span class="fc" id="L249">    return deserializeStringSet(educationPrinciplesField);</span>
+  }
+
+  public RuleDto setEducationPrinciples(Set&lt;String&gt; educationPrinciples) {
+<span class="fc" id="L253">    this.educationPrinciplesField = serializeStringSet(educationPrinciples);</span>
+<span class="fc" id="L254">    return this;</span>
+  }
+
+  @CheckForNull
+  public Format getDescriptionFormat() {
+<span class="fc" id="L259">    return descriptionFormat;</span>
+  }
+
+  public RuleDto setDescriptionFormat(Format descriptionFormat) {
+<span class="fc" id="L263">    this.descriptionFormat = descriptionFormat;</span>
+<span class="fc" id="L264">    return this;</span>
+  }
+
+  public RuleStatus getStatus() {
+<span class="fc" id="L268">    return status;</span>
+  }
+
+  public RuleDto setStatus(@Nullable RuleStatus status) {
+<span class="fc" id="L272">    this.status = status;</span>
+<span class="fc" id="L273">    return this;</span>
+  }
+
+  public Set&lt;ImpactDto&gt; getDefaultImpacts() {
+<span class="fc" id="L277">    return defaultImpacts;</span>
+  }
+
+  public Map&lt;SoftwareQuality, Severity&gt; getDefaultImpactsMap() {
+<span class="fc" id="L281">    return defaultImpacts.stream()</span>
+<span class="fc" id="L282">      .collect(Collectors.toMap(ImpactDto::getSoftwareQuality, ImpactDto::getSeverity));</span>
+  }
+
+  public RuleDto addDefaultImpact(ImpactDto defaultImpactDto) {
+<span class="fc bfc" id="L286" title="All 2 branches covered.">    defaultImpacts.stream().filter(impactDto -&gt; impactDto.getSoftwareQuality() == defaultImpactDto.getSoftwareQuality()).findFirst()</span>
+<span class="fc" id="L287">      .ifPresent(impactDto -&gt; {</span>
+<span class="fc" id="L288">        throw new IllegalStateException(format(&quot;Impact already defined on rule for Software Quality [%s]&quot;, defaultImpactDto.getSoftwareQuality()));</span>
+      });
+<span class="fc" id="L290">    defaultImpacts.add(defaultImpactDto);</span>
+<span class="fc" id="L291">    return this;</span>
+  }
+
+  public RuleDto replaceAllDefaultImpacts(Collection&lt;ImpactDto&gt; newImpacts) {
+<span class="fc" id="L295">    Set&lt;SoftwareQuality&gt; newSoftwareQuality = newImpacts.stream().map(ImpactDto::getSoftwareQuality).collect(Collectors.toSet());</span>
+<span class="fc bfc" id="L296" title="All 2 branches covered.">    if (newSoftwareQuality.size() != newImpacts.size()) {</span>
+<span class="fc" id="L297">      throw new IllegalStateException(&quot;Impacts must have unique Software Quality values&quot;);</span>
+    }
+<span class="fc" id="L299">    defaultImpacts.clear();</span>
+<span class="fc" id="L300">    defaultImpacts.addAll(newImpacts);</span>
+<span class="fc" id="L301">    return this;</span>
+  }
+
+  public String getName() {
+<span class="fc" id="L305">    return name;</span>
+  }
+
+  public RuleDto setName(@Nullable String name) {
+<span class="fc bfc" id="L309" title="All 4 branches covered.">    checkArgument(name == null || name.length() &lt;= 255, &quot;Rule name is too long: %s&quot;, name);</span>
+<span class="fc" id="L310">    this.name = name;</span>
+<span class="fc" id="L311">    return this;</span>
+  }
+
+  public String getConfigKey() {
+<span class="fc" id="L315">    return configKey;</span>
+  }
+
+  public RuleDto setConfigKey(@Nullable String configKey) {
+<span class="fc" id="L319">    this.configKey = configKey;</span>
+<span class="fc" id="L320">    return this;</span>
+  }
+
+  public Scope getScope() {
+<span class="fc" id="L324">    return scope;</span>
+  }
+
+  public RuleDto setScope(Scope scope) {
+<span class="fc" id="L328">    this.scope = scope;</span>
+<span class="fc" id="L329">    return this;</span>
+  }
+
+  @CheckForNull
+  public Integer getSeverity() {
+<span class="fc" id="L334">    return severity;</span>
+  }
+
+  @CheckForNull
+  public String getSeverityString() {
+<span class="fc bfc" id="L339" title="All 2 branches covered.">    return severity != null ? SeverityUtil.getSeverityFromOrdinal(severity) : null;</span>
+  }
+
+  public RuleDto setSeverity(@Nullable String severity) {
+<span class="fc bfc" id="L343" title="All 2 branches covered.">    return this.setSeverity(severity != null ? SeverityUtil.getOrdinalFromSeverity(severity) : null);</span>
+  }
+
+  public RuleDto setSeverity(@Nullable Integer severity) {
+<span class="fc" id="L347">    this.severity = severity;</span>
+<span class="fc" id="L348">    return this;</span>
+  }
+
+  public boolean isExternal() {
+<span class="fc" id="L352">    return isExternal;</span>
+  }
+
+  public RuleDto setIsExternal(boolean isExternal) {
+<span class="fc" id="L356">    this.isExternal = isExternal;</span>
+<span class="fc" id="L357">    return this;</span>
+  }
+
+  public boolean isAdHoc() {
+<span class="fc" id="L361">    return isAdHoc;</span>
+  }
+
+  public RuleDto setIsAdHoc(boolean isAdHoc) {
+<span class="fc" id="L365">    this.isAdHoc = isAdHoc;</span>
+<span class="fc" id="L366">    return this;</span>
+  }
+
+  public boolean isTemplate() {
+<span class="fc" id="L370">    return isTemplate;</span>
+  }
+
+  public RuleDto setIsTemplate(boolean isTemplate) {
+<span class="fc" id="L374">    this.isTemplate = isTemplate;</span>
+<span class="fc" id="L375">    return this;</span>
+  }
+
+  public String getLanguage() {
+<span class="fc" id="L379">    return language;</span>
+  }
+
+  public RuleDto setLanguage(String language) {
+<span class="fc" id="L383">    this.language = language;</span>
+<span class="fc" id="L384">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getTemplateUuid() {
+<span class="fc" id="L389">    return templateUuid;</span>
+  }
+
+  public RuleDto setTemplateUuid(@Nullable String templateUuid) {
+<span class="fc" id="L393">    this.templateUuid = templateUuid;</span>
+<span class="fc" id="L394">    return this;</span>
+  }
+
+  public boolean isCustomRule() {
+<span class="fc bfc" id="L398" title="All 2 branches covered.">    return getTemplateUuid() != null;</span>
+  }
+
+  public RuleDto setSystemTags(Set&lt;String&gt; tags) {
+<span class="fc" id="L402">    this.systemTags = tags;</span>
+<span class="fc" id="L403">    return this;</span>
+  }
+
+  public RuleDto setSecurityStandards(Set&lt;String&gt; standards) {
+<span class="fc" id="L407">    this.securityStandardsField = serializeStringSet(standards);</span>
+<span class="fc" id="L408">    return this;</span>
+  }
+
+  public Set&lt;String&gt; getSystemTags() {
+<span class="fc" id="L412">    return systemTags;</span>
+  }
+
+  public Set&lt;String&gt; getSecurityStandards() {
+<span class="fc" id="L416">    return deserializeSecurityStandardsString(securityStandardsField);</span>
+  }
+
+  public int getType() {
+<span class="fc" id="L420">    return type;</span>
+  }
+
+  public RuleType getEnumType() {
+<span class="fc" id="L424">    return RuleType.fromDbConstant(type);</span>
+  }
+
+  public RuleDto setType(int type) {
+<span class="fc" id="L428">    this.type = type;</span>
+<span class="fc" id="L429">    return this;</span>
+  }
+
+  public RuleDto setType(RuleType type) {
+<span class="fc" id="L433">    this.type = type.getDbConstant();</span>
+<span class="fc" id="L434">    return this;</span>
+  }
+
+  @CheckForNull
+  public CleanCodeAttribute getCleanCodeAttribute() {
+<span class="fc" id="L439">    return cleanCodeAttribute;</span>
+  }
+
+  public RuleDto setCleanCodeAttribute(@Nullable CleanCodeAttribute cleanCodeAttribute) {
+<span class="fc" id="L443">    this.cleanCodeAttribute = cleanCodeAttribute;</span>
+<span class="fc" id="L444">    return this;</span>
+  }
+
+  public long getCreatedAt() {
+<span class="fc" id="L448">    return createdAt;</span>
+  }
+
+  public RuleDto setCreatedAt(long createdAt) {
+<span class="fc" id="L452">    this.createdAt = createdAt;</span>
+<span class="fc" id="L453">    return this;</span>
+  }
+
+  public long getUpdatedAt() {
+<span class="fc" id="L457">    return updatedAt;</span>
+  }
+
+  public RuleDto setUpdatedAt(long updatedAt) {
+<span class="fc" id="L461">    this.updatedAt = updatedAt;</span>
+<span class="fc" id="L462">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getDefRemediationFunction() {
+<span class="fc" id="L467">    return defRemediationFunction;</span>
+  }
+
+  public RuleDto setDefRemediationFunction(@Nullable String defaultRemediationFunction) {
+<span class="fc" id="L471">    this.defRemediationFunction = defaultRemediationFunction;</span>
+<span class="fc" id="L472">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getDefRemediationGapMultiplier() {
+<span class="fc" id="L477">    return defRemediationGapMultiplier;</span>
+  }
+
+  public RuleDto setDefRemediationGapMultiplier(@Nullable String defaultRemediationGapMultiplier) {
+<span class="fc" id="L481">    this.defRemediationGapMultiplier = defaultRemediationGapMultiplier;</span>
+<span class="fc" id="L482">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getDefRemediationBaseEffort() {
+<span class="fc" id="L487">    return defRemediationBaseEffort;</span>
+  }
+
+  public RuleDto setDefRemediationBaseEffort(@Nullable String defaultRemediationBaseEffort) {
+<span class="fc" id="L491">    this.defRemediationBaseEffort = defaultRemediationBaseEffort;</span>
+<span class="fc" id="L492">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getGapDescription() {
+<span class="fc" id="L497">    return gapDescription;</span>
+  }
+
+  public RuleDto setGapDescription(@Nullable String s) {
+<span class="fc" id="L501">    this.gapDescription = s;</span>
+<span class="fc" id="L502">    return this;</span>
+  }
+
+  public static Set&lt;String&gt; deserializeTagsString(@Nullable String tags) {
+<span class="nc" id="L506">    return deserializeStringSet(tags);</span>
+  }
+
+  public static Set&lt;String&gt; deserializeSecurityStandardsString(@Nullable String securityStandards) {
+<span class="fc" id="L510">    return deserializeStringSet(securityStandards);</span>
+  }
+
+  private static Set&lt;String&gt; deserializeStringSet(@Nullable String str) {
+<span class="pc bpc" id="L514" title="1 of 4 branches missed.">    if (str == null || str.isEmpty()) {</span>
+<span class="fc" id="L515">      return emptySet();</span>
+    }
+
+<span class="fc" id="L518">    return ImmutableSet.copyOf(SPLITTER.split(str));</span>
+  }
+
+  @CheckForNull
+  public String getNoteData() {
+<span class="fc" id="L523">    return noteData;</span>
+  }
+
+  public RuleDto setNoteData(@Nullable String s) {
+<span class="fc" id="L527">    this.noteData = s;</span>
+<span class="fc" id="L528">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getNoteUserUuid() {
+<span class="fc" id="L533">    return noteUserUuid;</span>
+  }
+
+  public RuleDto setNoteUserUuid(@Nullable String noteUserUuid) {
+<span class="fc" id="L537">    this.noteUserUuid = noteUserUuid;</span>
+<span class="fc" id="L538">    return this;</span>
+  }
+
+  @CheckForNull
+  public Long getNoteCreatedAt() {
+<span class="fc" id="L543">    return noteCreatedAt;</span>
+  }
+
+  public RuleDto setNoteCreatedAt(@Nullable Long noteCreatedAt) {
+<span class="fc" id="L547">    this.noteCreatedAt = noteCreatedAt;</span>
+<span class="fc" id="L548">    return this;</span>
+  }
+
+  @CheckForNull
+  public Long getNoteUpdatedAt() {
+<span class="fc" id="L553">    return noteUpdatedAt;</span>
+  }
+
+  public RuleDto setNoteUpdatedAt(@Nullable Long noteUpdatedAt) {
+<span class="fc" id="L557">    this.noteUpdatedAt = noteUpdatedAt;</span>
+<span class="fc" id="L558">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getRemediationFunction() {
+<span class="fc" id="L563">    return remediationFunction;</span>
+  }
+
+  public RuleDto setRemediationFunction(@Nullable String remediationFunction) {
+<span class="fc" id="L567">    this.remediationFunction = remediationFunction;</span>
+<span class="fc" id="L568">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getRemediationGapMultiplier() {
+<span class="fc" id="L573">    return remediationGapMultiplier;</span>
+  }
+
+  public RuleDto setRemediationGapMultiplier(@Nullable String remediationGapMultiplier) {
+<span class="fc" id="L577">    this.remediationGapMultiplier = remediationGapMultiplier;</span>
+<span class="fc" id="L578">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getRemediationBaseEffort() {
+<span class="fc" id="L583">    return remediationBaseEffort;</span>
+  }
+
+  public RuleDto setRemediationBaseEffort(@Nullable String remediationBaseEffort) {
+<span class="fc" id="L587">    this.remediationBaseEffort = remediationBaseEffort;</span>
+<span class="fc" id="L588">    return this;</span>
+  }
+
+  public Set&lt;String&gt; getTags() {
+<span class="fc" id="L592">    return tags;</span>
+  }
+
+  public RuleDto setTags(Set&lt;String&gt; tags) {
+<span class="fc bfc" id="L596" title="All 2 branches covered.">    tags.forEach(tag -&gt; checkArgument(tag.length() &lt;= 40, &quot;Rule tag is too long: %s&quot;, tag));</span>
+<span class="fc" id="L597">    this.tags = tags;</span>
+<span class="fc" id="L598">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getAdHocName() {
+<span class="fc" id="L603">    return adHocName;</span>
+  }
+
+  public RuleDto setAdHocName(@Nullable String adHocName) {
+<span class="fc" id="L607">    this.adHocName = adHocName;</span>
+<span class="fc" id="L608">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getAdHocDescription() {
+<span class="fc" id="L613">    return adHocDescription;</span>
+  }
+
+  public RuleDto setAdHocDescription(@Nullable String adHocDescription) {
+<span class="fc" id="L617">    this.adHocDescription = adHocDescription;</span>
+<span class="fc" id="L618">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getAdHocSeverity() {
+<span class="fc" id="L623">    return adHocSeverity;</span>
+  }
+
+  public RuleDto setAdHocSeverity(@Nullable String adHocSeverity) {
+<span class="fc" id="L627">    this.adHocSeverity = adHocSeverity;</span>
+<span class="fc" id="L628">    return this;</span>
+  }
+
+  @CheckForNull
+  public Integer getAdHocType() {
+<span class="fc" id="L633">    return adHocType;</span>
+  }
+
+  public RuleDto setAdHocType(@Nullable Integer adHocType) {
+<span class="fc" id="L637">    this.adHocType = adHocType;</span>
+<span class="fc" id="L638">    return this;</span>
+  }
+
+  public RuleDto setAdHocType(@Nullable RuleType adHocType) {
+<span class="pc bpc" id="L642" title="1 of 2 branches missed.">    setAdHocType(adHocType != null ? adHocType.getDbConstant() : null);</span>
+<span class="fc" id="L643">    return this;</span>
+  }
+
+  private static String serializeStringSet(@Nullable Set&lt;String&gt; strings) {
+<span class="pc bpc" id="L647" title="1 of 4 branches missed.">    return strings == null || strings.isEmpty() ? null : String.join(&quot;,&quot;, strings);</span>
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+<span class="fc bfc" id="L652" title="All 2 branches covered.">    if (!(obj instanceof RuleDto other)) {</span>
+<span class="fc" id="L653">      return false;</span>
+    }
+<span class="fc bfc" id="L655" title="All 2 branches covered.">    if (this == obj) {</span>
+<span class="fc" id="L656">      return true;</span>
+    }
+<span class="fc" id="L658">    return Objects.equals(this.uuid, other.uuid);</span>
+  }
+
+  @Override
+  public int hashCode() {
+<span class="fc" id="L663">    return new HashCodeBuilder(17, 37)</span>
+<span class="fc" id="L664">      .append(this.uuid)</span>
+<span class="fc" id="L665">      .toHashCode();</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

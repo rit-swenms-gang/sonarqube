@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ReportAnalysisFailureNotificationEmailTemplate.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.notification</a> &gt; <span class="el_source">ReportAnalysisFailureNotificationEmailTemplate.java</span></div><h1>ReportAnalysisFailureNotificationEmailTemplate.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.notification;
+
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
+import javax.annotation.CheckForNull;
+import org.sonar.api.notifications.Notification;
+import org.sonar.api.platform.Server;
+import org.sonar.server.issue.notification.EmailMessage;
+import org.sonar.server.issue.notification.EmailTemplate;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.sonar.api.utils.DateUtils.formatDateTime;
+
+public class ReportAnalysisFailureNotificationEmailTemplate implements EmailTemplate {
+  private static final char LINE_RETURN = '\n';
+  private static final char TAB = '\t';
+
+  private final ReportAnalysisFailureNotificationSerializer serializer;
+  private final Server server;
+
+<span class="fc" id="L40">  public ReportAnalysisFailureNotificationEmailTemplate(ReportAnalysisFailureNotificationSerializer serializer, Server server) {</span>
+<span class="fc" id="L41">    this.serializer = serializer;</span>
+<span class="fc" id="L42">    this.server = server;</span>
+<span class="fc" id="L43">  }</span>
+
+  @Override
+  @CheckForNull
+  public EmailMessage format(Notification notification) {
+<span class="fc bfc" id="L48" title="All 2 branches covered.">    if (!(notification instanceof ReportAnalysisFailureNotification)) {</span>
+<span class="fc" id="L49">      return null;</span>
+    }
+
+<span class="fc" id="L52">    ReportAnalysisFailureNotificationBuilder taskFailureNotification = serializer.fromNotification((ReportAnalysisFailureNotification) notification);</span>
+<span class="fc" id="L53">    String projectUuid = taskFailureNotification.project().uuid();</span>
+<span class="fc" id="L54">    String projectFullName = computeProjectFullName(taskFailureNotification.project());</span>
+
+<span class="fc" id="L56">    return new EmailMessage()</span>
+<span class="fc" id="L57">      .setMessageId(notification.getType() + &quot;/&quot; + projectUuid)</span>
+<span class="fc" id="L58">      .setSubject(subject(projectFullName))</span>
+<span class="fc" id="L59">      .setPlainTextMessage(message(projectFullName, taskFailureNotification));</span>
+  }
+
+  private static String computeProjectFullName(ReportAnalysisFailureNotificationBuilder.Project project) {
+<span class="fc" id="L63">    String branchName = project.branchName();</span>
+<span class="pc bpc" id="L64" title="1 of 2 branches missed.">    if (branchName != null) {</span>
+<span class="nc" id="L65">      return String.format(&quot;%s (%s)&quot;, project.name(), branchName);</span>
+    }
+<span class="fc" id="L67">    return project.name();</span>
+  }
+
+  private static String subject(String projectFullName) {
+<span class="fc" id="L71">    return String.format(&quot;%s: Background task in failure&quot;, projectFullName);</span>
+  }
+
+  private String message(String projectFullName, ReportAnalysisFailureNotificationBuilder taskFailureNotification) {
+<span class="fc" id="L75">    ReportAnalysisFailureNotificationBuilder.Project project = taskFailureNotification.project();</span>
+<span class="fc" id="L76">    ReportAnalysisFailureNotificationBuilder.Task task = taskFailureNotification.task();</span>
+
+<span class="fc" id="L78">    StringBuilder res = new StringBuilder();</span>
+<span class="fc" id="L79">    res.append(&quot;Project:&quot;).append(TAB).append(projectFullName).append(LINE_RETURN);</span>
+<span class="fc" id="L80">    res.append(&quot;Background task:&quot;).append(TAB).append(task.uuid()).append(LINE_RETURN);</span>
+<span class="fc" id="L81">    res.append(&quot;Submission time:&quot;).append(TAB).append(formatDateTime(task.createdAt())).append(LINE_RETURN);</span>
+<span class="fc" id="L82">    res.append(&quot;Failure time:&quot;).append(TAB).append(formatDateTime(task.failedAt())).append(LINE_RETURN);</span>
+
+<span class="fc" id="L84">    String errorMessage = taskFailureNotification.errorMessage();</span>
+<span class="pc bpc" id="L85" title="1 of 2 branches missed.">    if (errorMessage != null) {</span>
+<span class="fc" id="L86">      res.append(LINE_RETURN);</span>
+<span class="fc" id="L87">      res.append(&quot;Error message:&quot;).append(TAB).append(errorMessage).append(LINE_RETURN);</span>
+    }
+
+<span class="fc" id="L90">    res.append(LINE_RETURN);</span>
+<span class="fc" id="L91">    res.append(&quot;More details at: &quot;).append(String.format(&quot;%s/project/background_tasks?id=%s&quot;, server.getPublicRootUrl(), encode(project.key())));</span>
+
+<span class="fc" id="L93">    return res.toString();</span>
+  }
+
+  private static String encode(String toEncode) {
+    try {
+<span class="fc" id="L98">      return URLEncoder.encode(toEncode, UTF_8.name());</span>
+<span class="nc" id="L99">    } catch (UnsupportedEncodingException e) {</span>
+<span class="nc" id="L100">      throw new IllegalStateException(&quot;Encoding not supported&quot;, e);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

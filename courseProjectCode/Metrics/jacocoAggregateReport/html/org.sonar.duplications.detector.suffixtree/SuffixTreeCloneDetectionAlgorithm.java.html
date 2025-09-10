@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SuffixTreeCloneDetectionAlgorithm.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.duplications.detector.suffixtree</a> &gt; <span class="el_source">SuffixTreeCloneDetectionAlgorithm.java</span></div><h1>SuffixTreeCloneDetectionAlgorithm.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.duplications.detector.suffixtree;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import org.sonar.duplications.block.Block;
+import org.sonar.duplications.block.ByteArray;
+import org.sonar.duplications.index.CloneGroup;
+import org.sonar.duplications.index.CloneIndex;
+
+public final class SuffixTreeCloneDetectionAlgorithm {
+  
+<span class="fc" id="L38">  private static final Comparator&lt;Block&gt; BLOCK_COMPARATOR = (o1, o2) -&gt; o1.getIndexInFile() - o2.getIndexInFile();</span>
+
+  private SuffixTreeCloneDetectionAlgorithm() {
+    // only statics
+  }
+
+  public static List&lt;CloneGroup&gt; detect(CloneIndex cloneIndex, Collection&lt;Block&gt; fileBlocks) {
+<span class="fc bfc" id="L45" title="All 2 branches covered.">    if (fileBlocks.isEmpty()) {</span>
+<span class="fc" id="L46">      return Collections.emptyList();</span>
+    }
+<span class="fc" id="L48">    TextSet text = createTextSet(cloneIndex, fileBlocks);</span>
+<span class="fc bfc" id="L49" title="All 2 branches covered.">    if (text == null) {</span>
+<span class="fc" id="L50">      return Collections.emptyList();</span>
+    }
+<span class="fc" id="L52">    DuplicationsCollector reporter = new DuplicationsCollector(text);</span>
+<span class="fc" id="L53">    Search.perform(text, reporter);</span>
+<span class="fc" id="L54">    return reporter.getResult();</span>
+  }
+
+  private static TextSet createTextSet(CloneIndex index, Collection&lt;Block&gt; fileBlocks) {
+<span class="fc" id="L58">    Set&lt;ByteArray&gt; hashes = new HashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L59" title="All 2 branches covered.">    for (Block fileBlock : fileBlocks) {</span>
+<span class="fc" id="L60">      hashes.add(fileBlock.getBlockHash());</span>
+<span class="fc" id="L61">    }</span>
+
+<span class="fc" id="L63">    String originResourceId = fileBlocks.iterator().next().getResourceId();</span>
+<span class="fc" id="L64">    Map&lt;String, List&lt;Block&gt;&gt; fromIndex = retrieveFromIndex(index, originResourceId, hashes);</span>
+
+<span class="fc bfc" id="L66" title="All 4 branches covered.">    if (fromIndex.isEmpty() &amp;&amp; hashes.size() == fileBlocks.size()) {</span>
+      // optimization for the case when there is no duplications
+<span class="fc" id="L68">      return null;</span>
+    }
+
+<span class="fc" id="L71">    return createTextSet(fileBlocks, fromIndex);</span>
+  }
+
+  private static TextSet createTextSet(Collection&lt;Block&gt; fileBlocks, Map&lt;String, List&lt;Block&gt;&gt; fromIndex) {
+<span class="fc" id="L75">    TextSet.Builder textSetBuilder = TextSet.builder();</span>
+    // TODO Godin: maybe we can reduce size of tree and so memory consumption by removing non-repeatable blocks
+<span class="fc" id="L77">    List&lt;Block&gt; sortedFileBlocks = new ArrayList&lt;&gt;(fileBlocks);</span>
+<span class="fc" id="L78">    Collections.sort(sortedFileBlocks, BLOCK_COMPARATOR);</span>
+<span class="fc" id="L79">    textSetBuilder.add(sortedFileBlocks);</span>
+
+<span class="fc bfc" id="L81" title="All 2 branches covered.">    for (List&lt;Block&gt; list : fromIndex.values()) {</span>
+<span class="fc" id="L82">      Collections.sort(list, BLOCK_COMPARATOR);</span>
+
+<span class="fc" id="L84">      int i = 0;</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">      while (i &lt; list.size()) {</span>
+<span class="fc" id="L86">        int j = i + 1;</span>
+<span class="fc bfc" id="L87" title="All 4 branches covered.">        while ((j &lt; list.size()) &amp;&amp; (list.get(j).getIndexInFile() == list.get(j - 1).getIndexInFile() + 1)) {</span>
+<span class="fc" id="L88">          j++;</span>
+        }
+<span class="fc" id="L90">        textSetBuilder.add(list.subList(i, j));</span>
+<span class="fc" id="L91">        i = j;</span>
+<span class="fc" id="L92">      }</span>
+<span class="fc" id="L93">    }</span>
+
+<span class="fc" id="L95">    return textSetBuilder.build();</span>
+  }
+
+  private static Map&lt;String, List&lt;Block&gt;&gt; retrieveFromIndex(CloneIndex index, String originResourceId, Set&lt;ByteArray&gt; hashes) {
+<span class="fc" id="L99">    Map&lt;String, List&lt;Block&gt;&gt; collection = new HashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L100" title="All 2 branches covered.">    for (ByteArray hash : hashes) {</span>
+<span class="fc" id="L101">      Collection&lt;Block&gt; blocks = index.getBySequenceHash(hash);</span>
+<span class="fc bfc" id="L102" title="All 2 branches covered.">      for (Block blockFromIndex : blocks) {</span>
+        // Godin: skip blocks for this file if they come from index
+<span class="fc" id="L104">        String resourceId = blockFromIndex.getResourceId();</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">        if (!originResourceId.equals(resourceId)) {</span>
+<span class="fc" id="L106">          List&lt;Block&gt; list = collection.get(resourceId);</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">          if (list == null) {</span>
+<span class="fc" id="L108">            list = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L109">            collection.put(resourceId, list);</span>
+          }
+<span class="fc" id="L111">          list.add(blockFromIndex);</span>
+        }
+<span class="fc" id="L113">      }</span>
+<span class="fc" id="L114">    }</span>
+<span class="fc" id="L115">    return collection;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

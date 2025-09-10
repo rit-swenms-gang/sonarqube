@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EmailConfigurationService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonarqube.ws.client.emails</a> &gt; <span class="el_source">EmailConfigurationService.java</span></div><h1>EmailConfigurationService.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonarqube.ws.client.emails;
+
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import org.sonarqube.ws.client.BaseService;
+import org.sonarqube.ws.client.DeleteRequest;
+import org.sonarqube.ws.client.HttpException;
+import org.sonarqube.ws.client.PostRequest;
+import org.sonarqube.ws.client.WsConnector;
+import org.sonarqube.ws.client.WsResponse;
+
+import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
+
+public class EmailConfigurationService extends BaseService {
+
+
+  private static final String EMAIL_CONFIGURATION_ID = &quot;email-configuration&quot;;
+
+  public EmailConfigurationService(WsConnector wsConnector) {
+<span class="fc" id="L39">    super(wsConnector, &quot;api/v2/system/email-configurations&quot;);</span>
+<span class="fc" id="L40">  }</span>
+
+  public String createEmailConfiguration(WsEmailConfiguration config) {
+<span class="nc" id="L43">    String body = String.format(&quot;&quot;&quot;</span>
+        {
+          &quot;host&quot;: &quot;%s&quot;,
+          &quot;port&quot;: &quot;%s&quot;,
+          &quot;securityProtocol&quot;: &quot;%s&quot;,
+          &quot;fromAddress&quot;: &quot;%s&quot;,
+          &quot;fromName&quot;: &quot;%s&quot;,
+          &quot;subjectPrefix&quot;: &quot;%s&quot;,
+          &quot;authMethod&quot;: &quot;%s&quot;,
+          &quot;username&quot;: &quot;%s&quot;,
+          &quot;basicPassword&quot;: &quot;%s&quot;,
+          &quot;oauthAuthenticationHost&quot;: &quot;%s&quot;,
+          &quot;oauthClientId&quot;: &quot;%s&quot;,
+          &quot;oauthClientSecret&quot;: &quot;%s&quot;,
+          &quot;oauthTenant&quot;: &quot;%s&quot;
+        }
+        &quot;&quot;&quot;,
+<span class="nc" id="L60">      config.host(),</span>
+<span class="nc" id="L61">      config.port(),</span>
+<span class="nc" id="L62">      config.securityProtocol(),</span>
+<span class="nc" id="L63">      config.fromAddress(),</span>
+<span class="nc" id="L64">      config.fromName(),</span>
+<span class="nc" id="L65">      config.subjectPrefix(),</span>
+<span class="nc" id="L66">      config.authMethod(),</span>
+<span class="nc" id="L67">      config.username(),</span>
+<span class="nc" id="L68">      config.basicPassword(),</span>
+<span class="nc" id="L69">      config.oauthAuthenticationHost(),</span>
+<span class="nc" id="L70">      config.oauthClientId(),</span>
+<span class="nc" id="L71">      config.oauthClientSecret(),</span>
+<span class="nc" id="L72">      config.oauthTenant()</span>
+      );
+
+<span class="nc" id="L75">    WsResponse response = call(</span>
+<span class="nc" id="L76">      new PostRequest(path()).setBody(body)</span>
+    );
+<span class="nc" id="L78">    return new Gson().fromJson(response.content(), JsonObject.class).get(&quot;id&quot;).getAsString();</span>
+  }
+
+  public void deleteEmailConfiguration() {
+    try {
+<span class="nc" id="L83">      call(new DeleteRequest(path() + &quot;/&quot; + EMAIL_CONFIGURATION_ID));</span>
+<span class="nc" id="L84">    } catch (HttpException e) {</span>
+      // We ignore if it gets deleted while there is no configuration
+<span class="nc bnc" id="L86" title="All 2 branches missed.">      if (e.code() != HTTP_NOT_FOUND) {</span>
+<span class="nc" id="L87">        throw e;</span>
+      }
+<span class="nc" id="L89">    }</span>
+<span class="nc" id="L90">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

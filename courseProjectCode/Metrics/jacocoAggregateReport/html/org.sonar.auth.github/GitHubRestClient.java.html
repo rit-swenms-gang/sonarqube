@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GitHubRestClient.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.auth.github</a> &gt; <span class="el_source">GitHubRestClient.java</span></div><h1>GitHubRestClient.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.auth.github;
+
+import com.github.scribejava.core.model.OAuth2AccessToken;
+import com.github.scribejava.core.model.OAuthRequest;
+import com.github.scribejava.core.model.Response;
+import com.github.scribejava.core.model.Verb;
+import com.github.scribejava.core.oauth.OAuth20Service;
+import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import static java.lang.String.format;
+import static org.sonar.auth.OAuthRestClient.executePaginatedRequest;
+import static org.sonar.auth.OAuthRestClient.executeRequest;
+
+public class GitHubRestClient {
+
+<span class="fc" id="L40">  private static final Logger LOGGER = LoggerFactory.getLogger(GitHubRestClient.class);</span>
+
+  private final GitHubSettings settings;
+
+<span class="fc" id="L44">  public GitHubRestClient(GitHubSettings settings) {</span>
+<span class="fc" id="L45">    this.settings = settings;</span>
+<span class="fc" id="L46">  }</span>
+
+  public GsonUser getUser(OAuth20Service scribe, OAuth2AccessToken accessToken) throws IOException {
+<span class="fc" id="L49">    String responseBody = executeRequest(settings.apiURL() + &quot;user&quot;, scribe, accessToken).getBody();</span>
+<span class="fc" id="L50">    LOGGER.trace(&quot;User response received : {}&quot;, responseBody);</span>
+<span class="fc" id="L51">    return GsonUser.parse(responseBody);</span>
+  }
+
+  public String getEmail(OAuth20Service scribe, OAuth2AccessToken accessToken) throws IOException {
+<span class="fc" id="L55">    String responseBody = executeRequest(settings.apiURL() + &quot;user/emails&quot;, scribe, accessToken).getBody();</span>
+<span class="fc" id="L56">    LOGGER.trace(&quot;Emails response received : {}&quot;, responseBody);</span>
+<span class="fc" id="L57">    List&lt;GsonEmail&gt; emails = GsonEmail.parse(responseBody);</span>
+<span class="fc" id="L58">    return emails.stream()</span>
+<span class="pc bpc" id="L59" title="1 of 4 branches missed.">      .filter(email -&gt; email.isPrimary() &amp;&amp; email.isVerified())</span>
+<span class="fc" id="L60">      .findFirst()</span>
+<span class="fc" id="L61">      .map(GsonEmail::getEmail)</span>
+<span class="fc" id="L62">      .orElse(null);</span>
+  }
+
+  public List&lt;GsonOrganization&gt; getUserOrganizations(OAuth20Service scribe, OAuth2AccessToken accessToken) {
+<span class="fc" id="L66">    List&lt;GsonOrganization&gt; gsonOrganizations = executePaginatedRequest(settings.apiURL() + &quot;user/orgs&quot;, scribe, accessToken, GsonOrganization::parse);</span>
+<span class="fc" id="L67">    LOGGER.trace(&quot;Organizations response received : {}&quot;, gsonOrganizations);</span>
+<span class="fc" id="L68">    return gsonOrganizations;</span>
+  }
+
+  public List&lt;GsonTeam&gt; getTeams(OAuth20Service scribe, OAuth2AccessToken accessToken) {
+<span class="fc" id="L72">    return executePaginatedRequest(settings.apiURL() + &quot;user/teams&quot;, scribe, accessToken, GsonTeam::parse);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

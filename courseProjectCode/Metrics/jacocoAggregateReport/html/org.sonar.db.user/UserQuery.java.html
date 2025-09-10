@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserQuery.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.user</a> &gt; <span class="el_source">UserQuery.java</span></div><h1>UserQuery.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.user;
+
+import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.apache.commons.lang3.StringUtils;
+
+public class UserQuery {
+  private final String searchText;
+  private final Boolean isActive;
+  private final String isManagedSqlClause;
+  private final Long lastConnectionDateFrom;
+  private final Long lastConnectionDateTo;
+  private final Long sonarLintLastConnectionDateFrom;
+  private final Long sonarLintLastConnectionDateTo;
+  private final String externalLogin;
+  private final String groupUuid;
+  private final String excludedGroupUuid;
+  private final Set&lt;String&gt; userUuids;
+
+<span class="fc" id="L44">  private UserQuery(UserQuery userQuery, Collection&lt;String&gt; userUuids) {</span>
+<span class="fc" id="L45">    this.searchText = userQuery.getSearchText();</span>
+<span class="fc" id="L46">    this.isActive = userQuery.isActive();</span>
+<span class="fc" id="L47">    this.isManagedSqlClause = userQuery.getIsManagedSqlClause();</span>
+<span class="fc" id="L48">    this.lastConnectionDateFrom = userQuery.getLastConnectionDateFrom();</span>
+<span class="fc" id="L49">    this.lastConnectionDateTo = userQuery.getLastConnectionDateTo();</span>
+<span class="fc" id="L50">    this.sonarLintLastConnectionDateTo = userQuery.getSonarLintLastConnectionDateTo();</span>
+<span class="fc" id="L51">    this.sonarLintLastConnectionDateFrom = userQuery.getSonarLintLastConnectionDateFrom();</span>
+<span class="fc" id="L52">    this.externalLogin = userQuery.externalLogin;</span>
+<span class="fc" id="L53">    this.groupUuid = userQuery.groupUuid;</span>
+<span class="fc" id="L54">    this.excludedGroupUuid = userQuery.excludedGroupUuid;</span>
+<span class="fc" id="L55">    this.userUuids = new HashSet&lt;&gt;(userUuids);</span>
+<span class="fc" id="L56">  }</span>
+
+  private UserQuery(@Nullable String searchText, @Nullable Boolean isActive, @Nullable String isManagedSqlClause,
+    @Nullable OffsetDateTime lastConnectionDateFrom, @Nullable OffsetDateTime lastConnectionDateTo,
+    @Nullable OffsetDateTime sonarLintLastConnectionDateFrom, @Nullable OffsetDateTime sonarLintLastConnectionDateTo, @Nullable String externalLogin,
+<span class="fc" id="L61">    @Nullable String groupUuid, @Nullable String excludedGroupUuid, @Nullable Set&lt;String&gt; userUuids) {</span>
+<span class="fc" id="L62">    this.searchText = searchTextToSearchTextSql(searchText);</span>
+<span class="fc" id="L63">    this.isActive = isActive;</span>
+<span class="fc" id="L64">    this.isManagedSqlClause = isManagedSqlClause;</span>
+<span class="fc" id="L65">    this.lastConnectionDateFrom = parseDateToLong(lastConnectionDateFrom);</span>
+<span class="fc" id="L66">    this.lastConnectionDateTo = formatDateToInput(lastConnectionDateTo);</span>
+<span class="fc" id="L67">    this.sonarLintLastConnectionDateFrom = parseDateToLong(sonarLintLastConnectionDateFrom);</span>
+<span class="fc" id="L68">    this.sonarLintLastConnectionDateTo = formatDateToInput(sonarLintLastConnectionDateTo);</span>
+<span class="fc" id="L69">    this.externalLogin = externalLogin;</span>
+<span class="fc" id="L70">    this.groupUuid = groupUuid;</span>
+<span class="fc" id="L71">    this.excludedGroupUuid = excludedGroupUuid;</span>
+<span class="fc" id="L72">    this.userUuids = userUuids;</span>
+<span class="fc" id="L73">  }</span>
+
+  public static UserQuery copyWithNewRangeOfUserUuids(UserQuery userQuery, Collection&lt;String&gt; userUuids) {
+<span class="fc" id="L76">    return new UserQuery(userQuery, userUuids);</span>
+  }
+
+  private static Long formatDateToInput(@Nullable OffsetDateTime dateTo) {
+<span class="fc bfc" id="L80" title="All 2 branches covered.">    if (dateTo == null) {</span>
+<span class="fc" id="L81">      return null;</span>
+    } else {
+      // add 1 second to include all timestamp at the second precision.
+<span class="fc" id="L84">      return dateTo.toInstant().plus(1, ChronoUnit.SECONDS).toEpochMilli();</span>
+    }
+  }
+
+  private static Long parseDateToLong(@Nullable OffsetDateTime date) {
+<span class="fc bfc" id="L89" title="All 2 branches covered.">    if (date == null) {</span>
+<span class="fc" id="L90">      return null;</span>
+    } else {
+<span class="fc" id="L92">      return date.toInstant().toEpochMilli();</span>
+    }
+  }
+
+  private static String searchTextToSearchTextSql(@Nullable String text) {
+<span class="fc" id="L97">    String sql = null;</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">    if (text != null) {</span>
+<span class="fc" id="L99">      sql = StringUtils.replace(text, &quot;%&quot;, &quot;/%&quot;);</span>
+<span class="fc" id="L100">      sql = StringUtils.replace(sql, &quot;_&quot;, &quot;/_&quot;);</span>
+<span class="fc" id="L101">      sql = &quot;%&quot; + sql + &quot;%&quot;;</span>
+    }
+<span class="fc" id="L103">    return sql;</span>
+  }
+
+  @CheckForNull
+  public String getSearchText() {
+<span class="fc" id="L108">    return searchText;</span>
+  }
+
+  @CheckForNull
+  public Boolean isActive() {
+<span class="fc" id="L113">    return isActive;</span>
+  }
+
+  @CheckForNull
+  public String getIsManagedSqlClause() {
+<span class="fc" id="L118">    return isManagedSqlClause;</span>
+  }
+
+  @CheckForNull
+  public Long getLastConnectionDateFrom() {
+<span class="fc" id="L123">    return lastConnectionDateFrom;</span>
+  }
+
+  @CheckForNull
+  public Long getLastConnectionDateTo() {
+<span class="fc" id="L128">    return lastConnectionDateTo;</span>
+  }
+
+  @CheckForNull
+  public Long getSonarLintLastConnectionDateFrom() {
+<span class="fc" id="L133">    return sonarLintLastConnectionDateFrom;</span>
+  }
+
+  @CheckForNull
+  public Long getSonarLintLastConnectionDateTo() {
+<span class="fc" id="L138">    return sonarLintLastConnectionDateTo;</span>
+  }
+
+  @CheckForNull
+  public String getExternalLogin() {
+<span class="fc" id="L143">    return externalLogin;</span>
+  }
+
+  @CheckForNull
+  public Set&lt;String&gt; getUserUuids() {
+<span class="fc" id="L148">    return userUuids;</span>
+  }
+
+  @CheckForNull
+  private String getGroupUuid() {
+<span class="fc" id="L153">    return groupUuid;</span>
+  }
+
+  @CheckForNull
+  private String getExcludedGroupUuid() {
+<span class="fc" id="L158">    return excludedGroupUuid;</span>
+  }
+
+  public static UserQueryBuilder builder() {
+<span class="fc" id="L162">    return new UserQueryBuilder();</span>
+  }
+
+  public static final class UserQueryBuilder {
+<span class="fc" id="L166">    private String searchText = null;</span>
+<span class="fc" id="L167">    private Boolean isActive = null;</span>
+<span class="fc" id="L168">    private String isManagedSqlClause = null;</span>
+<span class="fc" id="L169">    private OffsetDateTime lastConnectionDateFrom = null;</span>
+<span class="fc" id="L170">    private OffsetDateTime lastConnectionDateTo = null;</span>
+<span class="fc" id="L171">    private OffsetDateTime sonarLintLastConnectionDateFrom = null;</span>
+<span class="fc" id="L172">    private OffsetDateTime sonarLintLastConnectionDateTo = null;</span>
+<span class="fc" id="L173">    private String externalLogin = null;</span>
+<span class="fc" id="L174">    private String groupUuid = null;</span>
+    private String excludedGroupUuid;
+<span class="fc" id="L176">    private Set&lt;String&gt; userUuids = null;</span>
+
+<span class="fc" id="L178">    private UserQueryBuilder() {</span>
+<span class="fc" id="L179">    }</span>
+
+    public UserQueryBuilder searchText(@Nullable String searchText) {
+<span class="fc" id="L182">      this.searchText = searchText;</span>
+<span class="fc" id="L183">      return this;</span>
+    }
+
+    public UserQueryBuilder isActive(@Nullable Boolean isActive) {
+<span class="fc" id="L187">      this.isActive = isActive;</span>
+<span class="fc" id="L188">      return this;</span>
+    }
+
+    public UserQueryBuilder isManagedClause(@Nullable String isManagedSqlClause) {
+<span class="fc" id="L192">      this.isManagedSqlClause = isManagedSqlClause;</span>
+<span class="fc" id="L193">      return this;</span>
+    }
+
+    public UserQueryBuilder lastConnectionDateFrom(@Nullable OffsetDateTime lastConnectionDateFrom) {
+<span class="fc" id="L197">      this.lastConnectionDateFrom = lastConnectionDateFrom;</span>
+<span class="fc" id="L198">      return this;</span>
+    }
+
+    public UserQueryBuilder lastConnectionDateTo(@Nullable OffsetDateTime lastConnectionDateTo) {
+<span class="fc" id="L202">      this.lastConnectionDateTo = lastConnectionDateTo;</span>
+<span class="fc" id="L203">      return this;</span>
+    }
+
+    public UserQueryBuilder sonarLintLastConnectionDateFrom(@Nullable OffsetDateTime sonarLintLastConnectionDateFrom) {
+<span class="fc" id="L207">      this.sonarLintLastConnectionDateFrom = sonarLintLastConnectionDateFrom;</span>
+<span class="fc" id="L208">      return this;</span>
+    }
+
+    public UserQueryBuilder sonarLintLastConnectionDateTo(@Nullable OffsetDateTime sonarLintLastConnectionDateTo) {
+<span class="fc" id="L212">      this.sonarLintLastConnectionDateTo = sonarLintLastConnectionDateTo;</span>
+<span class="fc" id="L213">      return this;</span>
+    }
+
+    public UserQueryBuilder externalLogin(@Nullable String externalLogin) {
+<span class="fc" id="L217">      this.externalLogin = externalLogin;</span>
+<span class="fc" id="L218">      return this;</span>
+    }
+
+    public UserQueryBuilder groupUuid(@Nullable String groupUuid) {
+<span class="fc" id="L222">      this.groupUuid = groupUuid;</span>
+<span class="fc" id="L223">      return this;</span>
+    }
+
+    public UserQueryBuilder excludedGroupUuid(@Nullable String excludedGroupUuid) {
+<span class="fc" id="L227">      this.excludedGroupUuid = excludedGroupUuid;</span>
+<span class="fc" id="L228">      return this;</span>
+    }
+
+    public UserQueryBuilder userUuids(@Nullable Set&lt;String&gt; userUuids) {
+<span class="fc" id="L232">      this.userUuids = userUuids;</span>
+<span class="fc" id="L233">      return this;</span>
+    }
+
+    public UserQuery build() {
+<span class="fc" id="L237">      return new UserQuery(</span>
+        searchText, isActive, isManagedSqlClause, lastConnectionDateFrom, lastConnectionDateTo,
+        sonarLintLastConnectionDateFrom, sonarLintLastConnectionDateTo, externalLogin, groupUuid, excludedGroupUuid, userUuids);
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IssuePublisher.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.issue</a> &gt; <span class="el_source">IssuePublisher.java</span></div><h1>IssuePublisher.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.issue;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Consumer;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.ThreadSafe;
+import org.apache.commons.lang3.StringUtils;
+import org.sonar.api.batch.fs.TextRange;
+import org.sonar.api.batch.fs.internal.DefaultInputComponent;
+import org.sonar.api.batch.fs.internal.DefaultInputFile;
+import org.sonar.api.batch.rule.ActiveRule;
+import org.sonar.api.batch.rule.ActiveRules;
+import org.sonar.api.batch.sensor.issue.ExternalIssue;
+import org.sonar.api.batch.sensor.issue.Issue;
+import org.sonar.api.batch.sensor.issue.Issue.Flow;
+import org.sonar.api.batch.sensor.issue.MessageFormatting;
+import org.sonar.api.batch.sensor.issue.NewIssue.FlowType;
+import org.sonar.api.batch.sensor.issue.internal.DefaultIssueFlow;
+import org.sonar.api.issue.impact.SoftwareQuality;
+import org.sonar.api.rules.CleanCodeAttribute;
+import org.sonar.api.rules.RuleType;
+import org.sonar.scanner.protocol.Constants.Severity;
+import org.sonar.scanner.protocol.output.ScannerReport;
+import org.sonar.scanner.protocol.output.ScannerReport.IssueLocation;
+import org.sonar.scanner.protocol.output.ScannerReport.IssueType;
+import org.sonar.scanner.report.ReportPublisher;
+
+/**
+ * Initialize the issues raised during scan.
+ */
+@ThreadSafe
+public class IssuePublisher {
+
+<span class="fc" id="L58">  private static final Set&lt;String&gt; noSonarKeyContains = Set.of(&quot;nosonar&quot;, &quot;S1291&quot;);</span>
+  private final ActiveRules activeRules;
+  private final IssueFilters filters;
+  private final ReportPublisher reportPublisher;
+
+<span class="fc" id="L63">  public IssuePublisher(ActiveRules activeRules, IssueFilters filters, ReportPublisher reportPublisher) {</span>
+<span class="fc" id="L64">    this.activeRules = activeRules;</span>
+<span class="fc" id="L65">    this.filters = filters;</span>
+<span class="fc" id="L66">    this.reportPublisher = reportPublisher;</span>
+<span class="fc" id="L67">  }</span>
+
+  public boolean initAndAddIssue(Issue issue) {
+<span class="fc" id="L70">    DefaultInputComponent inputComponent = (DefaultInputComponent) issue.primaryLocation().inputComponent();</span>
+
+<span class="fc bfc" id="L72" title="All 2 branches covered.">    if (noSonar(inputComponent, issue)) {</span>
+<span class="fc" id="L73">      return false;</span>
+    }
+
+<span class="fc" id="L76">    ActiveRule activeRule = activeRules.find(issue.ruleKey());</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">    if (activeRule == null) {</span>
+      // rule does not exist or is not enabled -&gt; ignore the issue
+<span class="fc" id="L79">      return false;</span>
+    }
+
+<span class="fc" id="L82">    ScannerReport.Issue rawIssue = createReportIssue(issue, inputComponent.scannerId());</span>
+
+<span class="fc bfc" id="L84" title="All 2 branches covered.">    if (filters.accept(inputComponent, rawIssue, activeRule.severity())) {</span>
+<span class="fc" id="L85">      write(inputComponent.scannerId(), rawIssue);</span>
+<span class="fc" id="L86">      return true;</span>
+    }
+<span class="fc" id="L88">    return false;</span>
+  }
+
+  private static boolean noSonar(DefaultInputComponent inputComponent, Issue issue) {
+<span class="fc" id="L92">    TextRange textRange = issue.primaryLocation().textRange();</span>
+<span class="fc bfc" id="L93" title="All 4 branches covered.">    return inputComponent.isFile()</span>
+      &amp;&amp; textRange != null
+<span class="fc bfc" id="L95" title="All 2 branches covered.">      &amp;&amp; ((DefaultInputFile) inputComponent).hasNoSonarAt(textRange.start().line())</span>
+<span class="fc bfc" id="L96" title="All 2 branches covered.">      &amp;&amp; noSonarKeyContains.stream().noneMatch(k -&gt; StringUtils.containsIgnoreCase(issue.ruleKey().rule(), k));</span>
+  }
+
+  public void initAndAddExternalIssue(ExternalIssue issue) {
+<span class="fc" id="L100">    DefaultInputComponent inputComponent = (DefaultInputComponent) issue.primaryLocation().inputComponent();</span>
+<span class="fc" id="L101">    ScannerReport.ExternalIssue rawExternalIssue = createReportExternalIssue(issue, inputComponent.scannerId());</span>
+<span class="fc" id="L102">    write(inputComponent.scannerId(), rawExternalIssue);</span>
+<span class="fc" id="L103">  }</span>
+
+  private static String nullToEmpty(@Nullable String str) {
+<span class="fc bfc" id="L106" title="All 2 branches covered.">    if (str == null) {</span>
+<span class="fc" id="L107">      return &quot;&quot;;</span>
+    }
+<span class="fc" id="L109">    return str;</span>
+  }
+
+  private static ScannerReport.Issue createReportIssue(Issue issue, int componentRef) {
+<span class="fc" id="L113">    String primaryMessage = nullToEmpty(issue.primaryLocation().message());</span>
+
+<span class="fc" id="L115">    ScannerReport.Issue.Builder builder = ScannerReport.Issue.newBuilder();</span>
+<span class="fc" id="L116">    ScannerReport.IssueLocation.Builder locationBuilder = IssueLocation.newBuilder();</span>
+<span class="fc" id="L117">    ScannerReport.TextRange.Builder textRangeBuilder = ScannerReport.TextRange.newBuilder();</span>
+    // non-null fields
+<span class="fc" id="L119">    builder.setRuleRepository(issue.ruleKey().repository());</span>
+<span class="fc" id="L120">    builder.setRuleKey(issue.ruleKey().rule());</span>
+<span class="fc" id="L121">    builder.setMsg(primaryMessage);</span>
+<span class="fc" id="L122">    builder.addAllMsgFormatting(toProtobufMessageFormattings(issue.primaryLocation().messageFormattings()));</span>
+<span class="fc" id="L123">    Map&lt;SoftwareQuality, org.sonar.api.issue.impact.Severity&gt; overriddenImpacts = new EnumMap&lt;&gt;(issue.overridenImpacts());</span>
+<span class="fc" id="L124">    builder.addAllOverriddenImpacts(toProtobufImpacts(overriddenImpacts));</span>
+
+<span class="fc" id="L126">    locationBuilder.setMsg(primaryMessage);</span>
+<span class="fc" id="L127">    locationBuilder.addAllMsgFormatting(toProtobufMessageFormattings(issue.primaryLocation().messageFormattings()));</span>
+
+<span class="fc" id="L129">    locationBuilder.setComponentRef(componentRef);</span>
+<span class="fc" id="L130">    org.sonar.api.batch.rule.Severity overriddenSeverity = issue.overriddenSeverity();</span>
+<span class="fc bfc" id="L131" title="All 2 branches covered.">    if (overriddenSeverity != null) {</span>
+<span class="fc" id="L132">      builder.setOverriddenSeverity(Severity.valueOf(overriddenSeverity.name()));</span>
+    }
+<span class="fc" id="L134">    TextRange primaryTextRange = issue.primaryLocation().textRange();</span>
+<span class="fc bfc" id="L135" title="All 2 branches covered.">    if (primaryTextRange != null) {</span>
+<span class="fc" id="L136">      builder.setTextRange(toProtobufTextRange(textRangeBuilder, primaryTextRange));</span>
+    }
+<span class="fc" id="L138">    Double gap = issue.gap();</span>
+<span class="fc bfc" id="L139" title="All 2 branches covered.">    if (gap != null) {</span>
+<span class="fc" id="L140">      builder.setGap(gap);</span>
+    }
+<span class="fc" id="L142">    applyFlows(builder::addFlow, locationBuilder, textRangeBuilder, issue.flows());</span>
+<span class="fc" id="L143">    builder.setQuickFixAvailable(issue.isQuickFixAvailable());</span>
+<span class="fc" id="L144">    issue.ruleDescriptionContextKey().ifPresent(builder::setRuleDescriptionContextKey);</span>
+<span class="fc" id="L145">    List&lt;String&gt; codeVariants = issue.codeVariants();</span>
+<span class="fc bfc" id="L146" title="All 2 branches covered.">    if (codeVariants != null) {</span>
+<span class="fc" id="L147">      builder.addAllCodeVariants(codeVariants);</span>
+    }
+<span class="fc" id="L149">    return builder.build();</span>
+  }
+
+  private static List&lt;ScannerReport.Impact&gt; toProtobufImpacts(Map&lt;SoftwareQuality, org.sonar.api.issue.impact.Severity&gt; softwareQualitySeverityMap) {
+<span class="fc" id="L153">    List&lt;ScannerReport.Impact&gt; impacts = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L154">    softwareQualitySeverityMap.forEach((q, s) -&gt; impacts.add(ScannerReport.Impact.newBuilder()</span>
+<span class="fc" id="L155">      .setSoftwareQuality(ScannerReport.SoftwareQuality.valueOf(q.name()))</span>
+<span class="fc" id="L156">      .setSeverity(ImpactMapper.mapImpactSeverity(s)).build()));</span>
+<span class="fc" id="L157">    return impacts;</span>
+  }
+
+  private static List&lt;ScannerReport.MessageFormatting&gt; toProtobufMessageFormattings(List&lt;MessageFormatting&gt; messageFormattings) {
+<span class="fc" id="L161">    return messageFormattings.stream()</span>
+<span class="fc" id="L162">      .map(m -&gt; ScannerReport.MessageFormatting.newBuilder()</span>
+<span class="fc" id="L163">        .setStart(m.start())</span>
+<span class="fc" id="L164">        .setEnd(m.end())</span>
+<span class="fc" id="L165">        .setType(ScannerReport.MessageFormattingType.valueOf(m.type().name()))</span>
+<span class="fc" id="L166">        .build())</span>
+<span class="fc" id="L167">      .toList();</span>
+  }
+
+  private static ScannerReport.ExternalIssue createReportExternalIssue(ExternalIssue issue, int componentRef) {
+    // primary location of an external issue must have a message
+<span class="fc" id="L172">    String primaryMessage = issue.primaryLocation().message();</span>
+<span class="fc" id="L173">    ScannerReport.ExternalIssue.Builder builder = ScannerReport.ExternalIssue.newBuilder();</span>
+<span class="fc" id="L174">    ScannerReport.IssueLocation.Builder locationBuilder = IssueLocation.newBuilder();</span>
+<span class="fc" id="L175">    ScannerReport.TextRange.Builder textRangeBuilder = ScannerReport.TextRange.newBuilder();</span>
+
+    // non-null fields
+<span class="fc" id="L178">    builder.setEngineId(issue.engineId());</span>
+<span class="fc" id="L179">    builder.setRuleId(issue.ruleId());</span>
+<span class="fc" id="L180">    builder.setMsg(primaryMessage);</span>
+<span class="fc" id="L181">    builder.addAllMsgFormatting(toProtobufMessageFormattings(issue.primaryLocation().messageFormattings()));</span>
+<span class="fc" id="L182">    locationBuilder.setMsg(primaryMessage);</span>
+<span class="fc" id="L183">    locationBuilder.addAllMsgFormatting(toProtobufMessageFormattings(issue.primaryLocation().messageFormattings()));</span>
+<span class="fc" id="L184">    locationBuilder.setComponentRef(componentRef);</span>
+<span class="fc" id="L185">    TextRange primaryTextRange = issue.primaryLocation().textRange();</span>
+
+    // nullable fields
+<span class="fc" id="L188">    CleanCodeAttribute cleanCodeAttribute = issue.cleanCodeAttribute();</span>
+<span class="fc bfc" id="L189" title="All 2 branches covered.">    if (cleanCodeAttribute != null) {</span>
+<span class="fc" id="L190">      builder.setCleanCodeAttribute(cleanCodeAttribute.name());</span>
+    }
+<span class="fc" id="L192">    org.sonar.api.batch.rule.Severity severity = issue.severity();</span>
+<span class="fc bfc" id="L193" title="All 2 branches covered.">    if (severity != null) {</span>
+<span class="fc" id="L194">      builder.setSeverity(Severity.valueOf(severity.name()));</span>
+    }
+<span class="fc" id="L196">    RuleType issueType = issue.type();</span>
+<span class="fc bfc" id="L197" title="All 2 branches covered.">    if (issueType != null) {</span>
+<span class="fc" id="L198">      builder.setType(IssueType.valueOf(issueType.name()));</span>
+    }
+<span class="fc bfc" id="L200" title="All 2 branches covered.">    if (primaryTextRange != null) {</span>
+<span class="fc" id="L201">      builder.setTextRange(toProtobufTextRange(textRangeBuilder, primaryTextRange));</span>
+    }
+<span class="fc" id="L203">    Long effort = issue.remediationEffort();</span>
+<span class="fc bfc" id="L204" title="All 2 branches covered.">    if (effort != null) {</span>
+<span class="fc" id="L205">      builder.setEffort(effort);</span>
+    }
+<span class="fc" id="L207">    applyFlows(builder::addFlow, locationBuilder, textRangeBuilder, issue.flows());</span>
+<span class="fc" id="L208">    builder.addAllImpacts(toProtobufImpacts(issue.impacts()));</span>
+<span class="fc" id="L209">    return builder.build();</span>
+  }
+
+  private static void applyFlows(Consumer&lt;ScannerReport.Flow&gt; consumer, ScannerReport.IssueLocation.Builder locationBuilder,
+    ScannerReport.TextRange.Builder textRangeBuilder, Collection&lt;Flow&gt; flows) {
+<span class="fc" id="L214">    ScannerReport.Flow.Builder flowBuilder = ScannerReport.Flow.newBuilder();</span>
+<span class="fc bfc" id="L215" title="All 2 branches covered.">    for (Flow f : flows) {</span>
+<span class="fc" id="L216">      DefaultIssueFlow flow = (DefaultIssueFlow) f;</span>
+<span class="pc bpc" id="L217" title="1 of 2 branches missed.">      if (flow.locations().isEmpty()) {</span>
+<span class="nc" id="L218">        return;</span>
+      }
+<span class="fc" id="L220">      flowBuilder.clear();</span>
+<span class="fc bfc" id="L221" title="All 2 branches covered.">      for (org.sonar.api.batch.sensor.issue.IssueLocation location : flow.locations()) {</span>
+<span class="fc" id="L222">        int locationComponentRef = ((DefaultInputComponent) location.inputComponent()).scannerId();</span>
+<span class="fc" id="L223">        locationBuilder.clear();</span>
+<span class="fc" id="L224">        locationBuilder.setComponentRef(locationComponentRef);</span>
+<span class="fc" id="L225">        String message = location.message();</span>
+<span class="fc bfc" id="L226" title="All 2 branches covered.">        if (message != null) {</span>
+<span class="fc" id="L227">          locationBuilder.setMsg(message);</span>
+<span class="fc" id="L228">          locationBuilder.addAllMsgFormatting(toProtobufMessageFormattings(location.messageFormattings()));</span>
+        }
+<span class="fc" id="L230">        TextRange textRange = location.textRange();</span>
+<span class="fc bfc" id="L231" title="All 2 branches covered.">        if (textRange != null) {</span>
+<span class="fc" id="L232">          locationBuilder.setTextRange(toProtobufTextRange(textRangeBuilder, textRange));</span>
+        }
+<span class="fc" id="L234">        flowBuilder.addLocation(locationBuilder.build());</span>
+<span class="fc" id="L235">      }</span>
+<span class="fc bfc" id="L236" title="All 2 branches covered.">      if (flow.description() != null) {</span>
+<span class="fc" id="L237">        flowBuilder.setDescription(flow.description());</span>
+      }
+<span class="fc" id="L239">      flowBuilder.setType(toProtobufFlowType(flow.type()));</span>
+<span class="fc" id="L240">      consumer.accept(flowBuilder.build());</span>
+<span class="fc" id="L241">    }</span>
+<span class="fc" id="L242">  }</span>
+
+  private static ScannerReport.FlowType toProtobufFlowType(FlowType flowType) {
+<span class="pc bpc" id="L245" title="1 of 4 branches missed.">    switch (flowType) {</span>
+      case EXECUTION:
+<span class="fc" id="L247">        return ScannerReport.FlowType.EXECUTION;</span>
+      case DATA:
+<span class="fc" id="L249">        return ScannerReport.FlowType.DATA;</span>
+      case UNDEFINED:
+<span class="fc" id="L251">        return ScannerReport.FlowType.UNDEFINED;</span>
+      default:
+<span class="nc" id="L253">        throw new IllegalArgumentException(&quot;Unrecognized flow type: &quot; + flowType);</span>
+    }
+  }
+
+  private static ScannerReport.TextRange toProtobufTextRange(ScannerReport.TextRange.Builder textRangeBuilder, TextRange primaryTextRange) {
+<span class="fc" id="L258">    textRangeBuilder.clear();</span>
+<span class="fc" id="L259">    textRangeBuilder.setStartLine(primaryTextRange.start().line());</span>
+<span class="fc" id="L260">    textRangeBuilder.setStartOffset(primaryTextRange.start().lineOffset());</span>
+<span class="fc" id="L261">    textRangeBuilder.setEndLine(primaryTextRange.end().line());</span>
+<span class="fc" id="L262">    textRangeBuilder.setEndOffset(primaryTextRange.end().lineOffset());</span>
+<span class="fc" id="L263">    return textRangeBuilder.build();</span>
+  }
+
+  public void write(int batchId, ScannerReport.Issue rawIssue) {
+<span class="fc" id="L267">    reportPublisher.getWriter().appendComponentIssue(batchId, rawIssue);</span>
+<span class="fc" id="L268">  }</span>
+
+  public void write(int batchId, ScannerReport.ExternalIssue rawIssue) {
+<span class="fc" id="L271">    reportPublisher.getWriter().appendComponentExternalIssue(batchId, rawIssue);</span>
+<span class="fc" id="L272">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ScimGroupDao.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.scim</a> &gt; <span class="el_source">ScimGroupDao.java</span></div><h1>ScimGroupDao.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.scim;
+
+import java.util.List;
+import java.util.Optional;
+import org.sonar.core.util.UuidFactory;
+import org.sonar.db.Dao;
+import org.sonar.db.DbSession;
+import org.sonar.db.Pagineable;
+
+public class ScimGroupDao implements Dao {
+  private final UuidFactory uuidFactory;
+
+<span class="fc" id="L32">  public ScimGroupDao(UuidFactory uuidFactory) {</span>
+<span class="fc" id="L33">    this.uuidFactory = uuidFactory;</span>
+<span class="fc" id="L34">  }</span>
+
+  public List&lt;ScimGroupDto&gt; findAll(DbSession dbSession) {
+<span class="fc" id="L37">    return mapper(dbSession).findAll();</span>
+  }
+
+  public List&lt;ScimGroupDto&gt; findScimGroups(DbSession dbSession, ScimGroupQuery query, Pagineable pagination) {
+<span class="fc" id="L41">    return mapper(dbSession).findScimGroups(query, pagination);</span>
+  }
+
+  public Optional&lt;ScimGroupDto&gt; findByScimUuid(DbSession dbSession, String scimGroupUuid) {
+<span class="fc" id="L45">    return Optional.ofNullable(mapper(dbSession).findByScimUuid(scimGroupUuid));</span>
+  }
+
+  public Optional&lt;ScimGroupDto&gt; findByGroupUuid(DbSession dbSession, String groupUuid) {
+<span class="fc" id="L49">    return Optional.ofNullable(mapper(dbSession).findByGroupUuid(groupUuid));</span>
+  }
+
+  public int countScimGroups(DbSession dbSession, ScimGroupQuery query) {
+<span class="fc" id="L53">    return mapper(dbSession).countScimGroups(query);</span>
+  }
+
+  public ScimGroupDto enableScimForGroup(DbSession dbSession, String groupUuid) {
+<span class="fc" id="L57">    ScimGroupDto scimGroupDto = new ScimGroupDto(uuidFactory.create(), groupUuid);</span>
+<span class="fc" id="L58">    mapper(dbSession).insert(scimGroupDto);</span>
+<span class="fc" id="L59">    return scimGroupDto;</span>
+  }
+
+  public void deleteByGroupUuid(DbSession dbSession, String groupUuid) {
+<span class="fc" id="L63">    mapper(dbSession).deleteByGroupUuid(groupUuid);</span>
+<span class="fc" id="L64">  }</span>
+
+  public void deleteByScimUuid(DbSession dbSession, String scimUuid) {
+<span class="fc" id="L67">    mapper(dbSession).deleteByScimUuid(scimUuid);</span>
+<span class="fc" id="L68">  }</span>
+
+  private static ScimGroupMapper mapper(DbSession session) {
+<span class="fc" id="L71">    return session.getMapper(ScimGroupMapper.class);</span>
+  }
+
+  public String getManagedGroupSqlFilter(boolean filterByManaged) {
+<span class="fc bfc" id="L75" title="All 2 branches covered.">    return String.format(&quot;%s exists (select group_uuid from scim_groups sg where sg.group_uuid = uuid)&quot;, filterByManaged ? &quot;&quot; : &quot;not&quot;);</span>
+  }
+
+  public void deleteAll(DbSession dbSession) {
+<span class="fc" id="L79">    mapper(dbSession).deleteAll();</span>
+<span class="fc" id="L80">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

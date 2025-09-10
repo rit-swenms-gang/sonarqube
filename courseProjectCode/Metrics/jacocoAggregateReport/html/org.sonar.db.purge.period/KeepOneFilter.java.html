@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>KeepOneFilter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.purge.period</a> &gt; <span class="el_source">KeepOneFilter.java</span></div><h1>KeepOneFilter.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.purge.period;
+
+import com.google.common.annotations.VisibleForTesting;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.utils.DateUtils;
+import org.sonar.db.purge.PurgeableAnalysisDto;
+
+class KeepOneFilter implements Filter {
+
+  private final Date start;
+  private final Date end;
+  private final int dateField;
+  private final String label;
+
+<span class="fc" id="L37">  KeepOneFilter(Date start, Date end, int calendarField, String label) {</span>
+<span class="fc" id="L38">    this.start = start;</span>
+<span class="fc" id="L39">    this.end = end;</span>
+<span class="fc" id="L40">    this.dateField = calendarField;</span>
+<span class="fc" id="L41">    this.label = label;</span>
+<span class="fc" id="L42">  }</span>
+
+  @Override
+  public List&lt;PurgeableAnalysisDto&gt; filter(List&lt;PurgeableAnalysisDto&gt; history) {
+<span class="fc" id="L46">    List&lt;Interval&gt; intervals = Interval.group(history, start, end, dateField);</span>
+<span class="fc" id="L47">    List&lt;PurgeableAnalysisDto&gt; result = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L48" title="All 2 branches covered.">    for (Interval interval : intervals) {</span>
+<span class="fc" id="L49">      appendSnapshotsToDelete(interval, result);</span>
+<span class="fc" id="L50">    }</span>
+
+<span class="fc" id="L52">    return result;</span>
+  }
+
+  @Override
+  public void log() {
+<span class="fc" id="L57">    LoggerFactory.getLogger(getClass()).atDebug()</span>
+<span class="fc" id="L58">      .addArgument(label)</span>
+<span class="fc" id="L59">      .addArgument(() -&gt; DateUtils.formatDate(start))</span>
+<span class="fc" id="L60">      .addArgument(() -&gt; DateUtils.formatDate(end))</span>
+<span class="fc" id="L61">      .log(&quot;-&gt; Keep one snapshot per {} between {} and {}&quot;);</span>
+<span class="fc" id="L62">  }</span>
+
+  private static void appendSnapshotsToDelete(Interval interval, List&lt;PurgeableAnalysisDto&gt; toDelete) {
+<span class="fc bfc" id="L65" title="All 2 branches covered.">    if (interval.count() &gt; 1) {</span>
+<span class="fc" id="L66">      List&lt;PurgeableAnalysisDto&gt; deletables = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L67">      List&lt;PurgeableAnalysisDto&gt; toKeep = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L68" title="All 2 branches covered.">      for (PurgeableAnalysisDto snapshot : interval.get()) {</span>
+<span class="fc bfc" id="L69" title="All 2 branches covered.">        if (isDeletable(snapshot)) {</span>
+<span class="fc" id="L70">          deletables.add(snapshot);</span>
+        } else {
+<span class="fc" id="L72">          toKeep.add(snapshot);</span>
+        }
+<span class="fc" id="L74">      }</span>
+
+<span class="fc bfc" id="L76" title="All 2 branches covered.">      if (!toKeep.isEmpty()) {</span>
+<span class="fc" id="L77">        toDelete.addAll(deletables);</span>
+
+<span class="pc bpc" id="L79" title="1 of 2 branches missed.">      } else if (deletables.size() &gt; 1) {</span>
+        // keep last snapshot
+<span class="fc" id="L81">        toDelete.addAll(deletables.subList(0, deletables.size() - 1));</span>
+      }
+    }
+<span class="fc" id="L84">  }</span>
+
+  @VisibleForTesting
+  static boolean isDeletable(PurgeableAnalysisDto snapshot) {
+<span class="fc bfc" id="L88" title="All 4 branches covered.">    return !snapshot.isLast() &amp;&amp; !snapshot.hasEvents();</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

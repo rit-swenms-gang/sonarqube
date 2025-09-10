@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AddProjectCreatorToTemplateAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.permission.ws.template</a> &gt; <span class="el_source">AddProjectCreatorToTemplateAction.java</span></div><h1>AddProjectCreatorToTemplateAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.permission.ws.template;
+
+import java.util.Optional;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.api.utils.System2;
+import org.sonar.core.util.Uuids;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.permission.template.PermissionTemplateCharacteristicDto;
+import org.sonar.db.permission.template.PermissionTemplateDto;
+import org.sonar.server.permission.RequestValidator;
+import org.sonar.server.permission.ws.PermissionWsSupport;
+import org.sonar.server.permission.ws.PermissionsWsAction;
+import org.sonar.server.permission.ws.WsParameters;
+import org.sonar.server.user.UserSession;
+
+import static java.util.Objects.requireNonNull;
+import static org.sonar.server.permission.PermissionPrivilegeChecker.checkGlobalAdmin;
+import static org.sonar.server.permission.ws.WsParameters.createTemplateParameters;
+import static org.sonarqube.ws.client.permission.PermissionsWsParameters.PARAM_PERMISSION;
+import static org.sonarqube.ws.client.permission.PermissionsWsParameters.PARAM_TEMPLATE_ID;
+import static org.sonarqube.ws.client.permission.PermissionsWsParameters.PARAM_TEMPLATE_NAME;
+
+public class AddProjectCreatorToTemplateAction implements PermissionsWsAction {
+  private final DbClient dbClient;
+  private final PermissionWsSupport wsSupport;
+  private final UserSession userSession;
+  private final System2 system;
+  private final WsParameters wsParameters;
+  private final RequestValidator requestValidator;
+
+  public AddProjectCreatorToTemplateAction(DbClient dbClient, PermissionWsSupport wsSupport, UserSession userSession, System2 system,
+<span class="fc" id="L56">    WsParameters wsParameters, RequestValidator requestValidator) {</span>
+<span class="fc" id="L57">    this.dbClient = dbClient;</span>
+<span class="fc" id="L58">    this.wsSupport = wsSupport;</span>
+<span class="fc" id="L59">    this.userSession = userSession;</span>
+<span class="fc" id="L60">    this.system = system;</span>
+<span class="fc" id="L61">    this.wsParameters = wsParameters;</span>
+<span class="fc" id="L62">    this.requestValidator = requestValidator;</span>
+<span class="fc" id="L63">  }</span>
+
+  private AddProjectCreatorToTemplateRequest toWsRequest(Request request) {
+<span class="fc" id="L66">    AddProjectCreatorToTemplateRequest wsRequest = AddProjectCreatorToTemplateRequest.builder()</span>
+<span class="fc" id="L67">      .setPermission(request.mandatoryParam(PARAM_PERMISSION))</span>
+<span class="fc" id="L68">      .setTemplateId(request.param(PARAM_TEMPLATE_ID))</span>
+<span class="fc" id="L69">      .setTemplateName(request.param(PARAM_TEMPLATE_NAME))</span>
+<span class="fc" id="L70">      .build();</span>
+<span class="fc" id="L71">    requestValidator.validateProjectPermission(wsRequest.getPermission());</span>
+<span class="fc" id="L72">    return wsRequest;</span>
+  }
+
+  @Override
+  public void define(WebService.NewController context) {
+<span class="fc" id="L77">    WebService.NewAction action = context.createAction(&quot;add_project_creator_to_template&quot;)</span>
+<span class="fc" id="L78">      .setDescription(&quot;Add a project creator to a permission template.&lt;br&gt;&quot; +</span>
+        &quot;Requires the following permission: 'Administer System'.&quot;)
+<span class="fc" id="L80">      .setSince(&quot;6.0&quot;)</span>
+<span class="fc" id="L81">      .setPost(true)</span>
+<span class="fc" id="L82">      .setHandler(this);</span>
+
+<span class="fc" id="L84">    createTemplateParameters(action);</span>
+<span class="fc" id="L85">    wsParameters.createProjectPermissionParameter(action);</span>
+<span class="fc" id="L86">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L90">    doHandle(toWsRequest(request));</span>
+<span class="fc" id="L91">    response.noContent();</span>
+<span class="fc" id="L92">  }</span>
+
+  private void doHandle(AddProjectCreatorToTemplateRequest request) {
+<span class="fc" id="L95">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L96">      PermissionTemplateDto template = wsSupport.findTemplate(dbSession, WsTemplateRef.newTemplateRef(request.getTemplateId(), request.getTemplateName()));</span>
+<span class="fc" id="L97">      checkGlobalAdmin(userSession);</span>
+
+<span class="fc" id="L99">      Optional&lt;PermissionTemplateCharacteristicDto&gt; templatePermission = dbClient.permissionTemplateCharacteristicDao()</span>
+<span class="fc" id="L100">        .selectByPermissionAndTemplateId(dbSession, request.getPermission(), template.getUuid());</span>
+<span class="fc bfc" id="L101" title="All 2 branches covered.">      if (templatePermission.isPresent()) {</span>
+<span class="fc" id="L102">        updateTemplatePermission(dbSession, templatePermission.get(), template.getName());</span>
+      } else {
+<span class="fc" id="L104">        addTemplatePermission(dbSession, request, template);</span>
+      }
+    }
+<span class="fc" id="L107">  }</span>
+
+  private void addTemplatePermission(DbSession dbSession, AddProjectCreatorToTemplateRequest request, PermissionTemplateDto template) {
+<span class="fc" id="L110">    long now = system.now();</span>
+<span class="fc" id="L111">    dbClient.permissionTemplateCharacteristicDao().insert(dbSession, new PermissionTemplateCharacteristicDto()</span>
+<span class="fc" id="L112">        .setUuid(Uuids.create())</span>
+<span class="fc" id="L113">        .setPermission(request.getPermission())</span>
+<span class="fc" id="L114">        .setTemplateUuid(template.getUuid())</span>
+<span class="fc" id="L115">        .setWithProjectCreator(true)</span>
+<span class="fc" id="L116">        .setCreatedAt(now)</span>
+<span class="fc" id="L117">        .setUpdatedAt(now),</span>
+<span class="fc" id="L118">      template.getName());</span>
+<span class="fc" id="L119">    dbSession.commit();</span>
+<span class="fc" id="L120">  }</span>
+
+  private void updateTemplatePermission(DbSession dbSession, PermissionTemplateCharacteristicDto templatePermission, String templateName) {
+<span class="fc" id="L123">    PermissionTemplateCharacteristicDto targetTemplatePermission = templatePermission</span>
+<span class="fc" id="L124">      .setUpdatedAt(system.now())</span>
+<span class="fc" id="L125">      .setWithProjectCreator(true);</span>
+<span class="fc" id="L126">    dbClient.permissionTemplateCharacteristicDao().update(dbSession, targetTemplatePermission, templateName);</span>
+<span class="fc" id="L127">    dbSession.commit();</span>
+<span class="fc" id="L128">  }</span>
+
+  private static class AddProjectCreatorToTemplateRequest {
+    private final String templateId;
+    private final String templateName;
+    private final String permission;
+
+<span class="fc" id="L135">    private AddProjectCreatorToTemplateRequest(Builder builder) {</span>
+<span class="fc" id="L136">      this.templateId = builder.templateId;</span>
+<span class="fc" id="L137">      this.templateName = builder.templateName;</span>
+<span class="fc" id="L138">      this.permission = requireNonNull(builder.permission);</span>
+<span class="fc" id="L139">    }</span>
+
+    @CheckForNull
+    public String getTemplateId() {
+<span class="fc" id="L143">      return templateId;</span>
+    }
+
+    @CheckForNull
+    public String getTemplateName() {
+<span class="fc" id="L148">      return templateName;</span>
+    }
+
+    public String getPermission() {
+<span class="fc" id="L152">      return permission;</span>
+    }
+
+    public static Builder builder() {
+<span class="fc" id="L156">      return new Builder();</span>
+    }
+  }
+
+  private static class Builder {
+    private String templateId;
+    private String templateName;
+    private String permission;
+
+    private Builder() {
+      // enforce method constructor
+    }
+
+    public Builder setTemplateId(@Nullable String templateId) {
+<span class="fc" id="L170">      this.templateId = templateId;</span>
+<span class="fc" id="L171">      return this;</span>
+    }
+
+    public Builder setTemplateName(@Nullable String templateName) {
+<span class="fc" id="L175">      this.templateName = templateName;</span>
+<span class="fc" id="L176">      return this;</span>
+    }
+
+    public Builder setPermission(@Nullable String permission) {
+<span class="fc" id="L180">      this.permission = permission;</span>
+<span class="fc" id="L181">      return this;</span>
+    }
+
+    public AddProjectCreatorToTemplateRequest build() {
+<span class="fc" id="L185">      return new AddProjectCreatorToTemplateRequest(this);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

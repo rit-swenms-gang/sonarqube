@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BlockChunker.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.duplications.block</a> &gt; <span class="el_source">BlockChunker.java</span></div><h1>BlockChunker.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.duplications.block;
+
+import java.util.ArrayList;
+import org.sonar.duplications.statement.Statement;
+
+import java.util.Collections;
+import java.util.List;
+
+/**
+ * Creates blocks from statements, each block will contain specified number of statements (&lt;code&gt;blockSize&lt;/code&gt;) and 64-bits (8-bytes) hash value.
+ * Hash value computed using
+ * &lt;a href=&quot;http://en.wikipedia.org/wiki/Rolling_hash#Rabin-Karp_rolling_hash&quot;&gt;Rabin-Karp rolling hash&lt;/a&gt; :
+ * &lt;blockquote&gt;&lt;pre&gt;
+ * s[0]*31^(blockSize-1) + s[1]*31^(blockSize-2) + ... + s[blockSize-1]
+ * &lt;/pre&gt;&lt;/blockquote&gt;
+ * using &lt;code&gt;long&lt;/code&gt; arithmetic, where &lt;code&gt;s[i]&lt;/code&gt;
+ * is the hash code of &lt;code&gt;String&lt;/code&gt; (which is cached) for statement with number i.
+ * Thus running time - O(N), where N - number of statements.
+ * Implementation fully thread-safe.
+ */
+public class BlockChunker {
+
+  private static final long PRIME_BASE = 31;
+
+  private final int blockSize;
+  private final long power;
+
+<span class="fc" id="L47">  public BlockChunker(int blockSize) {</span>
+<span class="fc" id="L48">    this.blockSize = blockSize;</span>
+
+<span class="fc" id="L50">    long pow = 1;</span>
+<span class="fc bfc" id="L51" title="All 2 branches covered.">    for (int i = 0; i &lt; blockSize - 1; i++) {</span>
+<span class="fc" id="L52">      pow = pow * PRIME_BASE;</span>
+    }
+<span class="fc" id="L54">    this.power = pow;</span>
+<span class="fc" id="L55">  }</span>
+
+  public List&lt;Block&gt; chunk(String resourceId, List&lt;Statement&gt; statements) {
+<span class="fc" id="L58">    List&lt;Statement&gt; filtered = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L59">    int i = 0;</span>
+<span class="fc bfc" id="L60" title="All 2 branches covered.">    while (i &lt; statements.size()) {</span>
+<span class="fc" id="L61">      Statement first = statements.get(i);</span>
+<span class="fc" id="L62">      int j = i + 1;</span>
+<span class="fc bfc" id="L63" title="All 4 branches covered.">      while (j &lt; statements.size() &amp;&amp; statements.get(j).getValue().equals(first.getValue())) {</span>
+<span class="fc" id="L64">        j++;</span>
+      }
+<span class="fc" id="L66">      filtered.add(statements.get(i));</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">      if (i &lt; j - 1) {</span>
+<span class="fc" id="L68">        filtered.add(statements.get(j - 1));</span>
+      }
+<span class="fc" id="L70">      i = j;</span>
+<span class="fc" id="L71">    }</span>
+<span class="fc" id="L72">    statements = filtered;</span>
+
+<span class="fc bfc" id="L74" title="All 2 branches covered.">    if (statements.size() &lt; blockSize) {</span>
+<span class="fc" id="L75">      return Collections.emptyList();</span>
+    }
+<span class="fc" id="L77">    Statement[] statementsArr = statements.toArray(new Statement[statements.size()]);</span>
+<span class="fc" id="L78">    List&lt;Block&gt; blocks = new ArrayList&lt;&gt;(statementsArr.length - blockSize + 1);</span>
+<span class="fc" id="L79">    long hash = 0;</span>
+<span class="fc" id="L80">    int first = 0;</span>
+<span class="fc" id="L81">    int last = 0;</span>
+<span class="fc bfc" id="L82" title="All 2 branches covered.">    for (; last &lt; blockSize - 1; last++) {</span>
+<span class="fc" id="L83">      hash = hash * PRIME_BASE + statementsArr[last].getValue().hashCode();</span>
+    }
+<span class="fc" id="L85">    Block.Builder blockBuilder = Block.builder().setResourceId(resourceId);</span>
+<span class="fc bfc" id="L86" title="All 2 branches covered.">    for (; last &lt; statementsArr.length; last++, first++) {</span>
+<span class="fc" id="L87">      Statement firstStatement = statementsArr[first];</span>
+<span class="fc" id="L88">      Statement lastStatement = statementsArr[last];</span>
+      // add last statement to hash
+<span class="fc" id="L90">      hash = hash * PRIME_BASE + lastStatement.getValue().hashCode();</span>
+      // create block
+<span class="fc" id="L92">      Block block = blockBuilder.setBlockHash(new ByteArray(hash))</span>
+<span class="fc" id="L93">          .setIndexInFile(first)</span>
+<span class="fc" id="L94">          .setLines(firstStatement.getStartLine(), lastStatement.getEndLine())</span>
+<span class="fc" id="L95">          .build();</span>
+<span class="fc" id="L96">      blocks.add(block);</span>
+      // remove first statement from hash
+<span class="fc" id="L98">      hash -= power * firstStatement.getValue().hashCode();</span>
+    }
+<span class="fc" id="L100">    return blocks;</span>
+  }
+
+  public int getBlockSize() {
+<span class="nc" id="L104">    return blockSize;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

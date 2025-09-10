@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DoTransitionAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.issue.ws</a> &gt; <span class="el_source">DoTransitionAction.java</span></div><h1>DoTransitionAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.issue.ws;
+
+import com.google.common.io.Resources;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import org.sonar.api.issue.impact.Severity;
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.api.utils.System2;
+import org.sonar.core.issue.DefaultIssue;
+import org.sonar.core.issue.IssueChangeContext;
+import org.sonar.core.util.Uuids;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.BranchDto;
+import org.sonar.db.issue.IssueDto;
+import org.sonar.server.issue.IssueFinder;
+import org.sonar.server.issue.TransitionService;
+import org.sonar.server.pushapi.issues.IssueChangeEventService;
+import org.sonar.server.user.UserSession;
+
+import static java.lang.String.format;
+import static org.sonar.core.issue.IssueChangeContext.issueChangeContextByUserBuilder;
+import static org.sonar.db.component.BranchType.BRANCH;
+import static org.sonar.server.issue.workflow.codequalityissue.CodeQualityIssueWorkflowTransition.ACCEPT;
+import static org.sonar.server.issue.workflow.codequalityissue.CodeQualityIssueWorkflowTransition.CONFIRM;
+import static org.sonar.server.issue.workflow.codequalityissue.CodeQualityIssueWorkflowTransition.FALSE_POSITIVE;
+import static org.sonar.server.issue.workflow.codequalityissue.CodeQualityIssueWorkflowTransition.REOPEN;
+import static org.sonar.server.issue.workflow.codequalityissue.CodeQualityIssueWorkflowTransition.RESOLVE;
+import static org.sonar.server.issue.workflow.codequalityissue.CodeQualityIssueWorkflowTransition.UNCONFIRM;
+import static org.sonar.server.issue.workflow.codequalityissue.CodeQualityIssueWorkflowTransition.WONT_FIX;
+import static org.sonar.server.issue.workflow.securityhotspot.SecurityHotspotWorkflowTransition.RESET_AS_TO_REVIEW;
+import static org.sonar.server.issue.workflow.securityhotspot.SecurityHotspotWorkflowTransition.RESOLVE_AS_REVIEWED;
+import static org.sonarqube.ws.client.issue.IssuesWsParameters.ACTION_DO_TRANSITION;
+import static org.sonarqube.ws.client.issue.IssuesWsParameters.PARAM_ISSUE;
+import static org.sonarqube.ws.client.issue.IssuesWsParameters.PARAM_TRANSITION;
+
+public class DoTransitionAction implements IssuesWsAction {
+
+  private final DbClient dbClient;
+  private final UserSession userSession;
+  private final IssueChangeEventService issueChangeEventService;
+  private final IssueFinder issueFinder;
+  private final IssueUpdater issueUpdater;
+  private final TransitionService transitionService;
+  private final OperationResponseWriter responseWriter;
+  private final System2 system2;
+
+  public DoTransitionAction(DbClient dbClient, UserSession userSession, IssueChangeEventService issueChangeEventService,
+    IssueFinder issueFinder, IssueUpdater issueUpdater, TransitionService transitionService,
+<span class="fc" id="L73">    OperationResponseWriter responseWriter, System2 system2) {</span>
+<span class="fc" id="L74">    this.dbClient = dbClient;</span>
+<span class="fc" id="L75">    this.userSession = userSession;</span>
+<span class="fc" id="L76">    this.issueChangeEventService = issueChangeEventService;</span>
+<span class="fc" id="L77">    this.issueFinder = issueFinder;</span>
+<span class="fc" id="L78">    this.issueUpdater = issueUpdater;</span>
+<span class="fc" id="L79">    this.transitionService = transitionService;</span>
+<span class="fc" id="L80">    this.responseWriter = responseWriter;</span>
+<span class="fc" id="L81">    this.system2 = system2;</span>
+<span class="fc" id="L82">  }</span>
+
+  @Override
+  public void define(WebService.NewController controller) {
+<span class="fc" id="L86">    WebService.NewAction action = controller.createAction(ACTION_DO_TRANSITION)</span>
+<span class="fc" id="L87">      .setDescription(&quot;&quot;&quot;</span>
+        Do workflow transition on an issue. Requires authentication and Browse permission on project.&lt;br/&gt;
+        The transitions '%s', '%s' and '%s' require the permission 'Administer Issues'.&lt;br/&gt;
+        The transitions involving security hotspots require the permission 'Administer Security Hotspot'.
+<span class="fc" id="L91">        &quot;&quot;&quot;.formatted(ACCEPT, WONT_FIX, FALSE_POSITIVE))</span>
+<span class="fc" id="L92">      .setSince(&quot;3.6&quot;)</span>
+<span class="fc" id="L93">      .setChangelog(</span>
+        new Change(&quot;10.8&quot;, &quot;The response fields 'severity' and 'type' are not deprecated anymore.&quot;),
+<span class="fc" id="L95">        new Change(&quot;10.8&quot;, format(&quot;Possible values '%s' and '%s' for response field 'severity' of 'impacts' have been added.&quot;, Severity.INFO.name(), Severity.BLOCKER.name())),</span>
+        new Change(&quot;10.4&quot;,
+<span class="fc" id="L97">          &quot;The transitions '%s' and '%s' are deprecated. Please use '%s' instead. The transition '%s' is deprecated too. &quot;.formatted(WONT_FIX, CONFIRM, ACCEPT, UNCONFIRM)),</span>
+<span class="fc" id="L98">        new Change(&quot;10.4&quot;, &quot;Add transition '%s'.&quot;.formatted(ACCEPT)),</span>
+        new Change(&quot;10.4&quot;, &quot;The response fields 'severity' and 'type' are deprecated. Please use 'impacts' instead.&quot;),
+        new Change(&quot;10.4&quot;, &quot;The response fields 'status' and 'resolution' are deprecated. Please use 'issueStatus' instead.&quot;),
+        new Change(&quot;10.4&quot;, &quot;Add 'issueStatus' field to the response.&quot;),
+        new Change(&quot;10.2&quot;, &quot;Add 'impacts', 'cleanCodeAttribute', 'cleanCodeAttributeCategory' fields to the response&quot;),
+        new Change(&quot;9.6&quot;, &quot;Response field 'ruleDescriptionContextKey' added&quot;),
+        new Change(&quot;8.8&quot;, &quot;The response field components.uuid is removed&quot;),
+<span class="fc" id="L105">        new Change(&quot;8.1&quot;, format(&quot;transitions '%s' and '%s' are no more supported&quot;, &quot;setinreview&quot;, &quot;openasvulnerability&quot;)),</span>
+<span class="fc" id="L106">        new Change(&quot;7.8&quot;, format(&quot;added '%s', %s, %s and %s transitions for security hotspots &quot;, &quot;setinreview&quot;, RESOLVE_AS_REVIEWED, &quot;openasvulnerability&quot;, RESET_AS_TO_REVIEW)),</span>
+        new Change(&quot;7.3&quot;, &quot;added transitions for security hotspots&quot;),
+        new Change(&quot;6.5&quot;, &quot;the database ids of the components are removed from the response&quot;),
+        new Change(&quot;6.5&quot;, &quot;the response field components.uuid is deprecated. Use components.key instead.&quot;))
+<span class="fc" id="L110">      .setHandler(this)</span>
+<span class="fc" id="L111">      .setResponseExample(Resources.getResource(this.getClass(), &quot;do_transition-example.json&quot;))</span>
+<span class="fc" id="L112">      .setPost(true);</span>
+
+<span class="fc" id="L114">    action.createParam(PARAM_ISSUE)</span>
+<span class="fc" id="L115">      .setDescription(&quot;Issue key&quot;)</span>
+<span class="fc" id="L116">      .setRequired(true)</span>
+<span class="fc" id="L117">      .setExampleValue(Uuids.UUID_EXAMPLE_01);</span>
+<span class="fc" id="L118">    action.createParam(PARAM_TRANSITION)</span>
+<span class="fc" id="L119">      .setDescription(&quot;Transition&quot;)</span>
+<span class="fc" id="L120">      .setRequired(true)</span>
+<span class="fc" id="L121">      .setPossibleValues(List.of(</span>
+<span class="fc" id="L122">        CONFIRM.getKey(),</span>
+<span class="fc" id="L123">        UNCONFIRM.getKey(),</span>
+<span class="fc" id="L124">        REOPEN.getKey(),</span>
+<span class="fc" id="L125">        RESOLVE.getKey(),</span>
+<span class="fc" id="L126">        FALSE_POSITIVE.getKey(),</span>
+<span class="fc" id="L127">        WONT_FIX.getKey(),</span>
+<span class="fc" id="L128">        RESOLVE_AS_REVIEWED.getKey(),</span>
+<span class="fc" id="L129">        RESET_AS_TO_REVIEW.getKey(),</span>
+<span class="fc" id="L130">        ACCEPT.getKey())</span>
+      );
+<span class="fc" id="L132">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) {
+<span class="fc" id="L136">    userSession.checkLoggedIn();</span>
+<span class="fc" id="L137">    String issue = request.mandatoryParam(PARAM_ISSUE);</span>
+<span class="fc" id="L138">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L139">      IssueDto issueDto = issueFinder.getByKey(dbSession, issue);</span>
+<span class="fc" id="L140">      SearchResponseData preloadedSearchResponseData = doTransition(dbSession, issueDto, request.mandatoryParam(PARAM_TRANSITION));</span>
+<span class="fc" id="L141">      responseWriter.write(issue, preloadedSearchResponseData, request, response, true);</span>
+    }
+<span class="fc" id="L143">  }</span>
+
+  private SearchResponseData doTransition(DbSession session, IssueDto issueDto, String transitionKey) {
+<span class="fc" id="L146">    DefaultIssue defaultIssue = issueDto.toDefaultIssue();</span>
+<span class="fc" id="L147">    IssueChangeContext context = issueChangeContextByUserBuilder(new Date(system2.now()), userSession.getUuid()).withRefreshMeasures().build();</span>
+<span class="fc" id="L148">    transitionService.checkTransitionPermission(transitionKey, defaultIssue);</span>
+<span class="pc bpc" id="L149" title="1 of 2 branches missed.">    if (transitionService.doTransition(defaultIssue, context, transitionKey)) {</span>
+<span class="fc" id="L150">      BranchDto branch = issueUpdater.getBranch(session, defaultIssue);</span>
+<span class="fc" id="L151">      SearchResponseData response = issueUpdater.saveIssueAndPreloadSearchResponseData(session, issueDto, defaultIssue, context, branch);</span>
+
+<span class="pc bpc" id="L153" title="1 of 4 branches missed.">      if (branch.getBranchType().equals(BRANCH) &amp;&amp; response.getComponentByUuid(defaultIssue.projectUuid()) != null) {</span>
+<span class="fc" id="L154">        issueChangeEventService.distributeIssueChangeEvent(defaultIssue, null, Map.of(), null, transitionKey, branch,</span>
+<span class="fc" id="L155">          response.getComponentByUuid(defaultIssue.projectUuid()).getKey());</span>
+      }
+<span class="fc" id="L157">      return response;</span>
+    }
+<span class="nc" id="L159">    return new SearchResponseData(issueDto);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MaintainabilityMeasuresVisitor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.qualitymodel</a> &gt; <span class="el_source">MaintainabilityMeasuresVisitor.java</span></div><h1>MaintainabilityMeasuresVisitor.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.qualitymodel;
+
+import java.util.Optional;
+import org.sonar.api.measures.CoreMetrics;
+import org.sonar.ce.task.projectanalysis.component.Component;
+import org.sonar.ce.task.projectanalysis.component.CrawlerDepthLimit;
+import org.sonar.ce.task.projectanalysis.component.PathAwareVisitorAdapter;
+import org.sonar.ce.task.projectanalysis.measure.Measure;
+import org.sonar.ce.task.projectanalysis.measure.MeasureRepository;
+import org.sonar.ce.task.projectanalysis.measure.RatingMeasures;
+import org.sonar.ce.task.projectanalysis.metric.Metric;
+import org.sonar.ce.task.projectanalysis.metric.MetricRepository;
+import org.sonar.server.measure.Rating;
+import org.sonar.core.metric.SoftwareQualitiesMetrics;
+
+import static org.sonar.api.measures.CoreMetrics.DEVELOPMENT_COST_KEY;
+import static org.sonar.api.measures.CoreMetrics.EFFORT_TO_REACH_MAINTAINABILITY_RATING_A_KEY;
+import static org.sonar.api.measures.CoreMetrics.NCLOC_KEY;
+import static org.sonar.api.measures.CoreMetrics.SQALE_DEBT_RATIO_KEY;
+import static org.sonar.api.measures.CoreMetrics.SQALE_RATING_KEY;
+import static org.sonar.api.measures.CoreMetrics.TECHNICAL_DEBT_KEY;
+import static org.sonar.ce.task.projectanalysis.measure.Measure.newMeasureBuilder;
+import static org.sonar.core.metric.SoftwareQualitiesMetrics.EFFORT_TO_REACH_SOFTWARE_QUALITY_MAINTAINABILITY_RATING_A_KEY;
+import static org.sonar.core.metric.SoftwareQualitiesMetrics.SOFTWARE_QUALITY_MAINTAINABILITY_DEBT_RATIO_KEY;
+import static org.sonar.core.metric.SoftwareQualitiesMetrics.SOFTWARE_QUALITY_MAINTAINABILITY_RATING_KEY;
+import static org.sonar.core.metric.SoftwareQualitiesMetrics.SOFTWARE_QUALITY_MAINTAINABILITY_REMEDIATION_EFFORT_KEY;
+
+/**
+ * Compute measures related to maintainability for projects and descendants :
+ * {@link CoreMetrics#DEVELOPMENT_COST_KEY}
+ * {@link CoreMetrics#SQALE_DEBT_RATIO_KEY}
+ * {@link CoreMetrics#SQALE_RATING_KEY}
+ * {@link CoreMetrics#EFFORT_TO_REACH_MAINTAINABILITY_RATING_A_KEY}
+ * {@link SoftwareQualitiesMetrics#SOFTWARE_QUALITY_MAINTAINABILITY_DEBT_RATIO_KEY}
+ * {@link SoftwareQualitiesMetrics#SOFTWARE_QUALITY_MAINTAINABILITY_RATING_KEY}
+ * {@link SoftwareQualitiesMetrics#EFFORT_TO_REACH_SOFTWARE_QUALITY_MAINTAINABILITY_RATING_A_KEY}
+ */
+public class MaintainabilityMeasuresVisitor extends PathAwareVisitorAdapter&lt;MaintainabilityMeasuresVisitor.Counter&gt; {
+  private final MeasureRepository measureRepository;
+  private final RatingSettings ratingSettings;
+
+  private final Metric nclocMetric;
+  private final Metric developmentCostMetric;
+
+  // Maintainability metrics based on RuleType
+  private final Metric maintainabilityRemediationEffortMetric;
+  private final Metric debtRatioMetric;
+  private final Metric maintainabilityRatingMetric;
+  private final Metric effortToMaintainabilityRatingAMetric;
+
+  // Maintainability metrics based on Software Quality
+  private final Metric softwareQualityMaintainabilityRemediationEffortMetric;
+  private final Metric softwareQualityDebtRatioMetric;
+  private final Metric softwareQualityEffortToMaintainabilityRatingAMetric;
+  private final Metric softwareQualityMaintainabilityRatingMetric;
+
+  public MaintainabilityMeasuresVisitor(MetricRepository metricRepository, MeasureRepository measureRepository, RatingSettings ratingSettings) {
+<span class="fc" id="L77">    super(CrawlerDepthLimit.FILE, Order.POST_ORDER, CounterFactory.INSTANCE);</span>
+<span class="fc" id="L78">    this.measureRepository = measureRepository;</span>
+<span class="fc" id="L79">    this.ratingSettings = ratingSettings;</span>
+
+    // Input metrics
+<span class="fc" id="L82">    this.nclocMetric = metricRepository.getByKey(NCLOC_KEY);</span>
+<span class="fc" id="L83">    this.maintainabilityRemediationEffortMetric = metricRepository.getByKey(TECHNICAL_DEBT_KEY);</span>
+<span class="fc" id="L84">    this.softwareQualityMaintainabilityRemediationEffortMetric = metricRepository.getByKey(SOFTWARE_QUALITY_MAINTAINABILITY_REMEDIATION_EFFORT_KEY);</span>
+
+    // Output metrics
+<span class="fc" id="L87">    this.developmentCostMetric = metricRepository.getByKey(DEVELOPMENT_COST_KEY);</span>
+
+<span class="fc" id="L89">    this.debtRatioMetric = metricRepository.getByKey(SQALE_DEBT_RATIO_KEY);</span>
+<span class="fc" id="L90">    this.maintainabilityRatingMetric = metricRepository.getByKey(SQALE_RATING_KEY);</span>
+<span class="fc" id="L91">    this.effortToMaintainabilityRatingAMetric = metricRepository.getByKey(EFFORT_TO_REACH_MAINTAINABILITY_RATING_A_KEY);</span>
+
+<span class="fc" id="L93">    this.softwareQualityDebtRatioMetric = metricRepository.getByKey(SOFTWARE_QUALITY_MAINTAINABILITY_DEBT_RATIO_KEY);</span>
+<span class="fc" id="L94">    this.softwareQualityMaintainabilityRatingMetric = metricRepository.getByKey(SOFTWARE_QUALITY_MAINTAINABILITY_RATING_KEY);</span>
+<span class="fc" id="L95">    this.softwareQualityEffortToMaintainabilityRatingAMetric = metricRepository.getByKey(EFFORT_TO_REACH_SOFTWARE_QUALITY_MAINTAINABILITY_RATING_A_KEY);</span>
+<span class="fc" id="L96">  }</span>
+
+  @Override
+  public void visitProject(Component project, Path&lt;Counter&gt; path) {
+<span class="fc" id="L100">    computeAndSaveMeasures(project, path);</span>
+<span class="fc" id="L101">  }</span>
+
+  @Override
+  public void visitDirectory(Component directory, Path&lt;Counter&gt; path) {
+<span class="fc" id="L105">    computeAndSaveMeasures(directory, path);</span>
+<span class="fc" id="L106">  }</span>
+
+  @Override
+  public void visitFile(Component file, Path&lt;Counter&gt; path) {
+<span class="fc" id="L110">    path.current().addDevCosts(computeDevelopmentCost(file));</span>
+<span class="fc" id="L111">    computeAndSaveMeasures(file, path);</span>
+<span class="fc" id="L112">  }</span>
+
+  private long computeDevelopmentCost(Component file) {
+<span class="fc" id="L115">    Optional&lt;Measure&gt; measure = measureRepository.getRawMeasure(file, nclocMetric);</span>
+<span class="fc" id="L116">    long ncloc = measure.map(Measure::getIntValue).orElse(0);</span>
+<span class="fc" id="L117">    return ncloc * ratingSettings.getDevCost();</span>
+  }
+
+  private void computeAndSaveMeasures(Component component, Path&lt;Counter&gt; path) {
+<span class="fc" id="L121">    addDevelopmentCostMeasure(component, path.current());</span>
+
+<span class="fc" id="L123">    double density = computeDensity(maintainabilityRemediationEffortMetric, component, path.current());</span>
+<span class="fc" id="L124">    addDebtRatioMeasure(debtRatioMetric, component, density);</span>
+<span class="fc" id="L125">    addMaintainabilityRatingMeasure(component, density);</span>
+<span class="fc" id="L126">    addEffortToMaintainabilityRatingAMeasure(maintainabilityRemediationEffortMetric, effortToMaintainabilityRatingAMetric, component, path);</span>
+
+<span class="fc" id="L128">    double densityBasedOnSoftwareQuality = computeDensity(softwareQualityMaintainabilityRemediationEffortMetric, component, path.current());</span>
+<span class="fc" id="L129">    addDebtRatioMeasure(softwareQualityDebtRatioMetric, component, densityBasedOnSoftwareQuality);</span>
+<span class="fc" id="L130">    addSoftwareQualityMaintainabilityRatingMeasure(component, densityBasedOnSoftwareQuality);</span>
+<span class="fc" id="L131">    addEffortToMaintainabilityRatingAMeasure(softwareQualityMaintainabilityRemediationEffortMetric, softwareQualityEffortToMaintainabilityRatingAMetric, component, path);</span>
+
+<span class="fc" id="L133">    addToParent(path);</span>
+<span class="fc" id="L134">  }</span>
+
+  private double computeDensity(Metric remediationEffortMetric, Component component, Counter developmentCost) {
+<span class="fc" id="L137">    Optional&lt;Measure&gt; measure = measureRepository.getRawMeasure(component, remediationEffortMetric);</span>
+<span class="fc bfc" id="L138" title="All 2 branches covered.">    double maintainabilityRemediationEffort = measure.isPresent() ? measure.get().getLongValue() : 0L;</span>
+<span class="fc bfc" id="L139" title="All 2 branches covered.">    if (Double.doubleToRawLongBits(developmentCost.devCosts) != 0L) {</span>
+<span class="fc" id="L140">      return maintainabilityRemediationEffort / developmentCost.devCosts;</span>
+    }
+<span class="fc" id="L142">    return 0D;</span>
+  }
+
+  private void addDevelopmentCostMeasure(Component component, Counter developmentCost) {
+    // the value of this measure is stored as a string because it can exceed the size limit of number storage on some DB
+<span class="fc" id="L147">    measureRepository.add(component, developmentCostMetric, newMeasureBuilder().create(Long.toString(developmentCost.devCosts)));</span>
+<span class="fc" id="L148">  }</span>
+
+  private void addDebtRatioMeasure(Metric debtRatioMetric, Component component, double density) {
+<span class="fc" id="L151">    measureRepository.add(component, debtRatioMetric, newMeasureBuilder().create(100.0 * density, debtRatioMetric.getDecimalScale()));</span>
+<span class="fc" id="L152">  }</span>
+
+  private void addMaintainabilityRatingMeasure(Component component, double density) {
+<span class="fc" id="L155">    Rating rating = ratingSettings.getDebtRatingGrid().getRatingForDensity(density);</span>
+<span class="fc" id="L156">    measureRepository.add(component, maintainabilityRatingMetric, RatingMeasures.get(rating));</span>
+<span class="fc" id="L157">  }</span>
+
+  private void addSoftwareQualityMaintainabilityRatingMeasure(Component component, double density) {
+<span class="fc" id="L160">    Rating rating = ratingSettings.getDebtRatingGrid().getRatingForDensity(density);</span>
+<span class="fc" id="L161">    measureRepository.add(component, softwareQualityMaintainabilityRatingMetric, RatingMeasures.get(rating));</span>
+<span class="fc" id="L162">  }</span>
+
+  private void addEffortToMaintainabilityRatingAMeasure(Metric maintainabilityRemediationEffortMetric, Metric effortToMaintainabilityRatingAMetric,
+    Component component, Path&lt;Counter&gt; path) {
+<span class="fc" id="L166">    long developmentCostValue = path.current().devCosts;</span>
+<span class="fc" id="L167">    Optional&lt;Measure&gt; effortMeasure = measureRepository.getRawMeasure(component, maintainabilityRemediationEffortMetric);</span>
+<span class="fc bfc" id="L168" title="All 2 branches covered.">    long effort = effortMeasure.isPresent() ? effortMeasure.get().getLongValue() : 0L;</span>
+<span class="fc" id="L169">    long upperGradeCost = ((Double) (ratingSettings.getDebtRatingGrid().getGradeLowerBound(Rating.B) * developmentCostValue)).longValue();</span>
+<span class="fc bfc" id="L170" title="All 2 branches covered.">    long effortToRatingA = upperGradeCost &lt; effort ? (effort - upperGradeCost) : 0L;</span>
+<span class="fc" id="L171">    measureRepository.add(component, effortToMaintainabilityRatingAMetric, Measure.newMeasureBuilder().create(effortToRatingA));</span>
+<span class="fc" id="L172">  }</span>
+
+  private static void addToParent(Path&lt;Counter&gt; path) {
+<span class="fc bfc" id="L175" title="All 2 branches covered.">    if (!path.isRoot()) {</span>
+<span class="fc" id="L176">      path.parent().add(path.current());</span>
+    }
+<span class="fc" id="L178">  }</span>
+
+  public static final class Counter {
+<span class="fc" id="L181">    private long devCosts = 0;</span>
+
+<span class="fc" id="L183">    private Counter() {</span>
+      // prevents instantiation
+<span class="fc" id="L185">    }</span>
+
+    void add(Counter otherCounter) {
+<span class="fc" id="L188">      addDevCosts(otherCounter.devCosts);</span>
+<span class="fc" id="L189">    }</span>
+
+    void addDevCosts(long developmentCosts) {
+<span class="fc" id="L192">      this.devCosts += developmentCosts;</span>
+<span class="fc" id="L193">    }</span>
+  }
+
+  private static final class CounterFactory extends SimpleStackElementFactory&lt;Counter&gt; {
+<span class="fc" id="L197">    public static final CounterFactory INSTANCE = new CounterFactory();</span>
+
+    private CounterFactory() {
+      // prevents instantiation
+    }
+
+    @Override
+    public Counter createForAny(Component component) {
+<span class="fc" id="L205">      return new Counter();</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

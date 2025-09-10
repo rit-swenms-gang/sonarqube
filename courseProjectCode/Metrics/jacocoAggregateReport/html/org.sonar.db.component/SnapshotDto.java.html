@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SnapshotDto.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.component</a> &gt; <span class="el_source">SnapshotDto.java</span></div><h1>SnapshotDto.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.component;
+
+import java.util.Objects;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static org.apache.commons.lang3.StringUtils.trimToNull;
+
+<span class="fc" id="L29">public final class SnapshotDto {</span>
+
+  /**
+   * This status is set on the snapshot at the beginning of the batch
+   */
+  public static final String STATUS_UNPROCESSED = &quot;U&quot;;
+  public static final String STATUS_PROCESSED = &quot;P&quot;;
+  public static final String STATUS_LIVE_MEASURE_COMPUTED = &quot;L&quot;;
+  public static final int MAX_VERSION_LENGTH = 100;
+  public static final int MAX_BUILD_STRING_LENGTH = 100;
+
+  private String uuid;
+  private String rootComponentUuid;
+  private Long createdAt;
+  private Long analysisDate;
+<span class="fc" id="L44">  private String status = STATUS_UNPROCESSED;</span>
+  private Boolean last;
+  // maps to &quot;version&quot; column in the table
+  private String projectVersion;
+  private String buildString;
+  private String periodMode;
+  private String periodParam;
+  private Long periodDate;
+
+  /**
+   * SCM revision is provided by scanner and is optional.
+   */
+  @Nullable
+  private String revision;
+
+  public SnapshotDto setUuid(String s) {
+<span class="fc" id="L60">    this.uuid = s;</span>
+<span class="fc" id="L61">    return this;</span>
+  }
+
+  public String getUuid() {
+<span class="fc" id="L65">    return this.uuid;</span>
+  }
+
+  public Long getAnalysisDate() {
+<span class="fc" id="L69">    return analysisDate;</span>
+  }
+
+  public SnapshotDto setAnalysisDate(Long analysisDate) {
+<span class="fc" id="L73">    this.analysisDate = analysisDate;</span>
+<span class="fc" id="L74">    return this;</span>
+  }
+
+  public String getRootComponentUuid() {
+<span class="fc" id="L78">    return rootComponentUuid;</span>
+  }
+
+  public SnapshotDto setRootComponentUuid(String rootComponentUuid) {
+<span class="fc" id="L82">    this.rootComponentUuid = rootComponentUuid;</span>
+<span class="fc" id="L83">    return this;</span>
+  }
+
+  public String getStatus() {
+<span class="fc" id="L87">    return status;</span>
+  }
+
+  public SnapshotDto setStatus(String status) {
+<span class="fc" id="L91">    this.status = status;</span>
+<span class="fc" id="L92">    return this;</span>
+  }
+
+  public Boolean getLast() {
+<span class="fc" id="L96">    return last;</span>
+  }
+
+  public SnapshotDto setLast(Boolean last) {
+<span class="fc" id="L100">    this.last = last;</span>
+<span class="fc" id="L101">    return this;</span>
+  }
+
+  private static void checkLength(int maxLength, @Nullable String s, String label) {
+<span class="fc bfc" id="L105" title="All 2 branches covered.">    if (s != null) {</span>
+<span class="fc bfc" id="L106" title="All 2 branches covered.">      checkArgument(s.length() &lt;= maxLength,</span>
+<span class="fc" id="L107">        &quot;%s length (%s) is longer than the maximum authorized (%s). '%s' was provided.&quot;, label, s.length(), maxLength, s);</span>
+    }
+<span class="fc" id="L109">  }</span>
+
+  public SnapshotDto setProjectVersion(@Nullable String projectVersion) {
+<span class="fc" id="L112">    checkLength(MAX_VERSION_LENGTH, projectVersion, &quot;projectVersion&quot;);</span>
+<span class="fc" id="L113">    this.projectVersion = projectVersion;</span>
+<span class="fc" id="L114">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getProjectVersion() {
+<span class="fc" id="L119">    return projectVersion;</span>
+  }
+
+  /**
+   * Used by MyBatis
+   */
+  private void setRawProjectVersion(@Nullable String projectVersion) {
+<span class="fc" id="L126">    this.projectVersion = trimToNull(projectVersion);</span>
+<span class="fc" id="L127">  }</span>
+
+  @CheckForNull
+  public String getBuildString() {
+<span class="fc" id="L131">    return buildString;</span>
+  }
+
+  public SnapshotDto setBuildString(@Nullable String buildString) {
+<span class="fc" id="L135">    checkLength(MAX_BUILD_STRING_LENGTH, buildString, &quot;buildString&quot;);</span>
+<span class="fc" id="L136">    this.buildString = buildString;</span>
+<span class="fc" id="L137">    return this;</span>
+  }
+
+  /**
+   * Used by MyBatis
+   */
+  private void setRawBuildString(@Nullable String buildString) {
+<span class="nc" id="L144">    this.buildString = trimToNull(buildString);</span>
+<span class="nc" id="L145">  }</span>
+
+  public SnapshotDto setPeriodMode(@Nullable String p) {
+<span class="fc" id="L148">    periodMode = p;</span>
+<span class="fc" id="L149">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getPeriodMode() {
+<span class="fc" id="L154">    return periodMode;</span>
+  }
+
+  public SnapshotDto setPeriodParam(@Nullable String p) {
+<span class="fc" id="L158">    periodParam = p;</span>
+<span class="fc" id="L159">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getPeriodModeParameter() {
+<span class="fc" id="L164">    return periodParam;</span>
+  }
+
+  public SnapshotDto setPeriodDate(@Nullable Long date) {
+<span class="fc" id="L168">    periodDate = date;</span>
+<span class="fc" id="L169">    return this;</span>
+  }
+
+  @CheckForNull
+  public Long getPeriodDate() {
+<span class="fc" id="L174">    return periodDate;</span>
+  }
+
+  public SnapshotDto setCreatedAt(Long createdAt) {
+<span class="fc" id="L178">    this.createdAt = createdAt;</span>
+<span class="fc" id="L179">    return this;</span>
+  }
+
+  /**
+   * @return analysis date
+   */
+  public Long getCreatedAt() {
+<span class="fc" id="L186">    return createdAt;</span>
+  }
+
+  @Nullable
+  public String getRevision() {
+<span class="fc" id="L191">    return revision;</span>
+  }
+
+  public SnapshotDto setRevision(@Nullable String revision) {
+<span class="fc" id="L195">    checkLength(100, revision, &quot;revision&quot;);</span>
+<span class="fc" id="L196">    this.revision = revision;</span>
+<span class="fc" id="L197">    return this;</span>
+  }
+
+  @Override
+  public boolean equals(Object o) {
+<span class="fc bfc" id="L202" title="All 2 branches covered.">    if (this == o) {</span>
+<span class="fc" id="L203">      return true;</span>
+    }
+<span class="fc bfc" id="L205" title="All 4 branches covered.">    if (o == null || getClass() != o.getClass()) {</span>
+<span class="fc" id="L206">      return false;</span>
+    }
+<span class="fc" id="L208">    SnapshotDto that = (SnapshotDto) o;</span>
+<span class="pc bpc" id="L209" title="1 of 2 branches missed.">    return Objects.equals(uuid, that.uuid) &amp;&amp;</span>
+<span class="pc bpc" id="L210" title="1 of 2 branches missed.">      Objects.equals(rootComponentUuid, that.rootComponentUuid) &amp;&amp;</span>
+<span class="pc bpc" id="L211" title="1 of 2 branches missed.">      Objects.equals(createdAt, that.createdAt) &amp;&amp;</span>
+<span class="pc bpc" id="L212" title="1 of 2 branches missed.">      Objects.equals(analysisDate, that.analysisDate) &amp;&amp;</span>
+<span class="pc bpc" id="L213" title="1 of 2 branches missed.">      Objects.equals(status, that.status) &amp;&amp;</span>
+<span class="pc bpc" id="L214" title="1 of 2 branches missed.">      Objects.equals(last, that.last) &amp;&amp;</span>
+<span class="pc bpc" id="L215" title="1 of 2 branches missed.">      Objects.equals(projectVersion, that.projectVersion) &amp;&amp;</span>
+<span class="fc bfc" id="L216" title="All 2 branches covered.">      Objects.equals(buildString, that.buildString) &amp;&amp;</span>
+<span class="pc bpc" id="L217" title="1 of 2 branches missed.">      Objects.equals(periodMode, that.periodMode) &amp;&amp;</span>
+<span class="pc bpc" id="L218" title="1 of 2 branches missed.">      Objects.equals(periodParam, that.periodParam) &amp;&amp;</span>
+<span class="pc bpc" id="L219" title="1 of 2 branches missed.">      Objects.equals(periodDate, that.periodDate);</span>
+  }
+
+  @Override
+  public int hashCode() {
+<span class="fc" id="L224">    return Objects.hash(uuid, rootComponentUuid, createdAt, analysisDate, status, last, projectVersion, buildString, periodMode, periodParam, periodDate);</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="nc" id="L229">    return &quot;SnapshotDto{&quot; +</span>
+      &quot;uuid='&quot; + uuid + '\'' +
+      &quot;, componentUuid='&quot; + rootComponentUuid + '\'' +
+      &quot;, createdAt=&quot; + createdAt +
+      &quot;, analysisDate=&quot; + analysisDate +
+      &quot;, status='&quot; + status + '\'' +
+      &quot;, last=&quot; + last +
+      &quot;, projectVersion='&quot; + projectVersion + '\'' +
+      &quot;, buildString='&quot; + buildString + '\'' +
+      &quot;, periodMode='&quot; + periodMode + '\'' +
+      &quot;, periodParam='&quot; + periodParam + '\'' +
+      &quot;, periodDate=&quot; + periodDate +
+      '}';
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

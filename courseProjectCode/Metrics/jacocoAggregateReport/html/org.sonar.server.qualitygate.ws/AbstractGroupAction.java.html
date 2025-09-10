@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractGroupAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.qualitygate.ws</a> &gt; <span class="el_source">AbstractGroupAction.java</span></div><h1>AbstractGroupAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.qualitygate.ws;
+
+import java.util.Optional;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.qualitygate.QualityGateDto;
+import org.sonar.db.user.GroupDto;
+
+import static org.sonar.server.exceptions.NotFoundException.checkFoundWithOptional;
+import static org.sonar.server.qualitygate.ws.CreateAction.NAME_MAXIMUM_LENGTH;
+import static org.sonar.server.qualitygate.ws.QualityGatesWsParameters.PARAM_GATE_NAME;
+import static org.sonarqube.ws.client.permission.PermissionsWsParameters.PARAM_GROUP_NAME;
+
+public abstract class AbstractGroupAction implements QualityGatesWsAction {
+  protected final DbClient dbClient;
+  protected final QualityGatesWsSupport wsSupport;
+
+<span class="fc" id="L40">  protected AbstractGroupAction(DbClient dbClient, QualityGatesWsSupport wsSupport) {</span>
+<span class="fc" id="L41">    this.dbClient = dbClient;</span>
+<span class="fc" id="L42">    this.wsSupport = wsSupport;</span>
+<span class="fc" id="L43">  }</span>
+
+  protected void defineGateAndGroupParameters(WebService.NewAction action) {
+<span class="fc" id="L46">    action.createParam(PARAM_GATE_NAME)</span>
+<span class="fc" id="L47">      .setDescription(&quot;Quality Gate name&quot;)</span>
+<span class="fc" id="L48">      .setRequired(true)</span>
+<span class="fc" id="L49">      .setMaximumLength(NAME_MAXIMUM_LENGTH)</span>
+<span class="fc" id="L50">      .setExampleValue(&quot;SonarSource Way&quot;);</span>
+
+<span class="fc" id="L52">    action.createParam(PARAM_GROUP_NAME)</span>
+<span class="fc" id="L53">      .setDescription(&quot;Group name or 'anyone' (case insensitive)&quot;)</span>
+<span class="fc" id="L54">      .setRequired(true)</span>
+<span class="fc" id="L55">      .setExampleValue(&quot;sonar-administrators&quot;);</span>
+<span class="fc" id="L56">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L60">    final String groupName = request.mandatoryParam(PARAM_GROUP_NAME);</span>
+<span class="fc" id="L61">    final String qualityGateName = request.mandatoryParam(PARAM_GATE_NAME);</span>
+
+<span class="fc" id="L63">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L64">      QualityGateDto qualityGateDto = wsSupport.getByName(dbSession, qualityGateName);</span>
+<span class="fc" id="L65">      wsSupport.checkCanLimitedEdit(dbSession, qualityGateDto);</span>
+<span class="fc" id="L66">      GroupDto group = getGroup(dbSession, groupName);</span>
+<span class="fc" id="L67">      apply(dbSession, qualityGateDto, group);</span>
+    }
+<span class="fc" id="L69">    response.noContent();</span>
+<span class="fc" id="L70">  }</span>
+
+  protected abstract void apply(DbSession dbSession, QualityGateDto qualityGate, GroupDto group);
+
+  private GroupDto getGroup(DbSession dbSession, String groupName) {
+<span class="fc" id="L75">    Optional&lt;GroupDto&gt; group = dbClient.groupDao().selectByName(dbSession, groupName);</span>
+<span class="fc" id="L76">    checkFoundWithOptional(group, &quot;Group with name '%s' is not found&quot;, groupName);</span>
+<span class="fc" id="L77">    return group.get();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

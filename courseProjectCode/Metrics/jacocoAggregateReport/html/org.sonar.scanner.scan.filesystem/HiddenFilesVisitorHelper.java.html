@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HiddenFilesVisitorHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.scan.filesystem</a> &gt; <span class="el_source">HiddenFilesVisitorHelper.java</span></div><h1>HiddenFilesVisitorHelper.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.scan.filesystem;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
+import java.nio.file.attribute.DosFileAttributes;
+import org.apache.commons.lang3.SystemUtils;
+import org.sonar.api.batch.fs.internal.DefaultInputModule;
+import org.sonar.scanner.scan.ModuleConfiguration;
+
+public class HiddenFilesVisitorHelper {
+
+  private static final String EXCLUDE_HIDDEN_FILES_PROPERTY = &quot;sonar.scanner.excludeHiddenFiles&quot;;
+  private final HiddenFilesProjectData hiddenFilesProjectData;
+  private final DefaultInputModule module;
+  final boolean excludeHiddenFiles;
+  private Path moduleWorkDir;
+  Path rootHiddenDir;
+
+<span class="fc" id="L40">  public HiddenFilesVisitorHelper(HiddenFilesProjectData hiddenFilesProjectData, DefaultInputModule module, ModuleConfiguration moduleConfig) {</span>
+<span class="fc" id="L41">    this.hiddenFilesProjectData = hiddenFilesProjectData;</span>
+<span class="fc" id="L42">    this.module = module;</span>
+<span class="fc" id="L43">    this.excludeHiddenFiles = moduleConfig.getBoolean(EXCLUDE_HIDDEN_FILES_PROPERTY).orElse(false);</span>
+<span class="fc" id="L44">  }</span>
+
+  public boolean shouldVisitDir(Path path) throws IOException {
+<span class="fc" id="L47">    boolean isHidden = isHiddenDir(path);</span>
+
+<span class="fc bfc" id="L49" title="All 6 branches covered.">    if (isHidden &amp;&amp; (excludeHiddenFiles || isExcludedHiddenDirectory(path))) {</span>
+<span class="fc" id="L50">      return false;</span>
+    }
+<span class="fc bfc" id="L52" title="All 2 branches covered.">    if (isHidden) {</span>
+<span class="fc" id="L53">      enterHiddenDirectory(path);</span>
+    }
+<span class="fc" id="L55">    return true;</span>
+  }
+
+  private boolean isExcludedHiddenDirectory(Path path) throws IOException {
+<span class="fc bfc" id="L59" title="All 4 branches covered.">    return getCachedModuleWorkDir().equals(path) || hiddenFilesProjectData.getCachedSonarUserHomePath().equals(path);</span>
+  }
+
+  void enterHiddenDirectory(Path dir) {
+<span class="fc bfc" id="L63" title="All 2 branches covered.">    if (!insideHiddenDirectory()) {</span>
+<span class="fc" id="L64">      rootHiddenDir = dir;</span>
+    }
+<span class="fc" id="L66">  }</span>
+
+  public void exitDirectory(Path path) {
+<span class="fc bfc" id="L69" title="All 4 branches covered.">    if (insideHiddenDirectory() &amp;&amp; rootHiddenDir.equals(path)) {</span>
+<span class="fc" id="L70">      resetRootHiddenDir();</span>
+    }
+<span class="fc" id="L72">  }</span>
+
+  void resetRootHiddenDir() {
+<span class="fc" id="L75">    this.rootHiddenDir = null;</span>
+<span class="fc" id="L76">  }</span>
+
+  public boolean shouldVisitFile(Path path) throws IOException {
+<span class="fc bfc" id="L79" title="All 4 branches covered.">    boolean isHidden = insideHiddenDirectory() || Files.isHidden(path);</span>
+
+<span class="fc bfc" id="L81" title="All 4 branches covered.">    if (!excludeHiddenFiles &amp;&amp; isHidden) {</span>
+<span class="fc" id="L82">      hiddenFilesProjectData.markAsHiddenFile(path, module);</span>
+    }
+
+<span class="fc bfc" id="L85" title="All 4 branches covered.">    return !excludeHiddenFiles || !isHidden;</span>
+  }
+
+  private Path getCachedModuleWorkDir() throws IOException {
+<span class="fc bfc" id="L89" title="All 2 branches covered.">    if (moduleWorkDir == null) {</span>
+<span class="fc" id="L90">      moduleWorkDir = hiddenFilesProjectData.resolveRealPath(module.getWorkDir());</span>
+    }
+<span class="fc" id="L92">    return moduleWorkDir;</span>
+  }
+
+  // visible for testing
+  boolean insideHiddenDirectory() {
+<span class="fc bfc" id="L97" title="All 2 branches covered.">    return rootHiddenDir != null;</span>
+  }
+
+  protected static boolean isHiddenDir(Path path) throws IOException {
+<span class="pc bpc" id="L101" title="1 of 2 branches missed.">    if (SystemUtils.IS_OS_WINDOWS) {</span>
+      try {
+<span class="nc" id="L103">        DosFileAttributes dosFileAttributes = Files.readAttributes(path, DosFileAttributes.class, LinkOption.NOFOLLOW_LINKS);</span>
+<span class="nc" id="L104">        return dosFileAttributes.isHidden();</span>
+<span class="nc" id="L105">      } catch (UnsupportedOperationException e) {</span>
+<span class="nc" id="L106">        return path.toFile().isHidden();</span>
+      }
+    } else {
+<span class="fc" id="L109">      return Files.isHidden(path);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

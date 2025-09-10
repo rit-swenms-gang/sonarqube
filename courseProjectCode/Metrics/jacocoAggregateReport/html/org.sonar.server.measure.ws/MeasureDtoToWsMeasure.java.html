@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MeasureDtoToWsMeasure.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.measure.ws</a> &gt; <span class="el_source">MeasureDtoToWsMeasure.java</span></div><h1>MeasureDtoToWsMeasure.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.measure.ws;
+
+import javax.annotation.Nullable;
+import org.sonar.db.measure.MeasureDto;
+import org.sonar.db.measure.ProjectMeasureDto;
+import org.sonar.db.metric.MetricDto;
+import org.sonarqube.ws.Measures;
+import org.sonarqube.ws.Measures.Measure;
+
+import static java.lang.Double.compare;
+import static java.util.Optional.ofNullable;
+import static org.sonar.server.measure.ws.MeasureValueFormatter.formatMeasureValue;
+
+class MeasureDtoToWsMeasure {
+
+  private MeasureDtoToWsMeasure() {
+    // static methods
+  }
+
+  static void updateMeasureBuilder(Measure.Builder measureBuilder, MetricDto metricDto, ProjectMeasureDto projectMeasureDto) {
+<span class="nc bnc" id="L40" title="All 2 branches missed.">    double value = projectMeasureDto.getValue() == null ? Double.NaN : projectMeasureDto.getValue();</span>
+<span class="nc" id="L41">    boolean onNewCode = metricDto.getKey().startsWith(&quot;new_&quot;);</span>
+<span class="nc" id="L42">    updateMeasureBuilder(measureBuilder, metricDto, value, projectMeasureDto.getData(), onNewCode);</span>
+<span class="nc" id="L43">  }</span>
+
+  static void updateMeasureBuilder(Measure.Builder measureBuilder, MetricDto metricDto, MeasureDto measureDto) {
+    double doubleValue;
+<span class="fc" id="L47">    String stringValue = null;</span>
+<span class="fc bfc" id="L48" title="All 2 branches covered.">    if (metricDto.isNumeric()) {</span>
+<span class="fc" id="L49">      doubleValue = doubleValue(measureDto, metricDto.getKey());</span>
+    } else {
+<span class="fc" id="L51">      doubleValue = Double.NaN;</span>
+<span class="fc" id="L52">      stringValue = measureDto.getString(metricDto.getKey());</span>
+    }
+<span class="fc" id="L54">    boolean onNewCode = metricDto.getKey().startsWith(&quot;new_&quot;);</span>
+<span class="fc" id="L55">    updateMeasureBuilder(measureBuilder, metricDto, doubleValue, stringValue, onNewCode);</span>
+<span class="fc" id="L56">  }</span>
+
+  private static double doubleValue(MeasureDto measure, String metricKey) {
+<span class="fc" id="L59">    Double value = measure.getDouble(metricKey);</span>
+<span class="pc bpc" id="L60" title="1 of 2 branches missed.">    return value == null ? Double.NaN : value;</span>
+  }
+
+  static void updateMeasureBuilder(Measure.Builder measureBuilder, MetricDto metric, double doubleValue, @Nullable String stringValue, boolean onNewCode) {
+<span class="fc" id="L64">    measureBuilder.setMetric(metric.getKey());</span>
+<span class="fc" id="L65">    Double bestValue = metric.getBestValue();</span>
+
+<span class="pc bpc" id="L67" title="1 of 4 branches missed.">    if (Double.isNaN(doubleValue) &amp;&amp; stringValue == null) {</span>
+<span class="nc" id="L68">      return;</span>
+    }
+
+<span class="fc bfc" id="L71" title="All 2 branches covered.">    if (!onNewCode) {</span>
+<span class="fc" id="L72">      measureBuilder.setValue(formatMeasureValue(doubleValue, stringValue, metric));</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">      ofNullable(bestValue).ifPresent(v -&gt; measureBuilder.setBestValue(compare(doubleValue, v) == 0));</span>
+    } else {
+<span class="fc" id="L75">      Measures.PeriodValue.Builder periodBuilder = Measures.PeriodValue.newBuilder();</span>
+<span class="fc" id="L76">      Measures.PeriodValue.Builder builderForValue = periodBuilder</span>
+<span class="fc" id="L77">        .clear()</span>
+<span class="fc" id="L78">        .setIndex(1)</span>
+<span class="fc" id="L79">        .setValue(formatMeasureValue(doubleValue, stringValue, metric));</span>
+<span class="fc bfc" id="L80" title="All 2 branches covered.">      ofNullable(bestValue).ifPresent(v -&gt; builderForValue.setBestValue(compare(doubleValue, v) == 0));</span>
+<span class="fc" id="L81">      measureBuilder.setPeriod(builderForValue);</span>
+    }
+<span class="fc" id="L83">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

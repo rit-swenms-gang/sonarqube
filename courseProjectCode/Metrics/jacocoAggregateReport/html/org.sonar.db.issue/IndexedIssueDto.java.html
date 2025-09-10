@@ -1,0 +1,355 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IndexedIssueDto.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.issue</a> &gt; <span class="el_source">IndexedIssueDto.java</span></div><h1>IndexedIssueDto.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.issue;
+
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import javax.annotation.CheckForNull;
+import org.sonar.api.issue.IssueStatus;
+import org.sonar.api.issue.impact.Severity;
+import org.sonar.api.issue.impact.SoftwareQuality;
+
+public final class IndexedIssueDto {
+<span class="fc" id="L34">  private String issueKey = null;</span>
+<span class="fc" id="L35">  private String assignee = null;</span>
+<span class="fc" id="L36">  private Integer line = null;</span>
+<span class="fc" id="L37">  private String resolution = null;</span>
+<span class="fc" id="L38">  private String cleanCodeAttribute = null;</span>
+<span class="fc" id="L39">  private String ruleCleanCodeAttribute = null;</span>
+<span class="fc" id="L40">  private String severity = null;</span>
+<span class="fc" id="L41">  private String status = null;</span>
+<span class="fc" id="L42">  private Long effort = null;</span>
+<span class="fc" id="L43">  private String authorLogin = null;</span>
+<span class="fc" id="L44">  private Long issueCloseDate = null;</span>
+<span class="fc" id="L45">  private Long issueCreationDate = null;</span>
+<span class="fc" id="L46">  private Long issueUpdateDate = null;</span>
+<span class="fc" id="L47">  private String ruleUuid = null;</span>
+<span class="fc" id="L48">  private String language = null;</span>
+<span class="fc" id="L49">  private String componentUuid = null;</span>
+<span class="fc" id="L50">  private String path = null;</span>
+<span class="fc" id="L51">  private String scope = null;</span>
+<span class="fc" id="L52">  private String branchUuid = null;</span>
+<span class="fc" id="L53">  private boolean isMain = false;</span>
+<span class="fc" id="L54">  private String projectUuid = null;</span>
+<span class="fc" id="L55">  private String tags = null;</span>
+<span class="fc" id="L56">  private Integer issueType = null;</span>
+<span class="fc" id="L57">  private String securityStandards = null;</span>
+<span class="fc" id="L58">  private String qualifier = null;</span>
+<span class="fc" id="L59">  private boolean isNewCodeReferenceIssue = false;</span>
+<span class="fc" id="L60">  private String codeVariants = null;</span>
+<span class="fc" id="L61">  private boolean prioritizedRule = false;</span>
+<span class="fc" id="L62">  private boolean fromSonarQubeUpdate = false;</span>
+
+<span class="fc" id="L64">  private Set&lt;ImpactDto&gt; impacts = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L65">  private Set&lt;ImpactDto&gt; ruleDefaultImpacts = new HashSet&lt;&gt;();</span>
+
+<span class="fc" id="L67">  public IndexedIssueDto() {</span>
+    // empty constructor
+<span class="fc" id="L69">  }</span>
+
+  public String getIssueKey() {
+<span class="fc" id="L72">    return issueKey;</span>
+  }
+
+  public IndexedIssueDto setIssueKey(String issueKey) {
+<span class="fc" id="L76">    this.issueKey = issueKey;</span>
+<span class="fc" id="L77">    return this;</span>
+  }
+
+  public String getAssignee() {
+<span class="fc" id="L81">    return assignee;</span>
+  }
+
+  public IndexedIssueDto setAssignee(String assignee) {
+<span class="fc" id="L85">    this.assignee = assignee;</span>
+<span class="fc" id="L86">    return this;</span>
+  }
+
+  public Integer getLine() {
+<span class="fc" id="L90">    return line;</span>
+  }
+
+  public IndexedIssueDto setLine(Integer line) {
+<span class="fc" id="L94">    this.line = line;</span>
+<span class="fc" id="L95">    return this;</span>
+  }
+
+  public String getResolution() {
+<span class="fc" id="L99">    return resolution;</span>
+  }
+
+  public IndexedIssueDto setResolution(String resolution) {
+<span class="fc" id="L103">    this.resolution = resolution;</span>
+<span class="fc" id="L104">    return this;</span>
+  }
+
+  public String getSeverity() {
+<span class="fc" id="L108">    return severity;</span>
+  }
+
+  public IndexedIssueDto setSeverity(String severity) {
+<span class="fc" id="L112">    this.severity = severity;</span>
+<span class="fc" id="L113">    return this;</span>
+  }
+
+  public String getStatus() {
+<span class="fc" id="L117">    return status;</span>
+  }
+
+  public IndexedIssueDto setStatus(String status) {
+<span class="fc" id="L121">    this.status = status;</span>
+<span class="fc" id="L122">    return this;</span>
+  }
+
+  @CheckForNull
+  public String getIssueStatus() {
+<span class="fc" id="L127">    return Optional.ofNullable(IssueStatus.of(status, resolution)).map(IssueStatus::name).orElse(null);</span>
+  }
+
+  public Long getEffort() {
+<span class="fc" id="L131">    return effort;</span>
+  }
+
+  public IndexedIssueDto setEffort(Long effort) {
+<span class="fc" id="L135">    this.effort = effort;</span>
+<span class="fc" id="L136">    return this;</span>
+  }
+
+  public String getAuthorLogin() {
+<span class="fc" id="L140">    return authorLogin;</span>
+  }
+
+  public IndexedIssueDto setAuthorLogin(String authorLogin) {
+<span class="fc" id="L144">    this.authorLogin = authorLogin;</span>
+<span class="fc" id="L145">    return this;</span>
+  }
+
+  public Long getIssueCloseDate() {
+<span class="fc" id="L149">    return issueCloseDate;</span>
+  }
+
+  public IndexedIssueDto setIssueCloseDate(Long issueCloseDate) {
+<span class="fc" id="L153">    this.issueCloseDate = issueCloseDate;</span>
+<span class="fc" id="L154">    return this;</span>
+  }
+
+  public Long getIssueCreationDate() {
+<span class="fc" id="L158">    return issueCreationDate;</span>
+  }
+
+  public IndexedIssueDto setIssueCreationDate(Long issueCreationDate) {
+<span class="fc" id="L162">    this.issueCreationDate = issueCreationDate;</span>
+<span class="fc" id="L163">    return this;</span>
+  }
+
+  public Long getIssueUpdateDate() {
+<span class="fc" id="L167">    return issueUpdateDate;</span>
+  }
+
+  public IndexedIssueDto setIssueUpdateDate(Long issueUpdateDate) {
+<span class="fc" id="L171">    this.issueUpdateDate = issueUpdateDate;</span>
+<span class="fc" id="L172">    return this;</span>
+  }
+
+  public String getRuleUuid() {
+<span class="fc" id="L176">    return ruleUuid;</span>
+  }
+
+  public IndexedIssueDto setRuleUuid(String ruleUuid) {
+<span class="fc" id="L180">    this.ruleUuid = ruleUuid;</span>
+<span class="fc" id="L181">    return this;</span>
+  }
+
+  public String getLanguage() {
+<span class="fc" id="L185">    return language;</span>
+  }
+
+  public IndexedIssueDto setLanguage(String language) {
+<span class="fc" id="L189">    this.language = language;</span>
+<span class="fc" id="L190">    return this;</span>
+  }
+
+  public String getComponentUuid() {
+<span class="fc" id="L194">    return componentUuid;</span>
+  }
+
+  public IndexedIssueDto setComponentUuid(String componentUuid) {
+<span class="fc" id="L198">    this.componentUuid = componentUuid;</span>
+<span class="fc" id="L199">    return this;</span>
+  }
+
+  public String getPath() {
+<span class="fc" id="L203">    return path;</span>
+  }
+
+  public IndexedIssueDto setPath(String path) {
+<span class="fc" id="L207">    this.path = path;</span>
+<span class="fc" id="L208">    return this;</span>
+  }
+
+  public String getScope() {
+<span class="fc" id="L212">    return scope;</span>
+  }
+
+  public IndexedIssueDto setScope(String scope) {
+<span class="fc" id="L216">    this.scope = scope;</span>
+<span class="fc" id="L217">    return this;</span>
+  }
+
+  public String getBranchUuid() {
+<span class="fc" id="L221">    return branchUuid;</span>
+  }
+
+  public IndexedIssueDto setBranchUuid(String branchUuid) {
+<span class="fc" id="L225">    this.branchUuid = branchUuid;</span>
+<span class="fc" id="L226">    return this;</span>
+  }
+
+  public boolean isMain() {
+<span class="fc" id="L230">    return isMain;</span>
+  }
+
+  public IndexedIssueDto setIsMain(boolean isMain) {
+<span class="fc" id="L234">    this.isMain = isMain;</span>
+<span class="fc" id="L235">    return this;</span>
+  }
+
+  public String getProjectUuid() {
+<span class="fc" id="L239">    return projectUuid;</span>
+  }
+
+  public IndexedIssueDto setProjectUuid(String projectUuid) {
+<span class="fc" id="L243">    this.projectUuid = projectUuid;</span>
+<span class="fc" id="L244">    return this;</span>
+  }
+
+  public String getTags() {
+<span class="fc" id="L248">    return tags;</span>
+  }
+
+  public IndexedIssueDto setTags(String tags) {
+<span class="fc" id="L252">    this.tags = tags;</span>
+<span class="fc" id="L253">    return this;</span>
+  }
+
+  public Integer getIssueType() {
+<span class="fc" id="L257">    return issueType;</span>
+  }
+
+  public IndexedIssueDto setIssueType(Integer issueType) {
+<span class="fc" id="L261">    this.issueType = issueType;</span>
+<span class="fc" id="L262">    return this;</span>
+  }
+
+  public String getSecurityStandards() {
+<span class="fc" id="L266">    return securityStandards;</span>
+  }
+
+  public IndexedIssueDto setSecurityStandards(String securityStandards) {
+<span class="fc" id="L270">    this.securityStandards = securityStandards;</span>
+<span class="fc" id="L271">    return this;</span>
+  }
+
+  public String getQualifier() {
+<span class="fc" id="L275">    return qualifier;</span>
+  }
+
+  public IndexedIssueDto setQualifier(String qualifier) {
+<span class="fc" id="L279">    this.qualifier = qualifier;</span>
+<span class="fc" id="L280">    return this;</span>
+  }
+
+  public boolean isNewCodeReferenceIssue() {
+<span class="fc" id="L284">    return isNewCodeReferenceIssue;</span>
+  }
+
+  public IndexedIssueDto setNewCodeReferenceIssue(boolean newCodeReferenceIssue) {
+<span class="fc" id="L288">    isNewCodeReferenceIssue = newCodeReferenceIssue;</span>
+<span class="fc" id="L289">    return this;</span>
+  }
+
+  public String getCodeVariants() {
+<span class="fc" id="L293">    return codeVariants;</span>
+  }
+
+  public IndexedIssueDto setCodeVariants(String codeVariants) {
+<span class="fc" id="L297">    this.codeVariants = codeVariants;</span>
+<span class="fc" id="L298">    return this;</span>
+  }
+
+  public Set&lt;ImpactDto&gt; getImpacts() {
+<span class="fc" id="L302">    return impacts;</span>
+  }
+
+  public Set&lt;ImpactDto&gt; getRuleDefaultImpacts() {
+<span class="fc" id="L306">    return ruleDefaultImpacts;</span>
+  }
+
+  public Map&lt;SoftwareQuality, Severity&gt; getEffectiveImpacts() {
+<span class="fc" id="L310">    EnumMap&lt;SoftwareQuality, Severity&gt; effectiveImpacts = new EnumMap&lt;&gt;(SoftwareQuality.class);</span>
+<span class="fc" id="L311">    ruleDefaultImpacts.forEach(impact -&gt; effectiveImpacts.put(impact.getSoftwareQuality(), impact.getSeverity()));</span>
+<span class="fc" id="L312">    impacts.forEach(impact -&gt; effectiveImpacts.put(impact.getSoftwareQuality(), impact.getSeverity()));</span>
+<span class="fc" id="L313">    return Collections.unmodifiableMap(effectiveImpacts);</span>
+  }
+
+  public String getCleanCodeAttribute() {
+<span class="pc bpc" id="L317" title="1 of 2 branches missed.">    if (cleanCodeAttribute != null) {</span>
+<span class="fc" id="L318">      return cleanCodeAttribute;</span>
+    }
+<span class="nc" id="L320">    return ruleCleanCodeAttribute;</span>
+  }
+
+  public IndexedIssueDto setCleanCodeAttribute(String cleanCodeAttribute) {
+<span class="fc" id="L324">    this.cleanCodeAttribute = cleanCodeAttribute;</span>
+<span class="fc" id="L325">    return this;</span>
+  }
+
+  public String getRuleCleanCodeAttribute() {
+<span class="fc" id="L329">    return ruleCleanCodeAttribute;</span>
+  }
+
+  public IndexedIssueDto setRuleCleanCodeAttribute(String ruleCleanCodeAttribute) {
+<span class="fc" id="L333">    this.ruleCleanCodeAttribute = ruleCleanCodeAttribute;</span>
+<span class="fc" id="L334">    return this;</span>
+  }
+
+  public boolean isPrioritizedRule() {
+<span class="fc" id="L338">    return prioritizedRule;</span>
+  }
+
+  public IndexedIssueDto setPrioritizedRule(boolean prioritizedRule) {
+<span class="fc" id="L342">    this.prioritizedRule = prioritizedRule;</span>
+<span class="fc" id="L343">    return this;</span>
+  }
+
+  public boolean isFromSonarQubeUpdate() {
+<span class="fc" id="L347">    return fromSonarQubeUpdate;</span>
+  }
+
+  public IndexedIssueDto setFromSonarQubeUpdate(boolean fromSonarQubeUpdate) {
+<span class="fc" id="L351">    this.fromSonarQubeUpdate = fromSonarQubeUpdate;</span>
+<span class="fc" id="L352">    return this;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PurgeConfiguration.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.purge</a> &gt; <span class="el_source">PurgeConfiguration.java</span></div><h1>PurgeConfiguration.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.purge;
+
+import com.google.common.annotations.VisibleForTesting;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.Date;
+import java.util.Optional;
+import java.util.Set;
+import javax.annotation.CheckForNull;
+import org.sonar.api.config.Configuration;
+import org.sonar.api.utils.DateUtils;
+import org.sonar.api.utils.System2;
+import org.sonar.core.config.PurgeConstants;
+
+public class PurgeConfiguration {
+
+  private final String rootUuid;
+  private final String projectUuid;
+  private final int maxAgeInDaysOfClosedIssues;
+  private final Optional&lt;Integer&gt; maxAgeInDaysOfInactiveBranches;
+  private final System2 system2;
+  private final Set&lt;String&gt; disabledComponentUuids;
+
+  private final int maxAgeInDaysOfAnticipatedTransitions;
+
+  public PurgeConfiguration(String rootUuid, String projectUuid, int maxAgeInDaysOfClosedIssues,
+<span class="fc" id="L46">    Optional&lt;Integer&gt; maxAgeInDaysOfInactiveBranches, System2 system2, Set&lt;String&gt; disabledComponentUuids, int maxAgeInDaysOfAnticipatedTransitions) {</span>
+<span class="fc" id="L47">    this.rootUuid = rootUuid;</span>
+<span class="fc" id="L48">    this.projectUuid = projectUuid;</span>
+<span class="fc" id="L49">    this.maxAgeInDaysOfClosedIssues = maxAgeInDaysOfClosedIssues;</span>
+<span class="fc" id="L50">    this.system2 = system2;</span>
+<span class="fc" id="L51">    this.disabledComponentUuids = disabledComponentUuids;</span>
+<span class="fc" id="L52">    this.maxAgeInDaysOfInactiveBranches = maxAgeInDaysOfInactiveBranches;</span>
+<span class="fc" id="L53">    this.maxAgeInDaysOfAnticipatedTransitions = maxAgeInDaysOfAnticipatedTransitions;</span>
+<span class="fc" id="L54">  }</span>
+
+  public static PurgeConfiguration newDefaultPurgeConfiguration(Configuration config, String rootUuid, String projectUuid, Set&lt;String&gt; disabledComponentUuids) {
+<span class="fc" id="L57">    return new PurgeConfiguration(rootUuid, projectUuid, config.getInt(PurgeConstants.DAYS_BEFORE_DELETING_CLOSED_ISSUES).get(),</span>
+<span class="fc" id="L58">      config.getInt(PurgeConstants.DAYS_BEFORE_DELETING_INACTIVE_BRANCHES_AND_PRS), System2.INSTANCE, disabledComponentUuids,</span>
+<span class="fc" id="L59">      config.getInt(PurgeConstants.DAYS_BEFORE_DELETING_ANTICIPATED_TRANSITIONS).get());</span>
+  }
+
+  /**
+   * UUID of the branch being analyzed (root of the component tree). Will be the same as {@link #projectUuid}
+   * if it's the main branch.
+   * Can also be a view.
+   */
+  public String rootUuid() {
+<span class="fc" id="L68">    return rootUuid;</span>
+  }
+
+  /**
+   * @return UUID of the main branch of the project
+   */
+  public String projectUuid() {
+<span class="fc" id="L75">    return projectUuid;</span>
+  }
+
+  public Set&lt;String&gt; getDisabledComponentUuids() {
+<span class="fc" id="L79">    return disabledComponentUuids;</span>
+  }
+
+  @CheckForNull
+  public Date maxLiveDateOfClosedIssues() {
+<span class="fc" id="L84">    return maxLiveDateOfClosedIssues(new Date(system2.now()));</span>
+  }
+
+  public Optional&lt;Date&gt; maxLiveDateOfInactiveBranches() {
+<span class="fc" id="L88">    return maxAgeInDaysOfInactiveBranches.map(age -&gt; DateUtils.addDays(new Date(system2.now()), -age));</span>
+  }
+
+  public Instant maxLiveDateOfAnticipatedTransitions() {
+<span class="fc" id="L92">    return Instant.ofEpochMilli(system2.now()).minus(maxAgeInDaysOfAnticipatedTransitions, ChronoUnit.DAYS);</span>
+  }
+
+
+  @VisibleForTesting
+  @CheckForNull
+  Date maxLiveDateOfClosedIssues(Date now) {
+<span class="fc bfc" id="L99" title="All 2 branches covered.">    if (maxAgeInDaysOfClosedIssues &gt; 0) {</span>
+<span class="fc" id="L100">      return DateUtils.addDays(now, -maxAgeInDaysOfClosedIssues);</span>
+    }
+
+    // delete all closed issues
+<span class="fc" id="L104">    return null;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

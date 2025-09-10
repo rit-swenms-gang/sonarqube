@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UpdatesAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.plugins.ws</a> &gt; <span class="el_source">UpdatesAction.java</span></div><h1>UpdatesAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.plugins.ws;
+
+import com.google.common.collect.ImmutableSortedSet;
+import com.google.common.collect.Ordering;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.server.plugins.UpdateCenterMatrixFactory;
+import org.sonar.server.plugins.ws.PluginUpdateAggregator.PluginUpdateAggregate;
+import org.sonar.server.user.UserSession;
+import org.sonar.updatecenter.common.Plugin;
+import org.sonar.updatecenter.common.PluginUpdate;
+import org.sonar.updatecenter.common.UpdateCenter;
+import org.sonarqube.ws.Plugins.AvailableUpdate;
+import org.sonarqube.ws.Plugins.UpdatablePlugin;
+import org.sonarqube.ws.Plugins.UpdatesPluginsWsResponse;
+import org.sonarqube.ws.Plugins.UpdatesPluginsWsResponse.Builder;
+
+import static java.util.Optional.ofNullable;
+import static org.sonar.api.utils.DateUtils.formatDateTime;
+import static org.sonar.server.plugins.edition.EditionBundledPlugins.isEditionBundled;
+import static org.sonar.server.plugins.ws.PluginWSCommons.buildRelease;
+import static org.sonar.server.plugins.ws.PluginWSCommons.buildRequires;
+import static org.sonar.server.plugins.ws.PluginWSCommons.convertUpdateCenterStatus;
+import static org.sonar.server.ws.WsUtils.writeProtobuf;
+
+/**
+ * Implementation of the {@code updates} action for the Plugins WebService.
+ */
+public class UpdatesAction implements PluginsWsAction {
+
+  private static final boolean DO_NOT_FORCE_REFRESH = false;
+  private static final String HTML_TAG_BR = &quot;&lt;br/&gt;&quot;;
+
+<span class="fc" id="L59">  private static final Ordering&lt;PluginUpdateAggregate&gt; NAME_KEY_PLUGIN_UPGRADE_AGGREGATE_ORDERING = Ordering.from(PluginWSCommons.NAME_KEY_PLUGIN_ORDERING)</span>
+<span class="fc" id="L60">    .onResultOf(PluginUpdateAggregate::getPlugin);</span>
+<span class="fc" id="L61">  private static final Ordering&lt;PluginUpdate&gt; PLUGIN_UPDATE_BY_VERSION_ORDERING = Ordering.natural()</span>
+<span class="fc" id="L62">    .onResultOf(input -&gt; Objects.requireNonNull(input).getRelease().getVersion().toString());</span>
+
+  private final UserSession userSession;
+  private final UpdateCenterMatrixFactory updateCenterMatrixFactory;
+  private final PluginUpdateAggregator aggregator;
+
+  public UpdatesAction(UserSession userSession, UpdateCenterMatrixFactory updateCenterMatrixFactory,
+<span class="fc" id="L69">    PluginUpdateAggregator aggregator) {</span>
+<span class="fc" id="L70">    this.userSession = userSession;</span>
+<span class="fc" id="L71">    this.updateCenterMatrixFactory = updateCenterMatrixFactory;</span>
+<span class="fc" id="L72">    this.aggregator = aggregator;</span>
+<span class="fc" id="L73">  }</span>
+
+  @Override
+  public void define(WebService.NewController controller) {
+<span class="fc" id="L77">    controller.createAction(&quot;updates&quot;)</span>
+<span class="fc" id="L78">      .setDescription(&quot;Lists plugins installed on the SonarQube instance for which at least one newer version is available, sorted by plugin name.&quot; +</span>
+        HTML_TAG_BR +
+        &quot;Each newer version is listed, ordered from the oldest to the newest, with its own update/compatibility status.&quot; +
+        HTML_TAG_BR +
+        &quot;Plugin information is retrieved from Update Center. Date and time at which Update Center was last refreshed is provided in the response.&quot; +
+        HTML_TAG_BR +
+        &quot;Update status values are: [COMPATIBLE, INCOMPATIBLE, REQUIRES_UPGRADE, DEPS_REQUIRE_UPGRADE].&quot; +
+        HTML_TAG_BR +
+        &quot;Require 'Administer System' permission.&quot;)
+<span class="fc" id="L87">      .setSince(&quot;5.2&quot;)</span>
+<span class="fc" id="L88">      .setHandler(this)</span>
+<span class="fc" id="L89">      .setResponseExample(this.getClass().getResource(&quot;example-updates_plugins.json&quot;));</span>
+<span class="fc" id="L90">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L94">    userSession.checkIsSystemAdministrator();</span>
+
+<span class="fc" id="L96">    Optional&lt;UpdateCenter&gt; updateCenter = updateCenterMatrixFactory.getUpdateCenter(DO_NOT_FORCE_REFRESH);</span>
+
+<span class="pc bpc" id="L98" title="1 of 2 branches missed.">    Collection&lt;UpdatablePlugin&gt; plugins = updateCenter.isPresent() ? getPluginUpdates(updateCenter.get()) : Collections.emptyList();</span>
+<span class="fc" id="L99">    Builder responseBuilder = UpdatesPluginsWsResponse.newBuilder().addAllPlugins(plugins);</span>
+<span class="fc" id="L100">    updateCenter.ifPresent(u -&gt; responseBuilder.setUpdateCenterRefresh(formatDateTime(u.getDate().getTime())));</span>
+
+<span class="fc" id="L102">    writeProtobuf(responseBuilder.build(), request, response);</span>
+<span class="fc" id="L103">  }</span>
+
+  private List&lt;UpdatablePlugin&gt; getPluginUpdates(UpdateCenter updateCenter) {
+<span class="fc" id="L106">    return retrieveUpdatablePlugins(updateCenter)</span>
+<span class="fc" id="L107">      .stream()</span>
+<span class="fc" id="L108">      .map(pluginUpdateAggregate -&gt; {</span>
+<span class="fc" id="L109">        Plugin plugin = pluginUpdateAggregate.getPlugin();</span>
+<span class="fc" id="L110">        UpdatablePlugin.Builder builder = UpdatablePlugin.newBuilder()</span>
+<span class="fc" id="L111">          .setKey(plugin.getKey())</span>
+<span class="fc" id="L112">          .setEditionBundled(isEditionBundled(plugin))</span>
+<span class="fc" id="L113">          .addAllUpdates(buildUpdates(pluginUpdateAggregate));</span>
+<span class="fc" id="L114">        ofNullable(plugin.getName()).ifPresent(builder::setName);</span>
+<span class="fc" id="L115">        ofNullable(plugin.getCategory()).ifPresent(builder::setCategory);</span>
+<span class="fc" id="L116">        ofNullable(plugin.getDescription()).ifPresent(builder::setDescription);</span>
+<span class="fc" id="L117">        ofNullable(plugin.getLicense()).ifPresent(builder::setLicense);</span>
+<span class="fc" id="L118">        ofNullable(plugin.getTermsConditionsUrl()).ifPresent(builder::setTermsAndConditionsUrl);</span>
+<span class="fc" id="L119">        ofNullable(plugin.getOrganization()).ifPresent(builder::setOrganizationName);</span>
+<span class="fc" id="L120">        ofNullable(plugin.getOrganizationUrl()).ifPresent(builder::setOrganizationUrl);</span>
+<span class="fc" id="L121">        ofNullable(plugin.getIssueTrackerUrl()).ifPresent(builder::setIssueTrackerUrl);</span>
+<span class="fc" id="L122">        ofNullable(plugin.getHomepageUrl()).ifPresent(builder::setHomepageUrl);</span>
+<span class="fc" id="L123">        return builder.build();</span>
+<span class="fc" id="L124">      }).toList();</span>
+  }
+
+  private static Collection&lt;AvailableUpdate&gt; buildUpdates(PluginUpdateAggregate pluginUpdateAggregate) {
+<span class="fc" id="L128">    return ImmutableSortedSet.copyOf(PLUGIN_UPDATE_BY_VERSION_ORDERING, pluginUpdateAggregate.getUpdates()).stream()</span>
+<span class="fc" id="L129">      .map(pluginUpdate -&gt; AvailableUpdate.newBuilder()</span>
+<span class="fc" id="L130">        .setRelease(buildRelease(pluginUpdate.getRelease()))</span>
+<span class="fc" id="L131">        .setStatus(convertUpdateCenterStatus(pluginUpdate.getStatus()))</span>
+<span class="fc" id="L132">        .addAllRequires(buildRequires(pluginUpdate))</span>
+<span class="fc" id="L133">        .build())</span>
+<span class="fc" id="L134">      .toList();</span>
+  }
+
+  private Collection&lt;PluginUpdateAggregate&gt; retrieveUpdatablePlugins(UpdateCenter updateCenter) {
+<span class="fc" id="L138">    List&lt;PluginUpdate&gt; pluginUpdates = updateCenter.findPluginUpdates();</span>
+    // aggregates updates of the same plugin to a single object and sort these objects by plugin name then key
+<span class="fc" id="L140">    return ImmutableSortedSet.copyOf(</span>
+      NAME_KEY_PLUGIN_UPGRADE_AGGREGATE_ORDERING,
+<span class="fc" id="L142">      aggregator.aggregate(pluginUpdates));</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

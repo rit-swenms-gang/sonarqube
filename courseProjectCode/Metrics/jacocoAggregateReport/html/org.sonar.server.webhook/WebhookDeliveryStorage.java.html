@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WebhookDeliveryStorage.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.webhook</a> &gt; <span class="el_source">WebhookDeliveryStorage.java</span></div><h1>WebhookDeliveryStorage.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.webhook;
+
+import com.google.common.base.Throwables;
+import org.sonar.api.ce.ComputeEngineSide;
+import org.sonar.api.server.ServerSide;
+import org.sonar.api.utils.System2;
+import org.sonar.core.util.UuidFactory;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.webhook.WebhookDeliveryDao;
+import org.sonar.db.webhook.WebhookDeliveryDto;
+
+/**
+ * Persist and purge {@link WebhookDelivery} into database
+ */
+@ServerSide
+@ComputeEngineSide
+public class WebhookDeliveryStorage {
+
+  private static final long ALIVE_DELAY_MS = 30L * 24 * 60 * 60 * 1000;
+
+  private final DbClient dbClient;
+  private final System2 system;
+  private final UuidFactory uuidFactory;
+
+<span class="fc" id="L45">  public WebhookDeliveryStorage(DbClient dbClient, System2 system, UuidFactory uuidFactory) {</span>
+<span class="fc" id="L46">    this.dbClient = dbClient;</span>
+<span class="fc" id="L47">    this.system = system;</span>
+<span class="fc" id="L48">    this.uuidFactory = uuidFactory;</span>
+<span class="fc" id="L49">  }</span>
+
+  public void persist(WebhookDelivery delivery) {
+<span class="fc" id="L52">    WebhookDeliveryDao dao = dbClient.webhookDeliveryDao();</span>
+<span class="fc" id="L53">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L54">      dao.insert(dbSession, toDto(delivery));</span>
+<span class="fc" id="L55">      dbSession.commit();</span>
+    }
+<span class="fc" id="L57">  }</span>
+
+  public void purge() {
+<span class="fc" id="L60">    long beforeDate = system.now() - ALIVE_DELAY_MS;</span>
+<span class="fc" id="L61">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L62">      dbClient.webhookDeliveryDao().deleteAllBeforeDate(dbSession, beforeDate);</span>
+<span class="fc" id="L63">      dbSession.commit();</span>
+    }
+<span class="fc" id="L65">  }</span>
+
+  private WebhookDeliveryDto toDto(WebhookDelivery delivery) {
+<span class="fc" id="L68">    WebhookDeliveryDto dto = new WebhookDeliveryDto();</span>
+<span class="fc" id="L69">    dto.setUuid(uuidFactory.create());</span>
+<span class="fc" id="L70">    dto.setWebhookUuid(delivery.getWebhook().getUuid());</span>
+<span class="fc" id="L71">    dto.setProjectUuid(delivery.getWebhook().getProjectUuid());</span>
+<span class="fc" id="L72">    delivery.getWebhook().getCeTaskUuid().ifPresent(dto::setCeTaskUuid);</span>
+<span class="fc" id="L73">    delivery.getWebhook().getAnalysisUuid().ifPresent(dto::setAnalysisUuid);</span>
+<span class="fc" id="L74">    dto.setName(delivery.getWebhook().getName());</span>
+<span class="fc" id="L75">    dto.setUrl(delivery.getEffectiveUrl().orElse(delivery.getWebhook().getUrl()));</span>
+<span class="fc" id="L76">    dto.setSuccess(delivery.isSuccess());</span>
+<span class="fc" id="L77">    dto.setHttpStatus(delivery.getHttpStatus().orElse(null));</span>
+<span class="fc" id="L78">    dto.setDurationMs(delivery.getDurationInMs().orElse(null));</span>
+<span class="fc" id="L79">    dto.setErrorStacktrace(delivery.getError().map(Throwables::getStackTraceAsString).orElse(null));</span>
+<span class="fc" id="L80">    dto.setPayload(delivery.getPayload().getJson());</span>
+<span class="fc" id="L81">    dto.setCreatedAt(delivery.getAt());</span>
+<span class="fc" id="L82">    return dto;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

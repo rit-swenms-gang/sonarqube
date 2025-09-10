@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LoadProjectStep.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectexport.steps</a> &gt; <span class="el_source">LoadProjectStep.java</span></div><h1>LoadProjectStep.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectexport.steps;
+
+import java.util.List;
+import org.sonar.api.utils.MessageException;
+import org.sonar.ce.task.projectexport.taskprocessor.ProjectDescriptor;
+import org.sonar.ce.task.step.ComputationStep;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.BranchDto;
+import org.sonar.db.project.ProjectDto;
+
+import static java.lang.String.format;
+
+/**
+ * Loads project from database and verifies that it's valid: it must exist and be a project !
+ */
+public class LoadProjectStep implements ComputationStep {
+
+  private final ProjectDescriptor descriptor;
+  private final MutableProjectHolder definitionHolder;
+  private final DbClient dbClient;
+
+  public LoadProjectStep(ProjectDescriptor descriptor, MutableProjectHolder definitionHolder,
+<span class="fc" id="L43">    DbClient dbClient) {</span>
+<span class="fc" id="L44">    this.descriptor = descriptor;</span>
+<span class="fc" id="L45">    this.definitionHolder = definitionHolder;</span>
+<span class="fc" id="L46">    this.dbClient = dbClient;</span>
+<span class="fc" id="L47">  }</span>
+
+  @Override
+  public void execute(Context context) {
+<span class="fc" id="L51">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L52">      ProjectDto project = dbClient.projectDao().selectProjectByKey(dbSession, descriptor.getKey())</span>
+<span class="fc" id="L53">        .orElseThrow(() -&gt; MessageException.of(format(&quot;Project with key [%s] does not exist&quot;, descriptor.getKey())));</span>
+<span class="fc" id="L54">      definitionHolder.setProjectDto(project);</span>
+
+<span class="fc" id="L56">      List&lt;BranchDto&gt; branches = dbClient.branchDao().selectByProject(dbSession, project).stream().toList();</span>
+<span class="fc" id="L57">      definitionHolder.setBranches(branches);</span>
+    }
+<span class="fc" id="L59">  }</span>
+
+  @Override
+  public String getDescription() {
+<span class="fc" id="L63">    return &quot;Load project&quot;;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

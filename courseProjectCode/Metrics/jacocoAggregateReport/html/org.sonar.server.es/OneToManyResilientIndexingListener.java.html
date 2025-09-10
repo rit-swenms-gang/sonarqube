@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OneToManyResilientIndexingListener.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.es</a> &gt; <span class="el_source">OneToManyResilientIndexingListener.java</span></div><h1>OneToManyResilientIndexingListener.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.es;
+
+import java.util.Collection;
+import java.util.List;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.es.EsQueueDto;
+
+/**
+ * Clean-up the db table &quot;es_queue&quot; when documents
+ * are successfully indexed so that the recovery
+ * daemon does not re-index them.
+ *
+ * This implementation assumes that one row in table es_queue
+ * is associated to multiple index documents. The column
+ * es_queue.doc_id is not equal to ids of documents.
+ *
+ * Important. All the provided EsQueueDto instances must
+ * reference documents involved in the BulkIndexer call, otherwise
+ * some items will be marked as successfully processed, even
+ * if not processed at all.
+ */
+public class OneToManyResilientIndexingListener implements IndexingListener {
+
+  private final DbClient dbClient;
+  private final DbSession dbSession;
+  private final Collection&lt;EsQueueDto&gt; items;
+
+<span class="fc" id="L48">  public OneToManyResilientIndexingListener(DbClient dbClient, DbSession dbSession, Collection&lt;EsQueueDto&gt; items) {</span>
+<span class="fc" id="L49">    this.dbClient = dbClient;</span>
+<span class="fc" id="L50">    this.dbSession = dbSession;</span>
+<span class="fc" id="L51">    this.items = items;</span>
+<span class="fc" id="L52">  }</span>
+
+  @Override
+  public void onSuccess(List&lt;DocId&gt; successDocIds) {
+    // it's not possible to deduce which ES_QUEUE row
+    // must be deleted. For example:
+    // items: project P1
+    // successDocIds: issue 1 and issue 2
+    // --&gt; no relationship between items and successDocIds
+<span class="fc" id="L61">  }</span>
+
+  @Override
+  public void onFinish(IndexingResult result) {
+<span class="fc bfc" id="L65" title="All 2 branches covered.">    if (result.isSuccess()) {</span>
+<span class="fc" id="L66">      dbClient.esQueueDao().delete(dbSession, items);</span>
+<span class="fc" id="L67">      dbSession.commit();</span>
+    }
+<span class="fc" id="L69">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

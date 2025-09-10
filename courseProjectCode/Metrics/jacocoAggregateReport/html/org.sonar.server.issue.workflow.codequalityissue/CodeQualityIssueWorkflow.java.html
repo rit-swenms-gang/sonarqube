@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CodeQualityIssueWorkflow.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.issue.workflow.codequalityissue</a> &gt; <span class="el_source">CodeQualityIssueWorkflow.java</span></div><h1>CodeQualityIssueWorkflow.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.issue.workflow.codequalityissue;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import org.sonar.api.ce.ComputeEngineSide;
+import org.sonar.api.issue.IssueStatus;
+import org.sonar.api.server.ServerSide;
+import org.sonar.core.issue.DefaultIssue;
+import org.sonar.core.issue.IssueChangeContext;
+import org.sonar.issue.workflow.statemachine.State;
+import org.sonar.issue.workflow.statemachine.Transition;
+import org.sonar.server.issue.TaintChecker;
+import org.sonar.server.issue.workflow.issue.IssueWorkflowEntityAdapter;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkState;
+
+@ServerSide
+@ComputeEngineSide
+public class CodeQualityIssueWorkflow {
+
+  private final CodeQualityIssueWorkflowActionsFactory actionsFactory;
+  private final CodeQualityIssueWorkflowDefinition workflowDefinition;
+  private final TaintChecker taintChecker;
+
+  public CodeQualityIssueWorkflow(CodeQualityIssueWorkflowActionsFactory actionsFactory, CodeQualityIssueWorkflowDefinition workflowDefinition,
+<span class="fc" id="L49">    TaintChecker taintChecker) {</span>
+<span class="fc" id="L50">    this.actionsFactory = actionsFactory;</span>
+<span class="fc" id="L51">    this.workflowDefinition = workflowDefinition;</span>
+<span class="fc" id="L52">    this.taintChecker = taintChecker;</span>
+<span class="fc" id="L53">  }</span>
+
+  public boolean doManualTransition(DefaultIssue issue, CodeQualityIssueWorkflowTransition transition, IssueChangeContext issueChangeContext) {
+<span class="nc" id="L56">    return doManualTransition(issue, transition.getKey(), issueChangeContext);</span>
+  }
+
+  public boolean doManualTransition(DefaultIssue issue, String transitionKey, IssueChangeContext issueChangeContext) {
+<span class="fc" id="L60">    Transition&lt;CodeQualityIssueWorkflowEntity, CodeQualityIssueWorkflowActions&gt; transition = stateOf(issue).transition(transitionKey);</span>
+<span class="fc" id="L61">    var wfIssue = adapt(issue);</span>
+<span class="pc bpc" id="L62" title="2 of 4 branches missed.">    if (transition.supports(wfIssue) &amp;&amp; !transition.automatic()) {</span>
+<span class="fc" id="L63">      IssueStatus previousIssueStatus = issue.issueStatus();</span>
+<span class="fc" id="L64">      CodeQualityIssueWorkflowActions issueActions = actionsFactory.provideContextualActions(issue, issueChangeContext);</span>
+<span class="fc" id="L65">      execute(transition.actions(), issueActions);</span>
+<span class="fc" id="L66">      issueActions.setStatus(previousIssueStatus, transition.to());</span>
+<span class="fc" id="L67">      return true;</span>
+    }
+<span class="nc" id="L69">    return false;</span>
+  }
+
+  public Set&lt;CodeQualityIssueWorkflowTransition&gt; outTransitionsEnums(DefaultIssue issue) {
+<span class="nc" id="L73">    return outTransitionsKeys(issue).stream()</span>
+<span class="nc" id="L74">      .map(CodeQualityIssueWorkflowTransition::fromKey)</span>
+<span class="nc" id="L75">      .flatMap(Optional::stream)</span>
+<span class="nc" id="L76">      .collect(Collectors.toSet());</span>
+  }
+
+  public List&lt;String&gt; outTransitionsKeys(DefaultIssue issue) {
+<span class="fc" id="L80">    String status = issue.status();</span>
+<span class="fc" id="L81">    State&lt;CodeQualityIssueWorkflowEntity, CodeQualityIssueWorkflowActions&gt; state = workflowDefinition.getMachine().state(status);</span>
+<span class="fc bfc" id="L82" title="All 2 branches covered.">    checkArgument(state != null, &quot;Unknown status: %s&quot;, status);</span>
+<span class="fc" id="L83">    return state.outManualTransitions(adapt(issue)).stream()</span>
+<span class="fc" id="L84">      .map(Transition::key)</span>
+<span class="fc" id="L85">      .toList();</span>
+  }
+
+  public void doAutomaticTransition(DefaultIssue issue, IssueChangeContext issueChangeContext) {
+<span class="fc" id="L89">    var wfIssue = adapt(issue);</span>
+<span class="fc" id="L90">    Transition&lt;CodeQualityIssueWorkflowEntity, CodeQualityIssueWorkflowActions&gt; transition = stateOf(issue).outAutomaticTransition(wfIssue);</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">    if (transition != null) {</span>
+<span class="fc" id="L92">      IssueStatus previousIssueStatus = issue.issueStatus();</span>
+<span class="fc" id="L93">      CodeQualityIssueWorkflowActions issueActions = actionsFactory.provideContextualActions(issue, issueChangeContext);</span>
+<span class="fc" id="L94">      execute(transition.actions(), issueActions);</span>
+<span class="fc" id="L95">      issueActions.setStatus(previousIssueStatus, transition.to());</span>
+    }
+<span class="fc" id="L97">  }</span>
+
+  private State&lt;CodeQualityIssueWorkflowEntity, CodeQualityIssueWorkflowActions&gt; stateOf(DefaultIssue issue) {
+<span class="fc" id="L100">    State&lt;CodeQualityIssueWorkflowEntity, CodeQualityIssueWorkflowActions&gt; state = workflowDefinition.getMachine().state(issue.status());</span>
+<span class="fc bfc" id="L101" title="All 2 branches covered.">    checkState(state != null, &quot;Unknown status: %s [issue=%s]&quot;, issue.status(), issue.key());</span>
+<span class="fc" id="L102">    return state;</span>
+  }
+
+  void execute(List&lt;Consumer&lt;CodeQualityIssueWorkflowActions&gt;&gt; actions, CodeQualityIssueWorkflowActions issueActions) {
+<span class="pc bpc" id="L106" title="1 of 2 branches missed.">    if (!actions.isEmpty()) {</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">      for (Consumer&lt;CodeQualityIssueWorkflowActions&gt; action : actions) {</span>
+<span class="fc" id="L108">        action.accept(issueActions);</span>
+<span class="fc" id="L109">      }</span>
+    }
+<span class="fc" id="L111">  }</span>
+
+  private CodeQualityIssueWorkflowEntity adapt(DefaultIssue issue) {
+<span class="fc" id="L114">    return new CodeQualityIssueWorkflowEntityAdapter(issue);</span>
+  }
+
+  private class CodeQualityIssueWorkflowEntityAdapter extends IssueWorkflowEntityAdapter implements CodeQualityIssueWorkflowEntity {
+
+<span class="fc" id="L119">    protected CodeQualityIssueWorkflowEntityAdapter(DefaultIssue issue) {</span>
+<span class="fc" id="L120">      super(issue);</span>
+<span class="fc" id="L121">    }</span>
+
+    @Override
+    public boolean locationsChanged() {
+<span class="fc" id="L125">      return issue.locationsChanged();</span>
+    }
+
+    @Override
+    public boolean isTaintVulnerability() {
+<span class="fc" id="L130">      return taintChecker.isTaintVulnerability(issue);</span>
+    }
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

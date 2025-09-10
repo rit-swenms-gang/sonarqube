@@ -1,0 +1,524 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ActivityAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.ce.ws</a> &gt; <span class="el_source">ActivityAction.java</span></div><h1>ActivityAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.ce.ws;
+
+import com.google.common.base.Joiner;
+import com.google.common.collect.ImmutableList;
+import java.util.Collections;
+import java.util.Date;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.StreamSupport;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.jetbrains.annotations.NotNull;
+import org.sonar.db.component.ComponentQualifiers;
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.api.server.ws.WebService.Param;
+import org.sonar.api.utils.Paging;
+import org.sonar.db.permission.ProjectPermission;
+import org.sonar.ce.task.taskprocessor.CeTaskProcessor;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.ce.CeActivityDto;
+import org.sonar.db.ce.CeQueueDto;
+import org.sonar.db.ce.CeTaskQuery;
+import org.sonar.db.ce.CeTaskTypes;
+import org.sonar.db.component.ComponentDto;
+import org.sonar.db.component.ComponentQuery;
+import org.sonar.db.entity.EntityDto;
+import org.sonar.server.user.UserSession;
+import org.sonarqube.ws.Ce;
+import org.sonarqube.ws.Ce.ActivityResponse;
+import org.sonarqube.ws.Common;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.lang.Boolean.parseBoolean;
+import static java.lang.Integer.max;
+import static java.lang.Integer.parseInt;
+import static java.lang.String.format;
+import static java.util.Arrays.asList;
+import static java.util.Collections.singletonList;
+import static java.util.stream.Collectors.toSet;
+import static org.sonar.api.server.ws.WebService.Param.TEXT_QUERY;
+import static org.sonar.api.utils.DateUtils.parseEndingDateOrDateTime;
+import static org.sonar.api.utils.DateUtils.parseStartingDateOrDateTime;
+import static org.sonar.db.Pagination.forPage;
+import static org.sonar.server.ce.ws.CeWsParameters.PARAM_COMPONENT;
+import static org.sonar.server.ce.ws.CeWsParameters.PARAM_MAX_EXECUTED_AT;
+import static org.sonar.server.ce.ws.CeWsParameters.PARAM_MIN_SUBMITTED_AT;
+import static org.sonar.server.ce.ws.CeWsParameters.PARAM_ONLY_CURRENTS;
+import static org.sonar.server.ce.ws.CeWsParameters.PARAM_STATUS;
+import static org.sonar.server.ce.ws.CeWsParameters.PARAM_TYPE;
+import static org.sonar.server.exceptions.BadRequestException.checkRequest;
+import static org.sonar.server.exceptions.NotFoundException.checkFoundWithOptional;
+import static org.sonar.server.ws.WsUtils.writeProtobuf;
+
+public class ActivityAction implements CeWsAction {
+  private static final int MAX_PAGE_SIZE = 1000;
+<span class="fc" id="L80">  private static final String[] POSSIBLE_QUALIFIERS = new String[]{ComponentQualifiers.PROJECT, ComponentQualifiers.APP, ComponentQualifiers.VIEW};</span>
+  private static final String INVALID_QUERY_PARAM_ERROR_MESSAGE = &quot;%s and %s must not be set at the same time&quot;;
+
+  private final UserSession userSession;
+  private final DbClient dbClient;
+  private final TaskFormatter formatter;
+  private final Set&lt;String&gt; taskTypes;
+
+<span class="fc" id="L88">  public ActivityAction(UserSession userSession, DbClient dbClient, TaskFormatter formatter, CeTaskProcessor[] taskProcessors) {</span>
+<span class="fc" id="L89">    this.userSession = userSession;</span>
+<span class="fc" id="L90">    this.dbClient = dbClient;</span>
+<span class="fc" id="L91">    this.formatter = formatter;</span>
+
+<span class="fc" id="L93">    this.taskTypes = new LinkedHashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">    for (CeTaskProcessor taskProcessor : taskProcessors) {</span>
+<span class="fc" id="L95">      taskTypes.addAll(taskProcessor.getHandledCeTaskTypes());</span>
+    }
+<span class="fc" id="L97">  }</span>
+
+  @Override
+  public void define(WebService.NewController controller) {
+<span class="fc" id="L101">    WebService.NewAction action = controller.createAction(&quot;activity&quot;)</span>
+<span class="fc" id="L102">      .setDescription(format(&quot;Search for tasks.&lt;br&gt; &quot; +</span>
+                             &quot;Requires the system administration permission, &quot; +
+                             &quot;or project administration permission if %s is set.&quot;, PARAM_COMPONENT))
+<span class="fc" id="L105">      .setResponseExample(getClass().getResource(&quot;activity-example.json&quot;))</span>
+<span class="fc" id="L106">      .setHandler(this)</span>
+<span class="fc" id="L107">      .setChangelog(</span>
+        new Change(&quot;5.5&quot;, &quot;it's no more possible to specify the page parameter.&quot;),
+        new Change(&quot;6.1&quot;, &quot;field \&quot;logs\&quot; is deprecated and its value is always false&quot;),
+        new Change(&quot;6.6&quot;, &quot;fields \&quot;branch\&quot; and \&quot;branchType\&quot; added&quot;),
+        new Change(&quot;7.1&quot;, &quot;field \&quot;pullRequest\&quot; added&quot;),
+<span class="fc" id="L112">        new Change(&quot;7.6&quot;, format(&quot;The use of module keys in parameters '%s' is deprecated&quot;, TEXT_QUERY)),</span>
+        new Change(&quot;8.8&quot;, &quot;field \&quot;logs\&quot; is dropped&quot;),
+        new Change(&quot;10.0&quot;, &quot;Remove deprecated field 'componentId'&quot;),
+<span class="fc" id="L115">        new Change(&quot;10.1&quot;, String.format(&quot;The use of module keys in parameter '%s' is removed&quot;, PARAM_COMPONENT)),</span>
+        new Change(&quot;10.1&quot;, &quot;Warnings field will be now be filled (it was always empty in the past).&quot;),
+        new Change(&quot;10.4&quot;, &quot;field \&quot;infoMessages\&quot; added to response&quot;)
+      )
+<span class="fc" id="L119">      .setSince(&quot;5.2&quot;);</span>
+
+<span class="fc" id="L121">    action.createParam(PARAM_COMPONENT)</span>
+<span class="fc" id="L122">      .setDescription(&quot;Key of the component (project) to filter on&quot;)</span>
+<span class="fc" id="L123">      .setExampleValue(&quot;projectKey&quot;)</span>
+<span class="fc" id="L124">      .setSince(&quot;8.0&quot;);</span>
+
+<span class="fc" id="L126">    action.createParam(TEXT_QUERY)</span>
+<span class="fc" id="L127">      .setDescription(format(&quot;Limit search to: &lt;ul&gt;&quot; +</span>
+                             &quot;&lt;li&gt;component names that contain the supplied string&lt;/li&gt;&quot; +
+                             &quot;&lt;li&gt;component keys that are exactly the same as the supplied string&lt;/li&gt;&quot; +
+                             &quot;&lt;li&gt;task ids that are exactly the same as the supplied string&lt;/li&gt;&quot; +
+                             &quot;&lt;/ul&gt;&quot;))
+<span class="fc" id="L132">      .setExampleValue(&quot;Apache&quot;)</span>
+<span class="fc" id="L133">      .setSince(&quot;5.5&quot;);</span>
+<span class="fc" id="L134">    action.createParam(PARAM_STATUS)</span>
+<span class="fc" id="L135">      .setDescription(&quot;Comma separated list of task statuses&quot;)</span>
+<span class="fc" id="L136">      .setPossibleValues(ImmutableList.builder()</span>
+<span class="fc" id="L137">        .addAll(asList(CeActivityDto.Status.values()))</span>
+<span class="fc" id="L138">        .addAll(asList(CeQueueDto.Status.values())).build())</span>
+<span class="fc" id="L139">      .setExampleValue(Joiner.on(&quot;,&quot;).join(CeQueueDto.Status.IN_PROGRESS, CeActivityDto.Status.SUCCESS))</span>
+      // activity statuses by default to be backward compatible
+      // queued tasks have been added in 5.5
+<span class="fc" id="L142">      .setDefaultValue(Joiner.on(&quot;,&quot;).join(CeActivityDto.Status.values()));</span>
+<span class="fc" id="L143">    action.createParam(PARAM_ONLY_CURRENTS)</span>
+<span class="fc" id="L144">      .setDescription(&quot;Filter on the last tasks (only the most recent finished task by project)&quot;)</span>
+<span class="fc" id="L145">      .setBooleanPossibleValues()</span>
+<span class="fc" id="L146">      .setDefaultValue(&quot;false&quot;);</span>
+<span class="fc" id="L147">    action.createParam(PARAM_TYPE)</span>
+<span class="fc" id="L148">      .setDescription(&quot;Task type&quot;)</span>
+<span class="fc" id="L149">      .setExampleValue(CeTaskTypes.REPORT)</span>
+<span class="fc" id="L150">      .setPossibleValues(taskTypes);</span>
+<span class="fc" id="L151">    action.createParam(PARAM_MIN_SUBMITTED_AT)</span>
+<span class="fc" id="L152">      .setDescription(&quot;Minimum date of task submission (inclusive)&quot;)</span>
+<span class="fc" id="L153">      .setExampleValue(&quot;2017-10-19T13:00:00+0200&quot;);</span>
+<span class="fc" id="L154">    action.createParam(PARAM_MAX_EXECUTED_AT)</span>
+<span class="fc" id="L155">      .setDescription(&quot;Maximum date of end of task processing (inclusive)&quot;)</span>
+<span class="fc" id="L156">      .setExampleValue(&quot;2017-10-19T13:00:00+0200&quot;);</span>
+<span class="fc" id="L157">    action.createPageSize(100, MAX_PAGE_SIZE);</span>
+<span class="fc" id="L158">    action.createPageParam()</span>
+<span class="fc" id="L159">      .setSince(&quot;9.4&quot;);</span>
+<span class="fc" id="L160">  }</span>
+
+  @Override
+  public void handle(org.sonar.api.server.ws.Request wsRequest, Response wsResponse) throws Exception {
+<span class="fc" id="L164">    ActivityResponse activityResponse = doHandle(toSearchWsRequest(wsRequest));</span>
+<span class="fc" id="L165">    writeProtobuf(activityResponse, wsRequest, wsResponse);</span>
+<span class="fc" id="L166">  }</span>
+
+  private ActivityResponse doHandle(Request request) {
+
+<span class="fc" id="L170">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L171">      EntityDto entity = loadEntity(dbSession, request);</span>
+<span class="fc" id="L172">      checkPermission(entity);</span>
+      // if a task searched by uuid is found all other parameters are ignored
+<span class="fc" id="L174">      Optional&lt;Ce.Task&gt; taskSearchedById = searchTaskByUuid(dbSession, request);</span>
+<span class="fc bfc" id="L175" title="All 2 branches covered.">      if (taskSearchedById.isPresent()) {</span>
+<span class="fc" id="L176">        return buildResponse(</span>
+<span class="fc" id="L177">          singletonList(taskSearchedById.get()),</span>
+<span class="fc" id="L178">          Collections.emptyList(),</span>
+<span class="fc" id="L179">          Paging.forPageIndex(1).withPageSize(1).andTotal(1), 0);</span>
+      }
+
+<span class="fc" id="L182">      CeTaskQuery query = buildQuery(dbSession, request, entity);</span>
+
+<span class="fc" id="L184">      return buildPaginatedResponse(dbSession, query, parseInt(request.getP()), parseInt(request.getPs()));</span>
+<span class="pc bpc" id="L185" title="1 of 2 branches missed.">    }</span>
+  }
+
+  @NotNull
+  private ActivityResponse buildPaginatedResponse(DbSession dbSession, CeTaskQuery query, int page, int pageSize) {
+
+<span class="fc" id="L191">    int totalQueuedTasks = countQueuedTasks(dbSession, query);</span>
+<span class="fc" id="L192">    int totalPastTasks = countPastTasks(dbSession, query);</span>
+<span class="fc" id="L193">    int totalTasks = totalQueuedTasks + totalPastTasks;</span>
+<span class="fc" id="L194">    int pastTasksEffectivePage = calculateEffectivePage(page, pageSize, totalQueuedTasks);</span>
+
+<span class="fc" id="L196">    validatePagingParameters(page, pageSize, totalTasks);</span>
+
+<span class="fc" id="L198">    List&lt;Ce.Task&gt; queuedTasks = loadQueuedTasks(dbSession, query, page, pageSize);</span>
+<span class="fc" id="L199">    List&lt;Ce.Task&gt; pastTasks = loadPastTasks(dbSession, query, pastTasksEffectivePage, pageSize);</span>
+
+<span class="fc" id="L201">    return buildResponse(</span>
+      queuedTasks,
+      pastTasks,
+<span class="fc" id="L204">      Paging.forPageIndex(page).withPageSize(pageSize).andTotal(totalTasks),</span>
+<span class="fc" id="L205">      getItemsInLastPage(pageSize, totalQueuedTasks));</span>
+  }
+
+  private static void validatePagingParameters(int page, int pageSize, int totalResults) {
+<span class="fc bfc" id="L209" title="All 2 branches covered.">    if (page &gt; 1) {</span>
+<span class="fc" id="L210">      int firstResultIndex = (page - 1) * pageSize + 1;</span>
+<span class="fc bfc" id="L211" title="All 2 branches covered.">      checkArgument(firstResultIndex &lt;= totalResults, &quot;Can return only the first %s results. %sth result asked.&quot;, totalResults, firstResultIndex);</span>
+    }
+<span class="fc" id="L213">  }</span>
+
+  private static int calculateEffectivePage(int page, int pageSize, int otherDatasetSize) {
+<span class="fc bfc" id="L216" title="All 4 branches covered.">    if (pageSize &gt; 0 &amp;&amp; page &gt; 0) {</span>
+<span class="fc" id="L217">      int effectivePage = page - (otherDatasetSize / pageSize);</span>
+<span class="fc bfc" id="L218" title="All 2 branches covered.">      if (getItemsInLastPage(pageSize, otherDatasetSize) &gt; 0) {</span>
+<span class="fc" id="L219">        effectivePage--;</span>
+      }
+<span class="fc" id="L221">      return max(1, effectivePage);</span>
+    }
+<span class="fc" id="L223">    return page;</span>
+  }
+
+  private static int getItemsInLastPage(int pageSize, int totalItems) {
+<span class="fc bfc" id="L227" title="All 2 branches covered.">    if (totalItems &gt; pageSize) {</span>
+<span class="fc" id="L228">      return totalItems % pageSize;</span>
+    }
+<span class="fc" id="L230">    return 0;</span>
+  }
+
+  @CheckForNull
+  private EntityDto loadEntity(DbSession dbSession, Request request) {
+<span class="fc" id="L235">    String componentKey = request.getComponent();</span>
+
+<span class="fc bfc" id="L237" title="All 2 branches covered.">    if (componentKey != null) {</span>
+      Optional&lt;EntityDto&gt; foundEntity;
+<span class="fc" id="L239">      foundEntity = dbClient.entityDao().selectByKey(dbSession, componentKey);</span>
+<span class="fc" id="L240">      return checkFoundWithOptional(foundEntity, &quot;Component '%s' does not exist&quot;, componentKey);</span>
+    } else {
+<span class="fc" id="L242">      return null;</span>
+    }
+  }
+
+  private void checkPermission(@Nullable EntityDto entity) {
+    // fail fast if not logged in
+<span class="fc" id="L248">    userSession.checkLoggedIn();</span>
+
+<span class="fc bfc" id="L250" title="All 2 branches covered.">    if (entity == null) {</span>
+<span class="fc" id="L251">      userSession.checkIsSystemAdministrator();</span>
+    } else {
+<span class="fc" id="L253">      userSession.checkEntityPermission(ProjectPermission.ADMIN, entity);</span>
+    }
+<span class="fc" id="L255">  }</span>
+
+  private Optional&lt;Ce.Task&gt; searchTaskByUuid(DbSession dbSession, Request request) {
+<span class="fc" id="L258">    String textQuery = request.getQ();</span>
+<span class="fc bfc" id="L259" title="All 2 branches covered.">    if (textQuery == null) {</span>
+<span class="fc" id="L260">      return Optional.empty();</span>
+    }
+
+<span class="fc" id="L263">    Optional&lt;CeQueueDto&gt; queue = dbClient.ceQueueDao().selectByUuid(dbSession, textQuery);</span>
+<span class="fc bfc" id="L264" title="All 2 branches covered.">    if (queue.isPresent()) {</span>
+<span class="fc" id="L265">      return Optional.of(formatter.formatQueue(dbSession, queue.get()));</span>
+    }
+
+<span class="fc" id="L268">    Optional&lt;CeActivityDto&gt; activity = dbClient.ceActivityDao().selectByUuid(dbSession, textQuery);</span>
+<span class="fc" id="L269">    return activity.map(ceActivityDto -&gt; formatter.formatActivity(dbSession, ceActivityDto, null));</span>
+  }
+
+  private CeTaskQuery buildQuery(DbSession dbSession, Request request, @Nullable EntityDto entity) {
+<span class="fc" id="L273">    CeTaskQuery query = new CeTaskQuery();</span>
+<span class="fc" id="L274">    query.setType(request.getType());</span>
+<span class="fc" id="L275">    query.setOnlyCurrents(parseBoolean(request.getOnlyCurrents()));</span>
+<span class="fc" id="L276">    Date minSubmittedAt = parseStartingDateOrDateTime(request.getMinSubmittedAt());</span>
+<span class="fc bfc" id="L277" title="All 2 branches covered.">    query.setMinSubmittedAt(minSubmittedAt == null ? null : minSubmittedAt.getTime());</span>
+<span class="fc" id="L278">    Date maxExecutedAt = parseEndingDateOrDateTime(request.getMaxExecutedAt());</span>
+<span class="fc bfc" id="L279" title="All 2 branches covered.">    query.setMaxExecutedAt(maxExecutedAt == null ? null : maxExecutedAt.getTime());</span>
+
+<span class="fc" id="L281">    List&lt;String&gt; statuses = request.getStatus();</span>
+<span class="pc bpc" id="L282" title="2 of 4 branches missed.">    if (statuses != null &amp;&amp; !statuses.isEmpty()) {</span>
+<span class="fc" id="L283">      query.setStatuses(request.getStatus());</span>
+    }
+
+<span class="fc" id="L286">    String componentQuery = request.getQ();</span>
+<span class="fc bfc" id="L287" title="All 2 branches covered.">    if (entity != null) {</span>
+<span class="fc" id="L288">      query.setEntityUuid(entity.getUuid());</span>
+<span class="fc bfc" id="L289" title="All 2 branches covered.">    } else if (componentQuery != null) {</span>
+<span class="fc" id="L290">      query.setEntityUuids(loadEntities(dbSession, componentQuery).stream()</span>
+<span class="fc" id="L291">        .map(EntityDto::getUuid)</span>
+<span class="fc" id="L292">        .toList());</span>
+    }
+<span class="fc" id="L294">    return query;</span>
+  }
+
+  private List&lt;EntityDto&gt; loadEntities(DbSession dbSession, String componentQuery) {
+<span class="fc" id="L298">    ComponentQuery componentDtoQuery = ComponentQuery.builder()</span>
+<span class="fc" id="L299">      .setNameOrKeyQuery(componentQuery)</span>
+<span class="fc" id="L300">      .setQualifiers(POSSIBLE_QUALIFIERS)</span>
+<span class="fc" id="L301">      .build();</span>
+<span class="fc" id="L302">    List&lt;ComponentDto&gt; componentDtos = dbClient.componentDao().selectByQuery(dbSession, componentDtoQuery, forPage(1).andSize(CeTaskQuery.MAX_COMPONENT_UUIDS));</span>
+<span class="fc" id="L303">    return dbClient.entityDao().selectByKeys(dbSession, componentDtos.stream().map(ComponentDto::getKey).collect(toSet()));</span>
+  }
+
+  private Integer countQueuedTasks(DbSession dbSession, CeTaskQuery query) {
+<span class="fc" id="L307">    return dbClient.ceQueueDao().countByQuery(dbSession, query);</span>
+  }
+
+  private List&lt;Ce.Task&gt; loadQueuedTasks(DbSession dbSession, CeTaskQuery query, int page, int pageSize) {
+<span class="fc" id="L311">    List&lt;CeQueueDto&gt; dtos = dbClient.ceQueueDao().selectByQueryInDescOrder(dbSession, query, page, pageSize);</span>
+<span class="fc" id="L312">    return formatter.formatQueue(dbSession, dtos);</span>
+  }
+
+  private Integer countPastTasks(DbSession dbSession, CeTaskQuery query) {
+<span class="fc" id="L316">    return dbClient.ceActivityDao().countByQuery(dbSession, query);</span>
+  }
+
+  private List&lt;Ce.Task&gt; loadPastTasks(DbSession dbSession, CeTaskQuery query, int page, int pageSize) {
+<span class="fc" id="L320">    List&lt;CeActivityDto&gt; dtos = dbClient.ceActivityDao().selectByQuery(dbSession, query, forPage(page).andSize(pageSize));</span>
+<span class="fc" id="L321">    return formatter.formatActivity(dbSession, dtos);</span>
+  }
+
+  private static ActivityResponse buildResponse(Iterable&lt;Ce.Task&gt; queuedTasks, Iterable&lt;Ce.Task&gt; pastTasks, Paging paging, int offset) {
+<span class="fc" id="L325">    Ce.ActivityResponse.Builder wsResponseBuilder = Ce.ActivityResponse.newBuilder();</span>
+
+<span class="fc" id="L327">    Set&lt;String&gt; pastIds = StreamSupport</span>
+<span class="fc" id="L328">      .stream(pastTasks.spliterator(), false)</span>
+<span class="fc" id="L329">      .map(Ce.Task::getId)</span>
+<span class="fc" id="L330">      .collect(toSet());</span>
+
+<span class="fc" id="L332">    int nbInsertedTasks = 0;</span>
+<span class="fc bfc" id="L333" title="All 2 branches covered.">    for (Ce.Task queuedTask : queuedTasks) {</span>
+<span class="pc bpc" id="L334" title="1 of 4 branches missed.">      if (nbInsertedTasks &lt; paging.pageSize() &amp;&amp; !pastIds.contains(queuedTask.getId())) {</span>
+<span class="fc" id="L335">        wsResponseBuilder.addTasks(queuedTask);</span>
+<span class="fc" id="L336">        nbInsertedTasks++;</span>
+      }
+<span class="fc" id="L338">    }</span>
+
+<span class="fc" id="L340">    int pastTasksIndex = nbInsertedTasks;</span>
+<span class="fc bfc" id="L341" title="All 2 branches covered.">    for (Ce.Task pastTask : pastTasks) {</span>
+<span class="fc bfc" id="L342" title="All 4 branches covered.">      if (nbInsertedTasks &lt; paging.pageSize() &amp;&amp; pastTasksIndex &gt;= offset) {</span>
+<span class="fc" id="L343">        wsResponseBuilder.addTasks(pastTask);</span>
+<span class="fc" id="L344">        nbInsertedTasks++;</span>
+      }
+<span class="fc" id="L346">      pastTasksIndex++;</span>
+<span class="fc" id="L347">    }</span>
+
+<span class="fc" id="L349">    wsResponseBuilder.setPaging(Common.Paging.newBuilder()</span>
+<span class="fc" id="L350">      .setPageIndex(paging.pageIndex())</span>
+<span class="fc" id="L351">      .setPageSize(paging.pageSize())</span>
+<span class="fc" id="L352">      .setTotal(paging.total()));</span>
+
+<span class="fc" id="L354">    return wsResponseBuilder.build();</span>
+  }
+
+  private static Request toSearchWsRequest(org.sonar.api.server.ws.Request request) {
+<span class="fc" id="L358">    Request activityWsRequest = new Request()</span>
+<span class="fc" id="L359">      .setComponent(request.param(PARAM_COMPONENT))</span>
+<span class="fc" id="L360">      .setQ(request.param(TEXT_QUERY))</span>
+<span class="fc" id="L361">      .setStatus(request.paramAsStrings(PARAM_STATUS))</span>
+<span class="fc" id="L362">      .setType(request.param(PARAM_TYPE))</span>
+<span class="fc" id="L363">      .setMinSubmittedAt(request.param(PARAM_MIN_SUBMITTED_AT))</span>
+<span class="fc" id="L364">      .setMaxExecutedAt(request.param(PARAM_MAX_EXECUTED_AT))</span>
+<span class="fc" id="L365">      .setOnlyCurrents(String.valueOf(request.paramAsBoolean(PARAM_ONLY_CURRENTS)))</span>
+<span class="fc" id="L366">      .setPs(String.valueOf(request.mandatoryParamAsInt(Param.PAGE_SIZE)))</span>
+<span class="fc" id="L367">      .setP(String.valueOf(request.mandatoryParamAsInt(Param.PAGE)));</span>
+
+<span class="fc bfc" id="L369" title="All 4 branches covered.">    checkRequest(activityWsRequest.getComponent() == null || activityWsRequest.getQ() == null, INVALID_QUERY_PARAM_ERROR_MESSAGE,</span>
+      PARAM_COMPONENT, TEXT_QUERY);
+
+<span class="fc" id="L372">    return activityWsRequest;</span>
+  }
+
+  private static class Request {
+
+    private String component;
+    private String maxExecutedAt;
+    private String minSubmittedAt;
+    private String onlyCurrents;
+    private String p;
+    private String ps;
+    private String q;
+    private List&lt;String&gt; status;
+    private String type;
+
+<span class="fc" id="L387">    Request() {</span>
+      // Nothing to do
+<span class="fc" id="L389">    }</span>
+
+    /**
+     * Example value: &quot;sample:src/main/xoo/sample/Sample2.xoo&quot;
+     */
+    private Request setComponent(@Nullable String component) {
+<span class="fc" id="L395">      this.component = component;</span>
+<span class="fc" id="L396">      return this;</span>
+    }
+
+    @CheckForNull
+    private String getComponent() {
+<span class="fc" id="L401">      return component;</span>
+    }
+
+    /**
+     * Example value: &quot;2017-10-19T13:00:00+0200&quot;
+     */
+    private Request setMaxExecutedAt(@Nullable String maxExecutedAt) {
+<span class="fc" id="L408">      this.maxExecutedAt = maxExecutedAt;</span>
+<span class="fc" id="L409">      return this;</span>
+    }
+
+    @CheckForNull
+    private String getMaxExecutedAt() {
+<span class="fc" id="L414">      return maxExecutedAt;</span>
+    }
+
+    /**
+     * Example value: &quot;2017-10-19T13:00:00+0200&quot;
+     */
+    private Request setMinSubmittedAt(@Nullable String minSubmittedAt) {
+<span class="fc" id="L421">      this.minSubmittedAt = minSubmittedAt;</span>
+<span class="fc" id="L422">      return this;</span>
+    }
+
+    @CheckForNull
+    private String getMinSubmittedAt() {
+<span class="fc" id="L427">      return minSubmittedAt;</span>
+    }
+
+    /**
+     * Possible values:
+     * &lt;ul&gt;
+     *   &lt;li&gt;&quot;true&quot;&lt;/li&gt;
+     *   &lt;li&gt;&quot;false&quot;&lt;/li&gt;
+     *   &lt;li&gt;&quot;yes&quot;&lt;/li&gt;
+     *   &lt;li&gt;&quot;no&quot;&lt;/li&gt;
+     * &lt;/ul&gt;
+     */
+    private Request setOnlyCurrents(String onlyCurrents) {
+<span class="fc" id="L440">      this.onlyCurrents = onlyCurrents;</span>
+<span class="fc" id="L441">      return this;</span>
+    }
+
+    private String getOnlyCurrents() {
+<span class="fc" id="L445">      return onlyCurrents;</span>
+    }
+
+    /**
+     * Example value: &quot;20&quot;
+     */
+    private Request setPs(String ps) {
+<span class="fc" id="L452">      this.ps = ps;</span>
+<span class="fc" id="L453">      return this;</span>
+    }
+
+    private String getPs() {
+<span class="fc" id="L457">      return ps;</span>
+    }
+
+    /**
+     * Example value: &quot;1&quot;
+     */
+    private Request setP(String p) {
+<span class="fc" id="L464">      this.p = p;</span>
+<span class="fc" id="L465">      return this;</span>
+    }
+
+    private String getP() {
+<span class="fc" id="L469">      return p;</span>
+    }
+
+    /**
+     * Example value: &quot;Apache&quot;
+     */
+    private Request setQ(@Nullable String q) {
+<span class="fc" id="L476">      this.q = q;</span>
+<span class="fc" id="L477">      return this;</span>
+    }
+
+    @CheckForNull
+    private String getQ() {
+<span class="fc" id="L482">      return q;</span>
+    }
+
+    /**
+     * Example value: &quot;IN_PROGRESS,SUCCESS&quot;
+     * Possible values:
+     * &lt;ul&gt;
+     *   &lt;li&gt;&quot;SUCCESS&quot;&lt;/li&gt;
+     *   &lt;li&gt;&quot;FAILED&quot;&lt;/li&gt;
+     *   &lt;li&gt;&quot;CANCELED&quot;&lt;/li&gt;
+     *   &lt;li&gt;&quot;PENDING&quot;&lt;/li&gt;
+     *   &lt;li&gt;&quot;IN_PROGRESS&quot;&lt;/li&gt;
+     * &lt;/ul&gt;
+     */
+    private Request setStatus(@Nullable List&lt;String&gt; status) {
+<span class="fc" id="L497">      this.status = status;</span>
+<span class="fc" id="L498">      return this;</span>
+    }
+
+    @CheckForNull
+    private List&lt;String&gt; getStatus() {
+<span class="fc" id="L503">      return status;</span>
+    }
+
+    /**
+     * Example value: &quot;REPORT&quot;
+     * Possible values:
+     * &lt;ul&gt;
+     *   &lt;li&gt;&quot;REPORT&quot;&lt;/li&gt;
+     * &lt;/ul&gt;
+     */
+    private Request setType(@Nullable String type) {
+<span class="fc" id="L514">      this.type = type;</span>
+<span class="fc" id="L515">      return this;</span>
+    }
+
+    @CheckForNull
+    private String getType() {
+<span class="fc" id="L520">      return type;</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

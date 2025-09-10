@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractDefaultIssue.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.api.batch.sensor.issue.internal</a> &gt; <span class="el_source">AbstractDefaultIssue.java</span></div><h1>AbstractDefaultIssue.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.api.batch.sensor.issue.internal;
+
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import javax.annotation.Nullable;
+import org.sonar.api.batch.fs.InputComponent;
+import org.sonar.api.batch.fs.internal.DefaultInputDir;
+import org.sonar.api.batch.fs.internal.DefaultInputModule;
+import org.sonar.api.batch.fs.internal.DefaultInputProject;
+import org.sonar.api.batch.sensor.internal.DefaultStorable;
+import org.sonar.api.batch.sensor.internal.SensorStorage;
+import org.sonar.api.batch.sensor.issue.Issue.Flow;
+import org.sonar.api.batch.sensor.issue.IssueLocation;
+import org.sonar.api.batch.sensor.issue.MessageFormatting;
+import org.sonar.api.batch.sensor.issue.NewIssue.FlowType;
+import org.sonar.api.batch.sensor.issue.NewIssueLocation;
+import org.sonar.api.batch.sensor.issue.NewMessageFormatting;
+import org.sonar.api.utils.PathUtils;
+
+import static org.sonar.api.utils.Preconditions.checkArgument;
+import static org.sonar.api.utils.Preconditions.checkState;
+
+public abstract class AbstractDefaultIssue&lt;T extends AbstractDefaultIssue&gt; extends DefaultStorable {
+  protected IssueLocation primaryLocation;
+<span class="fc" id="L48">  protected List&lt;DefaultIssueFlow&gt; flows = new ArrayList&lt;&gt;();</span>
+  protected DefaultInputProject project;
+
+  public AbstractDefaultIssue(DefaultInputProject project, @Nullable SensorStorage storage) {
+<span class="fc" id="L52">    super(storage);</span>
+<span class="fc" id="L53">    this.project = project;</span>
+<span class="fc" id="L54">  }</span>
+
+  public IssueLocation primaryLocation() {
+<span class="fc" id="L57">    return primaryLocation;</span>
+  }
+
+  public List&lt;Flow&gt; flows() {
+<span class="fc" id="L61">    return Collections.unmodifiableList(flows);</span>
+  }
+
+  public NewIssueLocation newLocation() {
+<span class="fc" id="L65">    return new DefaultIssueLocation();</span>
+  }
+
+  public T at(NewIssueLocation primaryLocation) {
+<span class="fc bfc" id="L69" title="All 2 branches covered.">    checkArgument(primaryLocation != null, &quot;Cannot use a location that is null&quot;);</span>
+<span class="fc bfc" id="L70" title="All 2 branches covered.">    checkState(this.primaryLocation == null, &quot;at() already called&quot;);</span>
+<span class="fc" id="L71">    this.primaryLocation = rewriteLocation((DefaultIssueLocation) primaryLocation);</span>
+<span class="pc bpc" id="L72" title="1 of 2 branches missed.">    checkArgument(this.primaryLocation.inputComponent() != null, &quot;Cannot use a location with no input component&quot;);</span>
+<span class="fc" id="L73">    return (T) this;</span>
+  }
+
+  public T addLocation(NewIssueLocation secondaryLocation) {
+<span class="fc" id="L77">    flows.add(new DefaultIssueFlow(List.of(rewriteLocation((DefaultIssueLocation) secondaryLocation)), FlowType.UNDEFINED, null));</span>
+<span class="fc" id="L78">    return (T) this;</span>
+  }
+
+  public T addFlow(Iterable&lt;NewIssueLocation&gt; locations) {
+<span class="fc" id="L82">    return addFlow(locations, FlowType.UNDEFINED, null);</span>
+  }
+
+  public T addFlow(Iterable&lt;NewIssueLocation&gt; flowLocations, FlowType type, @Nullable String flowDescription) {
+<span class="pc bpc" id="L86" title="1 of 2 branches missed.">    checkArgument(type != null, &quot;Type can't be null&quot;);</span>
+<span class="fc" id="L87">    List&lt;IssueLocation&gt; flowAsList = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L88" title="All 2 branches covered.">    for (NewIssueLocation issueLocation : flowLocations) {</span>
+<span class="fc" id="L89">      flowAsList.add(rewriteLocation((DefaultIssueLocation) issueLocation));</span>
+<span class="fc" id="L90">    }</span>
+<span class="fc" id="L91">    flows.add(new DefaultIssueFlow(flowAsList, type, flowDescription));</span>
+<span class="fc" id="L92">    return (T) this;</span>
+  }
+
+  private DefaultIssueLocation rewriteLocation(DefaultIssueLocation location) {
+<span class="fc" id="L96">    InputComponent component = location.inputComponent();</span>
+<span class="fc" id="L97">    Optional&lt;Path&gt; dirOrModulePath = Optional.empty();</span>
+
+<span class="fc bfc" id="L99" title="All 2 branches covered.">    if (component instanceof DefaultInputDir defaultInputDir) {</span>
+<span class="fc" id="L100">      dirOrModulePath = Optional.of(project.getBaseDir().relativize(defaultInputDir.path()));</span>
+<span class="fc bfc" id="L101" title="All 4 branches covered.">    } else if (component instanceof DefaultInputModule defaultInputModule &amp;&amp; !Objects.equals(project.key(), component.key())) {</span>
+<span class="fc" id="L102">      dirOrModulePath = Optional.of(project.getBaseDir().relativize(defaultInputModule.getBaseDir()));</span>
+    }
+
+<span class="fc bfc" id="L105" title="All 2 branches covered.">    if (dirOrModulePath.isPresent()) {</span>
+<span class="fc" id="L106">      String path = PathUtils.sanitize(dirOrModulePath.get().toString());</span>
+<span class="fc" id="L107">      DefaultIssueLocation fixedLocation = new DefaultIssueLocation();</span>
+<span class="fc" id="L108">      fixedLocation.on(project);</span>
+<span class="fc" id="L109">      StringBuilder fullMessage = new StringBuilder();</span>
+      String prefixMessage;
+<span class="pc bpc" id="L111" title="1 of 4 branches missed.">      if (path != null &amp;&amp; !path.isEmpty()) {</span>
+<span class="fc" id="L112">        prefixMessage = &quot;[&quot; + path + &quot;] &quot;;</span>
+      } else {
+<span class="fc" id="L114">        prefixMessage = &quot;&quot;;</span>
+      }
+
+<span class="fc" id="L117">      fullMessage.append(prefixMessage);</span>
+<span class="fc" id="L118">      fullMessage.append(location.message());</span>
+
+<span class="fc" id="L120">      List&lt;NewMessageFormatting&gt; paddedFormattings = location.messageFormattings().stream()</span>
+<span class="fc" id="L121">        .map(m -&gt; padMessageFormatting(m, prefixMessage.length()))</span>
+<span class="fc" id="L122">        .toList();</span>
+
+<span class="fc" id="L124">      fixedLocation.message(fullMessage.toString(), paddedFormattings);</span>
+
+<span class="fc" id="L126">      return fixedLocation;</span>
+    } else {
+<span class="fc" id="L128">      return location;</span>
+    }
+  }
+
+  private static NewMessageFormatting padMessageFormatting(MessageFormatting messageFormatting, int length) {
+<span class="fc" id="L133">    return new DefaultMessageFormatting().type(messageFormatting.type())</span>
+<span class="fc" id="L134">      .start(messageFormatting.start() + length)</span>
+<span class="fc" id="L135">      .end(messageFormatting.end() + length);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GroupPermissionDto.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.permission</a> &gt; <span class="el_source">GroupPermissionDto.java</span></div><h1>GroupPermissionDto.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.permission;
+
+import javax.annotation.Nullable;
+
+<span class="fc" id="L24">public class GroupPermissionDto {</span>
+  private String uuid;
+  private String role;
+  private String groupUuid;
+  private String groupName;
+  private String entityUuid;
+  private String entityName;
+
+  public String getUuid() {
+<span class="fc" id="L33">    return uuid;</span>
+  }
+
+  public GroupPermissionDto setUuid(String uuid) {
+<span class="fc" id="L37">    this.uuid = uuid;</span>
+<span class="fc" id="L38">    return this;</span>
+  }
+
+  public String getGroupUuid() {
+<span class="fc" id="L42">    return groupUuid;</span>
+  }
+
+  /**
+   * Null when Anyone
+   */
+  public GroupPermissionDto setGroupUuid(@Nullable String groupUuid) {
+<span class="fc" id="L49">    this.groupUuid = groupUuid;</span>
+<span class="fc" id="L50">    return this;</span>
+  }
+
+  @Nullable
+  public String getEntityUuid() {
+<span class="fc" id="L55">    return entityUuid;</span>
+  }
+
+  public GroupPermissionDto setEntityUuid(@Nullable String entityUuid) {
+<span class="fc" id="L59">    this.entityUuid = entityUuid;</span>
+<span class="fc" id="L60">    return this;</span>
+  }
+
+  public String getRole() {
+<span class="fc" id="L64">    return role;</span>
+  }
+
+  public GroupPermissionDto setRole(ProjectPermission permission) {
+<span class="fc" id="L68">    return setRole(permission.getKey());</span>
+  }
+
+  public GroupPermissionDto setRole(String role) {
+<span class="fc" id="L72">    this.role = role;</span>
+<span class="fc" id="L73">    return this;</span>
+  }
+
+  @Nullable
+  public String getGroupName() {
+<span class="fc" id="L78">    return groupName;</span>
+  }
+
+  public GroupPermissionDto setGroupName(@Nullable String groupName) {
+<span class="fc" id="L82">    this.groupName = groupName;</span>
+<span class="fc" id="L83">    return this;</span>
+  }
+
+  @Nullable
+  public String getEntityName() {
+<span class="fc" id="L88">    return entityName;</span>
+  }
+
+  public GroupPermissionDto setEntityName(@Nullable String entityName) {
+<span class="fc" id="L92">    this.entityName = entityName;</span>
+<span class="fc" id="L93">    return this;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

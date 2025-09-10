@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BuiltInQProfileUpdateImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.qualityprofile.builtin</a> &gt; <span class="el_source">BuiltInQProfileUpdateImpl.java</span></div><h1>BuiltInQProfileUpdateImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.qualityprofile.builtin;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.sonar.api.server.profile.BuiltInQualityProfilesDefinition;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.qualityprofile.ActiveRuleDto;
+import org.sonar.db.qualityprofile.RulesProfileDto;
+import org.sonar.server.pushapi.qualityprofile.QualityProfileChangeEventService;
+import org.sonar.server.qualityprofile.ActiveRuleChange;
+import org.sonar.server.qualityprofile.RuleActivation;
+import org.sonar.server.qualityprofile.index.ActiveRuleIndexer;
+
+public class BuiltInQProfileUpdateImpl implements BuiltInQProfileUpdate {
+
+  private final DbClient dbClient;
+  private final RuleActivator ruleActivator;
+  private final ActiveRuleIndexer activeRuleIndexer;
+  private final QualityProfileChangeEventService qualityProfileChangeEventService;
+
+  public BuiltInQProfileUpdateImpl(DbClient dbClient, RuleActivator ruleActivator, ActiveRuleIndexer activeRuleIndexer,
+<span class="fc" id="L48">    QualityProfileChangeEventService qualityProfileChangeEventService) {</span>
+<span class="fc" id="L49">    this.dbClient = dbClient;</span>
+<span class="fc" id="L50">    this.ruleActivator = ruleActivator;</span>
+<span class="fc" id="L51">    this.activeRuleIndexer = activeRuleIndexer;</span>
+<span class="fc" id="L52">    this.qualityProfileChangeEventService = qualityProfileChangeEventService;</span>
+<span class="fc" id="L53">  }</span>
+
+  public List&lt;ActiveRuleChange&gt; update(DbSession dbSession, BuiltInQProfile builtInDefinition, RulesProfileDto initialRuleProfile) {
+    // Keep reference to all the activated rules before update
+<span class="fc" id="L57">    Set&lt;String&gt; previousBuiltinActiveRuleUuids = dbClient.activeRuleDao().selectByRuleProfile(dbSession, initialRuleProfile)</span>
+<span class="fc" id="L58">      .stream()</span>
+<span class="fc" id="L59">      .map(ActiveRuleDto::getRuleUuid)</span>
+<span class="fc" id="L60">      .collect(Collectors.toUnmodifiableSet());</span>
+
+<span class="fc" id="L62">    Set&lt;String&gt; deactivatedRuleUuids = new HashSet&lt;&gt;(previousBuiltinActiveRuleUuids);</span>
+
+    // all rules, including those which are removed from built-in profile
+<span class="fc" id="L65">    Set&lt;String&gt; ruleUuids = Stream.concat(</span>
+<span class="fc" id="L66">        deactivatedRuleUuids.stream(),</span>
+<span class="fc" id="L67">        builtInDefinition.getActiveRules().stream().map(BuiltInQProfile.ActiveRule::getRuleUuid))</span>
+<span class="fc" id="L68">      .collect(Collectors.toSet());</span>
+
+<span class="fc" id="L70">    Collection&lt;RuleActivation&gt; activations = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L71" title="All 2 branches covered.">    for (BuiltInQProfile.ActiveRule ar : builtInDefinition.getActiveRules()) {</span>
+<span class="fc" id="L72">      RuleActivation activation = convert(ar);</span>
+<span class="fc" id="L73">      activations.add(activation);</span>
+<span class="fc" id="L74">      deactivatedRuleUuids.remove(activation.getRuleUuid());</span>
+<span class="fc" id="L75">    }</span>
+
+<span class="fc" id="L77">    RuleActivationContext context = ruleActivator.createContextForBuiltInProfile(dbSession, initialRuleProfile, ruleUuids, previousBuiltinActiveRuleUuids);</span>
+<span class="fc" id="L78">    List&lt;ActiveRuleChange&gt; changes = new ArrayList&lt;&gt;();</span>
+
+<span class="fc" id="L80">    changes.addAll(ruleActivator.activate(dbSession, activations, context));</span>
+
+    // these rules are no longer part of the built-in profile
+<span class="fc" id="L83">    deactivatedRuleUuids.forEach(ruleUuid -&gt; changes.addAll(ruleActivator.deactivate(dbSession, context, ruleUuid, false)));</span>
+
+<span class="fc bfc" id="L85" title="All 2 branches covered.">    if (!changes.isEmpty()) {</span>
+<span class="fc" id="L86">      qualityProfileChangeEventService.distributeRuleChangeEvent(context.getProfiles(), changes, initialRuleProfile.getLanguage());</span>
+    }
+
+<span class="fc" id="L89">    activeRuleIndexer.commitAndIndex(dbSession, changes);</span>
+<span class="fc" id="L90">    return changes;</span>
+  }
+
+  private static RuleActivation convert(BuiltInQProfile.ActiveRule ar) {
+<span class="fc" id="L94">    Map&lt;String, String&gt; params = ar.getParams().stream()</span>
+<span class="fc" id="L95">      .collect(Collectors.toMap(BuiltInQualityProfilesDefinition.OverriddenParam::key, BuiltInQualityProfilesDefinition.OverriddenParam::overriddenValue));</span>
+<span class="fc" id="L96">    return RuleActivation.create(ar.getRuleUuid(), ar.getSeverity(), params);</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

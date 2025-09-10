@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MutableMovedFilesRepositoryImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.filemove</a> &gt; <span class="el_source">MutableMovedFilesRepositoryImpl.java</span></div><h1>MutableMovedFilesRepositoryImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.filemove;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import org.sonar.ce.task.projectanalysis.component.Component;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkState;
+import static java.util.Objects.requireNonNull;
+
+<span class="fc" id="L31">public class MutableMovedFilesRepositoryImpl implements MutableMovedFilesRepository {</span>
+<span class="fc" id="L32">  private final Map&lt;String, OriginalFile&gt; originalFiles = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L33">  private final Map&lt;String, OriginalFile&gt; originalPullRequestFiles = new HashMap&lt;&gt;();</span>
+
+  @Override
+  public void setOriginalFile(Component file, OriginalFile originalFile) {
+<span class="fc" id="L37">    storeOriginalFileInCache(originalFiles, file, originalFile);</span>
+<span class="fc" id="L38">  }</span>
+
+  @Override
+  public void setOriginalPullRequestFile(Component file, OriginalFile originalFile) {
+<span class="fc" id="L42">    storeOriginalFileInCache(originalPullRequestFiles, file, originalFile);</span>
+<span class="fc" id="L43">  }</span>
+
+  @Override
+  public Optional&lt;OriginalFile&gt; getOriginalFile(Component file) {
+<span class="fc" id="L47">    return retrieveOriginalFileFromCache(originalFiles, file);</span>
+  }
+
+  @Override
+  public Optional&lt;OriginalFile&gt; getOriginalPullRequestFile(Component file) {
+<span class="fc" id="L52">    return retrieveOriginalFileFromCache(originalPullRequestFiles, file);</span>
+  }
+
+  private static void storeOriginalFileInCache(Map&lt;String, OriginalFile&gt; originalFiles, Component file, OriginalFile originalFile) {
+<span class="fc" id="L56">    requireNonNull(file, &quot;file can't be null&quot;);</span>
+<span class="fc" id="L57">    requireNonNull(originalFile, &quot;originalFile can't be null&quot;);</span>
+<span class="fc bfc" id="L58" title="All 2 branches covered.">    checkArgument(file.getType() == Component.Type.FILE, &quot;file must be of type FILE&quot;);</span>
+
+<span class="fc" id="L60">    OriginalFile existingOriginalFile = originalFiles.get(file.getKey());</span>
+
+<span class="fc bfc" id="L62" title="All 4 branches covered.">    checkState(existingOriginalFile == null || existingOriginalFile.equals(originalFile),</span>
+      &quot;Original file %s already registered for file %s. Unable to register %s.&quot;, existingOriginalFile, file, originalFile);
+
+<span class="fc bfc" id="L65" title="All 2 branches covered.">    if (existingOriginalFile == null) {</span>
+<span class="fc" id="L66">      originalFiles.put(file.getKey(), originalFile);</span>
+    }
+<span class="fc" id="L68">  }</span>
+
+  private static Optional&lt;OriginalFile&gt; retrieveOriginalFileFromCache(Map&lt;String, OriginalFile&gt; originalFiles, Component file) {
+<span class="fc" id="L71">    requireNonNull(file, &quot;file can't be null&quot;);</span>
+
+<span class="fc bfc" id="L73" title="All 2 branches covered.">    if (file.getType() != Component.Type.FILE) {</span>
+<span class="fc" id="L74">      return Optional.empty();</span>
+    }
+
+<span class="fc" id="L77">    return Optional.ofNullable(originalFiles.get(file.getKey()));</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RenameAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.branch.ws</a> &gt; <span class="el_source">RenameAction.java</span></div><h1>RenameAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.branch.ws;
+
+import java.util.Optional;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.api.server.ws.WebService.NewController;
+import org.sonar.db.permission.ProjectPermission;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.BranchDto;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.server.component.ComponentFinder;
+import org.sonar.server.exceptions.NotFoundException;
+import org.sonar.server.user.UserSession;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static org.sonar.server.branch.ws.BranchesWs.addProjectParam;
+import static org.sonar.server.branch.ws.ProjectBranchesParameters.ACTION_RENAME;
+import static org.sonar.server.branch.ws.ProjectBranchesParameters.PARAM_NAME;
+import static org.sonar.server.branch.ws.ProjectBranchesParameters.PARAM_PROJECT;
+
+public class RenameAction implements BranchWsAction {
+  private final ComponentFinder componentFinder;
+  private final UserSession userSession;
+  private final DbClient dbClient;
+
+<span class="fc" id="L47">  public RenameAction(DbClient dbClient, ComponentFinder componentFinder, UserSession userSession) {</span>
+<span class="fc" id="L48">    this.dbClient = dbClient;</span>
+<span class="fc" id="L49">    this.componentFinder = componentFinder;</span>
+<span class="fc" id="L50">    this.userSession = userSession;</span>
+<span class="fc" id="L51">  }</span>
+
+  @Override
+  public void define(NewController context) {
+<span class="fc" id="L55">    WebService.NewAction action = context.createAction(ACTION_RENAME)</span>
+<span class="fc" id="L56">      .setSince(&quot;6.6&quot;)</span>
+<span class="fc" id="L57">      .setDescription(&quot;Rename the main branch of a project or application.&lt;br/&gt;&quot;</span>
+        + &quot;Requires 'Administer' permission on the specified project or application.&quot;)
+<span class="fc" id="L59">      .setPost(true)</span>
+<span class="fc" id="L60">      .setHandler(this);</span>
+
+<span class="fc" id="L62">    addProjectParam(action);</span>
+<span class="fc" id="L63">    action</span>
+<span class="fc" id="L64">      .createParam(PARAM_NAME)</span>
+<span class="fc" id="L65">      .setRequired(true)</span>
+<span class="fc" id="L66">      .setMaximumLength(255)</span>
+<span class="fc" id="L67">      .setDescription(&quot;New name of the main branch&quot;)</span>
+<span class="fc" id="L68">      .setExampleValue(&quot;branch1&quot;);</span>
+<span class="fc" id="L69">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L73">    userSession.checkLoggedIn();</span>
+<span class="fc" id="L74">    String projectKey = request.mandatoryParam(PARAM_PROJECT);</span>
+<span class="fc" id="L75">    String newBranchName = request.mandatoryParam(PARAM_NAME);</span>
+
+<span class="fc" id="L77">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L78">      ProjectDto project = componentFinder.getProjectOrApplicationByKey(dbSession, projectKey);</span>
+<span class="fc" id="L79">      checkPermission(project);</span>
+
+<span class="fc" id="L81">      Optional&lt;BranchDto&gt; existingBranch = dbClient.branchDao().selectByBranchKey(dbSession, project.getUuid(), newBranchName);</span>
+<span class="fc bfc" id="L82" title="All 2 branches covered.">      checkArgument(existingBranch.filter(b -&gt; !b.isMain()).isEmpty(),</span>
+        &quot;Impossible to update branch name: a branch with name \&quot;%s\&quot; already exists in the project.&quot;, newBranchName);
+
+<span class="fc" id="L85">      BranchDto mainBranchDto = dbClient.branchDao().selectMainBranchByProjectUuid(dbSession, project.getUuid())</span>
+<span class="pc" id="L86">        .orElseThrow(() -&gt; new NotFoundException(&quot;Cannot find main branch for project: &quot; + project.getUuid()));</span>
+
+<span class="fc" id="L88">      dbClient.branchDao().updateBranchName(dbSession, mainBranchDto.getUuid(), newBranchName);</span>
+
+<span class="fc" id="L90">      dbClient.newCodePeriodDao().updateBranchReferenceValues(dbSession, mainBranchDto, newBranchName);</span>
+
+<span class="fc" id="L92">      dbSession.commit();</span>
+<span class="fc" id="L93">      response.noContent();</span>
+    }
+<span class="fc" id="L95">  }</span>
+
+  private void checkPermission(ProjectDto project) {
+<span class="fc" id="L98">    userSession.checkEntityPermission(ProjectPermission.ADMIN, project);</span>
+<span class="fc" id="L99">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

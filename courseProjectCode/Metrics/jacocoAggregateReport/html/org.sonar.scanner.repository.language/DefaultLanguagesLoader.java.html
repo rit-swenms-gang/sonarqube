@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultLanguagesLoader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.repository.language</a> &gt; <span class="el_source">DefaultLanguagesLoader.java</span></div><h1>DefaultLanguagesLoader.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.repository.language;
+
+import com.google.gson.Gson;
+import java.io.Reader;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.config.Configuration;
+import org.sonar.scanner.http.DefaultScannerWsClient;
+import org.sonarqube.ws.client.GetRequest;
+
+public class DefaultLanguagesLoader implements LanguagesLoader {
+
+<span class="fc" id="L36">  private static final Logger LOG = LoggerFactory.getLogger(DefaultLanguagesLoader.class);</span>
+  private static final String LANGUAGES_WS_URL = &quot;/api/languages/list&quot;;
+<span class="fc" id="L38">  private static final Map&lt;String, String&gt; PROPERTY_FRAGMENT_MAP = Map.of(</span>
+    &quot;js&quot;, &quot;javascript&quot;,
+    &quot;ts&quot;, &quot;typescript&quot;,
+    &quot;py&quot;, &quot;python&quot;,
+    &quot;web&quot;, &quot;html&quot;);
+
+  private final DefaultScannerWsClient wsClient;
+
+  private final Configuration properties;
+
+<span class="fc" id="L48">  public DefaultLanguagesLoader(DefaultScannerWsClient wsClient, Configuration properties) {</span>
+<span class="fc" id="L49">    this.wsClient = wsClient;</span>
+<span class="fc" id="L50">    this.properties = properties;</span>
+<span class="fc" id="L51">  }</span>
+
+  @Override
+  public Map&lt;String, Language&gt; load() {
+<span class="fc" id="L55">    GetRequest getRequest = new GetRequest(LANGUAGES_WS_URL);</span>
+    LanguagesWSResponse response;
+<span class="fc" id="L57">    try (Reader reader = wsClient.call(getRequest).contentReader()) {</span>
+<span class="fc" id="L58">      response = new Gson().fromJson(reader, LanguagesWSResponse.class);</span>
+<span class="fc" id="L59">    } catch (Exception e) {</span>
+<span class="fc" id="L60">      throw new IllegalStateException(&quot;Fail to parse response of &quot; + LANGUAGES_WS_URL, e);</span>
+<span class="fc" id="L61">    }</span>
+
+<span class="fc" id="L63">    return response.languages.stream()</span>
+<span class="fc" id="L64">      .map(this::populateFileSuffixesAndPatterns)</span>
+<span class="fc" id="L65">      .collect(Collectors.toMap(Language::key, Function.identity()));</span>
+
+  }
+
+  private Language populateFileSuffixesAndPatterns(SupportedLanguageDto lang) {
+<span class="fc" id="L70">    lang.setFileSuffixes(getFileSuffixes(lang.getKey()));</span>
+<span class="fc" id="L71">    lang.setFilenamePatterns(getFilenamePatterns(lang.getKey()));</span>
+<span class="fc bfc" id="L72" title="All 4 branches covered.">    if (lang.filenamePatterns() == null &amp;&amp; lang.getFileSuffixes() == null) {</span>
+<span class="fc" id="L73">      LOG.debug(&quot;Language '{}' cannot be detected as it has neither suffixes nor patterns.&quot;, lang.getName());</span>
+    }
+<span class="fc" id="L75">    return new Language(lang);</span>
+  }
+
+  private String[] getFileSuffixes(String languageKey) {
+<span class="fc" id="L79">    return getPropertyForLanguage(&quot;sonar.%s.file.suffixes&quot;, languageKey);</span>
+  }
+
+  private String[] getFilenamePatterns(String languageKey) {
+<span class="fc" id="L83">    return getPropertyForLanguage(&quot;sonar.%s.file.patterns&quot;, languageKey);</span>
+  }
+
+  private String[] getPropertyForLanguage(String propertyPattern, String languageKey) {
+<span class="fc" id="L87">    String propName = String.format(propertyPattern, PROPERTY_FRAGMENT_MAP.getOrDefault(languageKey, languageKey));</span>
+<span class="fc" id="L88">    return properties.getStringArray(propName);</span>
+  }
+
+  private static class LanguagesWSResponse {
+    List&lt;SupportedLanguageDto&gt; languages;
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

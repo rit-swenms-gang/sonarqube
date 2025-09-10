@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>QualityGateEventsStep.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.step</a> &gt; <span class="el_source">QualityGateEventsStep.java</span></div><h1>QualityGateEventsStep.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.step;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.measures.CoreMetrics;
+import org.sonar.ce.task.projectanalysis.analysis.AnalysisMetadataHolder;
+import org.sonar.ce.task.projectanalysis.analysis.Branch;
+import org.sonar.ce.task.projectanalysis.component.Component;
+import org.sonar.ce.task.projectanalysis.component.TreeRootHolder;
+import org.sonar.ce.task.projectanalysis.event.Event;
+import org.sonar.ce.task.projectanalysis.event.EventRepository;
+import org.sonar.ce.task.projectanalysis.measure.Measure;
+import org.sonar.ce.task.projectanalysis.measure.MeasureRepository;
+import org.sonar.ce.task.projectanalysis.measure.QualityGateStatus;
+import org.sonar.ce.task.projectanalysis.metric.Metric;
+import org.sonar.ce.task.projectanalysis.metric.Metric.MetricType;
+import org.sonar.ce.task.projectanalysis.metric.MetricRepository;
+import org.sonar.ce.task.step.ComputationStep;
+import org.sonar.server.notification.NotificationService;
+import org.sonar.server.qualitygate.notification.QGChangeNotification;
+
+import static java.util.Collections.singleton;
+
+/**
+ * This step must be executed after computation of quality gate measure {@link QualityGateMeasuresStep}
+ */
+public class QualityGateEventsStep implements ComputationStep {
+<span class="fc" id="L51">  private static final Logger LOGGER = LoggerFactory.getLogger(QualityGateEventsStep.class);</span>
+
+  private final TreeRootHolder treeRootHolder;
+  private final MetricRepository metricRepository;
+  private final MeasureRepository measureRepository;
+  private final EventRepository eventRepository;
+  private final NotificationService notificationService;
+  private final AnalysisMetadataHolder analysisMetadataHolder;
+
+  public QualityGateEventsStep(TreeRootHolder treeRootHolder,
+    MetricRepository metricRepository, MeasureRepository measureRepository, EventRepository eventRepository,
+<span class="fc" id="L62">    NotificationService notificationService, AnalysisMetadataHolder analysisMetadataHolder) {</span>
+<span class="fc" id="L63">    this.treeRootHolder = treeRootHolder;</span>
+<span class="fc" id="L64">    this.metricRepository = metricRepository;</span>
+<span class="fc" id="L65">    this.measureRepository = measureRepository;</span>
+<span class="fc" id="L66">    this.eventRepository = eventRepository;</span>
+<span class="fc" id="L67">    this.notificationService = notificationService;</span>
+<span class="fc" id="L68">    this.analysisMetadataHolder = analysisMetadataHolder;</span>
+<span class="fc" id="L69">  }</span>
+
+  @Override
+  public void execute(ComputationStep.Context context) {
+    // no notification on pull requests as there is no real Quality Gate on those
+<span class="fc bfc" id="L74" title="All 2 branches covered.">    if (analysisMetadataHolder.isPullRequest()) {</span>
+<span class="fc" id="L75">      return;</span>
+    }
+<span class="fc" id="L77">    executeForProject(treeRootHolder.getRoot());</span>
+<span class="fc" id="L78">  }</span>
+
+  private void executeForProject(Component project) {
+<span class="fc" id="L81">    Metric metric = metricRepository.getByKey(CoreMetrics.ALERT_STATUS_KEY);</span>
+<span class="fc" id="L82">    Optional&lt;Measure&gt; rawStatus = measureRepository.getRawMeasure(project, metric);</span>
+<span class="fc bfc" id="L83" title="All 4 branches covered.">    if (!rawStatus.isPresent() || !rawStatus.get().hasQualityGateStatus()) {</span>
+<span class="fc" id="L84">      return;</span>
+    }
+
+<span class="fc" id="L87">    checkQualityGateStatusChange(project, metric, rawStatus.get().getQualityGateStatus());</span>
+<span class="fc" id="L88">  }</span>
+
+  private void checkQualityGateStatusChange(Component project, Metric metric, QualityGateStatus rawStatus) {
+<span class="fc" id="L91">    Optional&lt;Measure&gt; baseMeasure = measureRepository.getBaseMeasure(project, metric);</span>
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">    if (!baseMeasure.isPresent()) {</span>
+<span class="nc" id="L93">      checkNewQualityGate(project, rawStatus);</span>
+<span class="nc" id="L94">      return;</span>
+    }
+
+<span class="fc bfc" id="L97" title="All 2 branches covered.">    if (!baseMeasure.get().hasQualityGateStatus()) {</span>
+<span class="fc" id="L98">      LOGGER.warn(&quot;Previous Quality gate status for project {} is not a supported value. Can not compute Quality Gate event&quot;, project.getKey());</span>
+<span class="fc" id="L99">      checkNewQualityGate(project, rawStatus);</span>
+<span class="fc" id="L100">      return;</span>
+    }
+<span class="fc" id="L102">    QualityGateStatus baseStatus = baseMeasure.get().getQualityGateStatus();</span>
+
+<span class="fc bfc" id="L104" title="All 2 branches covered.">    if (baseStatus.getStatus() != rawStatus.getStatus()) {</span>
+      // The QualityGate status has changed
+<span class="fc" id="L106">      createEvent(rawStatus.getStatus().getLabel(), rawStatus.getText());</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">      boolean isNewKo = rawStatus.getStatus() == Measure.Level.OK;</span>
+<span class="fc" id="L108">      notifyUsers(project, rawStatus, isNewKo);</span>
+    }
+<span class="fc" id="L110">  }</span>
+
+  private void checkNewQualityGate(Component project, QualityGateStatus rawStatus) {
+<span class="fc bfc" id="L113" title="All 2 branches covered.">    if (rawStatus.getStatus() != Measure.Level.OK) {</span>
+      // There were no defined alerts before, so this one is a new one
+<span class="fc" id="L115">      createEvent(rawStatus.getStatus().getLabel(), rawStatus.getText());</span>
+<span class="fc" id="L116">      notifyUsers(project, rawStatus, true);</span>
+    }
+<span class="fc" id="L118">  }</span>
+
+  /**
+   * @param rawStatus OK or ERROR + optional text
+   */
+  private void notifyUsers(Component project, QualityGateStatus rawStatus, boolean isNewAlert) {
+<span class="fc" id="L124">    QGChangeNotification notification = new QGChangeNotification();</span>
+<span class="fc" id="L125">    notification</span>
+<span class="fc" id="L126">      .setDefaultMessage(String.format(&quot;Alert on %s: %s&quot;, project.getName(), rawStatus.getStatus().getLabel()))</span>
+<span class="fc" id="L127">      .setFieldValue(&quot;projectName&quot;, project.getName())</span>
+<span class="fc" id="L128">      .setFieldValue(&quot;projectKey&quot;, project.getKey())</span>
+<span class="fc" id="L129">      .setFieldValue(&quot;projectVersion&quot;, project.getProjectAttributes().getProjectVersion())</span>
+<span class="fc" id="L130">      .setFieldValue(&quot;alertName&quot;, rawStatus.getStatus().getLabel())</span>
+<span class="fc" id="L131">      .setFieldValue(&quot;alertText&quot;, rawStatus.getText())</span>
+<span class="fc" id="L132">      .setFieldValue(&quot;alertLevel&quot;, rawStatus.getStatus().toString())</span>
+<span class="fc" id="L133">      .setFieldValue(&quot;isNewAlert&quot;, Boolean.toString(isNewAlert));</span>
+<span class="fc" id="L134">    Branch branch = analysisMetadataHolder.getBranch();</span>
+<span class="fc bfc" id="L135" title="All 2 branches covered.">    if (!branch.isMain()) {</span>
+<span class="fc" id="L136">      notification.setFieldValue(&quot;branch&quot;, branch.getName());</span>
+    }
+
+<span class="fc" id="L139">    List&lt;Metric&gt; ratingMetrics = metricRepository.getMetricsByType(MetricType.RATING);</span>
+<span class="fc" id="L140">    String ratingMetricsInOneString = ratingMetrics.stream().map(Metric::getName).collect(Collectors.joining(&quot;,&quot;));</span>
+<span class="fc" id="L141">    notification.setFieldValue(&quot;ratingMetrics&quot;, ratingMetricsInOneString);</span>
+<span class="fc" id="L142">    notificationService.deliverEmails(singleton(notification));</span>
+
+    // compatibility with old API
+<span class="fc" id="L145">    notificationService.deliver(notification);</span>
+<span class="fc" id="L146">  }</span>
+
+  private void createEvent(String name, @Nullable String description) {
+<span class="fc" id="L149">    eventRepository.add(Event.createAlert(name, null, description));</span>
+<span class="fc" id="L150">  }</span>
+
+  @Override
+  public String getDescription() {
+<span class="nc" id="L154">    return &quot;Generate Quality gate events&quot;;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

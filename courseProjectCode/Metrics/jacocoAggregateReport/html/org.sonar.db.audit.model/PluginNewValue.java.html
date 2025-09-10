@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PluginNewValue.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.audit.model</a> &gt; <span class="el_source">PluginNewValue.java</span></div><h1>PluginNewValue.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.audit.model;
+
+import org.sonar.db.plugin.PluginDto;
+
+public class PluginNewValue extends NewValue {
+
+  /**
+   * @deprecated The uuids in the audit logs are not product requirement anymore and will be removed in 11.x
+   */
+  @Deprecated(since = &quot;10.2&quot;)
+  private final String pluginUuid;
+  private final String kee;
+  private final String basePluginKey;
+  private final String type;
+
+<span class="fc" id="L35">  public PluginNewValue(PluginDto pluginDto) {</span>
+<span class="fc" id="L36">    this.pluginUuid = pluginDto.getUuid();</span>
+<span class="fc" id="L37">    this.kee = pluginDto.getKee();</span>
+<span class="fc" id="L38">    this.basePluginKey = pluginDto.getBasePluginKey();</span>
+<span class="fc" id="L39">    this.type = pluginDto.getType().name();</span>
+<span class="fc" id="L40">  }</span>
+
+  /**
+   * @deprecated The uuids in the audit logs are not product requirement anymore and will be removed in 11.x
+   */
+  @Deprecated(since = &quot;10.2&quot;)
+  public String getPluginUuid() {
+<span class="fc" id="L47">    return this.pluginUuid;</span>
+  }
+
+  public String getKee() {
+<span class="fc" id="L51">    return this.kee;</span>
+  }
+
+  public String getBasePluginKey() {
+<span class="fc" id="L55">    return this.basePluginKey;</span>
+  }
+
+  public String getType() {
+<span class="fc" id="L59">    return this.type;</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="fc" id="L64">    StringBuilder sb = new StringBuilder(&quot;{&quot;);</span>
+<span class="fc" id="L65">    addField(sb, &quot;\&quot;pluginUuid\&quot;: &quot;, this.pluginUuid, true);</span>
+<span class="fc" id="L66">    addField(sb, &quot;\&quot;kee\&quot;: &quot;, this.kee, true);</span>
+<span class="fc" id="L67">    addField(sb, &quot;\&quot;basePluginKey\&quot;: &quot;, this.basePluginKey, true);</span>
+<span class="fc" id="L68">    addField(sb, &quot;\&quot;type\&quot;: &quot;, this.type, true);</span>
+<span class="fc" id="L69">    endString(sb);</span>
+<span class="fc" id="L70">    return sb.toString();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

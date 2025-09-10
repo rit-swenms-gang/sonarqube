@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LegacyHotspotRuleDescriptionSectionsGenerator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.rule</a> &gt; <span class="el_source">LegacyHotspotRuleDescriptionSectionsGenerator.java</span></div><h1>LegacyHotspotRuleDescriptionSectionsGenerator.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.rule;
+
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import javax.annotation.CheckForNull;
+import org.sonar.api.server.rule.RulesDefinition;
+import org.sonar.core.rule.RuleTypeMapper;
+import org.sonar.core.util.UuidFactory;
+import org.sonar.db.rule.RuleDescriptionSectionDto;
+import org.sonar.markdown.Markdown;
+
+import static java.util.Collections.emptySet;
+import static org.sonar.core.rule.RuleType.SECURITY_HOTSPOT;
+import static org.sonar.api.server.rule.RuleDescriptionSection.RuleDescriptionSectionKeys.ASSESS_THE_PROBLEM_SECTION_KEY;
+import static org.sonar.api.server.rule.RuleDescriptionSection.RuleDescriptionSectionKeys.HOW_TO_FIX_SECTION_KEY;
+import static org.sonar.api.server.rule.RuleDescriptionSection.RuleDescriptionSectionKeys.ROOT_CAUSE_SECTION_KEY;
+import static org.sonar.db.rule.RuleDescriptionSectionDto.createDefaultRuleDescriptionSection;
+
+public class LegacyHotspotRuleDescriptionSectionsGenerator implements RuleDescriptionSectionsGenerator {
+  private final UuidFactory uuidFactory;
+
+<span class="fc" id="L44">  public LegacyHotspotRuleDescriptionSectionsGenerator(UuidFactory uuidFactory) {</span>
+<span class="fc" id="L45">    this.uuidFactory = uuidFactory;</span>
+<span class="fc" id="L46">  }</span>
+
+  @Override
+  public boolean isGeneratorForRule(RulesDefinition.Rule rule) {
+<span class="fc bfc" id="L50" title="All 4 branches covered.">    return SECURITY_HOTSPOT.equals(RuleTypeMapper.toRuleType(rule.type())) &amp;&amp; rule.ruleDescriptionSections().isEmpty();</span>
+  }
+
+  @Override
+  public Set&lt;RuleDescriptionSectionDto&gt; generateSections(RulesDefinition.Rule rule) {
+<span class="fc" id="L55">    return getDescriptionInHtml(rule)</span>
+<span class="fc" id="L56">      .map(this::generateSections)</span>
+<span class="fc" id="L57">      .orElse(emptySet());</span>
+  }
+
+  private static Optional&lt;String&gt; getDescriptionInHtml(RulesDefinition.Rule rule) {
+<span class="fc bfc" id="L61" title="All 2 branches covered.">    if (rule.htmlDescription() != null) {</span>
+<span class="fc" id="L62">      return Optional.of(rule.htmlDescription());</span>
+<span class="fc bfc" id="L63" title="All 2 branches covered.">    } else if (rule.markdownDescription() != null) {</span>
+<span class="fc" id="L64">      return Optional.of(Markdown.convertToHtml(rule.markdownDescription()));</span>
+    }
+<span class="fc" id="L66">    return Optional.empty();</span>
+  }
+
+  private Set&lt;RuleDescriptionSectionDto&gt; generateSections(String descriptionInHtml) {
+<span class="fc bfc" id="L70" title="All 2 branches covered.">    if (descriptionInHtml.isEmpty()) {</span>
+<span class="fc" id="L71">      return emptySet();</span>
+    }
+<span class="fc" id="L73">    String[] split = extractSection(&quot;&quot;, descriptionInHtml);</span>
+<span class="fc" id="L74">    String remainingText = split[0];</span>
+<span class="fc" id="L75">    String ruleDescriptionSection = split[1];</span>
+
+<span class="fc" id="L77">    split = extractSection(&quot;&lt;h2&gt;Exceptions&lt;/h2&gt;&quot;, remainingText);</span>
+<span class="fc" id="L78">    remainingText = split[0];</span>
+<span class="fc" id="L79">    String exceptions = split[1];</span>
+
+<span class="fc" id="L81">    split = extractSection(&quot;&lt;h2&gt;Ask Yourself Whether&lt;/h2&gt;&quot;, remainingText);</span>
+<span class="fc" id="L82">    remainingText = split[0];</span>
+<span class="fc" id="L83">    String askSection = split[1];</span>
+
+<span class="fc" id="L85">    split = extractSection(&quot;&lt;h2&gt;Sensitive Code Example&lt;/h2&gt;&quot;, remainingText);</span>
+<span class="fc" id="L86">    remainingText = split[0];</span>
+<span class="fc" id="L87">    String sensitiveSection = split[1];</span>
+
+<span class="fc" id="L89">    split = extractSection(&quot;&lt;h2&gt;Noncompliant Code Example&lt;/h2&gt;&quot;, remainingText);</span>
+<span class="fc" id="L90">    remainingText = split[0];</span>
+<span class="fc" id="L91">    String noncompliantSection = split[1];</span>
+
+<span class="fc" id="L93">    split = extractSection(&quot;&lt;h2&gt;Recommended Secure Coding Practices&lt;/h2&gt;&quot;, remainingText);</span>
+<span class="fc" id="L94">    remainingText = split[0];</span>
+<span class="fc" id="L95">    String recommendedSection = split[1];</span>
+
+<span class="fc" id="L97">    split = extractSection(&quot;&lt;h2&gt;Compliant Solution&lt;/h2&gt;&quot;, remainingText);</span>
+<span class="fc" id="L98">    remainingText = split[0];</span>
+<span class="fc" id="L99">    String compliantSection = split[1];</span>
+
+<span class="fc" id="L101">    split = extractSection(&quot;&lt;h2&gt;See&lt;/h2&gt;&quot;, remainingText);</span>
+<span class="fc" id="L102">    remainingText = split[0];</span>
+<span class="fc" id="L103">    String seeSection = split[1];</span>
+
+<span class="fc" id="L105">    RuleDescriptionSectionDto rootSection = createSection(ROOT_CAUSE_SECTION_KEY, ruleDescriptionSection, exceptions, remainingText);</span>
+<span class="fc" id="L106">    RuleDescriptionSectionDto assessSection = createSection(ASSESS_THE_PROBLEM_SECTION_KEY, askSection, sensitiveSection, noncompliantSection);</span>
+<span class="fc" id="L107">    RuleDescriptionSectionDto fixSection = createSection(HOW_TO_FIX_SECTION_KEY, recommendedSection, compliantSection, seeSection);</span>
+
+    // For backward compatibility with SonarLint, see SONAR-16635. Should be removed in 10.x
+<span class="fc" id="L110">    RuleDescriptionSectionDto defaultSection = createDefaultRuleDescriptionSection(uuidFactory.create(), descriptionInHtml);</span>
+
+<span class="fc" id="L112">    return Stream.of(rootSection, assessSection, fixSection, defaultSection)</span>
+<span class="fc" id="L113">      .filter(Objects::nonNull)</span>
+<span class="fc" id="L114">      .collect(Collectors.toSet());</span>
+  }
+
+  private static String[] extractSection(String beginning, String description) {
+<span class="fc" id="L118">    String endSection = &quot;&lt;h2&gt;&quot;;</span>
+<span class="fc" id="L119">    int beginningIndex = description.indexOf(beginning);</span>
+<span class="fc bfc" id="L120" title="All 2 branches covered.">    if (beginningIndex != -1) {</span>
+<span class="fc" id="L121">      int endIndex = description.indexOf(endSection, beginningIndex + beginning.length());</span>
+<span class="fc bfc" id="L122" title="All 2 branches covered.">      if (endIndex == -1) {</span>
+<span class="fc" id="L123">        endIndex = description.length();</span>
+      }
+<span class="fc" id="L125">      return new String[] {</span>
+<span class="fc" id="L126">        description.substring(0, beginningIndex) + description.substring(endIndex),</span>
+<span class="fc" id="L127">        description.substring(beginningIndex, endIndex)</span>
+      };
+    } else {
+<span class="fc" id="L130">      return new String[] {description, &quot;&quot;};</span>
+    }
+
+  }
+
+  @CheckForNull
+  private RuleDescriptionSectionDto createSection(String key, String... contentPieces) {
+<span class="fc" id="L137">    String content = trimToNull(String.join(&quot;&quot;, contentPieces));</span>
+<span class="fc bfc" id="L138" title="All 2 branches covered.">    if (content == null) {</span>
+<span class="fc" id="L139">      return null;</span>
+    }
+<span class="fc" id="L141">    return RuleDescriptionSectionDto.builder()</span>
+<span class="fc" id="L142">      .uuid(uuidFactory.create())</span>
+<span class="fc" id="L143">      .key(key)</span>
+<span class="fc" id="L144">      .content(content)</span>
+<span class="fc" id="L145">      .build();</span>
+  }
+
+  @CheckForNull
+  private static String trimToNull(String input) {
+<span class="fc bfc" id="L150" title="All 2 branches covered.">    return input.isEmpty() ? null : input;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

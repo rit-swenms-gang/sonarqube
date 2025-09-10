@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AppLogging.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.application</a> &gt; <span class="el_source">AppLogging.java</span></div><h1>AppLogging.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.application;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.LoggerContext;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.ConsoleAppender;
+import ch.qos.logback.core.FileAppender;
+import ch.qos.logback.core.encoder.Encoder;
+import javax.annotation.CheckForNull;
+import org.sonar.application.config.AppSettings;
+import org.sonar.application.process.StreamGobbler;
+import org.sonar.process.ProcessId;
+import org.sonar.process.Props;
+import org.sonar.process.logging.LogLevelConfig;
+import org.sonar.process.logging.LogbackHelper;
+import org.sonar.process.logging.PatternLayoutEncoder;
+import org.sonar.process.logging.RootLoggerConfig;
+
+import static org.slf4j.Logger.ROOT_LOGGER_NAME;
+import static org.sonar.application.process.StreamGobbler.LOGGER_GOBBLER;
+import static org.sonar.application.process.StreamGobbler.LOGGER_STARTUP;
+import static org.sonar.process.ProcessProperties.Property.CLUSTER_ENABLED;
+import static org.sonar.process.ProcessProperties.Property.CLUSTER_NODE_NAME;
+import static org.sonar.process.logging.RootLoggerConfig.newRootLoggerConfigBuilder;
+
+/**
+ * Configure logback for the APP process.
+ *
+ * &lt;p&gt;
+ * SonarQube's logging use cases:
+ * &lt;ol&gt;
+ *   &lt;li&gt;
+ *     SQ started as a background process (with {@code sonar.sh start}):
+ *     &lt;ul&gt;
+ *       &lt;li&gt;
+ *         logs produced by the JVM before logback is setup in the APP JVM or which can't be caught by logback
+ *         (such as JVM crash) must be written to sonar.log
+ *       &lt;/li&gt;
+ *       &lt;li&gt;
+ *         logs produced by the sub process JVMs before logback is setup in the subprocess JVMs or which can't be caught
+ *         by logback (such as JVM crash) must be written to sonar.log
+ *       &lt;/li&gt;
+ *       &lt;li&gt;each JVM writes its own logs into its dedicated file&lt;/li&gt;
+ *     &lt;/ul&gt;
+ *   &lt;/li&gt;
+ *   &lt;li&gt;
+ *     SQ started in console with wrapper (ie. with {@code sonar.sh console}):
+ *     &lt;ul&gt;
+ *       &lt;li&gt;
+ *         logs produced by the APP JVM before logback is setup in the APP JVM or which can't be caught by logback
+ *         (such as JVM crash) must be written to sonar.log
+ *       &lt;/li&gt;
+ *       &lt;li&gt;
+ *         logs produced by the sub process JVMs before logback is setup in the subprocess JVMs or which can't be caught
+ *         by logback (such as JVM crash) must be written to sonar.log
+ *       &lt;/li&gt;
+ *       &lt;li&gt;each JVM writes its own logs into its dedicated file&lt;/li&gt;
+ *       &lt;li&gt;APP JVM logs are written to the APP JVM {@code System.out}&lt;/li&gt;
+ *     &lt;/ul&gt;
+ *   &lt;/li&gt;
+ *   &lt;li&gt;
+ *     SQ started from command line (ie. {@code java -jar sonar-application-X.Y.jar}):
+ *     &lt;ul&gt;
+ *       &lt;li&gt;
+ *         logs produced by the APP JVM before logback is setup in the APP JVM or which can't be caught by logback
+ *         (such as JVM crash) are the responsibility of the user to be dealt with
+ *       &lt;/li&gt;
+ *       &lt;li&gt;
+ *         logs produced by the sub process JVMs before logback is setup in the subprocess JVMs or which can't be caught
+ *         by logback (such as JVM crash) must be written to APP's {@code System.out}
+ *       &lt;/li&gt;
+ *       &lt;li&gt;each JVM writes its own logs into its dedicated file&lt;/li&gt;
+ *       &lt;li&gt;APP JVM logs are written to the APP JVM {@code System.out}&lt;/li&gt;
+ *     &lt;/ul&gt;
+ *   &lt;/li&gt;
+ *   &lt;li&gt;
+ *     SQ started from an IT (ie. from command line with {@code option -Dsonar.log.console=true}):
+ *     &lt;ul&gt;
+ *       &lt;li&gt;
+ *         logs produced by the APP JVM before logback is setup in the APP JVM or which can't be caught by logback
+ *         (such as JVM crash) are the responsibility of the developer or maven to be dealt with
+ *       &lt;/li&gt;
+ *       &lt;li&gt;
+ *         logs produced by the sub process JVMs before logback is setup in the subprocess JVMs or which can't be caught
+ *         by logback (such as JVM crash) must be written to APP's {@code System.out} and are the responsibility of the
+ *         developer or maven to be dealt with
+ *       &lt;/li&gt;
+ *       &lt;li&gt;each JVM writes its own logs into its dedicated file&lt;/li&gt;
+ *       &lt;li&gt;logs of all 4 JVMs are also written to the APP JVM {@code System.out}&lt;/li&gt;
+ *     &lt;/ul&gt;
+ *   &lt;/li&gt;
+ * &lt;/ol&gt;
+ * &lt;/p&gt;
+ *
+ */
+public class AppLogging {
+
+  private static final String CONSOLE_LOGGER = &quot;console&quot;;
+  private static final String CONSOLE_PLAIN_APPENDER = &quot;CONSOLE&quot;;
+  private static final String APP_CONSOLE_APPENDER = &quot;APP_CONSOLE&quot;;
+  private static final String GOBBLER_PLAIN_CONSOLE = &quot;GOBBLER_CONSOLE&quot;;
+
+  private final RootLoggerConfig rootLoggerConfig;
+<span class="fc" id="L124">  private final LogbackHelper helper = new LogbackHelper();</span>
+  private final AppSettings appSettings;
+
+<span class="fc" id="L127">  public AppLogging(AppSettings appSettings) {</span>
+<span class="fc" id="L128">    this.appSettings = appSettings;</span>
+<span class="fc" id="L129">    rootLoggerConfig = newRootLoggerConfigBuilder()</span>
+<span class="fc" id="L130">      .setNodeNameField(getNodeNameWhenCluster(appSettings.getProps()))</span>
+<span class="fc" id="L131">      .setProcessId(ProcessId.APP)</span>
+<span class="fc" id="L132">      .build();</span>
+<span class="fc" id="L133">  }</span>
+
+  @CheckForNull
+  private static String getNodeNameWhenCluster(Props props) {
+<span class="fc" id="L137">    boolean clusterEnabled = props.valueAsBoolean(CLUSTER_ENABLED.getKey(),</span>
+<span class="fc" id="L138">      Boolean.parseBoolean(CLUSTER_ENABLED.getDefaultValue()));</span>
+<span class="pc bpc" id="L139" title="1 of 2 branches missed.">    return clusterEnabled ? props.value(CLUSTER_NODE_NAME.getKey(), CLUSTER_NODE_NAME.getDefaultValue()) : null;</span>
+  }
+
+  public LoggerContext configure() {
+<span class="fc" id="L143">    LoggerContext ctx = helper.getRootContext();</span>
+<span class="fc" id="L144">    ctx.reset();</span>
+
+<span class="fc" id="L146">    helper.enableJulChangePropagation(ctx);</span>
+
+<span class="fc" id="L148">    configureConsole(ctx);</span>
+<span class="fc" id="L149">    configureWithLogbackWritingToFile(ctx);</span>
+
+<span class="fc" id="L151">    helper.apply(</span>
+<span class="fc" id="L152">      LogLevelConfig.newBuilder(helper.getRootLoggerName())</span>
+<span class="fc" id="L153">        .rootLevelFor(ProcessId.APP)</span>
+<span class="fc" id="L154">        .immutableLevel(&quot;com.hazelcast&quot;,</span>
+<span class="fc" id="L155">          Level.toLevel(&quot;WARN&quot;))</span>
+<span class="fc" id="L156">        .build(),</span>
+<span class="fc" id="L157">      appSettings.getProps());</span>
+
+<span class="fc" id="L159">    return ctx;</span>
+  }
+
+  /**
+   * Creates a non additive logger dedicated to printing message as is (ie. assuming they are already formatted).
+   *
+   * It creates a dedicated appender to the System.out which applies no formatting the logs it receives.
+   */
+  private void configureConsole(LoggerContext loggerContext) {
+<span class="fc" id="L168">    Encoder&lt;ILoggingEvent&gt; encoder = createGobblerEncoder(loggerContext);</span>
+<span class="fc" id="L169">    ConsoleAppender&lt;ILoggingEvent&gt; consoleAppender = helper.newConsoleAppender(loggerContext, CONSOLE_PLAIN_APPENDER, encoder);</span>
+
+<span class="fc" id="L171">    Logger consoleLogger = loggerContext.getLogger(CONSOLE_LOGGER);</span>
+<span class="fc" id="L172">    consoleLogger.setAdditive(false);</span>
+<span class="fc" id="L173">    consoleLogger.addAppender(consoleAppender);</span>
+<span class="fc" id="L174">  }</span>
+
+  /**
+   * The process has been started by orchestrator (ie. via {@code java -jar} and optionally passing the option {@code -Dsonar.log.console=true}).
+   * Therefor, APP's System.out (and System.err) are &lt;strong&gt;not&lt;/strong&gt; copied to sonar.log by the wrapper and
+   * printing to sonar.log must be done at logback level.
+   */
+  private void configureWithLogbackWritingToFile(LoggerContext ctx) {
+<span class="fc" id="L182">    Logger rootLogger = ctx.getLogger(ROOT_LOGGER_NAME);</span>
+<span class="fc" id="L183">    Encoder&lt;ILoggingEvent&gt; encoder = helper.createEncoder(appSettings.getProps(), rootLoggerConfig, ctx);</span>
+<span class="fc" id="L184">    FileAppender&lt;ILoggingEvent&gt; fileAppender = helper.newFileAppender(ctx, appSettings.getProps(), rootLoggerConfig, encoder);</span>
+<span class="fc" id="L185">    rootLogger.addAppender(fileAppender);</span>
+<span class="fc" id="L186">    rootLogger.addAppender(createAppConsoleAppender(ctx, encoder));</span>
+
+<span class="fc" id="L188">    configureGobbler(ctx);</span>
+
+<span class="fc" id="L190">    configureStartupLogger(ctx, fileAppender, encoder);</span>
+<span class="fc" id="L191">  }</span>
+
+  private void configureStartupLogger(LoggerContext ctx, FileAppender&lt;ILoggingEvent&gt; fileAppender, Encoder&lt;ILoggingEvent&gt; encoder) {
+<span class="fc" id="L194">    Logger startupLogger = ctx.getLogger(LOGGER_STARTUP);</span>
+<span class="fc" id="L195">    startupLogger.setAdditive(false);</span>
+<span class="fc" id="L196">    startupLogger.addAppender(fileAppender);</span>
+<span class="fc" id="L197">    startupLogger.addAppender(helper.newConsoleAppender(ctx, GOBBLER_PLAIN_CONSOLE, encoder));</span>
+<span class="fc" id="L198">  }</span>
+
+  /**
+   * Configure the logger to which logs from sub processes are written to
+   * (called {@link StreamGobbler#LOGGER_GOBBLER}) by {@link StreamGobbler},
+   * to be:
+   * &lt;ol&gt;
+   *   &lt;li&gt;non additive (ie. these logs will be output by the appender of {@link StreamGobbler#LOGGER_GOBBLER} and only this one)&lt;/li&gt;
+   *   &lt;li&gt;write logs as is (ie. without any extra formatting)&lt;/li&gt;
+   *   &lt;li&gt;write exclusively to App's System.out&lt;/li&gt;
+   * &lt;/ol&gt;
+   */
+  private void configureGobbler(LoggerContext ctx) {
+<span class="fc" id="L211">    Logger gobblerLogger = ctx.getLogger(LOGGER_GOBBLER);</span>
+<span class="fc" id="L212">    gobblerLogger.setAdditive(false);</span>
+<span class="fc" id="L213">    Encoder&lt;ILoggingEvent&gt; encoder = createGobblerEncoder(ctx);</span>
+<span class="fc" id="L214">    gobblerLogger.addAppender(helper.newConsoleAppender(ctx, GOBBLER_PLAIN_CONSOLE, encoder));</span>
+<span class="fc" id="L215">  }</span>
+
+  private ConsoleAppender&lt;ILoggingEvent&gt; createAppConsoleAppender(LoggerContext ctx, Encoder&lt;ILoggingEvent&gt; encoder) {
+<span class="fc" id="L218">    return helper.newConsoleAppender(ctx, APP_CONSOLE_APPENDER, encoder);</span>
+  }
+
+  /**
+   * Simply displays the message received as input.
+   */
+  private static Encoder&lt;ILoggingEvent&gt; createGobblerEncoder(LoggerContext context) {
+<span class="fc" id="L225">    PatternLayoutEncoder encoder = new PatternLayoutEncoder();</span>
+<span class="fc" id="L226">    encoder.setContext(context);</span>
+<span class="fc" id="L227">    encoder.setPattern(&quot;%msg%n&quot;);</span>
+<span class="fc" id="L228">    encoder.start();</span>
+<span class="fc" id="L229">    return encoder;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

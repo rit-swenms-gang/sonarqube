@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BaseService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonarqube.ws.client</a> &gt; <span class="el_source">BaseService.java</span></div><h1>BaseService.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonarqube.ws.client;
+
+import com.google.protobuf.Message;
+import com.google.protobuf.Parser;
+import java.io.InputStream;
+import java.util.Collection;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonarqube.ws.MediaTypes;
+
+import static org.sonarqube.ws.WsUtils.checkArgument;
+import static org.sonarqube.ws.WsUtils.isNullOrEmpty;
+
+public abstract class BaseService {
+  protected static final String APPLICATION_MERGE_PATCH_JSON = &quot;application/merge-patch+json&quot;;
+
+  private final WsConnector wsConnector;
+  protected final String controller;
+
+<span class="fc" id="L39">  public BaseService(WsConnector wsConnector, String controllerPath) {</span>
+<span class="pc bpc" id="L40" title="1 of 2 branches missed.">    checkArgument(!isNullOrEmpty(controllerPath), &quot;Controller path cannot be empty&quot;);</span>
+<span class="fc" id="L41">    this.wsConnector = wsConnector;</span>
+<span class="fc" id="L42">    this.controller = controllerPath;</span>
+<span class="fc" id="L43">  }</span>
+
+  protected &lt;T extends Message&gt; T call(BaseRequest request, Parser&lt;T&gt; parser) {
+<span class="fc" id="L46">    return call(request, parser, MediaTypes.PROTOBUF);</span>
+  }
+
+  protected &lt;T extends Message&gt; T call(BaseRequest request, Parser&lt;T&gt; parser, String mediaType) {
+<span class="fc" id="L50">    request.setMediaType(mediaType);</span>
+<span class="fc" id="L51">    WsResponse response = call(request);</span>
+<span class="fc" id="L52">    return convert(response, parser);</span>
+  }
+
+  protected WsResponse call(WsRequest request) {
+<span class="fc" id="L56">    return wsConnector.call(request).failIfNotSuccessful();</span>
+  }
+
+  public static &lt;T extends Message&gt; T convert(WsResponse response, Parser&lt;T&gt; parser) {
+<span class="fc" id="L60">    try (InputStream byteStream = response.contentStream()) {</span>
+      // HTTP header &quot;Content-Type&quot; is not verified. It may be different than protobuf.
+<span class="fc" id="L62">      return parser.parseFrom(byteStream);</span>
+<span class="fc" id="L63">    } catch (Exception e) {</span>
+<span class="fc" id="L64">      throw new IllegalStateException(&quot;Fail to parse protobuf response of &quot; + response.requestUrl(), e);</span>
+    }
+  }
+
+  protected String path() {
+<span class="fc" id="L69">    return controller;</span>
+  }
+
+  protected String path(String action) {
+<span class="fc" id="L73">    return String.format(&quot;%s/%s&quot;, controller, action);</span>
+  }
+
+  @CheckForNull
+  protected static String inlineMultipleParamValue(@Nullable Collection&lt;String&gt; values) {
+<span class="nc bnc" id="L78" title="All 2 branches missed.">    return values == null ? null : String.join(&quot;,&quot;, values);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

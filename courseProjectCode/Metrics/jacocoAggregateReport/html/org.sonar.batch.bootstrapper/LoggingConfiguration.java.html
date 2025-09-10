@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LoggingConfiguration.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.batch.bootstrapper</a> &gt; <span class="el_source">LoggingConfiguration.java</span></div><h1>LoggingConfiguration.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.batch.bootstrapper;
+
+import java.util.HashMap;
+import java.util.Map;
+import javax.annotation.Nullable;
+import org.apache.commons.lang3.StringUtils;
+
+/**
+ * @since 2.14
+ */
+public final class LoggingConfiguration {
+
+  public static final String PROPERTY_ROOT_LOGGER_LEVEL = &quot;ROOT_LOGGER_LEVEL&quot;;
+  public static final String PROPERTY_FORMAT = &quot;FORMAT&quot;;
+
+  public static final String LEVEL_ROOT_VERBOSE = &quot;DEBUG&quot;;
+  public static final String LEVEL_ROOT_DEFAULT = &quot;INFO&quot;;
+
+  static final String FORMAT_DEFAULT = &quot;%d{HH:mm:ss.SSS} %-5level - %msg%n&quot;;
+  static final String FORMAT_MAVEN = &quot;[%level] [%d{HH:mm:ss.SSS}] %msg%n&quot;;
+
+<span class="fc" id="L41">  private Map&lt;String, String&gt; substitutionVariables = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L42">  private LogOutput logOutput = null;</span>
+  private boolean verbose;
+
+  public LoggingConfiguration() {
+<span class="fc" id="L46">    this(null);</span>
+<span class="fc" id="L47">  }</span>
+
+<span class="fc" id="L49">  public LoggingConfiguration(@Nullable EnvironmentInformation environment) {</span>
+<span class="fc" id="L50">    setVerbose(false);</span>
+<span class="fc bfc" id="L51" title="All 4 branches covered.">    if (environment != null &amp;&amp; &quot;maven&quot;.equalsIgnoreCase(environment.getKey())) {</span>
+<span class="fc" id="L52">      setFormat(FORMAT_MAVEN);</span>
+    } else {
+<span class="fc" id="L54">      setFormat(FORMAT_DEFAULT);</span>
+    }
+<span class="fc" id="L56">  }</span>
+
+  public LoggingConfiguration setProperties(Map&lt;String, String&gt; properties) {
+<span class="fc" id="L59">    setVerbose(properties);</span>
+<span class="fc" id="L60">    return this;</span>
+  }
+
+  public LoggingConfiguration setLogOutput(@Nullable LogOutput listener) {
+<span class="fc" id="L64">    this.logOutput = listener;</span>
+<span class="fc" id="L65">    return this;</span>
+  }
+
+  public LoggingConfiguration setVerbose(boolean verbose) {
+<span class="fc bfc" id="L69" title="All 2 branches covered.">    return setRootLevel(verbose ? LEVEL_ROOT_VERBOSE : LEVEL_ROOT_DEFAULT);</span>
+  }
+
+  public boolean isVerbose() {
+<span class="fc" id="L73">    return verbose;</span>
+  }
+
+  public LoggingConfiguration setVerbose(Map&lt;String, String&gt; props) {
+<span class="fc" id="L77">    verbose = isVerboseEnabled(props);</span>
+<span class="fc" id="L78">    return setVerbose(verbose);</span>
+  }
+
+  public static boolean isVerboseEnabled(Map&lt;String, String&gt; props) {
+<span class="fc" id="L82">    String logLevel = props.get(&quot;sonar.log.level&quot;);</span>
+<span class="fc" id="L83">    String deprecatedProfilingLevel = props.get(&quot;sonar.log.profilingLevel&quot;);</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">    return &quot;true&quot;.equals(props.get(&quot;sonar.verbose&quot;)) ||</span>
+<span class="fc bfc" id="L85" title="All 4 branches covered.">      &quot;DEBUG&quot;.equals(logLevel) || &quot;TRACE&quot;.equals(logLevel) ||</span>
+<span class="fc bfc" id="L86" title="All 4 branches covered.">      &quot;BASIC&quot;.equals(deprecatedProfilingLevel) || &quot;FULL&quot;.equals(deprecatedProfilingLevel);</span>
+  }
+
+  public LoggingConfiguration setRootLevel(String level) {
+<span class="fc" id="L90">    return addSubstitutionVariable(PROPERTY_ROOT_LOGGER_LEVEL, level);</span>
+  }
+
+  LoggingConfiguration setFormat(String format) {
+<span class="fc" id="L94">    return addSubstitutionVariable(PROPERTY_FORMAT, StringUtils.defaultIfBlank(format, FORMAT_DEFAULT));</span>
+  }
+
+  private LoggingConfiguration addSubstitutionVariable(String key, String value) {
+<span class="fc" id="L98">    substitutionVariables.put(key, value);</span>
+<span class="fc" id="L99">    return this;</span>
+  }
+
+  String getSubstitutionVariable(String key) {
+<span class="fc" id="L103">    return substitutionVariables.get(key);</span>
+  }
+
+  Map&lt;String, String&gt; getSubstitutionVariables() {
+<span class="fc" id="L107">    return substitutionVariables;</span>
+  }
+
+  LogOutput getLogOutput() {
+<span class="fc" id="L111">    return logOutput;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

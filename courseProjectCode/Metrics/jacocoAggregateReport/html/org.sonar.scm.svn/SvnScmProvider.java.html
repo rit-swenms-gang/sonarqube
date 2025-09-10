@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SvnScmProvider.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scm.svn</a> &gt; <span class="el_source">SvnScmProvider.java</span></div><h1>SvnScmProvider.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scm.svn;
+
+import java.io.File;
+import java.net.MalformedURLException;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.Instant;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import javax.annotation.CheckForNull;
+import org.sonar.api.batch.scm.BlameCommand;
+import org.sonar.api.batch.scm.ScmProvider;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.tmatesoft.svn.core.SVNDepth;
+import org.tmatesoft.svn.core.SVNException;
+import org.tmatesoft.svn.core.SVNLogEntryPath;
+import org.tmatesoft.svn.core.SVNNodeKind;
+import org.tmatesoft.svn.core.SVNURL;
+import org.tmatesoft.svn.core.wc.SVNClientManager;
+import org.tmatesoft.svn.core.wc.SVNDiffClient;
+import org.tmatesoft.svn.core.wc.SVNInfo;
+import org.tmatesoft.svn.core.wc.SVNLogClient;
+import org.tmatesoft.svn.core.wc.SVNRevision;
+import org.tmatesoft.svn.core.wc.SVNWCClient;
+
+import static org.sonar.scm.svn.SvnScmSupport.newSvnClientManager;
+
+public class SvnScmProvider extends ScmProvider {
+
+<span class="fc" id="L53">  private static final Logger LOG = LoggerFactory.getLogger(SvnScmProvider.class);</span>
+
+  private final SvnConfiguration configuration;
+  private final SvnBlameCommand blameCommand;
+
+<span class="fc" id="L58">  public SvnScmProvider(SvnConfiguration configuration, SvnBlameCommand blameCommand) {</span>
+<span class="fc" id="L59">    this.configuration = configuration;</span>
+<span class="fc" id="L60">    this.blameCommand = blameCommand;</span>
+<span class="fc" id="L61">  }</span>
+
+  @Override
+  public String key() {
+<span class="fc" id="L65">    return &quot;svn&quot;;</span>
+  }
+
+  @Override
+  public boolean supports(File baseDir) {
+
+<span class="fc" id="L71">    File folder = baseDir;</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">    while (folder != null) {</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">      if (new File(folder, &quot;.svn&quot;).exists()) {</span>
+<span class="fc" id="L74">        return true;</span>
+      }
+<span class="fc" id="L76">      folder = folder.getParentFile();</span>
+    }
+<span class="fc" id="L78">    return false;</span>
+  }
+
+  @Override
+  public BlameCommand blameCommand() {
+<span class="fc" id="L83">    return blameCommand;</span>
+  }
+
+  @CheckForNull
+  @Override
+  public Set&lt;Path&gt; branchChangedFiles(String targetBranchName, Path rootBaseDir) {
+<span class="fc" id="L89">    SVNClientManager clientManager = null;</span>
+    try {
+<span class="fc" id="L91">      clientManager = newSvnClientManager(configuration);</span>
+<span class="fc" id="L92">      return computeChangedPaths(rootBaseDir, clientManager);</span>
+<span class="fc" id="L93">    } catch (SVNException e) {</span>
+<span class="fc" id="L94">      LOG.warn(e.getMessage());</span>
+    } finally {
+<span class="pc bpc" id="L96" title="1 of 2 branches missed.">      if (clientManager != null) {</span>
+        try {
+<span class="fc" id="L98">          clientManager.dispose();</span>
+<span class="nc" id="L99">        } catch (Exception e) {</span>
+<span class="nc" id="L100">          LOG.warn(&quot;Unable to dispose SVN ClientManager&quot;, e);</span>
+<span class="fc" id="L101">        }</span>
+      }
+    }
+
+<span class="fc" id="L105">    return null;</span>
+  }
+
+  static Set&lt;Path&gt; computeChangedPaths(Path projectBasedir, SVNClientManager clientManager) throws SVNException {
+<span class="fc" id="L109">    SVNWCClient wcClient = clientManager.getWCClient();</span>
+<span class="fc" id="L110">    SVNInfo svnInfo = wcClient.doInfo(projectBasedir.toFile(), null);</span>
+
+    // SVN path of the repo root, for example: /C:/Users/JANOSG~1/AppData/Local/Temp/x/y
+<span class="fc" id="L113">    Path svnRootPath = toPath(svnInfo.getRepositoryRootURL());</span>
+
+    // the svn root path may be &quot;&quot; for urls like http://svnserver/
+    // -&gt; set it to &quot;/&quot; to avoid crashing when using Path.relativize later
+<span class="fc bfc" id="L117" title="All 2 branches covered.">    if (svnRootPath.equals(Paths.get(&quot;&quot;))) {</span>
+<span class="fc" id="L118">      svnRootPath = Paths.get(&quot;/&quot;);</span>
+    }
+
+    // SVN path of projectBasedir, for example: /C:/Users/JANOSG~1/AppData/Local/Temp/x/y/branches/b1
+<span class="fc" id="L122">    Path svnProjectPath = toPath(svnInfo.getURL());</span>
+    // path of projectBasedir, as &quot;absolute path within the SVN repo&quot;, for example: /branches/b1
+<span class="fc" id="L124">    Path inRepoProjectPath = Paths.get(&quot;/&quot;).resolve(svnRootPath.relativize(svnProjectPath));</span>
+
+    // We inspect &quot;svn log&quot; from latest revision until copy-point.
+    // The same path may appear in multiple commits, the ordering of changes and removals is important.
+<span class="fc" id="L128">    Set&lt;Path&gt; paths = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L129">    Set&lt;Path&gt; removed = new HashSet&lt;&gt;();</span>
+
+<span class="fc" id="L131">    SVNLogClient svnLogClient = clientManager.getLogClient();</span>
+<span class="fc" id="L132">    svnLogClient.doLog(new File[] {projectBasedir.toFile()}, null, null, null, true, true, 0, svnLogEntry -&gt;</span>
+<span class="fc" id="L133">      svnLogEntry.getChangedPaths().values().forEach(entry -&gt; {</span>
+<span class="fc bfc" id="L134" title="All 2 branches covered.">        if (entry.getKind().equals(SVNNodeKind.FILE)) {</span>
+<span class="fc" id="L135">          Path path = projectBasedir.resolve(inRepoProjectPath.relativize(Paths.get(entry.getPath())));</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">          if (isModified(entry)) {</span>
+            // Skip if the path is removed in a more recent commit
+<span class="fc bfc" id="L138" title="All 2 branches covered.">            if (!removed.contains(path)) {</span>
+<span class="fc" id="L139">              paths.add(path);</span>
+            }
+<span class="pc bpc" id="L141" title="1 of 2 branches missed.">          } else if (entry.getType() == SVNLogEntryPath.TYPE_DELETED) {</span>
+<span class="fc" id="L142">            removed.add(path);</span>
+          }
+        }
+<span class="fc" id="L145">      }));</span>
+<span class="fc" id="L146">    return paths;</span>
+  }
+
+  private static Path toPath(SVNURL svnUrl) {
+<span class="fc bfc" id="L150" title="All 2 branches covered.">    if (&quot;file&quot;.equals(svnUrl.getProtocol())) {</span>
+      try {
+<span class="fc" id="L152">        return Paths.get(new URL(&quot;file&quot;, svnUrl.getHost(), svnUrl.getPath()).toURI());</span>
+<span class="nc" id="L153">      } catch (URISyntaxException | MalformedURLException e) {</span>
+<span class="nc" id="L154">        throw new IllegalStateException(e);</span>
+      }
+    }
+<span class="fc" id="L157">    return Paths.get(svnUrl.getURIEncodedPath());</span>
+  }
+
+  private static boolean isModified(SVNLogEntryPath entry) {
+<span class="fc bfc" id="L161" title="All 2 branches covered.">    return entry.getType() == SVNLogEntryPath.TYPE_ADDED</span>
+<span class="fc bfc" id="L162" title="All 2 branches covered.">      || entry.getType() == SVNLogEntryPath.TYPE_MODIFIED;</span>
+  }
+
+  @CheckForNull
+  @Override
+  public Map&lt;Path, Set&lt;Integer&gt;&gt; branchChangedLines(String targetBranchName, Path rootBaseDir, Set&lt;Path&gt; changedFiles) {
+<span class="fc" id="L168">    SVNClientManager clientManager = null;</span>
+    try {
+<span class="fc" id="L170">      clientManager = newSvnClientManager(configuration);</span>
+
+      // find reference revision number: the copy point
+<span class="fc" id="L173">      SVNLogClient svnLogClient = clientManager.getLogClient();</span>
+<span class="fc" id="L174">      long[] revisionCounter = {0};</span>
+<span class="fc" id="L175">      svnLogClient.doLog(new File[] {rootBaseDir.toFile()}, null, null, null, true, true, 0,</span>
+<span class="fc" id="L176">        svnLogEntry -&gt; revisionCounter[0] = svnLogEntry.getRevision());</span>
+
+<span class="fc" id="L178">      long startRev = revisionCounter[0];</span>
+
+<span class="fc" id="L180">      SVNDiffClient svnDiffClient = clientManager.getDiffClient();</span>
+<span class="fc" id="L181">      File path = rootBaseDir.toFile();</span>
+<span class="fc" id="L182">      ChangedLinesComputer computer = newChangedLinesComputer(rootBaseDir, changedFiles);</span>
+<span class="fc" id="L183">      svnDiffClient.doDiff(path, SVNRevision.create(startRev), path, SVNRevision.WORKING, SVNDepth.INFINITY, false, computer.receiver(), null);</span>
+<span class="fc" id="L184">      return computer.changedLines();</span>
+<span class="fc" id="L185">    } catch (Exception e) {</span>
+<span class="fc" id="L186">      LOG.warn(&quot;Failed to get changed lines from Subversion&quot;, e);</span>
+    } finally {
+<span class="pc bpc" id="L188" title="1 of 2 branches missed.">      if (clientManager != null) {</span>
+        try {
+<span class="fc" id="L190">          clientManager.dispose();</span>
+<span class="nc" id="L191">        } catch (Exception e) {</span>
+<span class="nc" id="L192">          LOG.warn(&quot;Unable to dispose SVN ClientManager&quot;, e);</span>
+<span class="fc" id="L193">        }</span>
+      }
+    }
+
+<span class="fc" id="L197">    return null;</span>
+  }
+
+  @CheckForNull
+  @Override
+  public Instant forkDate(String referenceBranch, Path rootBaseDir) {
+<span class="fc" id="L203">    return null;</span>
+  }
+
+  ChangedLinesComputer newChangedLinesComputer(Path rootBaseDir, Set&lt;Path&gt; changedFiles) {
+<span class="fc" id="L207">    return new ChangedLinesComputer(rootBaseDir, changedFiles);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

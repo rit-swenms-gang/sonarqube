@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MetadataGenerator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.scan.filesystem</a> &gt; <span class="el_source">MetadataGenerator.java</span></div><h1>MetadataGenerator.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.scan.filesystem;
+
+import java.io.InputStream;
+import java.nio.charset.Charset;
+import org.sonar.api.batch.fs.InputFile.Type;
+import org.sonar.api.batch.fs.internal.DefaultInputFile;
+import org.sonar.api.batch.fs.internal.FileMetadata;
+import org.sonar.api.batch.fs.internal.Metadata;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.scanner.issue.ignore.scanner.IssueExclusionsLoader;
+
+public class MetadataGenerator {
+<span class="fc" id="L33">  private static final Logger LOG = LoggerFactory.getLogger(MetadataGenerator.class);</span>
+<span class="fc" id="L34">  static final Charset UTF_32BE = Charset.forName(&quot;UTF-32BE&quot;);</span>
+
+<span class="fc" id="L36">  static final Charset UTF_32LE = Charset.forName(&quot;UTF-32LE&quot;);</span>
+
+  private final StatusDetection statusDetection;
+  private final FileMetadata fileMetadata;
+  private final IssueExclusionsLoader exclusionsScanner;
+
+<span class="fc" id="L42">  public MetadataGenerator(StatusDetection statusDetection, FileMetadata fileMetadata, IssueExclusionsLoader exclusionsScanner) {</span>
+<span class="fc" id="L43">    this.statusDetection = statusDetection;</span>
+<span class="fc" id="L44">    this.fileMetadata = fileMetadata;</span>
+<span class="fc" id="L45">    this.exclusionsScanner = exclusionsScanner;</span>
+<span class="fc" id="L46">  }</span>
+
+  /**
+   * Sets all metadata in the file, including charset and status.
+   * It is an expensive computation, reading the entire file.
+   */
+  public void setMetadata(String moduleKeyWithBranch, final DefaultInputFile inputFile, Charset defaultEncoding) {
+<span class="fc" id="L53">    CharsetDetector charsetDetector = new CharsetDetector(inputFile.path(), defaultEncoding);</span>
+    try {
+      Charset charset;
+<span class="fc bfc" id="L56" title="All 2 branches covered.">      if (charsetDetector.run()) {</span>
+<span class="fc" id="L57">        charset = charsetDetector.charset();</span>
+      } else {
+<span class="fc" id="L59">        LOG.debug(&quot;Failed to detect a valid charset for file '{}'. Using default charset.&quot;, inputFile);</span>
+<span class="fc" id="L60">        charset = defaultEncoding;</span>
+      }
+<span class="fc" id="L62">      InputStream is = charsetDetector.inputStream();</span>
+<span class="fc" id="L63">      inputFile.setCharset(charset);</span>
+<span class="fc" id="L64">      Metadata metadata = fileMetadata.readMetadata(is, charset, inputFile.absolutePath(), exclusionsScanner.createCharHandlerFor(inputFile));</span>
+<span class="fc" id="L65">      inputFile.setMetadata(metadata);</span>
+<span class="pc bpc" id="L66" title="1 of 2 branches missed.">      if(!inputFile.isStatusSet()) {</span>
+<span class="fc" id="L67">        inputFile.setStatus(statusDetection.status(moduleKeyWithBranch, inputFile, metadata.hash()));</span>
+      }
+<span class="fc bfc" id="L69" title="All 2 branches covered.">      LOG.debug(&quot;'{}' generated metadata{} with charset '{}'&quot;, inputFile, inputFile.type() == Type.TEST ? &quot; as test &quot; : &quot;&quot;, charset);</span>
+<span class="fc" id="L70">    } catch (Exception e) {</span>
+<span class="fc" id="L71">      throw new IllegalStateException(e);</span>
+<span class="fc" id="L72">    }</span>
+<span class="fc" id="L73">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

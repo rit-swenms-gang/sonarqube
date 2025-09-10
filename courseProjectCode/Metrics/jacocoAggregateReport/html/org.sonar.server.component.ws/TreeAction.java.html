@@ -1,0 +1,473 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TreeAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.component.ws</a> &gt; <span class="el_source">TreeAction.java</span></div><h1>TreeAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.component.ws;
+
+import com.google.common.base.Function;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSortedSet;
+import com.google.common.collect.Ordering;
+import com.google.common.collect.Sets;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.sonar.db.component.ComponentQualifiers;
+import org.sonar.server.component.ComponentTypes;
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.api.server.ws.WebService.Param;
+import org.sonar.api.utils.Paging;
+import org.sonar.db.permission.ProjectPermission;
+import org.sonar.core.i18n.I18n;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.BranchDto;
+import org.sonar.db.component.ComponentDto;
+import org.sonar.db.component.ComponentTreeQuery;
+import org.sonar.db.component.ComponentTreeQuery.Strategy;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.server.component.ComponentFinder;
+import org.sonar.server.user.UserSession;
+import org.sonarqube.ws.Components;
+import org.sonarqube.ws.Components.TreeWsResponse;
+
+import static java.lang.String.CASE_INSENSITIVE_ORDER;
+import static java.lang.String.format;
+import static java.util.Collections.emptyMap;
+import static org.sonar.api.utils.Paging.offset;
+import static org.sonar.db.component.ComponentTreeQuery.Strategy.CHILDREN;
+import static org.sonar.db.component.ComponentTreeQuery.Strategy.LEAVES;
+import static org.sonar.server.component.ws.ComponentDtoToWsComponent.componentDtoToWsComponent;
+import static org.sonar.server.component.ws.ComponentDtoToWsComponent.projectOrAppToWsComponent;
+import static org.sonar.server.ws.KeyExamples.KEY_BRANCH_EXAMPLE_001;
+import static org.sonar.server.ws.KeyExamples.KEY_PROJECT_EXAMPLE_001;
+import static org.sonar.server.ws.KeyExamples.KEY_PULL_REQUEST_EXAMPLE_001;
+import static org.sonar.server.ws.WsParameterBuilder.createQualifiersParameter;
+import static org.sonar.server.ws.WsParameterBuilder.QualifierParameterContext.newQualifierParameterContext;
+import static org.sonar.server.ws.WsUtils.writeProtobuf;
+import static org.sonarqube.ws.client.component.ComponentsWsParameters.ACTION_TREE;
+import static org.sonarqube.ws.client.component.ComponentsWsParameters.PARAM_BRANCH;
+import static org.sonarqube.ws.client.component.ComponentsWsParameters.PARAM_COMPONENT;
+import static org.sonarqube.ws.client.component.ComponentsWsParameters.PARAM_PULL_REQUEST;
+import static org.sonarqube.ws.client.component.ComponentsWsParameters.PARAM_QUALIFIERS;
+import static org.sonarqube.ws.client.component.ComponentsWsParameters.PARAM_STRATEGY;
+
+public class TreeAction implements ComponentsWsAction {
+
+  private static final int MAX_SIZE = 500;
+  private static final int QUERY_MINIMUM_LENGTH = 3;
+  private static final String ALL_STRATEGY = &quot;all&quot;;
+  private static final String CHILDREN_STRATEGY = &quot;children&quot;;
+  private static final String LEAVES_STRATEGY = &quot;leaves&quot;;
+<span class="fc" id="L85">  private static final Map&lt;String, Strategy&gt; STRATEGIES = ImmutableMap.of(</span>
+    ALL_STRATEGY, LEAVES,
+    CHILDREN_STRATEGY, CHILDREN,
+    LEAVES_STRATEGY, LEAVES);
+
+  private static final String NAME_SORT = &quot;name&quot;;
+  private static final String PATH_SORT = &quot;path&quot;;
+  private static final String QUALIFIER_SORT = &quot;qualifier&quot;;
+<span class="fc" id="L93">  private static final Set&lt;String&gt; SORTS = ImmutableSortedSet.of(NAME_SORT, PATH_SORT, QUALIFIER_SORT);</span>
+<span class="fc" id="L94">  private static final Set&lt;String&gt; PROJECT_OR_APP_QUALIFIERS = ImmutableSortedSet.of(ComponentQualifiers.PROJECT, ComponentQualifiers.APP);</span>
+
+  private final DbClient dbClient;
+  private final ComponentFinder componentFinder;
+  private final ComponentTypes componentTypes;
+  private final UserSession userSession;
+  private final I18n i18n;
+
+<span class="fc" id="L102">  public TreeAction(DbClient dbClient, ComponentFinder componentFinder, ComponentTypes componentTypes, UserSession userSession, I18n i18n) {</span>
+<span class="fc" id="L103">    this.dbClient = dbClient;</span>
+<span class="fc" id="L104">    this.componentFinder = componentFinder;</span>
+<span class="fc" id="L105">    this.componentTypes = componentTypes;</span>
+<span class="fc" id="L106">    this.userSession = userSession;</span>
+<span class="fc" id="L107">    this.i18n = i18n;</span>
+<span class="fc" id="L108">  }</span>
+
+  @Override
+  public void define(WebService.NewController context) {
+<span class="fc" id="L112">    WebService.NewAction action = context.createAction(ACTION_TREE)</span>
+<span class="fc" id="L113">      .setDescription(format(&quot;Navigate through components based on the chosen strategy.&lt;br&gt;&quot; +</span>
+          &quot;Requires the following permission: 'Browse' on the specified project.&lt;br&gt;&quot; +
+          &quot;When limiting search with the %s parameter, directories are not returned.&quot;,
+        Param.TEXT_QUERY))
+<span class="fc" id="L117">      .setSince(&quot;5.4&quot;)</span>
+<span class="fc" id="L118">      .setResponseExample(getClass().getResource(&quot;tree-example.json&quot;))</span>
+<span class="fc" id="L119">      .setChangelog(</span>
+<span class="fc" id="L120">        new Change(&quot;10.1&quot;, String.format(&quot;The use of module keys in parameter '%s' is removed&quot;, PARAM_COMPONENT)),</span>
+<span class="fc" id="L121">        new Change(&quot;10.1&quot;, String.format(&quot;The use of 'BRC' as value for parameter '%s' is removed&quot;, PARAM_QUALIFIERS)),</span>
+<span class="fc" id="L122">        new Change(&quot;7.6&quot;, String.format(&quot;The use of 'BRC' as value for parameter '%s' is deprecated&quot;, PARAM_QUALIFIERS)),</span>
+<span class="fc" id="L123">        new Change(&quot;7.6&quot;, String.format(&quot;The use of module keys in parameter '%s' is deprecated&quot;, PARAM_COMPONENT)))</span>
+<span class="fc" id="L124">      .setHandler(this)</span>
+<span class="fc" id="L125">      .addPagingParams(100, MAX_SIZE);</span>
+
+<span class="fc" id="L127">    action.createParam(PARAM_COMPONENT)</span>
+<span class="fc" id="L128">      .setDescription(&quot;Base component key. The search is based on this component.&quot;)</span>
+<span class="fc" id="L129">      .setRequired(true)</span>
+<span class="fc" id="L130">      .setExampleValue(KEY_PROJECT_EXAMPLE_001);</span>
+
+<span class="fc" id="L132">    action.createParam(PARAM_BRANCH)</span>
+<span class="fc" id="L133">      .setDescription(&quot;Branch key. Not available in the community edition.&quot;)</span>
+<span class="fc" id="L134">      .setExampleValue(KEY_BRANCH_EXAMPLE_001)</span>
+<span class="fc" id="L135">      .setSince(&quot;6.6&quot;);</span>
+
+<span class="fc" id="L137">    action.createParam(PARAM_PULL_REQUEST)</span>
+<span class="fc" id="L138">      .setDescription(&quot;Pull request id. Not available in the community edition.&quot;)</span>
+<span class="fc" id="L139">      .setExampleValue(KEY_PULL_REQUEST_EXAMPLE_001)</span>
+<span class="fc" id="L140">      .setSince(&quot;7.1&quot;);</span>
+
+<span class="fc" id="L142">    action.createSortParams(SORTS, NAME_SORT, true)</span>
+<span class="fc" id="L143">      .setDescription(&quot;Comma-separated list of sort fields&quot;)</span>
+<span class="fc" id="L144">      .setExampleValue(NAME_SORT + &quot;, &quot; + PATH_SORT);</span>
+
+<span class="fc" id="L146">    action.createParam(Param.TEXT_QUERY)</span>
+<span class="fc" id="L147">      .setDescription(&quot;Limit search to: &lt;ul&gt;&quot; +</span>
+        &quot;&lt;li&gt;component names that contain the supplied string&lt;/li&gt;&quot; +
+        &quot;&lt;li&gt;component keys that are exactly the same as the supplied string&lt;/li&gt;&quot; +
+        &quot;&lt;/ul&gt;&quot;)
+<span class="fc" id="L151">      .setMinimumLength(QUERY_MINIMUM_LENGTH)</span>
+<span class="fc" id="L152">      .setExampleValue(&quot;FILE_NAM&quot;);</span>
+
+<span class="fc" id="L154">    createQualifiersParameter(action, newQualifierParameterContext(i18n, componentTypes));</span>
+
+<span class="fc" id="L156">    action.createParam(PARAM_STRATEGY)</span>
+<span class="fc" id="L157">      .setDescription(&quot;Strategy to search for base component descendants:&quot; +</span>
+        &quot;&lt;ul&gt;&quot; +
+        &quot;&lt;li&gt;children: return the children components of the base component. Grandchildren components are not returned&lt;/li&gt;&quot; +
+        &quot;&lt;li&gt;all: return all the descendants components of the base component. Grandchildren are returned.&lt;/li&gt;&quot; +
+        &quot;&lt;li&gt;leaves: return all the descendant components (files, in general) which don't have other children. They are the leaves of the component tree.&lt;/li&gt;&quot; +
+        &quot;&lt;/ul&gt;&quot;)
+<span class="fc" id="L163">      .setPossibleValues(STRATEGIES.keySet())</span>
+<span class="fc" id="L164">      .setDefaultValue(ALL_STRATEGY);</span>
+<span class="fc" id="L165">  }</span>
+
+  @Override
+  public void handle(org.sonar.api.server.ws.Request request, Response response) throws Exception {
+<span class="fc" id="L169">    TreeWsResponse treeWsResponse = doHandle(toTreeWsRequest(request));</span>
+<span class="fc" id="L170">    writeProtobuf(treeWsResponse, request, response);</span>
+<span class="fc" id="L171">  }</span>
+
+  private TreeWsResponse doHandle(Request treeRequest) {
+<span class="fc" id="L174">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L175">      ComponentDto baseComponent = loadComponent(dbSession, treeRequest);</span>
+<span class="fc" id="L176">      checkPermissions(baseComponent);</span>
+
+<span class="fc" id="L178">      ComponentTreeQuery query = toComponentTreeQuery(treeRequest, baseComponent);</span>
+<span class="fc" id="L179">      List&lt;ComponentDto&gt; components = dbClient.componentDao().selectDescendants(dbSession, query);</span>
+<span class="fc" id="L180">      components = filterAuthorizedComponents(components);</span>
+
+<span class="fc" id="L182">      int total = components.size();</span>
+<span class="fc" id="L183">      components = sortComponents(components, treeRequest);</span>
+<span class="fc" id="L184">      components = paginateComponents(components, treeRequest);</span>
+
+<span class="fc" id="L186">      Map&lt;String, ComponentDto&gt; referenceComponentsByUuid = searchReferenceComponentsByUuid(dbSession, components);</span>
+<span class="fc" id="L187">      Paging paging = Paging.forPageIndex(treeRequest.getPage()).withPageSize(treeRequest.getPageSize()).andTotal(total);</span>
+<span class="fc" id="L188">      return buildResponse(dbSession, baseComponent, components, referenceComponentsByUuid, paging, treeRequest);</span>
+    }
+  }
+
+  private List&lt;ComponentDto&gt; filterAuthorizedComponents(List&lt;ComponentDto&gt; components) {
+<span class="fc" id="L193">    return userSession.keepAuthorizedComponents(ProjectPermission.USER, components);</span>
+  }
+
+  private ComponentDto loadComponent(DbSession dbSession, Request request) {
+<span class="fc" id="L197">    String componentKey = request.getComponent();</span>
+<span class="fc" id="L198">    String branch = request.getBranch();</span>
+<span class="fc" id="L199">    String pullRequest = request.getPullRequest();</span>
+<span class="fc" id="L200">    return componentFinder.getByKeyAndOptionalBranchOrPullRequest(dbSession, componentKey, branch, pullRequest);</span>
+  }
+
+  private Map&lt;String, ComponentDto&gt; searchReferenceComponentsByUuid(DbSession dbSession, List&lt;ComponentDto&gt; components) {
+<span class="fc" id="L204">    List&lt;String&gt; referenceComponentIds = components.stream()</span>
+<span class="fc" id="L205">      .map(ComponentDto::getCopyComponentUuid)</span>
+<span class="fc" id="L206">      .filter(Objects::nonNull)</span>
+<span class="fc" id="L207">      .toList();</span>
+<span class="fc bfc" id="L208" title="All 2 branches covered.">    if (referenceComponentIds.isEmpty()) {</span>
+<span class="fc" id="L209">      return emptyMap();</span>
+    }
+
+<span class="fc" id="L212">    return dbClient.componentDao().selectByUuids(dbSession, referenceComponentIds).stream()</span>
+<span class="fc" id="L213">      .collect(Collectors.toMap(ComponentDto::uuid, java.util.function.Function.identity()));</span>
+  }
+
+  private void checkPermissions(ComponentDto baseComponent) {
+<span class="fc" id="L217">    userSession.checkComponentPermission(ProjectPermission.USER, baseComponent);</span>
+<span class="fc" id="L218">  }</span>
+
+  private TreeWsResponse buildResponse(DbSession dbSession, ComponentDto baseComponent, List&lt;ComponentDto&gt; components,
+    Map&lt;String, ComponentDto&gt; referenceComponentsByUuid, Paging paging, Request request) {
+<span class="fc" id="L222">    TreeWsResponse.Builder response = TreeWsResponse.newBuilder();</span>
+<span class="fc" id="L223">    response.getPagingBuilder()</span>
+<span class="fc" id="L224">      .setPageIndex(paging.pageIndex())</span>
+<span class="fc" id="L225">      .setPageSize(paging.pageSize())</span>
+<span class="fc" id="L226">      .setTotal(paging.total())</span>
+<span class="fc" id="L227">      .build();</span>
+
+<span class="fc" id="L229">    Map&lt;String, String&gt; branchKeyByReferenceUuid = dbClient.branchDao().selectByUuids(dbSession, referenceComponentsByUuid.keySet())</span>
+<span class="fc" id="L230">      .stream()</span>
+<span class="fc bfc" id="L231" title="All 2 branches covered.">      .filter(b -&gt; !b.isMain())</span>
+<span class="fc" id="L232">      .collect(Collectors.toMap(BranchDto::getUuid, BranchDto::getBranchKey));</span>
+
+<span class="fc" id="L234">    boolean isMainBranch = dbClient.branchDao().selectByUuid(dbSession, baseComponent.branchUuid()).map(BranchDto::isMain).orElse(true);</span>
+<span class="fc" id="L235">    response.setBaseComponent(toWsComponent(dbSession, baseComponent, isMainBranch, referenceComponentsByUuid, branchKeyByReferenceUuid, request));</span>
+<span class="fc bfc" id="L236" title="All 2 branches covered.">    for (ComponentDto dto : components) {</span>
+<span class="fc" id="L237">      response.addComponents(toWsComponent(dbSession, dto, isMainBranch, referenceComponentsByUuid, branchKeyByReferenceUuid, request));</span>
+<span class="fc" id="L238">    }</span>
+
+<span class="fc" id="L240">    return response.build();</span>
+  }
+
+  private Components.Component.Builder toWsComponent(DbSession dbSession, ComponentDto component, boolean isMainBranch,
+    Map&lt;String, ComponentDto&gt; referenceComponentsByUuid, Map&lt;String, String&gt; branchKeyByReferenceUuid, Request request) {
+
+<span class="fc" id="L246">    ComponentDto referenceComponent = referenceComponentsByUuid.get(component.getCopyComponentUuid());</span>
+
+    Components.Component.Builder wsComponent;
+<span class="fc bfc" id="L249" title="All 6 branches covered.">    if (isMainBranch &amp;&amp; component.isRootProject() &amp;&amp; PROJECT_OR_APP_QUALIFIERS.contains(component.qualifier())) {</span>
+<span class="fc" id="L250">      ProjectDto projectDto = componentFinder.getProjectOrApplicationByKey(dbSession, component.getKey());</span>
+<span class="fc" id="L251">      wsComponent = projectOrAppToWsComponent(projectDto, null);</span>
+<span class="fc" id="L252">    } else {</span>
+<span class="fc" id="L253">      ProjectDto parentProject = dbClient.projectDao().selectByBranchUuid(dbSession, component.branchUuid()).orElse(null);</span>
+
+<span class="fc bfc" id="L255" title="All 2 branches covered.">      if (referenceComponent != null) {</span>
+<span class="fc" id="L256">        wsComponent = componentDtoToWsComponent(component, parentProject, null, false, branchKeyByReferenceUuid.get(referenceComponent.uuid()), null);</span>
+<span class="fc bfc" id="L257" title="All 2 branches covered.">      } else if (!isMainBranch) {</span>
+<span class="fc" id="L258">        wsComponent = componentDtoToWsComponent(component, parentProject, null, false, request.branch, request.pullRequest);</span>
+      } else {
+<span class="fc" id="L260">        wsComponent = componentDtoToWsComponent(component, parentProject, null, true, null, null);</span>
+      }
+    }
+
+<span class="fc bfc" id="L264" title="All 2 branches covered.">    if (referenceComponent != null) {</span>
+<span class="fc" id="L265">      wsComponent.setRefId(referenceComponent.uuid());</span>
+<span class="fc" id="L266">      wsComponent.setRefKey(referenceComponent.getKey());</span>
+    }
+
+<span class="fc" id="L269">    return wsComponent;</span>
+  }
+
+  private ComponentTreeQuery toComponentTreeQuery(Request request, ComponentDto baseComponent) {
+<span class="fc" id="L273">    List&lt;String&gt; childrenQualifiers = childrenQualifiers(request, baseComponent.qualifier());</span>
+
+<span class="fc" id="L275">    ComponentTreeQuery.Builder query = ComponentTreeQuery.builder()</span>
+<span class="fc" id="L276">      .setBaseUuid(baseComponent.uuid())</span>
+<span class="fc" id="L277">      .setStrategy(STRATEGIES.get(request.getStrategy()));</span>
+<span class="fc bfc" id="L278" title="All 2 branches covered.">    if (request.getQuery() != null) {</span>
+<span class="fc" id="L279">      query.setNameOrKeyQuery(request.getQuery());</span>
+    }
+<span class="fc bfc" id="L281" title="All 2 branches covered.">    if (childrenQualifiers != null) {</span>
+<span class="fc" id="L282">      query.setQualifiers(childrenQualifiers);</span>
+    }
+
+<span class="fc" id="L285">    return query.build();</span>
+  }
+
+  @CheckForNull
+  private List&lt;String&gt; childrenQualifiers(Request request, String baseQualifier) {
+<span class="fc" id="L290">    List&lt;String&gt; requestQualifiers = request.getQualifiers();</span>
+<span class="fc" id="L291">    List&lt;String&gt; childrenQualifiers = null;</span>
+<span class="fc bfc" id="L292" title="All 2 branches covered.">    if (LEAVES_STRATEGY.equals(request.getStrategy())) {</span>
+<span class="fc" id="L293">      childrenQualifiers = componentTypes.getLeavesQualifiers(baseQualifier);</span>
+    }
+
+<span class="fc bfc" id="L296" title="All 2 branches covered.">    if (requestQualifiers == null) {</span>
+<span class="fc" id="L297">      return childrenQualifiers;</span>
+    }
+
+<span class="fc bfc" id="L300" title="All 2 branches covered.">    if (childrenQualifiers == null) {</span>
+<span class="fc" id="L301">      return requestQualifiers;</span>
+    }
+
+<span class="fc" id="L304">    Sets.SetView&lt;String&gt; qualifiersIntersection = Sets.intersection(new HashSet&lt;&gt;(childrenQualifiers), new HashSet&lt;&gt;(requestQualifiers));</span>
+
+<span class="fc" id="L306">    return new ArrayList&lt;&gt;(qualifiersIntersection);</span>
+  }
+
+  private static Request toTreeWsRequest(org.sonar.api.server.ws.Request request) {
+<span class="fc" id="L310">    return new Request()</span>
+<span class="fc" id="L311">      .setComponent(request.mandatoryParam(PARAM_COMPONENT))</span>
+<span class="fc" id="L312">      .setBranch(request.param(PARAM_BRANCH))</span>
+<span class="fc" id="L313">      .setPullRequest(request.param(PARAM_PULL_REQUEST))</span>
+<span class="fc" id="L314">      .setStrategy(request.mandatoryParam(PARAM_STRATEGY))</span>
+<span class="fc" id="L315">      .setQuery(request.param(Param.TEXT_QUERY))</span>
+<span class="fc" id="L316">      .setQualifiers(request.paramAsStrings(PARAM_QUALIFIERS))</span>
+<span class="fc" id="L317">      .setSort(request.mandatoryParamAsStrings(Param.SORT))</span>
+<span class="fc" id="L318">      .setAsc(request.mandatoryParamAsBoolean(Param.ASCENDING))</span>
+<span class="fc" id="L319">      .setPage(request.mandatoryParamAsInt(Param.PAGE))</span>
+<span class="fc" id="L320">      .setPageSize(request.mandatoryParamAsInt(Param.PAGE_SIZE));</span>
+  }
+
+  private static List&lt;ComponentDto&gt; paginateComponents(List&lt;ComponentDto&gt; components, Request wsRequest) {
+<span class="fc" id="L324">    return components.stream().skip(offset(wsRequest.getPage(), wsRequest.getPageSize()))</span>
+<span class="fc" id="L325">      .limit(wsRequest.getPageSize()).toList();</span>
+  }
+
+  private static List&lt;ComponentDto&gt; sortComponents(List&lt;ComponentDto&gt; components, Request wsRequest) {
+<span class="fc" id="L329">    List&lt;String&gt; sortParameters = wsRequest.getSort();</span>
+<span class="pc bpc" id="L330" title="2 of 4 branches missed.">    if (sortParameters == null || sortParameters.isEmpty()) {</span>
+<span class="nc" id="L331">      return components;</span>
+    }
+<span class="fc" id="L333">    boolean isAscending = wsRequest.getAsc();</span>
+<span class="fc" id="L334">    Map&lt;String, Ordering&lt;ComponentDto&gt;&gt; orderingsBySortField = ImmutableMap.&lt;String, Ordering&lt;ComponentDto&gt;&gt;builder()</span>
+<span class="fc" id="L335">      .put(NAME_SORT, stringOrdering(isAscending, ComponentDto::name))</span>
+<span class="fc" id="L336">      .put(QUALIFIER_SORT, stringOrdering(isAscending, ComponentDto::qualifier))</span>
+<span class="fc" id="L337">      .put(PATH_SORT, stringOrdering(isAscending, ComponentDto::path))</span>
+<span class="fc" id="L338">      .build();</span>
+
+<span class="fc" id="L340">    String firstSortParameter = sortParameters.get(0);</span>
+<span class="fc" id="L341">    Ordering&lt;ComponentDto&gt; primaryOrdering = orderingsBySortField.get(firstSortParameter);</span>
+<span class="fc bfc" id="L342" title="All 2 branches covered.">    if (sortParameters.size() &gt; 1) {</span>
+<span class="fc bfc" id="L343" title="All 2 branches covered.">      for (int i = 1; i &lt; sortParameters.size(); i++) {</span>
+<span class="fc" id="L344">        String secondarySortParameter = sortParameters.get(i);</span>
+<span class="fc" id="L345">        Ordering&lt;ComponentDto&gt; secondaryOrdering = orderingsBySortField.get(secondarySortParameter);</span>
+<span class="fc" id="L346">        primaryOrdering = primaryOrdering.compound(secondaryOrdering);</span>
+      }
+    }
+<span class="fc" id="L349">    return primaryOrdering.immutableSortedCopy(components);</span>
+  }
+
+  private static Ordering&lt;ComponentDto&gt; stringOrdering(boolean isAscending, Function&lt;ComponentDto, String&gt; function) {
+<span class="fc" id="L353">    Ordering&lt;String&gt; ordering = Ordering.from(CASE_INSENSITIVE_ORDER);</span>
+<span class="fc bfc" id="L354" title="All 2 branches covered.">    if (!isAscending) {</span>
+<span class="fc" id="L355">      ordering = ordering.reverse();</span>
+    }
+<span class="fc" id="L357">    return ordering.nullsLast().onResultOf(function);</span>
+  }
+
+  private static class Request {
+    private String component;
+    private String branch;
+    private String pullRequest;
+    private String strategy;
+    private List&lt;String&gt; qualifiers;
+    private String query;
+    private List&lt;String&gt; sort;
+    private Boolean asc;
+    private Integer page;
+    private Integer pageSize;
+
+    public Request setComponent(String component) {
+<span class="fc" id="L373">      this.component = component;</span>
+<span class="fc" id="L374">      return this;</span>
+    }
+
+    @CheckForNull
+    private String getComponent() {
+<span class="fc" id="L379">      return component;</span>
+    }
+
+    @CheckForNull
+    private String getBranch() {
+<span class="fc" id="L384">      return branch;</span>
+    }
+
+    private Request setBranch(@Nullable String branch) {
+<span class="fc" id="L388">      this.branch = branch;</span>
+<span class="fc" id="L389">      return this;</span>
+    }
+
+    @CheckForNull
+    public String getPullRequest() {
+<span class="fc" id="L394">      return pullRequest;</span>
+    }
+
+    public Request setPullRequest(@Nullable String pullRequest) {
+<span class="fc" id="L398">      this.pullRequest = pullRequest;</span>
+<span class="fc" id="L399">      return this;</span>
+    }
+
+    @CheckForNull
+    private String getStrategy() {
+<span class="fc" id="L404">      return strategy;</span>
+    }
+
+    private Request setStrategy(@Nullable String strategy) {
+<span class="fc" id="L408">      this.strategy = strategy;</span>
+<span class="fc" id="L409">      return this;</span>
+    }
+
+    @CheckForNull
+    private List&lt;String&gt; getQualifiers() {
+<span class="fc" id="L414">      return qualifiers;</span>
+    }
+
+    private Request setQualifiers(@Nullable List&lt;String&gt; qualifiers) {
+<span class="fc" id="L418">      this.qualifiers = qualifiers;</span>
+<span class="fc" id="L419">      return this;</span>
+    }
+
+    @CheckForNull
+    private String getQuery() {
+<span class="fc" id="L424">      return query;</span>
+    }
+
+    private Request setQuery(@Nullable String query) {
+<span class="fc" id="L428">      this.query = query;</span>
+<span class="fc" id="L429">      return this;</span>
+    }
+
+    @CheckForNull
+    private List&lt;String&gt; getSort() {
+<span class="fc" id="L434">      return sort;</span>
+    }
+
+    private Request setSort(@Nullable List&lt;String&gt; sort) {
+<span class="fc" id="L438">      this.sort = sort;</span>
+<span class="fc" id="L439">      return this;</span>
+    }
+
+    private Boolean getAsc() {
+<span class="fc" id="L443">      return asc;</span>
+    }
+
+    private Request setAsc(@Nullable Boolean asc) {
+<span class="fc" id="L447">      this.asc = asc;</span>
+<span class="fc" id="L448">      return this;</span>
+    }
+
+    @CheckForNull
+    private Integer getPage() {
+<span class="fc" id="L453">      return page;</span>
+    }
+
+    private Request setPage(@Nullable Integer page) {
+<span class="fc" id="L457">      this.page = page;</span>
+<span class="fc" id="L458">      return this;</span>
+    }
+
+    @CheckForNull
+    private Integer getPageSize() {
+<span class="fc" id="L463">      return pageSize;</span>
+    }
+
+    private Request setPageSize(@Nullable Integer pageSize) {
+<span class="fc" id="L467">      this.pageSize = pageSize;</span>
+<span class="fc" id="L468">      return this;</span>
+    }
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

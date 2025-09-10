@@ -1,0 +1,570 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>QualityprofilesService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonarqube.ws.client.qualityprofiles</a> &gt; <span class="el_source">QualityprofilesService.java</span></div><h1>QualityprofilesService.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonarqube.ws.client.qualityprofiles;
+
+import java.util.stream.Collectors;
+import jakarta.annotation.Generated;
+import org.sonarqube.ws.MediaTypes;
+import org.sonarqube.ws.Qualityprofiles;
+import org.sonarqube.ws.Qualityprofiles.CopyWsResponse;
+import org.sonarqube.ws.Qualityprofiles.CreateWsResponse;
+import org.sonarqube.ws.Qualityprofiles.SearchGroupsResponse;
+import org.sonarqube.ws.Qualityprofiles.SearchUsersResponse;
+import org.sonarqube.ws.Qualityprofiles.SearchWsResponse;
+import org.sonarqube.ws.Qualityprofiles.ShowResponse;
+import org.sonarqube.ws.client.BaseService;
+import org.sonarqube.ws.client.GetRequest;
+import org.sonarqube.ws.client.PostRequest;
+import org.sonarqube.ws.client.WsConnector;
+
+/**
+ * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/qualityprofiles&quot;&gt;Further information about this web service online&lt;/a&gt;
+ */
+@Generated(&quot;sonar-ws-generator&quot;)
+public class QualityprofilesService extends BaseService {
+
+  public QualityprofilesService(WsConnector wsConnector) {
+<span class="fc" id="L44">    super(wsConnector, &quot;api/qualityprofiles&quot;);</span>
+<span class="fc" id="L45">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/qualityprofiles/activate_rule&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 4.4
+   */
+  public void activateRule(ActivateRuleRequest request) {
+<span class="nc" id="L55">    call(</span>
+<span class="nc" id="L56">      new PostRequest(path(&quot;activate_rule&quot;))</span>
+<span class="nc" id="L57">        .setParam(&quot;key&quot;, request.getKey())</span>
+<span class="nc bnc" id="L58" title="All 2 branches missed.">        .setParam(&quot;params&quot;, request.getParams() == null ? null : request.getParams().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc" id="L59">        .setParam(&quot;reset&quot;, request.getReset())</span>
+<span class="nc" id="L60">        .setParam(&quot;rule&quot;, request.getRule())</span>
+<span class="nc" id="L61">        .setParam(&quot;severity&quot;, request.getSeverity())</span>
+<span class="nc" id="L62">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L63">    ).content();</span>
+<span class="nc" id="L64">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/qualityprofiles/activate_rules&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 4.4
+   */
+  public void activateRules(ActivateRulesRequest request) {
+<span class="nc" id="L74">    call(</span>
+<span class="nc" id="L75">      new PostRequest(path(&quot;activate_rules&quot;))</span>
+<span class="nc" id="L76">        .setParam(&quot;activation&quot;, request.getActivation())</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">        .setParam(&quot;active_severities&quot;, request.getActiveSeverities() == null ? null : request.getActiveSeverities().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc" id="L78">        .setParam(&quot;asc&quot;, request.getAsc())</span>
+<span class="nc" id="L79">        .setParam(&quot;available_since&quot;, request.getAvailableSince())</span>
+<span class="nc" id="L80">        .setParam(&quot;compareToProfile&quot;, request.getCompareToProfile())</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">        .setParam(&quot;cwe&quot;, request.getCwe() == null ? null : request.getCwe().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc bnc" id="L82" title="All 2 branches missed.">        .setParam(&quot;inheritance&quot;, request.getInheritance() == null ? null : request.getInheritance().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc" id="L83">        .setParam(&quot;is_template&quot;, request.getIsTemplate())</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">        .setParam(&quot;languages&quot;, request.getLanguages() == null ? null : request.getLanguages().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">        .setParam(&quot;owaspTop10&quot;, request.getOwaspTop10() == null ? null : request.getOwaspTop10().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc" id="L86">        .setParam(&quot;q&quot;, request.getQ())</span>
+<span class="nc" id="L87">        .setParam(&quot;qprofile&quot;, request.getQprofile())</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">        .setParam(&quot;repositories&quot;, request.getRepositories() == null ? null : request.getRepositories().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc" id="L89">        .setParam(&quot;rule_key&quot;, request.getRuleKey())</span>
+<span class="nc" id="L90">        .setParam(&quot;s&quot;, request.getS())</span>
+<span class="nc bnc" id="L91" title="All 2 branches missed.">        .setParam(&quot;sansTop25&quot;, request.getSansTop25() == null ? null : request.getSansTop25().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">        .setParam(&quot;severities&quot;, request.getSeverities() == null ? null : request.getSeverities().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">        .setParam(&quot;sonarsourceSecurity&quot;, request.getSonarsourceSecurity() == null ? null : request.getSonarsourceSecurity().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">        .setParam(&quot;statuses&quot;, request.getStatuses() == null ? null : request.getStatuses().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">        .setParam(&quot;tags&quot;, request.getTags() == null ? null : request.getTags().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc" id="L96">        .setParam(&quot;targetKey&quot;, request.getTargetKey())</span>
+<span class="nc" id="L97">        .setParam(&quot;targetSeverity&quot;, request.getTargetSeverity())</span>
+<span class="nc" id="L98">        .setParam(&quot;template_key&quot;, request.getTemplateKey())</span>
+<span class="nc bnc" id="L99" title="All 2 branches missed.">        .setParam(&quot;types&quot;, request.getTypes() == null ? null : request.getTypes().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc" id="L100">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L101">    ).content();</span>
+<span class="nc" id="L102">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/qualityprofiles/add_group&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 6.6
+   */
+  public void addGroup(AddGroupRequest request) {
+<span class="nc" id="L112">    call(</span>
+<span class="nc" id="L113">      new PostRequest(path(&quot;add_group&quot;))</span>
+<span class="nc" id="L114">        .setParam(&quot;group&quot;, request.getGroup())</span>
+<span class="nc" id="L115">        .setParam(&quot;language&quot;, request.getLanguage())</span>
+<span class="nc" id="L116">        .setParam(&quot;qualityProfile&quot;, request.getQualityProfile())</span>
+<span class="nc" id="L117">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L118">    ).content();</span>
+<span class="nc" id="L119">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/qualityprofiles/add_project&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 5.2
+   */
+  public void addProject(AddProjectRequest request) {
+<span class="nc" id="L129">    call(</span>
+<span class="nc" id="L130">      new PostRequest(path(&quot;add_project&quot;))</span>
+<span class="nc" id="L131">        .setParam(&quot;language&quot;, request.getLanguage())</span>
+<span class="nc" id="L132">        .setParam(&quot;project&quot;, request.getProject())</span>
+<span class="nc" id="L133">        .setParam(&quot;qualityProfile&quot;, request.getQualityProfile())</span>
+<span class="nc" id="L134">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L135">    ).content();</span>
+<span class="nc" id="L136">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/qualityprofiles/add_user&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 6.6
+   */
+  public void addUser(AddUserRequest request) {
+<span class="nc" id="L146">    call(</span>
+<span class="nc" id="L147">      new PostRequest(path(&quot;add_user&quot;))</span>
+<span class="nc" id="L148">        .setParam(&quot;language&quot;, request.getLanguage())</span>
+<span class="nc" id="L149">        .setParam(&quot;login&quot;, request.getLogin())</span>
+<span class="nc" id="L150">        .setParam(&quot;qualityProfile&quot;, request.getQualityProfile())</span>
+<span class="nc" id="L151">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L152">    ).content();</span>
+<span class="nc" id="L153">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/qualityprofiles/backup&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 5.2
+   */
+  public String backup(BackupRequest request) {
+<span class="nc" id="L163">    return call(</span>
+<span class="nc" id="L164">      new GetRequest(path(&quot;backup&quot;))</span>
+<span class="nc" id="L165">        .setParam(&quot;language&quot;, request.getLanguage())</span>
+<span class="nc" id="L166">        .setParam(&quot;qualityProfile&quot;, request.getQualityProfile())</span>
+<span class="nc" id="L167">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L168">    ).content();</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/qualityprofiles/change_parent&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 5.2
+   */
+  public void changeParent(ChangeParentRequest request) {
+<span class="nc" id="L179">    call(</span>
+<span class="nc" id="L180">      new PostRequest(path(&quot;change_parent&quot;))</span>
+<span class="nc" id="L181">        .setParam(&quot;language&quot;, request.getLanguage())</span>
+<span class="nc" id="L182">        .setParam(&quot;parentQualityProfile&quot;, request.getParentQualityProfile())</span>
+<span class="nc" id="L183">        .setParam(&quot;qualityProfile&quot;, request.getQualityProfile())</span>
+<span class="nc" id="L184">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L185">    ).content();</span>
+<span class="nc" id="L186">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/qualityprofiles/changelog&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 5.2
+   */
+  public String changelog(ChangelogRequest request) {
+<span class="nc" id="L196">    return call(</span>
+<span class="nc" id="L197">      new GetRequest(path(&quot;changelog&quot;))</span>
+<span class="nc" id="L198">        .setParam(&quot;language&quot;, request.getLanguage())</span>
+<span class="nc" id="L199">        .setParam(&quot;p&quot;, request.getP())</span>
+<span class="nc" id="L200">        .setParam(&quot;ps&quot;, request.getPs())</span>
+<span class="nc" id="L201">        .setParam(&quot;qualityProfile&quot;, request.getQualityProfile())</span>
+<span class="nc" id="L202">        .setParam(&quot;since&quot;, request.getSince())</span>
+<span class="nc" id="L203">        .setParam(&quot;to&quot;, request.getTo())</span>
+<span class="nc" id="L204">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L205">    ).content();</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/qualityprofiles/compare&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 5.2
+   */
+  public String compare(CompareRequest request) {
+<span class="nc" id="L216">    return call(</span>
+<span class="nc" id="L217">      new GetRequest(path(&quot;compare&quot;))</span>
+<span class="nc" id="L218">        .setParam(&quot;leftKey&quot;, request.getLeftKey())</span>
+<span class="nc" id="L219">        .setParam(&quot;rightKey&quot;, request.getRightKey())</span>
+<span class="nc" id="L220">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L221">    ).content();</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/qualityprofiles/copy&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 5.2
+   */
+  public CopyWsResponse copy(CopyRequest request) {
+<span class="nc" id="L232">    return call(</span>
+<span class="nc" id="L233">      new PostRequest(path(&quot;copy&quot;))</span>
+<span class="nc" id="L234">        .setParam(&quot;fromKey&quot;, request.getFromKey())</span>
+<span class="nc" id="L235">        .setParam(&quot;toName&quot;, request.getToName()),</span>
+<span class="nc" id="L236">      CopyWsResponse.parser());</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/qualityprofiles/create&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 5.2
+   */
+  public CreateWsResponse create(CreateRequest request) {
+<span class="nc" id="L247">    return call(</span>
+<span class="nc" id="L248">      new PostRequest(path(&quot;create&quot;))</span>
+<span class="nc" id="L249">        .setParam(&quot;language&quot;, request.getLanguage())</span>
+<span class="nc" id="L250">        .setParam(&quot;name&quot;, request.getName()),</span>
+<span class="nc" id="L251">      CreateWsResponse.parser());</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/qualityprofiles/deactivate_rule&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 4.4
+   */
+  public void deactivateRule(DeactivateRuleRequest request) {
+<span class="nc" id="L262">    call(</span>
+<span class="nc" id="L263">      new PostRequest(path(&quot;deactivate_rule&quot;))</span>
+<span class="nc" id="L264">        .setParam(&quot;key&quot;, request.getKey())</span>
+<span class="nc" id="L265">        .setParam(&quot;rule&quot;, request.getRule())</span>
+<span class="nc" id="L266">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L267">    ).content();</span>
+<span class="nc" id="L268">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/qualityprofiles/deactivate_rules&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 4.4
+   */
+  public void deactivateRules(DeactivateRulesRequest request) {
+<span class="nc" id="L278">    call(</span>
+<span class="nc" id="L279">      new PostRequest(path(&quot;deactivate_rules&quot;))</span>
+<span class="nc" id="L280">        .setParam(&quot;activation&quot;, request.getActivation())</span>
+<span class="nc bnc" id="L281" title="All 2 branches missed.">        .setParam(&quot;active_severities&quot;, request.getActiveSeverities() == null ? null : request.getActiveSeverities().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc" id="L282">        .setParam(&quot;asc&quot;, request.getAsc())</span>
+<span class="nc" id="L283">        .setParam(&quot;available_since&quot;, request.getAvailableSince())</span>
+<span class="nc" id="L284">        .setParam(&quot;compareToProfile&quot;, request.getCompareToProfile())</span>
+<span class="nc bnc" id="L285" title="All 2 branches missed.">        .setParam(&quot;cwe&quot;, request.getCwe() == null ? null : request.getCwe().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc bnc" id="L286" title="All 2 branches missed.">        .setParam(&quot;inheritance&quot;, request.getInheritance() == null ? null : request.getInheritance().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc" id="L287">        .setParam(&quot;is_template&quot;, request.getIsTemplate())</span>
+<span class="nc bnc" id="L288" title="All 2 branches missed.">        .setParam(&quot;languages&quot;, request.getLanguages() == null ? null : request.getLanguages().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc bnc" id="L289" title="All 2 branches missed.">        .setParam(&quot;owaspTop10&quot;, request.getOwaspTop10() == null ? null : request.getOwaspTop10().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc" id="L290">        .setParam(&quot;q&quot;, request.getQ())</span>
+<span class="nc" id="L291">        .setParam(&quot;qprofile&quot;, request.getQprofile())</span>
+<span class="nc bnc" id="L292" title="All 2 branches missed.">        .setParam(&quot;repositories&quot;, request.getRepositories() == null ? null : request.getRepositories().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc" id="L293">        .setParam(&quot;rule_key&quot;, request.getRuleKey())</span>
+<span class="nc" id="L294">        .setParam(&quot;s&quot;, request.getS())</span>
+<span class="nc bnc" id="L295" title="All 2 branches missed.">        .setParam(&quot;sansTop25&quot;, request.getSansTop25() == null ? null : request.getSansTop25().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc bnc" id="L296" title="All 2 branches missed.">        .setParam(&quot;severities&quot;, request.getSeverities() == null ? null : request.getSeverities().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc bnc" id="L297" title="All 2 branches missed.">        .setParam(&quot;sonarsourceSecurity&quot;, request.getSonarsourceSecurity() == null ? null : request.getSonarsourceSecurity().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc bnc" id="L298" title="All 2 branches missed.">        .setParam(&quot;statuses&quot;, request.getStatuses() == null ? null : request.getStatuses().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc bnc" id="L299" title="All 2 branches missed.">        .setParam(&quot;tags&quot;, request.getTags() == null ? null : request.getTags().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc" id="L300">        .setParam(&quot;targetKey&quot;, request.getTargetKey())</span>
+<span class="nc" id="L301">        .setParam(&quot;template_key&quot;, request.getTemplateKey())</span>
+<span class="nc bnc" id="L302" title="All 2 branches missed.">        .setParam(&quot;types&quot;, request.getTypes() == null ? null : request.getTypes().stream().collect(Collectors.joining(&quot;,&quot;)))</span>
+<span class="nc" id="L303">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L304">    ).content();</span>
+<span class="nc" id="L305">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/qualityprofiles/delete&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 5.2
+   */
+  public void delete(DeleteRequest request) {
+<span class="nc" id="L315">    call(</span>
+<span class="nc" id="L316">      new PostRequest(path(&quot;delete&quot;))</span>
+<span class="nc" id="L317">        .setParam(&quot;language&quot;, request.getLanguage())</span>
+<span class="nc" id="L318">        .setParam(&quot;qualityProfile&quot;, request.getQualityProfile())</span>
+<span class="nc" id="L319">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L320">    ).content();</span>
+<span class="nc" id="L321">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/qualityprofiles/export&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 5.2
+   */
+  public String export(ExportRequest request) {
+<span class="nc" id="L331">    return call(</span>
+<span class="nc" id="L332">      new GetRequest(path(&quot;export&quot;))</span>
+<span class="nc" id="L333">        .setParam(&quot;language&quot;, request.getLanguage())</span>
+<span class="nc" id="L334">        .setParam(&quot;qualityProfile&quot;, request.getQualityProfile())</span>
+<span class="nc" id="L335">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L336">    ).content();</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/qualityprofiles/exporters&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 5.2
+   */
+  public String exporters() {
+<span class="nc" id="L347">    return call(</span>
+<span class="nc" id="L348">      new GetRequest(path(&quot;exporters&quot;))</span>
+<span class="nc" id="L349">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L350">    ).content();</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/qualityprofiles/importers&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 5.2
+   */
+  public String importers() {
+<span class="nc" id="L361">    return call(</span>
+<span class="nc" id="L362">      new GetRequest(path(&quot;importers&quot;))</span>
+<span class="nc" id="L363">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L364">    ).content();</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/qualityprofiles/inheritance&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 5.2
+   */
+  public Qualityprofiles.InheritanceWsResponse inheritance(InheritanceRequest request) {
+<span class="nc" id="L375">    return call(</span>
+<span class="nc" id="L376">      new GetRequest(path(&quot;inheritance&quot;))</span>
+<span class="nc" id="L377">        .setParam(&quot;language&quot;, request.getLanguage())</span>
+<span class="nc" id="L378">        .setParam(&quot;qualityProfile&quot;, request.getQualityProfile()),</span>
+<span class="nc" id="L379">      Qualityprofiles.InheritanceWsResponse.parser());</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/qualityprofiles/projects&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 5.2
+   */
+  public String projects(ProjectsRequest request) {
+<span class="nc" id="L390">    return call(</span>
+<span class="nc" id="L391">      new GetRequest(path(&quot;projects&quot;))</span>
+<span class="nc" id="L392">        .setParam(&quot;key&quot;, request.getKey())</span>
+<span class="nc" id="L393">        .setParam(&quot;p&quot;, request.getP())</span>
+<span class="nc" id="L394">        .setParam(&quot;ps&quot;, request.getPs())</span>
+<span class="nc" id="L395">        .setParam(&quot;q&quot;, request.getQ())</span>
+<span class="nc" id="L396">        .setParam(&quot;selected&quot;, request.getSelected())</span>
+<span class="nc" id="L397">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L398">    ).content();</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/qualityprofiles/remove_group&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 6.6
+   */
+  public void removeGroup(RemoveGroupRequest request) {
+<span class="nc" id="L409">    call(</span>
+<span class="nc" id="L410">      new PostRequest(path(&quot;remove_group&quot;))</span>
+<span class="nc" id="L411">        .setParam(&quot;group&quot;, request.getGroup())</span>
+<span class="nc" id="L412">        .setParam(&quot;language&quot;, request.getLanguage())</span>
+<span class="nc" id="L413">        .setParam(&quot;qualityProfile&quot;, request.getQualityProfile())</span>
+<span class="nc" id="L414">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L415">    ).content();</span>
+<span class="nc" id="L416">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/qualityprofiles/remove_project&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 5.2
+   */
+  public void removeProject(RemoveProjectRequest request) {
+<span class="nc" id="L426">    call(</span>
+<span class="nc" id="L427">      new PostRequest(path(&quot;remove_project&quot;))</span>
+<span class="nc" id="L428">        .setParam(&quot;language&quot;, request.getLanguage())</span>
+<span class="nc" id="L429">        .setParam(&quot;project&quot;, request.getProject())</span>
+<span class="nc" id="L430">        .setParam(&quot;qualityProfile&quot;, request.getQualityProfile())</span>
+<span class="nc" id="L431">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L432">    ).content();</span>
+<span class="nc" id="L433">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/qualityprofiles/remove_user&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 6.6
+   */
+  public void removeUser(RemoveUserRequest request) {
+<span class="nc" id="L443">    call(</span>
+<span class="nc" id="L444">      new PostRequest(path(&quot;remove_user&quot;))</span>
+<span class="nc" id="L445">        .setParam(&quot;language&quot;, request.getLanguage())</span>
+<span class="nc" id="L446">        .setParam(&quot;login&quot;, request.getLogin())</span>
+<span class="nc" id="L447">        .setParam(&quot;qualityProfile&quot;, request.getQualityProfile())</span>
+<span class="nc" id="L448">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L449">    ).content();</span>
+<span class="nc" id="L450">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/qualityprofiles/rename&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 5.2
+   */
+  public void rename(RenameRequest request) {
+<span class="nc" id="L460">    call(</span>
+<span class="nc" id="L461">      new PostRequest(path(&quot;rename&quot;))</span>
+<span class="nc" id="L462">        .setParam(&quot;key&quot;, request.getKey())</span>
+<span class="nc" id="L463">        .setParam(&quot;name&quot;, request.getName())</span>
+<span class="nc" id="L464">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L465">    ).content();</span>
+<span class="nc" id="L466">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/qualityprofiles/restore&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 5.2
+   */
+  public void restore(RestoreRequest request) {
+<span class="nc" id="L476">    call(</span>
+<span class="nc" id="L477">      new PostRequest(path(&quot;restore&quot;))</span>
+<span class="nc" id="L478">        .setParam(&quot;backup&quot;, request.getBackup())</span>
+<span class="nc" id="L479">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L480">    ).content();</span>
+<span class="nc" id="L481">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/qualityprofiles/search&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 5.2
+   */
+  public SearchWsResponse search(SearchRequest request) {
+<span class="nc" id="L491">    return call(</span>
+<span class="nc" id="L492">      new GetRequest(path(&quot;search&quot;))</span>
+<span class="nc" id="L493">        .setParam(&quot;defaults&quot;, request.getDefaults())</span>
+<span class="nc" id="L494">        .setParam(&quot;language&quot;, request.getLanguage())</span>
+<span class="nc" id="L495">        .setParam(&quot;project&quot;, request.getProject())</span>
+<span class="nc" id="L496">        .setParam(&quot;qualityProfile&quot;, request.getQualityProfile()),</span>
+<span class="nc" id="L497">      SearchWsResponse.parser());</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/qualityprofiles/search_groups&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 6.6
+   */
+  public SearchGroupsResponse searchGroups(SearchGroupsRequest request) {
+<span class="nc" id="L508">    return call(</span>
+<span class="nc" id="L509">      new GetRequest(path(&quot;search_groups&quot;))</span>
+<span class="nc" id="L510">        .setParam(&quot;language&quot;, request.getLanguage())</span>
+<span class="nc" id="L511">        .setParam(&quot;p&quot;, request.getP())</span>
+<span class="nc" id="L512">        .setParam(&quot;ps&quot;, request.getPs())</span>
+<span class="nc" id="L513">        .setParam(&quot;q&quot;, request.getQ())</span>
+<span class="nc" id="L514">        .setParam(&quot;qualityProfile&quot;, request.getQualityProfile())</span>
+<span class="nc" id="L515">        .setParam(&quot;selected&quot;, request.getSelected()),</span>
+<span class="nc" id="L516">      SearchGroupsResponse.parser());</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/qualityprofiles/search_users&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 6.6
+   */
+  public SearchUsersResponse searchUsers(SearchUsersRequest request) {
+<span class="nc" id="L527">    return call(</span>
+<span class="nc" id="L528">      new GetRequest(path(&quot;search_users&quot;))</span>
+<span class="nc" id="L529">        .setParam(&quot;language&quot;, request.getLanguage())</span>
+<span class="nc" id="L530">        .setParam(&quot;p&quot;, request.getP())</span>
+<span class="nc" id="L531">        .setParam(&quot;ps&quot;, request.getPs())</span>
+<span class="nc" id="L532">        .setParam(&quot;q&quot;, request.getQ())</span>
+<span class="nc" id="L533">        .setParam(&quot;qualityProfile&quot;, request.getQualityProfile())</span>
+<span class="nc" id="L534">        .setParam(&quot;selected&quot;, request.getSelected()),</span>
+<span class="nc" id="L535">      SearchUsersResponse.parser());</span>
+  }
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a POST request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/qualityprofiles/set_default&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 5.2
+   */
+  public void setDefault(SetDefaultRequest request) {
+<span class="nc" id="L546">    call(</span>
+<span class="nc" id="L547">      new PostRequest(path(&quot;set_default&quot;))</span>
+<span class="nc" id="L548">        .setParam(&quot;language&quot;, request.getLanguage())</span>
+<span class="nc" id="L549">        .setParam(&quot;qualityProfile&quot;, request.getQualityProfile())</span>
+<span class="nc" id="L550">        .setMediaType(MediaTypes.JSON)</span>
+<span class="nc" id="L551">    ).content();</span>
+<span class="nc" id="L552">  }</span>
+
+  /**
+   *
+   * This is part of the internal API.
+   * This is a GET request.
+   * @see &lt;a href=&quot;https://next.sonarqube.com/sonarqube/web_api/api/qualityprofiles/show&quot;&gt;Further information about this action online (including a response example)&lt;/a&gt;
+   * @since 6.5
+   * @return
+   */
+  public ShowResponse show(ShowRequest request) {
+<span class="nc" id="L563">    return call(</span>
+<span class="nc" id="L564">      new GetRequest(path(&quot;show&quot;))</span>
+<span class="nc" id="L565">        .setParam(&quot;compareToSonarWay&quot;, request.getCompareToSonarWay())</span>
+<span class="nc" id="L566">        .setParam(&quot;key&quot;, request.getKey()),</span>
+<span class="nc" id="L567">      ShowResponse.parser());</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

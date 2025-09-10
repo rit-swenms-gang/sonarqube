@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SearchNodesInfoLoaderImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform.monitoring.cluster</a> &gt; <span class="el_source">SearchNodesInfoLoaderImpl.java</span></div><h1>SearchNodesInfoLoaderImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform.monitoring.cluster;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import org.sonar.api.server.ServerSide;
+import org.sonar.process.systeminfo.protobuf.ProtobufSystemInfo;
+import org.sonar.server.es.EsClient;
+import org.sonar.server.es.response.NodeStats;
+import org.sonar.server.es.response.NodeStatsResponse;
+import org.sonar.server.platform.monitoring.EsStateSection;
+
+@ServerSide
+public class SearchNodesInfoLoaderImpl implements SearchNodesInfoLoader {
+
+  private final EsClient esClient;
+
+<span class="fc" id="L37">  public SearchNodesInfoLoaderImpl(EsClient esClient) {</span>
+<span class="fc" id="L38">    this.esClient = esClient;</span>
+<span class="fc" id="L39">  }</span>
+
+  public Collection&lt;NodeInfo&gt; load() {
+<span class="fc" id="L42">    NodeStatsResponse response = esClient.nodesStats();</span>
+
+<span class="fc" id="L44">    List&lt;NodeInfo&gt; result = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L45">    response.getNodeStats().forEach(nodeStat -&gt; result.add(toNodeInfo(nodeStat)));</span>
+<span class="fc" id="L46">    return result;</span>
+  }
+
+  private static NodeInfo toNodeInfo(NodeStats stat) {
+<span class="fc" id="L50">    String nodeName = stat.getName();</span>
+<span class="fc" id="L51">    NodeInfo info = new NodeInfo(nodeName);</span>
+<span class="fc" id="L52">    info.setHost(stat.getHost());</span>
+
+<span class="fc" id="L54">    ProtobufSystemInfo.Section.Builder section = ProtobufSystemInfo.Section.newBuilder();</span>
+<span class="fc" id="L55">    section.setName(&quot;Search State&quot;);</span>
+<span class="fc" id="L56">    EsStateSection.toProtobuf(stat, section);</span>
+<span class="fc" id="L57">    info.addSection(section.build());</span>
+<span class="fc" id="L58">    return info;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

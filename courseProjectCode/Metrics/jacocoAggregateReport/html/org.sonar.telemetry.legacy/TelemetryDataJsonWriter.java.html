@@ -1,0 +1,298 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TelemetryDataJsonWriter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.telemetry.legacy</a> &gt; <span class="el_source">TelemetryDataJsonWriter.java</span></div><h1>TelemetryDataJsonWriter.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.telemetry.legacy;
+
+import com.google.common.annotations.VisibleForTesting;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Locale;
+import org.jetbrains.annotations.NotNull;
+import org.sonar.api.utils.System2;
+import org.sonar.api.utils.text.JsonWriter;
+import org.sonar.core.telemetry.TelemetryExtension;
+import org.sonar.server.util.DigestUtil;
+
+import static org.sonar.api.utils.DateUtils.DATETIME_FORMAT;
+
+public class TelemetryDataJsonWriter {
+
+  @VisibleForTesting
+  static final String MANAGED_INSTANCE_PROPERTY = &quot;managedInstanceInformation&quot;;
+  @VisibleForTesting
+  static final String CLOUD_USAGE_PROPERTY = &quot;cloudUsage&quot;;
+
+  private static final String LANGUAGE_PROPERTY = &quot;language&quot;;
+  private static final String VERSION = &quot;version&quot;;
+  private static final String NCD_ID = &quot;ncdId&quot;;
+  private static final String PROJECT_ID = &quot;projectUuid&quot;;
+
+  private final List&lt;TelemetryExtension&gt; extensions;
+
+  private final System2 system2;
+
+<span class="fc" id="L52">  public TelemetryDataJsonWriter(List&lt;TelemetryExtension&gt; extensions, System2 system2) {</span>
+<span class="fc" id="L53">    this.extensions = extensions;</span>
+<span class="fc" id="L54">    this.system2 = system2;</span>
+<span class="fc" id="L55">  }</span>
+
+  public void writeTelemetryData(JsonWriter json, TelemetryData telemetryData) {
+<span class="fc" id="L58">    json.beginObject();</span>
+<span class="fc" id="L59">    json.prop(&quot;id&quot;, telemetryData.getServerId());</span>
+<span class="fc" id="L60">    json.prop(VERSION, telemetryData.getVersion());</span>
+<span class="fc" id="L61">    json.prop(&quot;messageSequenceNumber&quot;, telemetryData.getMessageSequenceNumber());</span>
+<span class="fc" id="L62">    json.prop(&quot;localTimestamp&quot;, toUtc(system2.now()));</span>
+<span class="fc" id="L63">    json.prop(NCD_ID, telemetryData.getNcdId());</span>
+<span class="fc" id="L64">    telemetryData.getEdition().ifPresent(e -&gt; json.prop(&quot;edition&quot;, e.name().toLowerCase(Locale.ENGLISH)));</span>
+<span class="fc" id="L65">    json.prop(&quot;defaultQualityGate&quot;, telemetryData.getDefaultQualityGate());</span>
+<span class="fc" id="L66">    json.prop(&quot;sonarway_quality_gate_uuid&quot;, telemetryData.getSonarWayQualityGate());</span>
+<span class="fc" id="L67">    json.name(&quot;database&quot;);</span>
+<span class="fc" id="L68">    json.beginObject();</span>
+<span class="fc" id="L69">    json.prop(&quot;name&quot;, telemetryData.getDatabase().name());</span>
+<span class="fc" id="L70">    json.prop(VERSION, telemetryData.getDatabase().version());</span>
+<span class="fc" id="L71">    json.endObject();</span>
+<span class="fc" id="L72">    json.name(&quot;plugins&quot;);</span>
+<span class="fc" id="L73">    json.beginArray();</span>
+<span class="fc" id="L74">    telemetryData.getPlugins().forEach((plugin, version) -&gt; {</span>
+<span class="fc" id="L75">      json.beginObject();</span>
+<span class="fc" id="L76">      json.prop(&quot;name&quot;, plugin);</span>
+<span class="fc" id="L77">      json.prop(VERSION, version);</span>
+<span class="fc" id="L78">      json.endObject();</span>
+<span class="fc" id="L79">    });</span>
+<span class="fc" id="L80">    json.endArray();</span>
+
+<span class="fc bfc" id="L82" title="All 2 branches covered.">    if (!telemetryData.getCustomSecurityConfigs().isEmpty()) {</span>
+<span class="fc" id="L83">      json.name(&quot;customSecurityConfig&quot;);</span>
+<span class="fc" id="L84">      json.beginArray();</span>
+<span class="fc" id="L85">      json.values(telemetryData.getCustomSecurityConfigs());</span>
+<span class="fc" id="L86">      json.endArray();</span>
+    }
+
+<span class="fc" id="L89">    telemetryData.hasUnanalyzedC().ifPresent(hasUnanalyzedC -&gt; json.prop(&quot;hasUnanalyzedC&quot;, hasUnanalyzedC));</span>
+<span class="fc" id="L90">    telemetryData.hasUnanalyzedCpp().ifPresent(hasUnanalyzedCpp -&gt; json.prop(&quot;hasUnanalyzedCpp&quot;, hasUnanalyzedCpp));</span>
+
+<span class="fc bfc" id="L92" title="All 2 branches covered.">    if (telemetryData.getInstallationDate() != null) {</span>
+<span class="fc" id="L93">      json.prop(&quot;installationDate&quot;, toUtc(telemetryData.getInstallationDate()));</span>
+    }
+<span class="fc bfc" id="L95" title="All 2 branches covered.">    if (telemetryData.getInstallationVersion() != null) {</span>
+<span class="fc" id="L96">      json.prop(&quot;installationVersion&quot;, telemetryData.getInstallationVersion());</span>
+    }
+<span class="fc" id="L98">    json.prop(&quot;container&quot;, telemetryData.isInContainer());</span>
+
+<span class="fc" id="L100">    writeUserData(json, telemetryData);</span>
+<span class="fc" id="L101">    writeProjectData(json, telemetryData);</span>
+<span class="fc" id="L102">    writeProjectStatsData(json, telemetryData);</span>
+<span class="fc" id="L103">    writeBranches(json, telemetryData);</span>
+<span class="fc" id="L104">    writeNewCodeDefinitions(json, telemetryData);</span>
+<span class="fc" id="L105">    writeQualityGates(json, telemetryData);</span>
+<span class="fc" id="L106">    writeQualityProfiles(json, telemetryData);</span>
+<span class="fc" id="L107">    writeManagedInstanceInformation(json, telemetryData.getManagedInstanceInformation());</span>
+<span class="fc" id="L108">    writeCloudUsage(json, telemetryData.getCloudUsage());</span>
+<span class="fc" id="L109">    extensions.forEach(e -&gt; e.write(json));</span>
+
+<span class="fc" id="L111">    json.endObject();</span>
+<span class="fc" id="L112">  }</span>
+
+  private static void writeUserData(JsonWriter json, TelemetryData telemetryData) {
+<span class="fc bfc" id="L115" title="All 2 branches covered.">    if (telemetryData.getUserTelemetries() != null) {</span>
+<span class="fc" id="L116">      json.name(&quot;users&quot;);</span>
+<span class="fc" id="L117">      json.beginArray();</span>
+<span class="fc" id="L118">      telemetryData.getUserTelemetries().forEach(user -&gt; {</span>
+<span class="fc" id="L119">        json.beginObject();</span>
+<span class="fc" id="L120">        json.prop(&quot;userUuid&quot;, DigestUtil.sha3_224Hex(user.getUuid()));</span>
+<span class="fc bfc" id="L121" title="All 2 branches covered.">        json.prop(&quot;status&quot;, user.isActive() ? &quot;active&quot; : &quot;inactive&quot;);</span>
+<span class="fc" id="L122">        json.prop(&quot;identityProvider&quot;, user.getExternalIdentityProvider());</span>
+
+<span class="pc bpc" id="L124" title="1 of 2 branches missed.">        if (user.getLastConnectionDate() != null) {</span>
+<span class="fc" id="L125">          json.prop(&quot;lastActivity&quot;, toUtc(user.getLastConnectionDate()));</span>
+        }
+<span class="pc bpc" id="L127" title="1 of 2 branches missed.">        if (user.getLastSonarlintConnectionDate() != null) {</span>
+<span class="fc" id="L128">          json.prop(&quot;lastSonarlintActivity&quot;, toUtc(user.getLastSonarlintConnectionDate()));</span>
+        }
+<span class="fc bfc" id="L130" title="All 2 branches covered.">        json.prop(&quot;managed&quot;, user.getScimUuid() != null);</span>
+
+<span class="fc" id="L132">        json.endObject();</span>
+<span class="fc" id="L133">      });</span>
+<span class="fc" id="L134">      json.endArray();</span>
+    }
+<span class="fc" id="L136">  }</span>
+
+  private static void writeProjectData(JsonWriter json, TelemetryData telemetryData) {
+<span class="fc bfc" id="L139" title="All 2 branches covered.">    if (telemetryData.getProjects() != null) {</span>
+<span class="fc" id="L140">      json.name(&quot;projects&quot;);</span>
+<span class="fc" id="L141">      json.beginArray();</span>
+<span class="fc" id="L142">      telemetryData.getProjects().forEach(project -&gt; {</span>
+<span class="fc" id="L143">        json.beginObject();</span>
+<span class="fc" id="L144">        json.prop(PROJECT_ID, project.projectUuid());</span>
+<span class="pc bpc" id="L145" title="1 of 2 branches missed.">        if (project.lastAnalysis() != null) {</span>
+<span class="fc" id="L146">          json.prop(&quot;lastAnalysis&quot;, toUtc(project.lastAnalysis()));</span>
+        }
+<span class="fc" id="L148">        json.prop(LANGUAGE_PROPERTY, project.language());</span>
+<span class="fc" id="L149">        json.prop(&quot;loc&quot;, project.loc());</span>
+<span class="fc" id="L150">        json.prop(&quot;qualityProfile&quot;, project.qualityProfile());</span>
+<span class="fc" id="L151">        json.endObject();</span>
+<span class="fc" id="L152">      });</span>
+<span class="fc" id="L153">      json.endArray();</span>
+    }
+<span class="fc" id="L155">  }</span>
+
+  private static void writeBranches(JsonWriter json, TelemetryData telemetryData) {
+<span class="fc bfc" id="L158" title="All 2 branches covered.">    if (telemetryData.getBranches() != null) {</span>
+<span class="fc" id="L159">      json.name(&quot;branches&quot;);</span>
+<span class="fc" id="L160">      json.beginArray();</span>
+<span class="fc" id="L161">      telemetryData.getBranches().forEach(branch -&gt; {</span>
+<span class="fc" id="L162">        json.beginObject();</span>
+<span class="fc" id="L163">        json.prop(PROJECT_ID, branch.projectUuid());</span>
+<span class="fc" id="L164">        json.prop(&quot;branchUuid&quot;, branch.branchUuid());</span>
+<span class="fc" id="L165">        json.prop(NCD_ID, branch.ncdId());</span>
+<span class="fc" id="L166">        json.prop(&quot;greenQualityGateCount&quot;, branch.greenQualityGateCount());</span>
+<span class="fc" id="L167">        json.prop(&quot;analysisCount&quot;, branch.analysisCount());</span>
+<span class="fc" id="L168">        json.prop(&quot;excludeFromPurge&quot;, branch.excludeFromPurge());</span>
+<span class="fc" id="L169">        json.endObject();</span>
+<span class="fc" id="L170">      });</span>
+<span class="fc" id="L171">      json.endArray();</span>
+    }
+<span class="fc" id="L173">  }</span>
+
+  private static void writeNewCodeDefinitions(JsonWriter json, TelemetryData telemetryData) {
+<span class="fc bfc" id="L176" title="All 2 branches covered.">    if (telemetryData.getNewCodeDefinitions() != null) {</span>
+<span class="fc" id="L177">      json.name(&quot;new-code-definitions&quot;);</span>
+<span class="fc" id="L178">      json.beginArray();</span>
+<span class="fc" id="L179">      telemetryData.getNewCodeDefinitions().forEach(ncd -&gt; {</span>
+<span class="fc" id="L180">        json.beginObject();</span>
+<span class="fc" id="L181">        json.prop(NCD_ID, ncd.hashCode());</span>
+<span class="fc" id="L182">        json.prop(&quot;type&quot;, ncd.type());</span>
+<span class="fc" id="L183">        json.prop(&quot;value&quot;, ncd.value());</span>
+<span class="fc" id="L184">        json.prop(&quot;scope&quot;, ncd.scope());</span>
+<span class="fc" id="L185">        json.endObject();</span>
+<span class="fc" id="L186">      });</span>
+<span class="fc" id="L187">      json.endArray();</span>
+    }
+<span class="fc" id="L189">  }</span>
+
+  private static void writeProjectStatsData(JsonWriter json, TelemetryData telemetryData) {
+<span class="fc bfc" id="L192" title="All 2 branches covered.">    if (telemetryData.getProjectStatistics() != null) {</span>
+<span class="fc" id="L193">      json.name(&quot;projects-general-stats&quot;);</span>
+<span class="fc" id="L194">      json.beginArray();</span>
+<span class="fc" id="L195">      telemetryData.getProjectStatistics().forEach(project -&gt; {</span>
+<span class="fc" id="L196">        json.beginObject();</span>
+<span class="fc" id="L197">        json.prop(PROJECT_ID, project.getProjectUuid());</span>
+<span class="fc" id="L198">        json.prop(&quot;branchCount&quot;, project.getBranchCount());</span>
+<span class="fc" id="L199">        json.prop(&quot;pullRequestCount&quot;, project.getPullRequestCount());</span>
+<span class="fc" id="L200">        json.prop(&quot;qualityGate&quot;, project.getQualityGate());</span>
+<span class="fc" id="L201">        json.prop(&quot;scm&quot;, project.getScm());</span>
+<span class="fc" id="L202">        json.prop(&quot;ci&quot;, project.getCi());</span>
+<span class="fc" id="L203">        json.prop(&quot;devopsPlatform&quot;, project.getDevopsPlatform());</span>
+<span class="fc" id="L204">        json.prop(NCD_ID, project.getNcdId());</span>
+<span class="fc" id="L205">        json.prop(&quot;project_creation_method&quot;, project.getCreationMethod().name());</span>
+<span class="fc" id="L206">        json.prop(&quot;monorepo&quot;, project.isMonorepo());</span>
+<span class="fc" id="L207">        json.prop(&quot;is_ai_code_assured&quot;, project.isAiCodeAssured());</span>
+<span class="fc" id="L208">        project.getBugs().ifPresent(bugs -&gt; json.prop(&quot;bugs&quot;, bugs));</span>
+<span class="fc" id="L209">        project.getVulnerabilities().ifPresent(vulnerabilities -&gt; json.prop(&quot;vulnerabilities&quot;, vulnerabilities));</span>
+<span class="fc" id="L210">        project.getSecurityHotspots().ifPresent(securityHotspots -&gt; json.prop(&quot;securityHotspots&quot;, securityHotspots));</span>
+<span class="fc" id="L211">        project.getTechnicalDebt().ifPresent(technicalDebt -&gt; json.prop(&quot;technicalDebt&quot;, technicalDebt));</span>
+<span class="fc" id="L212">        project.getDevelopmentCost().ifPresent(developmentCost -&gt; json.prop(&quot;developmentCost&quot;, developmentCost));</span>
+<span class="fc" id="L213">        project.getExternalSecurityReportExportedAt().ifPresent(exportedAt -&gt; json.prop(&quot;externalSecurityReportExportedAt&quot;, exportedAt));</span>
+<span class="fc" id="L214">        json.endObject();</span>
+<span class="fc" id="L215">      });</span>
+<span class="fc" id="L216">      json.endArray();</span>
+    }
+<span class="fc" id="L218">  }</span>
+
+  private static void writeQualityGates(JsonWriter json, TelemetryData telemetryData) {
+<span class="fc bfc" id="L221" title="All 2 branches covered.">    if (telemetryData.getQualityGates() != null) {</span>
+<span class="fc" id="L222">      json.name(&quot;quality-gates&quot;);</span>
+<span class="fc" id="L223">      json.beginArray();</span>
+<span class="fc" id="L224">      telemetryData.getQualityGates().forEach(qualityGate -&gt; {</span>
+<span class="fc" id="L225">        json.beginObject();</span>
+<span class="fc" id="L226">        json.prop(&quot;uuid&quot;, qualityGate.uuid());</span>
+<span class="fc" id="L227">        json.prop(&quot;caycStatus&quot;, qualityGate.caycStatus());</span>
+<span class="fc" id="L228">        json.prop(&quot;aicaQualified&quot;, qualityGate.aicaQualified());</span>
+<span class="fc" id="L229">        json.name(&quot;conditions&quot;);</span>
+<span class="fc" id="L230">        json.beginArray();</span>
+<span class="fc" id="L231">        qualityGate.conditions().forEach(condition -&gt; {</span>
+<span class="fc" id="L232">          json.beginObject();</span>
+<span class="fc" id="L233">          json.prop(&quot;metric&quot;, condition.getMetricKey());</span>
+<span class="fc" id="L234">          json.prop(&quot;comparison_operator&quot;, condition.getOperator().getDbValue());</span>
+<span class="fc" id="L235">          json.prop(&quot;error_value&quot;, condition.getErrorThreshold());</span>
+<span class="fc" id="L236">          json.endObject();</span>
+<span class="fc" id="L237">        });</span>
+<span class="fc" id="L238">        json.endArray();</span>
+<span class="fc" id="L239">        json.endObject();</span>
+<span class="fc" id="L240">      });</span>
+<span class="fc" id="L241">      json.endArray();</span>
+    }
+<span class="fc" id="L243">  }</span>
+
+  private static void writeQualityProfiles(JsonWriter json, TelemetryData telemetryData) {
+<span class="fc bfc" id="L246" title="All 2 branches covered.">    if (telemetryData.getQualityProfiles() != null) {</span>
+<span class="fc" id="L247">      json.name(&quot;quality-profiles&quot;);</span>
+<span class="fc" id="L248">      json.beginArray();</span>
+<span class="fc" id="L249">      telemetryData.getQualityProfiles().forEach(qualityProfile -&gt; {</span>
+<span class="fc" id="L250">        json.beginObject();</span>
+<span class="fc" id="L251">        json.prop(&quot;uuid&quot;, qualityProfile.uuid());</span>
+<span class="fc" id="L252">        json.prop(&quot;parentUuid&quot;, qualityProfile.parentUuid());</span>
+<span class="fc" id="L253">        json.prop(LANGUAGE_PROPERTY, qualityProfile.language());</span>
+<span class="fc" id="L254">        json.prop(&quot;default&quot;, qualityProfile.isDefault());</span>
+<span class="fc" id="L255">        json.prop(&quot;builtIn&quot;, qualityProfile.isBuiltIn());</span>
+<span class="fc bfc" id="L256" title="All 2 branches covered.">        if (qualityProfile.builtInParent() != null) {</span>
+<span class="fc" id="L257">          json.prop(&quot;builtInParent&quot;, qualityProfile.builtInParent());</span>
+        }
+<span class="fc" id="L259">        json.prop(&quot;rulesOverriddenCount&quot;, qualityProfile.rulesOverriddenCount());</span>
+<span class="fc" id="L260">        json.prop(&quot;rulesActivatedCount&quot;, qualityProfile.rulesActivatedCount());</span>
+<span class="fc" id="L261">        json.prop(&quot;rulesDeactivatedCount&quot;, qualityProfile.rulesDeactivatedCount());</span>
+<span class="fc" id="L262">        json.endObject();</span>
+<span class="fc" id="L263">      });</span>
+<span class="fc" id="L264">      json.endArray();</span>
+    }
+<span class="fc" id="L266">  }</span>
+  private static void writeManagedInstanceInformation(JsonWriter json, TelemetryData.ManagedInstanceInformation provider) {
+<span class="fc" id="L268">    json.name(MANAGED_INSTANCE_PROPERTY);</span>
+<span class="fc" id="L269">    json.beginObject();</span>
+<span class="fc" id="L270">    json.prop(&quot;isManaged&quot;, provider.isManaged());</span>
+<span class="fc bfc" id="L271" title="All 2 branches covered.">    json.prop(&quot;provider&quot;, provider.isManaged() ? provider.provider() : null);</span>
+<span class="fc" id="L272">    json.endObject();</span>
+<span class="fc" id="L273">  }</span>
+
+  private static void writeCloudUsage(JsonWriter json, TelemetryData.CloudUsage cloudUsage) {
+<span class="fc" id="L276">    json.name(CLOUD_USAGE_PROPERTY);</span>
+<span class="fc" id="L277">    json.beginObject();</span>
+<span class="fc" id="L278">    json.prop(&quot;kubernetes&quot;, cloudUsage.kubernetes());</span>
+<span class="fc" id="L279">    json.prop(&quot;kubernetesVersion&quot;, cloudUsage.kubernetesVersion());</span>
+<span class="fc" id="L280">    json.prop(&quot;kubernetesPlatform&quot;, cloudUsage.kubernetesPlatform());</span>
+<span class="fc" id="L281">    json.prop(&quot;kubernetesProvider&quot;, cloudUsage.kubernetesProvider());</span>
+<span class="fc" id="L282">    json.prop(&quot;isHelmAutoscalingEnabled&quot;, cloudUsage.isHelmAutoscalingEnabled());</span>
+<span class="fc" id="L283">    json.prop(&quot;isOnOpenshift&quot;, cloudUsage.isOnOpenshift());</span>
+<span class="fc" id="L284">    json.prop(&quot;officialHelmChart&quot;, cloudUsage.officialHelmChart());</span>
+<span class="fc" id="L285">    json.prop(&quot;containerRuntime&quot;, cloudUsage.containerRuntime());</span>
+<span class="fc" id="L286">    json.prop(&quot;officialImage&quot;, cloudUsage.officialImage());</span>
+<span class="fc" id="L287">    json.endObject();</span>
+<span class="fc" id="L288">  }</span>
+
+  @NotNull
+  private static String toUtc(long date) {
+<span class="fc" id="L292">    return DateTimeFormatter.ofPattern(DATETIME_FORMAT)</span>
+<span class="fc" id="L293">      .withZone(ZoneOffset.UTC)</span>
+<span class="fc" id="L294">      .format(Instant.ofEpochMilli(date));</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

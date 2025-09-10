@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UnitTestMeasuresStep.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.step</a> &gt; <span class="el_source">UnitTestMeasuresStep.java</span></div><h1>UnitTestMeasuresStep.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.step;
+
+import java.util.List;
+import java.util.Optional;
+import org.sonar.ce.task.projectanalysis.component.Component;
+import org.sonar.ce.task.projectanalysis.component.PathAwareCrawler;
+import org.sonar.ce.task.projectanalysis.component.TreeRootHolder;
+import org.sonar.ce.task.projectanalysis.formula.Counter;
+import org.sonar.ce.task.projectanalysis.formula.CounterInitializationContext;
+import org.sonar.ce.task.projectanalysis.formula.CreateMeasureContext;
+import org.sonar.ce.task.projectanalysis.formula.Formula;
+import org.sonar.ce.task.projectanalysis.formula.FormulaExecutorComponentVisitor;
+import org.sonar.ce.task.projectanalysis.formula.counter.IntSumCounter;
+import org.sonar.ce.task.projectanalysis.formula.counter.LongSumCounter;
+import org.sonar.ce.task.projectanalysis.measure.Measure;
+import org.sonar.ce.task.projectanalysis.measure.MeasureRepository;
+import org.sonar.ce.task.projectanalysis.metric.MetricRepository;
+import org.sonar.ce.task.step.ComputationStep;
+
+import static org.sonar.api.measures.CoreMetrics.SKIPPED_TESTS_KEY;
+import static org.sonar.api.measures.CoreMetrics.TESTS_KEY;
+import static org.sonar.api.measures.CoreMetrics.TEST_ERRORS_KEY;
+import static org.sonar.api.measures.CoreMetrics.TEST_EXECUTION_TIME_KEY;
+import static org.sonar.api.measures.CoreMetrics.TEST_FAILURES_KEY;
+import static org.sonar.api.measures.CoreMetrics.TEST_SUCCESS_DENSITY_KEY;
+
+/**
+ * Computes unit test measures on files and then aggregates them on higher components.
+ */
+public class UnitTestMeasuresStep implements ComputationStep {
+<span class="fc" id="L50">  private static final String[] METRICS = new String[] {TESTS_KEY, TEST_ERRORS_KEY, TEST_FAILURES_KEY, SKIPPED_TESTS_KEY, TEST_SUCCESS_DENSITY_KEY, TEST_EXECUTION_TIME_KEY};</span>
+
+<span class="fc" id="L52">  private static final List&lt;Formula&lt;?&gt;&gt; FORMULAS = List.of(new UnitTestsFormula());</span>
+
+  private final TreeRootHolder treeRootHolder;
+  private final MetricRepository metricRepository;
+  private final MeasureRepository measureRepository;
+
+<span class="fc" id="L58">  public UnitTestMeasuresStep(TreeRootHolder treeRootHolder, MetricRepository metricRepository, MeasureRepository measureRepository) {</span>
+<span class="fc" id="L59">    this.treeRootHolder = treeRootHolder;</span>
+<span class="fc" id="L60">    this.metricRepository = metricRepository;</span>
+<span class="fc" id="L61">    this.measureRepository = measureRepository;</span>
+<span class="fc" id="L62">  }</span>
+
+  @Override
+  public void execute(ComputationStep.Context context) {
+<span class="fc" id="L66">    new PathAwareCrawler&lt;&gt;(</span>
+<span class="fc" id="L67">      FormulaExecutorComponentVisitor.newBuilder(metricRepository, measureRepository).buildFor(FORMULAS))</span>
+<span class="fc" id="L68">        .visit(treeRootHolder.getRoot());</span>
+<span class="fc" id="L69">  }</span>
+
+  private static class UnitTestsFormula implements Formula&lt;UnitTestsCounter&gt; {
+
+    @Override
+    public UnitTestsCounter createNewCounter() {
+<span class="fc" id="L75">      return new UnitTestsCounter();</span>
+    }
+
+    @Override
+    public Optional&lt;Measure&gt; createMeasure(UnitTestsCounter counter, CreateMeasureContext context) {
+<span class="fc" id="L80">      String metricKey = context.getMetric().getKey();</span>
+<span class="fc" id="L81">      Component leaf = counter.getLeaf();</span>
+<span class="pc bpc" id="L82" title="1 of 7 branches missed.">      switch (metricKey) {</span>
+        case TESTS_KEY:
+<span class="fc" id="L84">          return createIntMeasure(context.getComponent(), leaf, counter.testsCounter.getValue());</span>
+        case TEST_ERRORS_KEY:
+<span class="fc" id="L86">          return createIntMeasure(context.getComponent(), leaf, counter.testsErrorsCounter.getValue());</span>
+        case TEST_FAILURES_KEY:
+<span class="fc" id="L88">          return createIntMeasure(context.getComponent(), leaf, counter.testsFailuresCounter.getValue());</span>
+        case SKIPPED_TESTS_KEY:
+<span class="fc" id="L90">          return createIntMeasure(context.getComponent(), leaf, counter.skippedTestsCounter.getValue());</span>
+        case TEST_EXECUTION_TIME_KEY:
+<span class="fc" id="L92">          return createLongMeasure(context.getComponent(), leaf, counter.testExecutionTimeCounter.getValue());</span>
+        case TEST_SUCCESS_DENSITY_KEY:
+<span class="fc" id="L94">          return createDensityMeasure(counter, context.getMetric().getDecimalScale());</span>
+        default:
+<span class="nc" id="L96">          throw new IllegalStateException(String.format(&quot;Metric '%s' is not supported&quot;, metricKey));</span>
+      }
+    }
+
+    private static Optional&lt;Measure&gt; createIntMeasure(Component currentComponent, Component leafComponent, Optional&lt;Integer&gt; metricValue) {
+<span class="fc bfc" id="L101" title="All 4 branches covered.">      if (metricValue.isPresent() &amp;&amp; leafComponent.getType().isDeeperThan(currentComponent.getType())) {</span>
+<span class="fc" id="L102">        return Optional.of(Measure.newMeasureBuilder().create(metricValue.get()));</span>
+      }
+<span class="fc" id="L104">      return Optional.empty();</span>
+    }
+
+    private static Optional&lt;Measure&gt; createLongMeasure(Component currentComponent, Component leafComponent, Optional&lt;Long&gt; metricValue) {
+<span class="fc bfc" id="L108" title="All 4 branches covered.">      if (metricValue.isPresent() &amp;&amp; leafComponent.getType().isDeeperThan(currentComponent.getType())) {</span>
+<span class="fc" id="L109">        return Optional.of(Measure.newMeasureBuilder().create(metricValue.get()));</span>
+      }
+<span class="fc" id="L111">      return Optional.empty();</span>
+    }
+
+    private static Optional&lt;Measure&gt; createDensityMeasure(UnitTestsCounter counter, int decimalScale) {
+<span class="fc bfc" id="L115" title="All 2 branches covered.">      if (isPositive(counter.testsCounter.getValue(), true)</span>
+<span class="fc bfc" id="L116" title="All 2 branches covered.">        &amp;&amp; isPositive(counter.testsErrorsCounter.getValue(), false)</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">        &amp;&amp; isPositive(counter.testsFailuresCounter.getValue(), false)) {</span>
+<span class="fc" id="L118">        int tests = counter.testsCounter.getValue().get();</span>
+<span class="fc" id="L119">        int errors = counter.testsErrorsCounter.getValue().get();</span>
+<span class="fc" id="L120">        int failures = counter.testsFailuresCounter.getValue().get();</span>
+<span class="fc" id="L121">        double density = (errors + failures) * 100D / tests;</span>
+<span class="fc" id="L122">        return Optional.of(Measure.newMeasureBuilder().create(100D - density, decimalScale));</span>
+      }
+<span class="fc" id="L124">      return Optional.empty();</span>
+    }
+
+    private static boolean isPositive(Optional&lt;Integer&gt; value, boolean isStrictComparison) {
+<span class="pc bpc" id="L128" title="2 of 8 branches missed.">      return value.isPresent() &amp;&amp; (isStrictComparison ? (value.get() &gt; 0) : (value.get() &gt;= 0));</span>
+    }
+
+    @Override
+    public String[] getOutputMetricKeys() {
+<span class="fc" id="L133">      return METRICS;</span>
+    }
+  }
+
+<span class="fc" id="L137">  private static class UnitTestsCounter implements Counter&lt;UnitTestsCounter&gt; {</span>
+
+<span class="fc" id="L139">    private final IntSumCounter testsCounter = new IntSumCounter(TESTS_KEY);</span>
+<span class="fc" id="L140">    private final IntSumCounter testsErrorsCounter = new IntSumCounter(TEST_ERRORS_KEY);</span>
+<span class="fc" id="L141">    private final IntSumCounter testsFailuresCounter = new IntSumCounter(TEST_FAILURES_KEY);</span>
+<span class="fc" id="L142">    private final IntSumCounter skippedTestsCounter = new IntSumCounter(SKIPPED_TESTS_KEY);</span>
+<span class="fc" id="L143">    private final LongSumCounter testExecutionTimeCounter = new LongSumCounter(TEST_EXECUTION_TIME_KEY);</span>
+
+    private Component leaf;
+
+    @Override
+    public void aggregate(UnitTestsCounter counter) {
+<span class="fc" id="L149">      testsCounter.aggregate(counter.testsCounter);</span>
+<span class="fc" id="L150">      testsErrorsCounter.aggregate(counter.testsErrorsCounter);</span>
+<span class="fc" id="L151">      testsFailuresCounter.aggregate(counter.testsFailuresCounter);</span>
+<span class="fc" id="L152">      skippedTestsCounter.aggregate(counter.skippedTestsCounter);</span>
+<span class="fc" id="L153">      testExecutionTimeCounter.aggregate(counter.testExecutionTimeCounter);</span>
+<span class="fc" id="L154">    }</span>
+
+    @Override
+    public void initialize(CounterInitializationContext context) {
+<span class="fc" id="L158">      this.leaf = context.getLeaf();</span>
+<span class="fc" id="L159">      testsCounter.initialize(context);</span>
+<span class="fc" id="L160">      testsErrorsCounter.initialize(context);</span>
+<span class="fc" id="L161">      testsFailuresCounter.initialize(context);</span>
+<span class="fc" id="L162">      skippedTestsCounter.initialize(context);</span>
+<span class="fc" id="L163">      testExecutionTimeCounter.initialize(context);</span>
+<span class="fc" id="L164">    }</span>
+
+    Component getLeaf() {
+<span class="fc" id="L167">      return leaf;</span>
+    }
+  }
+
+  @Override
+  public String getDescription() {
+<span class="nc" id="L173">    return &quot;Compute test measures&quot;;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

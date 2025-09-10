@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PullAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.hotspot.ws</a> &gt; <span class="el_source">PullAction.java</span></div><h1>PullAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.hotspot.ws;
+
+import java.util.List;
+import java.util.Set;
+import javax.annotation.Nullable;
+import org.sonar.api.utils.System2;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.BranchDto;
+import org.sonar.db.issue.IssueDto;
+import org.sonar.db.issue.IssueQueryParams;
+import org.sonar.server.component.ComponentFinder;
+import org.sonar.server.issue.ws.BasePullAction;
+import org.sonar.server.user.UserSession;
+import org.sonarqube.ws.Common;
+
+import static java.util.Collections.emptyList;
+
+public class PullAction extends BasePullAction implements HotspotsWsAction {
+  private static final String ISSUE_TYPE = &quot;hotspots&quot;;
+  private static final String ACTION_NAME = &quot;pull&quot;;
+  private static final String RESOURCE_EXAMPLE = &quot;pull-hotspot-example.proto&quot;;
+  private static final String SINCE_VERSION = &quot;10.1&quot;;
+
+  private final DbClient dbClient;
+
+  public PullAction(System2 system2, ComponentFinder componentFinder, DbClient dbClient, UserSession userSession,
+    PullHotspotsActionProtobufObjectGenerator protobufObjectGenerator) {
+<span class="fc" id="L48">    super(system2, componentFinder, dbClient, userSession, protobufObjectGenerator, ACTION_NAME,</span>
+      ISSUE_TYPE, &quot;&quot;, SINCE_VERSION, RESOURCE_EXAMPLE);
+<span class="fc" id="L50">    this.dbClient = dbClient;</span>
+<span class="fc" id="L51">  }</span>
+
+  @Override
+  protected Set&lt;String&gt; getIssueKeysSnapshot(IssueQueryParams issueQueryParams, int page) {
+<span class="fc" id="L55">    Long changedSinceDate = issueQueryParams.getChangedSince();</span>
+
+<span class="fc" id="L57">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc bfc" id="L58" title="All 2 branches covered.">      if (changedSinceDate != null) {</span>
+<span class="fc" id="L59">        return dbClient.issueDao().selectIssueKeysByComponentUuidAndChangedSinceDate(dbSession, issueQueryParams.getBranchUuid(),</span>
+<span class="fc" id="L60">          changedSinceDate, issueQueryParams.getRuleRepositories(), emptyList(),</span>
+<span class="fc" id="L61">          issueQueryParams.getLanguages(), page);</span>
+      }
+
+<span class="fc" id="L64">      return dbClient.issueDao().selectIssueKeysByComponentUuid(dbSession, issueQueryParams.getBranchUuid(),</span>
+<span class="fc" id="L65">        issueQueryParams.getRuleRepositories(),</span>
+<span class="fc" id="L66">        emptyList(), issueQueryParams.getLanguages(), page);</span>
+
+<span class="pc bpc" id="L68" title="1 of 2 branches missed.">    }</span>
+  }
+
+  @Override
+  protected IssueQueryParams initializeQueryParams(BranchDto branchDto, @Nullable List&lt;String&gt; languages,
+    @Nullable List&lt;String&gt; ruleRepositories, boolean resolvedOnly, @Nullable Long changedSince) {
+<span class="fc" id="L74">    return new IssueQueryParams(branchDto.getUuid(), languages, emptyList(), emptyList(), false, changedSince);</span>
+  }
+
+  @Override
+  protected boolean filterNonClosedIssues(IssueDto issueDto, IssueQueryParams queryParams) {
+<span class="pc bpc" id="L79" title="1 of 2 branches missed.">    return issueDto.getType() == Common.RuleType.SECURITY_HOTSPOT_VALUE;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

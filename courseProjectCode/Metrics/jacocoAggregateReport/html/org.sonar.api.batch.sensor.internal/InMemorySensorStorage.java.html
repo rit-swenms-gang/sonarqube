@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>InMemorySensorStorage.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.api.batch.sensor.internal</a> &gt; <span class="el_source">InMemorySensorStorage.java</span></div><h1>InMemorySensorStorage.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.api.batch.sensor.internal;
+
+import static org.sonar.api.utils.Preconditions.checkArgument;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import org.apache.commons.lang3.StringUtils;
+import org.sonar.api.batch.sensor.code.NewSignificantCode;
+import org.sonar.api.batch.sensor.code.internal.DefaultSignificantCode;
+import org.sonar.api.batch.sensor.coverage.NewCoverage;
+import org.sonar.api.batch.sensor.coverage.internal.DefaultCoverage;
+import org.sonar.api.batch.sensor.cpd.NewCpdTokens;
+import org.sonar.api.batch.sensor.cpd.internal.DefaultCpdTokens;
+import org.sonar.api.batch.sensor.error.AnalysisError;
+import org.sonar.api.batch.sensor.highlighting.NewHighlighting;
+import org.sonar.api.batch.sensor.highlighting.internal.DefaultHighlighting;
+import org.sonar.api.batch.sensor.issue.ExternalIssue;
+import org.sonar.api.batch.sensor.issue.Issue;
+import org.sonar.api.batch.sensor.measure.Measure;
+import org.sonar.api.batch.sensor.rule.AdHocRule;
+import org.sonar.api.batch.sensor.symbol.NewSymbolTable;
+import org.sonar.api.batch.sensor.symbol.internal.DefaultSymbolTable;
+
+<span class="fc" id="L49">class InMemorySensorStorage implements SensorStorage {</span>
+
+<span class="fc" id="L51">  Map&lt;String, Map&lt;String, Measure&gt;&gt; measuresByComponentAndMetric = new HashMap&lt;&gt;();</span>
+
+<span class="fc" id="L53">  Collection&lt;Issue&gt; allIssues = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L54">  Collection&lt;ExternalIssue&gt; allExternalIssues = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L55">  Collection&lt;AdHocRule&gt; allAdHocRules = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L56">  Collection&lt;AnalysisError&gt; allAnalysisErrors = new ArrayList&lt;&gt;();</span>
+
+<span class="fc" id="L58">  Map&lt;String, NewHighlighting&gt; highlightingByComponent = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L59">  Map&lt;String, DefaultCpdTokens&gt; cpdTokensByComponent = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L60">  Map&lt;String, List&lt;DefaultCoverage&gt;&gt; coverageByComponent = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L61">  Map&lt;String, DefaultSymbolTable&gt; symbolsPerComponent = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L62">  Map&lt;String, String&gt; contextProperties = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L63">  Map&lt;String, String&gt; telemetryEntries = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L64">  Map&lt;String, AnalysisData&gt; analysisDataEntries = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L65">  Map&lt;String, DefaultSignificantCode&gt; significantCodePerComponent = new HashMap&lt;&gt;();</span>
+
+  @Override
+  public void store(Measure measure) {
+    // Emulate duplicate measure check
+<span class="fc" id="L70">    String componentKey = measure.inputComponent().key();</span>
+<span class="fc" id="L71">    String metricKey = measure.metric().key();</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">    if (measuresByComponentAndMetric.getOrDefault(componentKey, Collections.emptyMap()).containsKey(metricKey)) {</span>
+<span class="fc" id="L73">      throw new IllegalStateException(&quot;Can not add the same measure twice&quot;);</span>
+    }
+<span class="fc" id="L75">    measuresByComponentAndMetric.computeIfAbsent(componentKey, x -&gt; new HashMap&lt;&gt;()).put(metricKey, measure);</span>
+<span class="fc" id="L76">  }</span>
+
+  @Override
+  public void store(Issue issue) {
+<span class="fc" id="L80">    allIssues.add(issue);</span>
+<span class="fc" id="L81">  }</span>
+
+  @Override
+  public void store(AdHocRule adHocRule) {
+<span class="fc" id="L85">    allAdHocRules.add(adHocRule);</span>
+<span class="fc" id="L86">  }</span>
+
+  @Override
+  public void store(NewHighlighting newHighlighting) {
+<span class="fc" id="L90">    DefaultHighlighting highlighting = (DefaultHighlighting) newHighlighting;</span>
+<span class="fc" id="L91">    String fileKey = highlighting.inputFile().key();</span>
+    // Emulate duplicate storage check
+<span class="fc bfc" id="L93" title="All 2 branches covered.">    if (highlightingByComponent.containsKey(fileKey)) {</span>
+<span class="fc" id="L94">      throw new UnsupportedOperationException(&quot;Trying to save highlighting twice for the same file is not supported: &quot; + highlighting.inputFile());</span>
+    }
+<span class="fc" id="L96">    highlightingByComponent.put(fileKey, highlighting);</span>
+<span class="fc" id="L97">  }</span>
+
+  @Override
+  public void store(NewCoverage coverage) {
+<span class="fc" id="L101">    DefaultCoverage defaultCoverage = (DefaultCoverage) coverage;</span>
+<span class="fc" id="L102">    String fileKey = defaultCoverage.inputFile().key();</span>
+<span class="fc" id="L103">    coverageByComponent.computeIfAbsent(fileKey, x -&gt; new ArrayList&lt;&gt;()).add(defaultCoverage);</span>
+<span class="fc" id="L104">  }</span>
+
+  @Override
+  public void store(NewCpdTokens cpdTokens) {
+<span class="fc" id="L108">    DefaultCpdTokens defaultCpdTokens = (DefaultCpdTokens) cpdTokens;</span>
+<span class="fc" id="L109">    String fileKey = defaultCpdTokens.inputFile().key();</span>
+    // Emulate duplicate storage check
+<span class="fc bfc" id="L111" title="All 2 branches covered.">    if (cpdTokensByComponent.containsKey(fileKey)) {</span>
+<span class="fc" id="L112">      throw new UnsupportedOperationException(&quot;Trying to save CPD tokens twice for the same file is not supported: &quot; + defaultCpdTokens.inputFile());</span>
+    }
+<span class="fc" id="L114">    cpdTokensByComponent.put(fileKey, defaultCpdTokens);</span>
+<span class="fc" id="L115">  }</span>
+
+  @Override
+  public void store(NewSymbolTable newSymbolTable) {
+<span class="fc" id="L119">    DefaultSymbolTable symbolTable = (DefaultSymbolTable) newSymbolTable;</span>
+<span class="fc" id="L120">    String fileKey = symbolTable.inputFile().key();</span>
+    // Emulate duplicate storage check
+<span class="fc bfc" id="L122" title="All 2 branches covered.">    if (symbolsPerComponent.containsKey(fileKey)) {</span>
+<span class="fc" id="L123">      throw new UnsupportedOperationException(&quot;Trying to save symbol table twice for the same file is not supported: &quot; + symbolTable.inputFile());</span>
+    }
+<span class="fc" id="L125">    symbolsPerComponent.put(fileKey, symbolTable);</span>
+<span class="fc" id="L126">  }</span>
+
+  @Override
+  public void store(AnalysisError analysisError) {
+<span class="fc" id="L130">    allAnalysisErrors.add(analysisError);</span>
+<span class="fc" id="L131">  }</span>
+
+  @Override
+  public void storeProperty(String key, String value) {
+<span class="fc bfc" id="L135" title="All 2 branches covered.">    checkArgument(key != null, &quot;Key of context property must not be null&quot;);</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">    checkArgument(value != null, &quot;Value of context property must not be null&quot;);</span>
+<span class="fc" id="L137">    contextProperties.put(key, value);</span>
+<span class="fc" id="L138">  }</span>
+
+  public void storeTelemetry(String key, String value) {
+<span class="nc bnc" id="L141" title="All 2 branches missed.">    checkArgument(key != null, &quot;Key of context property must not be null&quot;);</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">    checkArgument(value != null, &quot;Value of context property must not be null&quot;);</span>
+
+<span class="nc bnc" id="L144" title="All 4 branches missed.">    if (telemetryEntries.size() &lt; 1000 || telemetryEntries.containsKey(key)) {</span>
+<span class="nc" id="L145">      telemetryEntries.put(key, value);</span>
+    }
+<span class="nc" id="L147">  }</span>
+
+  @Override
+  public void store(ExternalIssue issue) {
+<span class="fc" id="L151">    allExternalIssues.add(issue);</span>
+<span class="fc" id="L152">  }</span>
+
+  @Override
+  public void store(NewSignificantCode newSignificantCode) {
+<span class="fc" id="L156">    DefaultSignificantCode significantCode = (DefaultSignificantCode) newSignificantCode;</span>
+<span class="fc" id="L157">    String fileKey = significantCode.inputFile().key();</span>
+    // Emulate duplicate storage check
+<span class="pc bpc" id="L159" title="1 of 2 branches missed.">    if (significantCodePerComponent.containsKey(fileKey)) {</span>
+<span class="nc" id="L160">      throw new UnsupportedOperationException(&quot;Trying to save significant code information twice for the same file is not supported: &quot; + significantCode.inputFile());</span>
+    }
+<span class="fc" id="L162">    significantCodePerComponent.put(fileKey, significantCode);</span>
+<span class="fc" id="L163">  }</span>
+
+  public void storeAnalysisData(String key, String mimeType, InputStream data) {
+<span class="pc bpc" id="L166" title="1 of 2 branches missed.">    checkArgument(!StringUtils.isBlank(key), &quot;Key must not be null&quot;);</span>
+<span class="pc bpc" id="L167" title="1 of 2 branches missed.">    checkArgument(!StringUtils.isBlank(mimeType), &quot;MimeType must not be null&quot;);</span>
+<span class="pc bpc" id="L168" title="1 of 2 branches missed.">    checkArgument(data != null, &quot;Data must not be null&quot;);</span>
+<span class="fc bfc" id="L169" title="All 2 branches covered.">    if (analysisDataEntries.containsKey(key)) {</span>
+<span class="fc" id="L170">      throw new UnsupportedOperationException(&quot;Trying to save analysis data twice for the same key is not supported: &quot; + key);</span>
+    }
+<span class="fc" id="L172">    try (data) {</span>
+<span class="fc" id="L173">      byte[] bytes = data.readAllBytes();</span>
+<span class="fc" id="L174">      analysisDataEntries.put(key, new AnalysisData(key, mimeType, bytes));</span>
+<span class="fc" id="L175">    } catch (IOException e) {</span>
+<span class="fc" id="L176">      throw new IllegalStateException(&quot;Failed to read data from InputStream&quot;, e);</span>
+<span class="fc" id="L177">    }</span>
+<span class="fc" id="L178">  }</span>
+
+<span class="fc" id="L180">  record AnalysisData(String key, String mimeType, byte[] data) { }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

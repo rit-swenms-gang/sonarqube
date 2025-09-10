@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SignificantCodeRepository.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.source</a> &gt; <span class="el_source">SignificantCodeRepository.java</span></div><h1>SignificantCodeRepository.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.source;
+
+import java.util.Optional;
+import org.sonar.ce.task.projectanalysis.component.Component;
+import org.sonar.core.hash.LineRange;
+import org.sonar.core.util.CloseableIterator;
+import org.sonar.scanner.protocol.output.ScannerReport.LineSgnificantCode;
+import org.sonar.ce.common.scanner.ScannerReportReader;
+
+public class SignificantCodeRepository {
+  private final ScannerReportReader reportReader;
+
+<span class="fc" id="L32">  public SignificantCodeRepository(ScannerReportReader reportReader) {</span>
+<span class="fc" id="L33">    this.reportReader = reportReader;</span>
+<span class="fc" id="L34">  }</span>
+
+  public Optional&lt;LineRange[]&gt; getRangesPerLine(Component component) {
+<span class="fc" id="L37">    int numLines = component.getFileAttributes().getLines();</span>
+
+<span class="fc" id="L39">    Optional&lt;CloseableIterator&lt;LineSgnificantCode&gt;&gt; opt = reportReader.readComponentSignificantCode(component.getReportAttributes().getRef());</span>
+<span class="fc bfc" id="L40" title="All 2 branches covered.">    if (!opt.isPresent()) {</span>
+<span class="fc" id="L41">      return Optional.empty();</span>
+    }
+<span class="fc" id="L43">    try (CloseableIterator&lt;LineSgnificantCode&gt; significantCode = opt.get()) {</span>
+<span class="fc" id="L44">      return Optional.of(toArray(significantCode, numLines));</span>
+    }
+  }
+
+  private static LineRange[] toArray(CloseableIterator&lt;LineSgnificantCode&gt; lineRanges, int numLines) {
+<span class="fc" id="L49">    LineRange[] ranges = new LineRange[numLines];</span>
+<span class="fc" id="L50">    LineSgnificantCode currentLine = null;</span>
+
+<span class="fc bfc" id="L52" title="All 2 branches covered.">    for (int i = 0; i &lt; numLines; i++) {</span>
+<span class="fc bfc" id="L53" title="All 2 branches covered.">      if (currentLine == null) {</span>
+<span class="fc bfc" id="L54" title="All 2 branches covered.">        if (!lineRanges.hasNext()) {</span>
+<span class="fc" id="L55">          break;</span>
+        }
+<span class="fc" id="L57">        currentLine = lineRanges.next();</span>
+      }
+
+<span class="fc bfc" id="L60" title="All 2 branches covered.">      if (currentLine.getLine() == i + 1) {</span>
+<span class="fc" id="L61">        ranges[i] = new LineRange(currentLine.getStartOffset(), currentLine.getEndOffset());</span>
+<span class="fc" id="L62">        currentLine = null;</span>
+      }
+    }
+
+<span class="fc" id="L66">    return ranges;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,327 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PostProjectAnalysisTasksExecutor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.api.posttask</a> &gt; <span class="el_source">PostProjectAnalysisTasksExecutor.java</span></div><h1>PostProjectAnalysisTasksExecutor.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.api.posttask;
+
+import java.util.Collection;
+import java.util.Date;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.ce.posttask.Analysis;
+import org.sonar.api.ce.posttask.Branch;
+import org.sonar.api.ce.posttask.CeTask;
+import org.sonar.api.ce.posttask.Organization;
+import org.sonar.api.ce.posttask.PostProjectAnalysisTask;
+import org.sonar.api.ce.posttask.Project;
+import org.sonar.api.ce.posttask.QualityGate;
+import org.sonar.api.ce.posttask.ScannerContext;
+import org.sonar.ce.task.projectanalysis.analysis.AnalysisMetadataHolder;
+import org.sonar.ce.common.scanner.ScannerReportReader;
+import org.sonar.ce.task.projectanalysis.qualitygate.Condition;
+import org.sonar.ce.task.projectanalysis.qualitygate.ConditionStatus;
+import org.sonar.ce.task.projectanalysis.qualitygate.QualityGateHolder;
+import org.sonar.ce.task.projectanalysis.qualitygate.QualityGateStatus;
+import org.sonar.ce.task.projectanalysis.qualitygate.QualityGateStatusHolder;
+import org.sonar.ce.task.step.ComputationStepExecutor;
+import org.sonar.core.util.logs.Profiler;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.lang.String.format;
+import static java.util.Objects.requireNonNull;
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
+import static java.util.Optional.ofNullable;
+import static org.sonar.api.ce.posttask.CeTask.Status.FAILED;
+import static org.sonar.api.ce.posttask.CeTask.Status.SUCCESS;
+import static org.sonar.db.component.BranchType.PULL_REQUEST;
+
+/**
+ * Responsible for calling {@link PostProjectAnalysisTask} implementations (if any).
+ */
+public class PostProjectAnalysisTasksExecutor implements ComputationStepExecutor.Listener {
+<span class="fc" id="L63">  private static final PostProjectAnalysisTask[] NO_POST_PROJECT_ANALYSIS_TASKS = new PostProjectAnalysisTask[0];</span>
+
+<span class="fc" id="L65">  private static final Logger LOG = LoggerFactory.getLogger(PostProjectAnalysisTasksExecutor.class);</span>
+
+  private final org.sonar.ce.task.CeTask ceTask;
+  private final AnalysisMetadataHolder analysisMetadataHolder;
+  private final QualityGateHolder qualityGateHolder;
+  private final QualityGateStatusHolder qualityGateStatusHolder;
+  private final PostProjectAnalysisTask[] postProjectAnalysisTasks;
+  private final ScannerReportReader reportReader;
+
+  public PostProjectAnalysisTasksExecutor(org.sonar.ce.task.CeTask ceTask, AnalysisMetadataHolder analysisMetadataHolder, QualityGateHolder qualityGateHolder,
+<span class="fc" id="L75">    QualityGateStatusHolder qualityGateStatusHolder, ScannerReportReader reportReader, @Nullable PostProjectAnalysisTask[] postProjectAnalysisTasks) {</span>
+<span class="fc" id="L76">    this.analysisMetadataHolder = analysisMetadataHolder;</span>
+<span class="fc" id="L77">    this.qualityGateHolder = qualityGateHolder;</span>
+<span class="fc" id="L78">    this.qualityGateStatusHolder = qualityGateStatusHolder;</span>
+<span class="fc" id="L79">    this.ceTask = ceTask;</span>
+<span class="fc" id="L80">    this.reportReader = reportReader;</span>
+<span class="fc bfc" id="L81" title="All 2 branches covered.">    this.postProjectAnalysisTasks = postProjectAnalysisTasks == null ? NO_POST_PROJECT_ANALYSIS_TASKS : postProjectAnalysisTasks;</span>
+<span class="fc" id="L82">  }</span>
+
+  @Override
+  public void finished(boolean allStepsExecuted) {
+<span class="fc bfc" id="L86" title="All 2 branches covered.">    if (postProjectAnalysisTasks.length == 0) {</span>
+<span class="fc" id="L87">      return;</span>
+    }
+
+<span class="fc bfc" id="L90" title="All 2 branches covered.">    ProjectAnalysisImpl projectAnalysis = createProjectAnalysis(allStepsExecuted ? SUCCESS : FAILED);</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">    for (PostProjectAnalysisTask postProjectAnalysisTask : postProjectAnalysisTasks) {</span>
+<span class="fc" id="L92">      executeTask(projectAnalysis, postProjectAnalysisTask);</span>
+    }
+<span class="fc" id="L94">  }</span>
+
+  private static void executeTask(ProjectAnalysisImpl projectAnalysis, PostProjectAnalysisTask postProjectAnalysisTask) {
+<span class="fc" id="L97">    String status = &quot;FAILED&quot;;</span>
+<span class="fc" id="L98">    Profiler task = Profiler.create(LOG).logTimeLast(true);</span>
+    try {
+<span class="fc" id="L100">      task.start();</span>
+<span class="fc" id="L101">      postProjectAnalysisTask.finished(new ContextImpl(projectAnalysis, task));</span>
+<span class="fc" id="L102">      status = &quot;SUCCESS&quot;;</span>
+<span class="fc" id="L103">    } catch (Exception e) {</span>
+<span class="fc" id="L104">      LOG.error(&quot;Execution of task &quot; + postProjectAnalysisTask.getClass() + &quot; failed&quot;, e);</span>
+    } finally {
+<span class="fc" id="L106">      task.addContext(&quot;status&quot;, status);</span>
+<span class="fc" id="L107">      task.stopInfo(&quot;{}&quot;, postProjectAnalysisTask.getDescription());</span>
+    }
+<span class="fc" id="L109">  }</span>
+
+  private static class ContextImpl implements PostProjectAnalysisTask.Context {
+    private final ProjectAnalysisImpl projectAnalysis;
+    private final Profiler task;
+
+<span class="fc" id="L115">    private ContextImpl(ProjectAnalysisImpl projectAnalysis, Profiler task) {</span>
+<span class="fc" id="L116">      this.projectAnalysis = projectAnalysis;</span>
+<span class="fc" id="L117">      this.task = task;</span>
+<span class="fc" id="L118">    }</span>
+
+    @Override
+    public PostProjectAnalysisTask.ProjectAnalysis getProjectAnalysis() {
+<span class="fc" id="L122">      return projectAnalysis;</span>
+    }
+
+    @Override
+    public PostProjectAnalysisTask.LogStatistics getLogStatistics() {
+<span class="fc" id="L127">      return new LogStatisticsImpl(task);</span>
+    }
+  }
+
+  private static class LogStatisticsImpl implements PostProjectAnalysisTask.LogStatistics {
+    private final Profiler profiler;
+
+<span class="fc" id="L134">    private LogStatisticsImpl(Profiler profiler) {</span>
+<span class="fc" id="L135">      this.profiler = profiler;</span>
+<span class="fc" id="L136">    }</span>
+
+    @Override
+    public PostProjectAnalysisTask.LogStatistics add(String key, Object value) {
+<span class="fc" id="L140">      requireNonNull(key, &quot;Statistic has null key&quot;);</span>
+<span class="fc" id="L141">      requireNonNull(value, () -&gt; format(&quot;Statistic with key [%s] has null value&quot;, key));</span>
+<span class="fc bfc" id="L142" title="All 4 branches covered.">      checkArgument(!key.equalsIgnoreCase(&quot;time&quot;) &amp;&amp; !key.equalsIgnoreCase(&quot;status&quot;),</span>
+        &quot;Statistic with key [%s] is not accepted&quot;, key);
+<span class="fc bfc" id="L144" title="All 2 branches covered.">      checkArgument(!profiler.hasContext(key), &quot;Statistic with key [%s] is already present&quot;, key);</span>
+<span class="fc" id="L145">      profiler.addContext(key, value);</span>
+<span class="fc" id="L146">      return this;</span>
+    }
+  }
+
+  private ProjectAnalysisImpl createProjectAnalysis(CeTask.Status status) {
+<span class="fc" id="L151">    return new ProjectAnalysisImpl(</span>
+<span class="fc" id="L152">      new CeTaskImpl(this.ceTask.getUuid(), status),</span>
+<span class="fc" id="L153">      createProject(this.ceTask),</span>
+<span class="fc" id="L154">      getAnalysis().orElse(null),</span>
+<span class="fc" id="L155">      ScannerContextImpl.from(reportReader.readContextProperties()),</span>
+<span class="fc bfc" id="L156" title="All 2 branches covered.">      status == SUCCESS ? createQualityGate() : null,</span>
+<span class="fc" id="L157">      createBranch(),</span>
+<span class="fc" id="L158">      reportReader.readMetadata().getScmRevisionId());</span>
+  }
+
+  private Optional&lt;Analysis&gt; getAnalysis() {
+<span class="fc bfc" id="L162" title="All 2 branches covered.">    if (analysisMetadataHolder.hasAnalysisDateBeenSet()) {</span>
+<span class="fc" id="L163">      return of(new AnalysisImpl(analysisMetadataHolder.getUuid(), analysisMetadataHolder.getAnalysisDate(), analysisMetadataHolder.getScmRevision()));</span>
+    }
+<span class="fc" id="L165">    return empty();</span>
+  }
+
+  private static Project createProject(org.sonar.ce.task.CeTask ceTask) {
+<span class="fc" id="L169">    return ceTask.getEntity()</span>
+<span class="fc" id="L170">      .map(c -&gt; new ProjectImpl(</span>
+<span class="fc" id="L171">        c.getUuid(),</span>
+<span class="pc" id="L172">        c.getKey().orElseThrow(() -&gt; new IllegalStateException(&quot;Missing project key&quot;)),</span>
+<span class="pc" id="L173">        c.getName().orElseThrow(() -&gt; new IllegalStateException(&quot;Missing project name&quot;))))</span>
+<span class="pc" id="L174">      .orElseThrow(() -&gt; new IllegalStateException(&quot;Report processed for a task of a deleted component&quot;));</span>
+  }
+
+  @CheckForNull
+  private QualityGate createQualityGate() {
+<span class="fc" id="L179">    Optional&lt;org.sonar.ce.task.projectanalysis.qualitygate.QualityGate&gt; qualityGateOptional = this.qualityGateHolder.getQualityGate();</span>
+<span class="pc bpc" id="L180" title="1 of 2 branches missed.">    if (qualityGateOptional.isPresent()) {</span>
+<span class="fc" id="L181">      org.sonar.ce.task.projectanalysis.qualitygate.QualityGate qualityGate = qualityGateOptional.get();</span>
+
+<span class="fc" id="L183">      return new QualityGateImpl(</span>
+<span class="fc" id="L184">        qualityGate.getUuid(),</span>
+<span class="fc" id="L185">        qualityGate.getName(),</span>
+<span class="fc" id="L186">        convert(qualityGateStatusHolder.getStatus()),</span>
+<span class="fc" id="L187">        convert(qualityGate.getConditions(), qualityGateStatusHolder.getStatusPerConditions()));</span>
+    }
+<span class="nc" id="L189">    return null;</span>
+  }
+
+  @CheckForNull
+  private BranchImpl createBranch() {
+<span class="fc" id="L194">    org.sonar.ce.task.projectanalysis.analysis.Branch analysisBranch = analysisMetadataHolder.getBranch();</span>
+<span class="pc bpc" id="L195" title="1 of 2 branches missed.">    String branchKey = analysisBranch.getType() == PULL_REQUEST ? analysisBranch.getPullRequestKey() : analysisBranch.getName();</span>
+<span class="fc" id="L196">    return new BranchImpl(analysisBranch.isMain(), branchKey, Branch.Type.valueOf(analysisBranch.getType().name()));</span>
+  }
+
+  private static QualityGate.Status convert(QualityGateStatus status) {
+<span class="pc bpc" id="L200" title="2 of 3 branches missed.">    switch (status) {</span>
+      case OK:
+<span class="fc" id="L202">        return QualityGate.Status.OK;</span>
+      case ERROR:
+<span class="nc" id="L204">        return QualityGate.Status.ERROR;</span>
+      default:
+<span class="nc" id="L206">        throw new IllegalArgumentException(format(</span>
+          &quot;Unsupported value '%s' of QualityGateStatus can not be converted to QualityGate.Status&quot;,
+          status));
+    }
+  }
+
+  private static Collection&lt;QualityGate.Condition&gt; convert(Set&lt;Condition&gt; conditions, Map&lt;Condition, ConditionStatus&gt; statusPerConditions) {
+<span class="fc" id="L213">    return conditions.stream()</span>
+<span class="fc" id="L214">      .map(new ConditionToCondition(statusPerConditions))</span>
+<span class="fc" id="L215">      .toList();</span>
+  }
+
+  private static class ProjectAnalysisImpl implements PostProjectAnalysisTask.ProjectAnalysis {
+    private final CeTask ceTask;
+    private final Project project;
+    private final ScannerContext scannerContext;
+    @Nullable
+    private final QualityGate qualityGate;
+    @Nullable
+    private final Branch branch;
+    @Nullable
+    private final Analysis analysis;
+    private final String scmRevisionId;
+
+    private ProjectAnalysisImpl(CeTask ceTask, Project project,
+<span class="fc" id="L231">      @Nullable Analysis analysis, ScannerContext scannerContext, @Nullable QualityGate qualityGate, @Nullable Branch branch, String scmRevisionId) {</span>
+<span class="fc" id="L232">      this.ceTask = requireNonNull(ceTask, &quot;ceTask can not be null&quot;);</span>
+<span class="fc" id="L233">      this.project = requireNonNull(project, &quot;project can not be null&quot;);</span>
+<span class="fc" id="L234">      this.analysis = analysis;</span>
+<span class="fc" id="L235">      this.scannerContext = requireNonNull(scannerContext, &quot;scannerContext can not be null&quot;);</span>
+<span class="fc" id="L236">      this.qualityGate = qualityGate;</span>
+<span class="fc" id="L237">      this.branch = branch;</span>
+<span class="fc" id="L238">      this.scmRevisionId = scmRevisionId;</span>
+<span class="fc" id="L239">    }</span>
+
+    /**
+     *
+     * @deprecated since 8.7. No longer used - it's always empty.
+     */
+    @Override
+    @Deprecated
+    public Optional&lt;Organization&gt; getOrganization() {
+<span class="fc" id="L248">      return empty();</span>
+    }
+
+    @Override
+    public CeTask getCeTask() {
+<span class="fc" id="L253">      return ceTask;</span>
+    }
+
+    @Override
+    public Project getProject() {
+<span class="fc" id="L258">      return project;</span>
+    }
+
+    @Override
+    public Optional&lt;Branch&gt; getBranch() {
+<span class="fc" id="L263">      return ofNullable(branch);</span>
+    }
+
+    @Override
+    @CheckForNull
+    public QualityGate getQualityGate() {
+<span class="fc" id="L269">      return qualityGate;</span>
+    }
+
+    @Override
+    public Optional&lt;Analysis&gt; getAnalysis() {
+<span class="fc" id="L274">      return ofNullable(analysis);</span>
+    }
+
+    @Override
+    public ScannerContext getScannerContext() {
+<span class="fc" id="L279">      return scannerContext;</span>
+    }
+
+    @Override
+    public String getScmRevisionId() {
+<span class="nc" id="L284">      return scmRevisionId;</span>
+    }
+
+    @Override
+    public String toString() {
+<span class="nc" id="L289">      return &quot;ProjectAnalysis{&quot; +</span>
+        &quot;ceTask=&quot; + ceTask +
+        &quot;, project=&quot; + project +
+        &quot;, scannerContext=&quot; + scannerContext +
+        &quot;, qualityGate=&quot; + qualityGate +
+        &quot;, analysis=&quot; + analysis +
+        '}';
+    }
+  }
+
+  private static class AnalysisImpl implements Analysis {
+
+    private final String analysisUuid;
+    private final long date;
+    private final Optional&lt;String&gt; revision;
+
+<span class="fc" id="L305">    private AnalysisImpl(String analysisUuid, long date, Optional&lt;String&gt; revision) {</span>
+<span class="fc" id="L306">      this.analysisUuid = analysisUuid;</span>
+<span class="fc" id="L307">      this.date = date;</span>
+<span class="fc" id="L308">      this.revision = revision;</span>
+<span class="fc" id="L309">    }</span>
+
+    @Override
+    public String getAnalysisUuid() {
+<span class="fc" id="L313">      return analysisUuid;</span>
+    }
+
+    @Override
+    public Date getDate() {
+<span class="fc" id="L318">      return new Date(date);</span>
+    }
+
+    @Override
+    public Optional&lt;String&gt; getRevision() {
+<span class="nc" id="L323">      return revision;</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

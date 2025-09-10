@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ServerProcessLogging.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.log</a> &gt; <span class="el_source">ServerProcessLogging.java</span></div><h1>ServerProcessLogging.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.log;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.LoggerContext;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.ConsoleAppender;
+import ch.qos.logback.core.encoder.Encoder;
+import java.util.Set;
+import javax.annotation.CheckForNull;
+import org.sonar.process.ProcessId;
+import org.sonar.process.Props;
+import org.sonar.process.logging.LogLevelConfig;
+import org.sonar.process.logging.LogbackHelper;
+import org.sonar.process.logging.RootLoggerConfig;
+
+import static org.sonar.process.ProcessProperties.Property.CLUSTER_ENABLED;
+import static org.sonar.process.ProcessProperties.Property.CLUSTER_NODE_NAME;
+import static org.sonar.process.logging.RootLoggerConfig.newRootLoggerConfigBuilder;
+
+public abstract class ServerProcessLogging {
+
+  public static final String STARTUP_LOGGER_NAME = &quot;startup&quot;;
+<span class="fc" id="L43">  protected static final Set&lt;String&gt; JMX_RMI_LOGGER_NAMES = Set.of(</span>
+    &quot;javax.management.remote.timeout&quot;,
+    &quot;javax.management.remote.misc&quot;,
+    &quot;javax.management.remote.rmi&quot;,
+    &quot;javax.management.mbeanserver&quot;,
+    &quot;sun.rmi.loader&quot;,
+    &quot;sun.rmi.transport.tcp&quot;,
+    &quot;sun.rmi.transport.misc&quot;,
+    &quot;sun.rmi.server.call&quot;,
+    &quot;sun.rmi.dgc&quot;);
+<span class="fc" id="L53">  protected static final Set&lt;String&gt; LOGGER_NAMES_TO_TURN_OFF = Set.of(</span>
+    // mssql driver
+    &quot;com.microsoft.sqlserver.jdbc.internals&quot;,
+    &quot;com.microsoft.sqlserver.jdbc.ResultSet&quot;,
+    &quot;com.microsoft.sqlserver.jdbc.Statement&quot;,
+    &quot;com.microsoft.sqlserver.jdbc.Connection&quot;);
+
+  private final ProcessId processId;
+  private final String threadIdFieldPattern;
+<span class="fc" id="L62">  protected final LogbackHelper helper = new LogbackHelper();</span>
+  private final LogLevelConfig logLevelConfig;
+
+<span class="fc" id="L65">  protected ServerProcessLogging(ProcessId processId, String threadIdFieldPattern) {</span>
+<span class="fc" id="L66">    this.processId = processId;</span>
+<span class="fc" id="L67">    this.threadIdFieldPattern = threadIdFieldPattern;</span>
+<span class="fc" id="L68">    this.logLevelConfig = createLogLevelConfiguration(processId);</span>
+<span class="fc" id="L69">  }</span>
+
+  private LogLevelConfig createLogLevelConfiguration(ProcessId processId) {
+<span class="fc" id="L72">    LogLevelConfig.Builder builder = LogLevelConfig.newBuilder(helper.getRootLoggerName());</span>
+<span class="fc" id="L73">    builder.rootLevelFor(processId);</span>
+<span class="fc" id="L74">    builder.immutableLevel(&quot;org.apache.ibatis&quot;, Level.WARN);</span>
+<span class="fc" id="L75">    builder.immutableLevel(&quot;java.sql&quot;, Level.WARN);</span>
+<span class="fc" id="L76">    builder.immutableLevel(&quot;java.sql.ResultSet&quot;, Level.WARN);</span>
+<span class="fc" id="L77">    builder.immutableLevel(&quot;org.elasticsearch&quot;, Level.INFO);</span>
+<span class="fc" id="L78">    builder.immutableLevel(&quot;org.elasticsearch.node&quot;, Level.INFO);</span>
+<span class="fc" id="L79">    builder.immutableLevel(&quot;org.elasticsearch.http&quot;, Level.INFO);</span>
+
+<span class="fc" id="L81">    builder.immutableLevel(&quot;ch.qos.logback&quot;, Level.WARN);</span>
+<span class="fc" id="L82">    builder.immutableLevel(&quot;org.apache.catalina&quot;, Level.INFO);</span>
+<span class="fc" id="L83">    builder.immutableLevel(&quot;org.apache.coyote&quot;, Level.INFO);</span>
+<span class="fc" id="L84">    builder.immutableLevel(&quot;org.apache.jasper&quot;, Level.INFO);</span>
+<span class="fc" id="L85">    builder.immutableLevel(&quot;org.apache.tomcat&quot;, Level.INFO);</span>
+<span class="fc" id="L86">    builder.immutableLevel(&quot;org.postgresql.core.v3.QueryExecutorImpl&quot;, Level.INFO);</span>
+<span class="fc" id="L87">    builder.immutableLevel(&quot;org.postgresql.jdbc.PgConnection&quot;, Level.INFO);</span>
+    // Apache FOP
+<span class="fc" id="L89">    builder.immutableLevel(&quot;org.apache.fop&quot;, Level.INFO);</span>
+<span class="fc" id="L90">    builder.immutableLevel(&quot;org.apache.fop.apps.FOUserAgent&quot;, Level.WARN);</span>
+<span class="fc" id="L91">    builder.immutableLevel(&quot;org.apache.xmlgraphics.image.loader.spi.ImageImplRegistry&quot;, Level.INFO);</span>
+    // Hazelcast
+<span class="fc" id="L93">    builder.immutableLevel(&quot;com.hazelcast.internal.cluster.impl.ClusterHeartbeatManager&quot;, Level.INFO);</span>
+<span class="fc" id="L94">    builder.immutableLevel(&quot;com.hazelcast.internal.cluster.impl.operations.HeartbeatOperation&quot;, Level.INFO);</span>
+<span class="fc" id="L95">    builder.immutableLevel(&quot;com.hazelcast.internal.partition.InternalPartitionService&quot;, Level.INFO);</span>
+<span class="fc" id="L96">    builder.immutableLevel(&quot;com.hazelcast.internal.partition.operation.PartitionStateOperation&quot;, Level.INFO);</span>
+<span class="fc" id="L97">    builder.immutableLevel(&quot;com.hazelcast.replicatedmap.impl.operation.RequestMapDataOperation&quot;, Level.INFO);</span>
+<span class="fc" id="L98">    builder.immutableLevel(&quot;com.hazelcast.replicatedmap.impl.operation.SyncReplicatedMapDataOperation&quot;, Level.INFO);</span>
+    // Netty (used by Elasticsearch)
+<span class="fc" id="L100">    builder.immutableLevel(&quot;io.netty.buffer.PoolThreadCache&quot;, Level.INFO);</span>
+    // Spring related
+<span class="fc" id="L102">    builder.immutableLevel(&quot;org.springframework&quot;, Level.WARN);</span>
+<span class="fc" id="L103">    builder.immutableLevel(&quot;org.sonar.core.platform.PriorityBeanFactory&quot;, Level.WARN);</span>
+    // Network-communication related
+<span class="fc" id="L105">    builder.immutableLevel(&quot;org.apache.http&quot;, Level.WARN);</span>
+<span class="fc" id="L106">    builder.immutableLevel(&quot;okhttp3&quot;, Level.WARN);</span>
+<span class="fc" id="L107">    builder.immutableLevel(&quot;sun.net&quot;, Level.WARN);</span>
+    // JDK security
+<span class="fc" id="L109">    builder.immutableLevel(&quot;jdk.event.security&quot;, Level.WARN);</span>
+    // GitHub library
+<span class="fc" id="L111">    builder.immutableLevel(&quot;org.kohsuke&quot;, Level.WARN);</span>
+
+<span class="fc" id="L113">    extendLogLevelConfiguration(builder);</span>
+
+<span class="fc" id="L115">    return builder.build();</span>
+  }
+
+  public LoggerContext configure(Props props) {
+<span class="fc" id="L119">    LoggerContext ctx = helper.getRootContext();</span>
+<span class="fc" id="L120">    ctx.reset();</span>
+
+<span class="fc" id="L122">    configureRootLogger(props);</span>
+<span class="fc" id="L123">    helper.apply(logLevelConfig, props);</span>
+<span class="fc" id="L124">    configureDirectToConsoleLoggers(props, ctx, STARTUP_LOGGER_NAME);</span>
+<span class="fc" id="L125">    extendConfigure(props);</span>
+
+<span class="fc" id="L127">    helper.enableJulChangePropagation(ctx);</span>
+
+<span class="fc" id="L129">    return ctx;</span>
+  }
+
+  public LogLevelConfig getLogLevelConfig() {
+<span class="nc" id="L133">    return this.logLevelConfig;</span>
+  }
+
+  protected abstract void extendLogLevelConfiguration(LogLevelConfig.Builder logLevelConfigBuilder);
+
+  protected abstract void extendConfigure(Props props);
+
+  private void configureRootLogger(Props props) {
+<span class="fc" id="L141">    RootLoggerConfig config = buildRootLoggerConfig(props);</span>
+<span class="fc" id="L142">    Encoder&lt;ILoggingEvent&gt; encoder = helper.createEncoder(props, config, helper.getRootContext());</span>
+<span class="fc" id="L143">    helper.configureGlobalFileLog(props, config, encoder);</span>
+<span class="fc" id="L144">    helper.configureForSubprocessGobbler(props, encoder);</span>
+<span class="fc" id="L145">  }</span>
+
+  protected RootLoggerConfig buildRootLoggerConfig(Props props) {
+<span class="fc" id="L148">    return newRootLoggerConfigBuilder()</span>
+<span class="fc" id="L149">      .setProcessId(processId)</span>
+<span class="fc" id="L150">      .setNodeNameField(getNodeNameWhenCluster(props))</span>
+<span class="fc" id="L151">      .setThreadIdFieldPattern(threadIdFieldPattern)</span>
+<span class="fc" id="L152">      .build();</span>
+  }
+
+  @CheckForNull
+  protected static String getNodeNameWhenCluster(Props props) {
+<span class="fc" id="L157">    boolean clusterEnabled = props.valueAsBoolean(CLUSTER_ENABLED.getKey(),</span>
+<span class="fc" id="L158">      Boolean.parseBoolean(CLUSTER_ENABLED.getDefaultValue()));</span>
+<span class="fc bfc" id="L159" title="All 2 branches covered.">    return clusterEnabled ? props.value(CLUSTER_NODE_NAME.getKey(), CLUSTER_NODE_NAME.getDefaultValue()) : null;</span>
+  }
+
+  /**
+   * Setup one or more specified loggers to be non additive and to print to System.out which will be caught by the Main
+   * Process and written to sonar.log.
+   */
+  private void configureDirectToConsoleLoggers(Props props, LoggerContext context, String... loggerNames) {
+<span class="fc" id="L167">    RootLoggerConfig config = newRootLoggerConfigBuilder()</span>
+<span class="fc" id="L168">      .setNodeNameField(getNodeNameWhenCluster(props))</span>
+<span class="fc" id="L169">      .setProcessId(ProcessId.APP)</span>
+<span class="fc" id="L170">      .setThreadIdFieldPattern(&quot;&quot;)</span>
+<span class="fc" id="L171">      .build();</span>
+<span class="fc" id="L172">    Encoder&lt;ILoggingEvent&gt; encoder = helper.createEncoder(props, config, context);</span>
+<span class="fc" id="L173">    ConsoleAppender&lt;ILoggingEvent&gt; consoleAppender = helper.newConsoleAppender(context, &quot;CONSOLE&quot;, encoder);</span>
+
+<span class="fc bfc" id="L175" title="All 2 branches covered.">    for (String loggerName : loggerNames) {</span>
+<span class="fc" id="L176">      Logger consoleLogger = context.getLogger(loggerName);</span>
+<span class="fc" id="L177">      consoleLogger.setAdditive(false);</span>
+<span class="fc" id="L178">      consoleLogger.addAppender(consoleAppender);</span>
+    }
+<span class="fc" id="L180">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

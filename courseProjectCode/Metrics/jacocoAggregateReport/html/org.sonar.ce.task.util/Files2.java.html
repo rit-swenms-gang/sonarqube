@@ -1,0 +1,299 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Files2.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.util</a> &gt; <span class="el_source">Files2.java</span></div><h1>Files2.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.util;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import javax.annotation.Nullable;
+import org.sonar.api.utils.ZipUtils;
+import org.sonar.core.util.FileUtils;
+
+import static com.google.common.base.Preconditions.checkState;
+import static java.lang.String.format;
+import static java.nio.file.Files.createDirectories;
+import static java.util.Objects.requireNonNull;
+
+/**
+ * This utility class provides Java NIO based replacement for some methods of
+ * {@link org.apache.commons.io.FileUtils Common IO FileUtils} class.
+ * Only the methods which name ends with {@code &quot;orThrowIOE&quot;} may raise {@link IOException}.
+ * Others wrap checked exceptions into {@link IllegalStateException}.
+ */
+public class Files2 {
+
+<span class="fc" id="L45">  public static final Files2 FILES2 = new Files2();</span>
+
+  private Files2() {
+    // use FILES2 singleton
+  }
+
+  /**
+   * Deletes a directory or a file if it exists, else does nothing. In the case
+   * of a directly, it is deleted recursively.
+   *
+   * @param fileOrDir file or directory to delete
+   * @throws IOException in case deletion is unsuccessful
+   */
+  public void deleteIfExistsOrThrowIOE(File fileOrDir) throws IOException {
+<span class="fc bfc" id="L59" title="All 2 branches covered.">    if (!fileOrDir.exists()) {</span>
+<span class="fc" id="L60">      return;</span>
+    }
+<span class="fc bfc" id="L62" title="All 2 branches covered.">    if (fileOrDir.isDirectory()) {</span>
+<span class="fc" id="L63">      FileUtils.deleteDirectory(fileOrDir);</span>
+    } else {
+<span class="fc" id="L65">      Files.delete(fileOrDir.toPath());</span>
+    }
+<span class="fc" id="L67">  }</span>
+
+  /**
+   * Like {@link #deleteIfExistsOrThrowIOE(File)} but wraps {@link IOException}
+   * into {@link IllegalStateException}.
+   *
+   * @throws IllegalStateException in case deletion is unsuccessful
+   */
+  public void deleteIfExists(File fileOrDir) {
+    try {
+<span class="fc" id="L77">      deleteIfExistsOrThrowIOE(fileOrDir);</span>
+<span class="fc" id="L78">    } catch (IOException e) {</span>
+<span class="fc" id="L79">      throw new IllegalStateException(&quot;Can not delete &quot; + fileOrDir, e);</span>
+<span class="fc" id="L80">    }</span>
+<span class="fc" id="L81">  }</span>
+
+  /**
+   * Deletes a directory or a file if it exists, else does nothing. In the case
+   * of a directly, it is deleted recursively. Any exception is trapped and
+   * ignored.
+   *
+   * @param fileOrDir file or directory to delete. Can be {@code null}.
+   */
+  public void deleteQuietly(@Nullable File fileOrDir) {
+<span class="nc" id="L91">    FileUtils.deleteQuietly(fileOrDir);</span>
+<span class="nc" id="L92">  }</span>
+
+  /**
+   * Moves a file.
+   *
+   * &lt;p&gt;
+   * When the destination file is on another file system, do a &quot;copy and delete&quot;.
+   * &lt;/p&gt;
+   *
+   * @param from the file to be moved
+   * @param to the destination file
+   * @throws NullPointerException if source or destination is {@code null}
+   * @throws IOException if the destination file exists
+   * @throws IOException if source or destination is invalid
+   * @throws IOException if an IO error occurs moving the file
+   */
+  public void moveFileOrThrowIOE(File from, File to) throws IOException {
+<span class="fc" id="L109">    org.apache.commons.io.FileUtils.moveFile(from, to);</span>
+<span class="fc" id="L110">  }</span>
+
+  /**
+   * Like {@link #moveFileOrThrowIOE(File, File)} but wraps {@link IOException}
+   * into {@link IllegalStateException}.
+   *
+   * @param from the file to be moved
+   * @param to the destination file
+   * @throws IllegalStateException if the destination file exists
+   * @throws IllegalStateException if source or destination is invalid
+   * @throws IllegalStateException if an IO error occurs moving the file
+   */
+  public void moveFile(File from, File to) {
+    try {
+<span class="fc" id="L124">      moveFileOrThrowIOE(from, to);</span>
+<span class="nc" id="L125">    } catch (IOException e) {</span>
+<span class="nc" id="L126">      throw new IllegalStateException(&quot;Can not move file &quot; + from + &quot; to &quot; + to, e);</span>
+<span class="fc" id="L127">    }</span>
+<span class="fc" id="L128">  }</span>
+
+  /**
+   * Opens a {@link FileOutputStream} for the specified file, checking and
+   * creating the parent directory if it does not exist.
+   * &lt;p&gt;
+   * The parent directory will be created if it does not exist.
+   * The file will be created if it does not exist.
+   *
+   * @param file  the file to open for output, must not be {@code null}
+   * @param append if {@code true}, then bytes will be added to the
+   * end of the file rather than overwriting
+   * @return a new {@link FileOutputStream} for the specified file
+   * @throws IOException if the specified file is a directory
+   * @throws IOException if the file can not be written to
+   * @throws IOException if a parent directory can not be created
+   */
+  public FileOutputStream openOutputStreamOrThrowIOE(File file, boolean append) throws IOException {
+<span class="fc bfc" id="L146" title="All 2 branches covered.">    if (file.exists()) {</span>
+<span class="fc bfc" id="L147" title="All 2 branches covered.">      checkOrThrowIOE(!file.isDirectory(), &quot;File %s exists but is a directory&quot;, file);</span>
+<span class="fc" id="L148">      checkOrThrowIOE(file.canWrite(), &quot;File %s can not be written to&quot;, file);</span>
+    } else {
+<span class="fc" id="L150">      File parent = file.getParentFile();</span>
+<span class="pc bpc" id="L151" title="3 of 6 branches missed.">      if (parent != null &amp;&amp; !parent.mkdirs() &amp;&amp; !parent.isDirectory()) {</span>
+<span class="nc" id="L152">        throw new IOException(&quot;Directory &quot; + parent + &quot; could not be created&quot;);</span>
+      }
+    }
+<span class="fc" id="L155">    return new FileOutputStream(file, append);</span>
+  }
+
+  /**
+   * Opens a {@link FileOutputStream} for the specified file, checking and
+   * creating the parent directory if it does not exist.
+   * &lt;p&gt;
+   * The parent directory will be created if it does not exist.
+   * The file will be created if it does not exist.
+   *
+   * @param file  the file to open for output, must not be {@code null}
+   * @param append if {@code true}, then bytes will be added to the
+   * end of the file rather than overwriting
+   * @return a new {@link FileOutputStream} for the specified file
+   * @throws IllegalStateException if the specified file is a directory
+   * @throws IllegalStateException if the file can not be written to
+   * @throws IllegalStateException if a parent directory can not be created
+   */
+  public FileOutputStream openOutputStream(File file, boolean append) {
+    try {
+<span class="fc" id="L175">      return openOutputStreamOrThrowIOE(file, append);</span>
+<span class="fc" id="L176">    } catch (IOException e) {</span>
+<span class="fc" id="L177">      throw new IllegalStateException(&quot;Can not open file &quot; + file, e);</span>
+    }
+  }
+
+  /**
+   * Opens a {@link FileInputStream} for the specified file, providing better
+   * error messages than simply calling {@code new FileInputStream(file)}.
+   *
+   * @param file  the file to open, must not be {@code null}
+   * @return a new {@link FileInputStream} for the specified file
+   * @throws IOException if the file does not exist
+   * @throws IOException if the specified file is a directory
+   * @throws IOException if the file can not be read
+   */
+  public FileInputStream openInputStreamOrThrowIOE(File file) throws IOException {
+<span class="fc bfc" id="L192" title="All 2 branches covered.">    checkOrThrowIOE(!file.isDirectory(), &quot;File %s exists but is a directory&quot;, file);</span>
+<span class="fc" id="L193">    checkOrThrowIOE(file.exists(), &quot;File %s does not exist&quot;, file);</span>
+<span class="fc" id="L194">    checkOrThrowIOE(file.canRead(), &quot;File %s can not be read&quot;, file);</span>
+<span class="fc" id="L195">    return new FileInputStream(file);</span>
+  }
+
+  /**
+   * Opens a {@link FileInputStream} for the specified file, providing better
+   * error messages than simply calling {@code new FileInputStream(file)}.
+   *
+   * @param file  the file to open, must not be {@code null}
+   * @return a new {@link FileInputStream} for the specified file
+   * @throws IllegalStateException if the file does not exist
+   * @throws IllegalStateException if the specified file is a directory
+   * @throws IllegalStateException if the file can not be read
+   */
+  public FileInputStream openInputStream(File file) {
+    try {
+<span class="fc" id="L210">      return openInputStreamOrThrowIOE(file);</span>
+<span class="fc" id="L211">    } catch (IOException e) {</span>
+<span class="fc" id="L212">      throw new IllegalStateException(&quot;Can not open file &quot; + file, e);</span>
+    }
+  }
+
+  /**
+   * Unzips a file to the specified directory. The directory is created if it does not exist.
+   *
+   * @throws IOException if {@code zipFile} is a directory
+   * @throws IOException if {@code zipFile} does not exist
+   * @throws IOException if {@code toDir} can not be created
+   */
+  public void unzipToDirOrThrowIOE(File zipFile, File toDir) throws IOException {
+<span class="pc bpc" id="L224" title="1 of 2 branches missed.">    checkOrThrowIOE(!zipFile.isDirectory(), &quot;File %s exists but is a directory&quot;, zipFile);</span>
+<span class="fc" id="L225">    checkOrThrowIOE(zipFile.exists(), &quot;File %s does not exist&quot;, zipFile);</span>
+<span class="fc" id="L226">    ZipUtils.unzip(zipFile, toDir);</span>
+<span class="fc" id="L227">  }</span>
+
+  /**
+   * Unzips a file to the specified directory. The directory is created if it does not exist.
+   *
+   * @throws IllegalStateException if {@code zipFile} is a directory
+   * @throws IllegalStateException if {@code zipFile} does not exist
+   * @throws IllegalStateException if {@code toDir} can not be created
+   */
+  public void unzipToDir(File zipFile, File toDir) {
+    try {
+<span class="fc" id="L238">      unzipToDirOrThrowIOE(zipFile, toDir);</span>
+<span class="nc" id="L239">    } catch (IOException e) {</span>
+<span class="nc" id="L240">      throw new IllegalStateException(&quot;Can not unzip file &quot; + zipFile + &quot; to directory &quot; + toDir, e);</span>
+<span class="fc" id="L241">    }</span>
+<span class="fc" id="L242">  }</span>
+
+  /**
+   * Zips the directory {@code dir} to the file {@code toFile}. If {@code toFile} is overridden
+   * if it exists, else it is created.
+   *
+   * @throws IllegalStateException if {@code dir} is a not directory
+   * @throws IllegalStateException if {@code dir} does not exist
+   * @throws IllegalStateException if {@code toFile} can not be created
+   */
+  public void zipDirOrThrowIOE(File dir, File toFile) throws IOException {
+<span class="fc" id="L253">    checkOrThrowIOE(dir.exists(), &quot;Directory %s does not exist&quot;, dir);</span>
+<span class="fc" id="L254">    checkOrThrowIOE(dir.isDirectory(), &quot;File %s exists but is not a directory&quot;, dir);</span>
+<span class="fc" id="L255">    ZipUtils.zipDir(dir, toFile);</span>
+<span class="fc" id="L256">  }</span>
+
+  /**
+   * Zips the directory {@code dir} to the file {@code toFile}. If {@code toFile} is overridden
+   * if it exists, else it is created.
+   *
+   * @throws IllegalStateException if {@code dir} is a not directory
+   * @throws IllegalStateException if {@code dir} does not exist
+   * @throws IllegalStateException if {@code toFile} can not be created
+   */
+  public void zipDir(File dir, File toFile) {
+    try {
+<span class="fc" id="L268">      zipDirOrThrowIOE(dir, toFile);</span>
+<span class="fc" id="L269">    } catch (IOException e) {</span>
+<span class="fc" id="L270">      throw new IllegalStateException(&quot;Can not zip directory &quot; + dir + &quot; to file &quot; + toFile, e);</span>
+<span class="fc" id="L271">    }</span>
+<span class="fc" id="L272">  }</span>
+
+  /**
+   * Creates specified directory if it does not exist yet and any non existing parent.
+   *
+   * @throws IllegalStateException if specified File exists but is not a directory
+   * @throws IllegalStateException if directory creation failed
+   */
+  public void createDir(File dir) {
+<span class="fc" id="L281">    Path dirPath = requireNonNull(dir, &quot;dir can not be null&quot;).toPath();</span>
+<span class="fc bfc" id="L282" title="All 2 branches covered.">    if (dirPath.toFile().exists()) {</span>
+<span class="nc" id="L283">      checkState(dirPath.toFile().isDirectory(), &quot;%s is not a directory&quot;, dirPath);</span>
+    } else {
+      try {
+<span class="fc" id="L286">        createDirectories(dirPath);</span>
+<span class="nc" id="L287">      } catch (IOException e) {</span>
+<span class="nc" id="L288">        throw new IllegalStateException(format(&quot;Failed to create directory %s&quot;, dirPath), e);</span>
+<span class="fc" id="L289">      }</span>
+    }
+<span class="fc" id="L291">  }</span>
+
+  private static void checkOrThrowIOE(boolean expression, @Nullable String errorMessageTemplate, @Nullable Object... errorMessageArgs) throws IOException {
+<span class="fc bfc" id="L294" title="All 2 branches covered.">    if (!expression) {</span>
+<span class="fc" id="L295">      throw new IOException(format(errorMessageTemplate, errorMessageArgs));</span>
+    }
+<span class="fc" id="L297">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

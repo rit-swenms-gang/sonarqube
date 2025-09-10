@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ServerIdManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform.serverid</a> &gt; <span class="el_source">ServerIdManager.java</span></div><h1>ServerIdManager.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform.serverid;
+
+import java.util.Optional;
+import org.sonar.api.SonarQubeSide;
+import org.sonar.api.SonarRuntime;
+import org.sonar.api.Startable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.core.platform.ServerId;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.property.PropertyDto;
+import org.sonar.server.platform.NodeInformation;
+import org.sonar.server.property.InternalProperties;
+
+import static com.google.common.base.Preconditions.checkState;
+import static org.apache.commons.lang3.StringUtils.isEmpty;
+import static org.apache.commons.lang3.StringUtils.isNotEmpty;
+import static org.sonar.api.CoreProperties.SERVER_ID;
+import static org.sonar.server.property.InternalProperties.SERVER_ID_CHECKSUM;
+
+public class ServerIdManager implements Startable {
+<span class="fc" id="L42">  private static final Logger LOGGER = LoggerFactory.getLogger(ServerIdManager.class);</span>
+
+  private final ServerIdChecksum serverIdChecksum;
+  private final ServerIdFactory serverIdFactory;
+  private final DbClient dbClient;
+  private final SonarRuntime runtime;
+  private final NodeInformation nodeInformation;
+
+  public ServerIdManager(ServerIdChecksum serverIdChecksum, ServerIdFactory serverIdFactory, DbClient dbClient, SonarRuntime runtime,
+<span class="fc" id="L51">    NodeInformation nodeInformation) {</span>
+<span class="fc" id="L52">    this.serverIdChecksum = serverIdChecksum;</span>
+<span class="fc" id="L53">    this.serverIdFactory = serverIdFactory;</span>
+<span class="fc" id="L54">    this.dbClient = dbClient;</span>
+<span class="fc" id="L55">    this.runtime = runtime;</span>
+<span class="fc" id="L56">    this.nodeInformation = nodeInformation;</span>
+<span class="fc" id="L57">  }</span>
+
+  @Override
+  public void start() {
+<span class="fc" id="L61">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc bfc" id="L62" title="All 4 branches covered.">      if (runtime.getSonarQubeSide() == SonarQubeSide.SERVER &amp;&amp; nodeInformation.isStartupLeader()) {</span>
+<span class="fc" id="L63">        Optional&lt;String&gt; checksum = dbClient.internalPropertiesDao().selectByKey(dbSession, SERVER_ID_CHECKSUM);</span>
+
+<span class="fc" id="L65">        ServerId serverId = readCurrentServerId(dbSession)</span>
+<span class="fc" id="L66">          .map(currentServerId -&gt; keepOrReplaceCurrentServerId(dbSession, currentServerId, checksum))</span>
+<span class="fc" id="L67">          .orElseGet(() -&gt; createFirstServerId(dbSession));</span>
+<span class="fc" id="L68">        updateChecksum(dbSession, serverId);</span>
+
+<span class="fc" id="L70">        dbSession.commit();</span>
+<span class="fc" id="L71">      } else {</span>
+<span class="fc" id="L72">        ensureServerIdIsValid(dbSession);</span>
+      }
+    }
+<span class="fc" id="L75">  }</span>
+
+  private ServerId keepOrReplaceCurrentServerId(DbSession dbSession, ServerId currentServerId, Optional&lt;String&gt; checksum) {
+<span class="fc bfc" id="L78" title="All 2 branches covered.">    if (keepServerId(currentServerId, checksum)) {</span>
+<span class="fc" id="L79">      return currentServerId;</span>
+    }
+
+<span class="fc" id="L82">    ServerId serverId = replaceCurrentServerId(currentServerId);</span>
+<span class="fc" id="L83">    persistServerId(dbSession, serverId);</span>
+<span class="fc" id="L84">    return serverId;</span>
+  }
+
+  private boolean keepServerId(ServerId serverId, Optional&lt;String&gt; checksum) {
+<span class="fc bfc" id="L88" title="All 2 branches covered.">    if (checksum.isPresent()) {</span>
+<span class="fc" id="L89">      String expectedChecksum = serverIdChecksum.computeFor(serverId.toString());</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">      if (!expectedChecksum.equals(checksum.get())) {</span>
+<span class="fc" id="L91">        LOGGER.warn(&quot;Server ID is reset because it is not valid anymore. Database URL probably changed. The new server ID affects SonarSource licensed products.&quot;);</span>
+<span class="fc" id="L92">        return false;</span>
+      }
+    }
+
+    // Existing server ID must be kept when upgrading to 6.7+. In that case the checksum does not exist.
+<span class="fc" id="L97">    return true;</span>
+  }
+
+  private ServerId replaceCurrentServerId(ServerId currentServerId) {
+<span class="fc" id="L101">    return serverIdFactory.create(currentServerId);</span>
+  }
+
+  private ServerId createFirstServerId(DbSession dbSession) {
+<span class="fc" id="L105">    ServerId serverId = serverIdFactory.create();</span>
+<span class="fc" id="L106">    persistServerId(dbSession, serverId);</span>
+<span class="fc" id="L107">    return serverId;</span>
+  }
+
+  private Optional&lt;ServerId&gt; readCurrentServerId(DbSession dbSession) {
+<span class="fc" id="L111">    PropertyDto dto = dbClient.propertiesDao().selectGlobalProperty(dbSession, SERVER_ID);</span>
+<span class="fc bfc" id="L112" title="All 2 branches covered.">    if (dto == null) {</span>
+<span class="fc" id="L113">      return Optional.empty();</span>
+    }
+
+<span class="fc" id="L116">    String value = dto.getValue();</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">    if (isEmpty(value)) {</span>
+<span class="fc" id="L118">      return Optional.empty();</span>
+    }
+
+<span class="fc" id="L121">    return Optional.of(ServerId.parse(value));</span>
+  }
+
+  private void updateChecksum(DbSession dbSession, ServerId serverId) {
+    // checksum must be generated when it does not exist (upgrading to 6.7 or greater)
+    // or when server ID changed.
+<span class="fc" id="L127">    String checksum = serverIdChecksum.computeFor(serverId.toString());</span>
+<span class="fc" id="L128">    persistChecksum(dbSession, checksum);</span>
+<span class="fc" id="L129">  }</span>
+
+  private void persistServerId(DbSession dbSession, ServerId serverId) {
+<span class="fc" id="L132">    dbClient.propertiesDao().saveProperty(dbSession, new PropertyDto().setKey(SERVER_ID).setValue(serverId.toString()));</span>
+<span class="fc" id="L133">  }</span>
+
+  private void persistChecksum(DbSession dbSession, String checksump) {
+<span class="fc" id="L136">    dbClient.internalPropertiesDao().save(dbSession, InternalProperties.SERVER_ID_CHECKSUM, checksump);</span>
+<span class="fc" id="L137">  }</span>
+
+  private void ensureServerIdIsValid(DbSession dbSession) {
+<span class="fc" id="L140">    PropertyDto id = dbClient.propertiesDao().selectGlobalProperty(dbSession, SERVER_ID);</span>
+<span class="fc bfc" id="L141" title="All 2 branches covered.">    checkState(id != null, &quot;Property %s is missing in database&quot;, SERVER_ID);</span>
+<span class="fc" id="L142">    checkState(isNotEmpty(id.getValue()), &quot;Property %s is empty in database&quot;, SERVER_ID);</span>
+
+<span class="fc" id="L144">    Optional&lt;String&gt; checksum = dbClient.internalPropertiesDao().selectByKey(dbSession, SERVER_ID_CHECKSUM);</span>
+<span class="fc" id="L145">    checkState(checksum.isPresent(), &quot;Internal property %s is missing in database&quot;, SERVER_ID_CHECKSUM);</span>
+<span class="fc" id="L146">    checkState(checksum.get().equals(serverIdChecksum.computeFor(id.getValue())), &quot;Server ID is invalid&quot;);</span>
+<span class="fc" id="L147">  }</span>
+
+  @Override
+  public void stop() {
+    // nothing to do
+<span class="fc" id="L152">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

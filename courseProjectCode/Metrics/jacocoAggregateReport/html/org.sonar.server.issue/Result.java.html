@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Result.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.issue</a> &gt; <span class="el_source">Result.java</span></div><h1>Result.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.issue;
+
+import java.util.Arrays;
+import java.util.List;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
+
+import static com.google.common.collect.Lists.newArrayList;
+
+/**
+ * @since 3.6
+ */
+public class Result&lt;T&gt; {
+
+  private T object;
+<span class="fc" id="L36">  private final List&lt;Message&gt; errors = newArrayList();</span>
+
+<span class="fc" id="L38">  private Result(@Nullable T object) {</span>
+<span class="fc" id="L39">    this.object = object;</span>
+<span class="fc" id="L40">  }</span>
+
+  public static &lt;T&gt; Result&lt;T&gt; of() {
+<span class="fc" id="L43">    return new Result&lt;&gt;(null);</span>
+  }
+
+  public Result&lt;T&gt; set(@Nullable T object) {
+<span class="fc" id="L47">    this.object = object;</span>
+<span class="fc" id="L48">    return this;</span>
+  }
+
+  public T get() {
+<span class="fc" id="L52">    return object;</span>
+  }
+
+  public Result&lt;T&gt; addError(String text) {
+<span class="fc" id="L56">    return addError(Message.of(text));</span>
+  }
+
+  public Result&lt;T&gt; addError(Message message) {
+<span class="fc" id="L60">    errors.add(message);</span>
+<span class="fc" id="L61">    return this;</span>
+  }
+
+  /**
+   * List of error messages. Empty if there are no errors.
+   */
+  public List&lt;Message&gt; errors() {
+<span class="fc" id="L68">    return errors;</span>
+  }
+
+  /**
+   * True if there are no errors.
+   */
+  public boolean ok() {
+<span class="fc" id="L75">    return errors.isEmpty();</span>
+  }
+
+  public int httpStatus() {
+<span class="fc bfc" id="L79" title="All 2 branches covered.">    if (ok()) {</span>
+<span class="fc" id="L80">      return 200;</span>
+    }
+    // TODO support 401, 403 and 500
+<span class="fc" id="L83">    return 400;</span>
+  }
+
+  public static class Message {
+    private final String l10nKey;
+    private final Object[] l10nParams;
+    private final String text;
+
+<span class="fc" id="L91">    private Message(@Nullable String l10nKey, @Nullable Object[] l10nParams, @Nullable String text) {</span>
+<span class="fc" id="L92">      this.l10nKey = l10nKey;</span>
+<span class="fc" id="L93">      this.l10nParams = l10nParams;</span>
+<span class="fc" id="L94">      this.text = text;</span>
+<span class="fc" id="L95">    }</span>
+
+    public static Message of(String text) {
+<span class="fc" id="L98">      return new Message(null, null, text);</span>
+    }
+
+    public static Message ofL10n(String l10nKey, Object... l10nParams) {
+<span class="fc" id="L102">      return new Message(l10nKey, l10nParams, null);</span>
+    }
+
+    @CheckForNull
+    public String text() {
+<span class="fc" id="L107">      return text;</span>
+    }
+
+    @CheckForNull
+    public String l10nKey() {
+<span class="fc" id="L112">      return l10nKey;</span>
+    }
+
+    @CheckForNull
+    public Object[] l10nParams() {
+<span class="fc" id="L117">      return l10nParams;</span>
+    }
+
+    @Override
+    public boolean equals(Object o) {
+<span class="fc bfc" id="L122" title="All 2 branches covered.">      if (this == o) {</span>
+<span class="fc" id="L123">        return true;</span>
+      }
+<span class="pc bpc" id="L125" title="2 of 4 branches missed.">      if (o == null || getClass() != o.getClass()) {</span>
+<span class="nc" id="L126">        return false;</span>
+      }
+<span class="fc" id="L128">      Message message = (Message) o;</span>
+
+<span class="pc bpc" id="L130" title="1 of 6 branches missed.">      if ((l10nKey != null) ? !l10nKey.equals(message.l10nKey) : (message.l10nKey != null)) {</span>
+<span class="fc" id="L131">        return false;</span>
+      }
+      // Probably incorrect - comparing Object[] arrays with Arrays.equals
+<span class="pc bpc" id="L134" title="1 of 8 branches missed.">      return Arrays.equals(l10nParams, message.l10nParams) &amp;&amp; ((text != null) ? text.equals(message.text) : (message.text == null));</span>
+    }
+
+    @Override
+    public int hashCode() {
+<span class="fc bfc" id="L139" title="All 2 branches covered.">      int result = l10nKey != null ? l10nKey.hashCode() : 0;</span>
+<span class="fc bfc" id="L140" title="All 2 branches covered.">      result = 31 * result + (l10nParams != null ? Arrays.hashCode(l10nParams) : 0);</span>
+<span class="fc bfc" id="L141" title="All 2 branches covered.">      result = 31 * result + (text != null ? text.hashCode() : 0);</span>
+<span class="fc" id="L142">      return result;</span>
+    }
+
+    @Override
+    public String toString() {
+<span class="fc" id="L147">      return new ReflectionToStringBuilder(this).toString();</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

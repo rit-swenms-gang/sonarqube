@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultRuleController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.v2.api.rule.controller</a> &gt; <span class="el_source">DefaultRuleController.java</span></div><h1>DefaultRuleController.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.v2.api.rule.controller;
+
+import java.util.HashMap;
+import java.util.Map;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.server.common.rule.ReactivationException;
+import org.sonar.server.common.rule.service.NewCustomRule;
+import org.sonar.server.common.rule.service.RuleInformation;
+import org.sonar.server.common.rule.service.RuleService;
+import org.sonar.server.exceptions.ServerException;
+import org.sonar.server.user.UserSession;
+import org.sonar.server.v2.api.rule.converter.RuleRestResponseGenerator;
+import org.sonar.server.v2.api.rule.enums.RuleStatusRestEnum;
+import org.sonar.server.v2.api.rule.request.RuleCreateRestRequest;
+import org.sonar.server.v2.api.rule.resource.Impact;
+import org.sonar.server.v2.api.rule.response.RuleRestResponse;
+import org.springframework.http.HttpStatus;
+
+import static java.util.Optional.ofNullable;
+import static org.sonar.db.permission.GlobalPermission.ADMINISTER_QUALITY_PROFILES;
+
+public class DefaultRuleController implements RuleController {
+  private final UserSession userSession;
+  private final RuleService ruleService;
+  private final RuleRestResponseGenerator ruleRestResponseGenerator;
+
+<span class="fc" id="L46">  public DefaultRuleController(UserSession userSession, RuleService ruleService, RuleRestResponseGenerator ruleRestResponseGenerator) {</span>
+<span class="fc" id="L47">    this.userSession = userSession;</span>
+<span class="fc" id="L48">    this.ruleService = ruleService;</span>
+<span class="fc" id="L49">    this.ruleRestResponseGenerator = ruleRestResponseGenerator;</span>
+<span class="fc" id="L50">  }</span>
+
+  @Override
+  public RuleRestResponse create(RuleCreateRestRequest request) {
+<span class="fc" id="L54">    userSession</span>
+<span class="fc" id="L55">      .checkLoggedIn()</span>
+<span class="fc" id="L56">      .checkPermission(ADMINISTER_QUALITY_PROFILES);</span>
+    try {
+<span class="fc" id="L58">      RuleInformation ruleInformation = ruleService.createCustomRule(toNewCustomRule(request));</span>
+<span class="fc" id="L59">      return ruleRestResponseGenerator.toRuleRestResponse(ruleInformation);</span>
+<span class="fc" id="L60">    } catch (ReactivationException e) {</span>
+<span class="fc" id="L61">      throw new ServerException(HttpStatus.CONFLICT.value(), e.getMessage());</span>
+    }
+  }
+
+  private static NewCustomRule toNewCustomRule(RuleCreateRestRequest request) {
+<span class="fc" id="L66">    NewCustomRule newCustomRule = NewCustomRule.createForCustomRule(RuleKey.parse(request.key()), RuleKey.parse(request.templateKey()))</span>
+<span class="fc" id="L67">      .setName(request.name())</span>
+<span class="fc" id="L68">      .setMarkdownDescription(request.markdownDescription())</span>
+<span class="fc" id="L69">      .setStatus(ofNullable(request.status()).map(RuleStatusRestEnum::getRuleStatus).orElse(null))</span>
+<span class="fc bfc" id="L70" title="All 2 branches covered.">      .setCleanCodeAttribute(request.cleanCodeAttribute() != null ? request.cleanCodeAttribute().getCleanCodeAttribute() : null)</span>
+<span class="fc" id="L71">      .setImpacts(request.impacts().stream().map(DefaultRuleController::toNewCustomRuleImpact).toList())</span>
+<span class="fc" id="L72">      .setType(request.type())</span>
+<span class="fc" id="L73">      .setSeverity(request.severity())</span>
+<span class="fc" id="L74">      .setPreventReactivation(true);</span>
+<span class="pc bpc" id="L75" title="1 of 2 branches missed.">    if (request.parameters() != null) {</span>
+<span class="fc" id="L76">      Map&lt;String, String&gt; params = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L77">      request.parameters().forEach(p -&gt; params.put(p.key(), p.defaultValue()));</span>
+<span class="fc" id="L78">      newCustomRule.setParameters(params);</span>
+    }
+<span class="fc" id="L80">    return newCustomRule;</span>
+  }
+
+  private static NewCustomRule.Impact toNewCustomRuleImpact(Impact impact) {
+<span class="fc" id="L84">    return new NewCustomRule.Impact(impact.softwareQuality().getSoftwareQuality(), impact.severity().getSeverity());</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

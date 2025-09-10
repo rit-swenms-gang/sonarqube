@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AsyncIssueIndexCreationTelemetry.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.issue.index</a> &gt; <span class="el_source">AsyncIssueIndexCreationTelemetry.java</span></div><h1>AsyncIssueIndexCreationTelemetry.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.issue.index;
+
+import com.google.common.annotations.VisibleForTesting;
+import java.io.IOException;
+import java.time.Clock;
+import java.util.Set;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.config.Configuration;
+import org.sonar.api.platform.Server;
+import org.sonar.api.server.ServerSide;
+import org.sonar.core.util.UuidFactory;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.telemetry.core.Dimension;
+import org.sonar.telemetry.core.Granularity;
+import org.sonar.telemetry.core.MessageSerializer;
+import org.sonar.telemetry.core.TelemetryClient;
+import org.sonar.telemetry.core.TelemetryDataType;
+import org.sonar.telemetry.core.schema.BaseMessage;
+import org.sonar.telemetry.core.schema.InstallationMetric;
+
+import static org.sonar.process.ProcessProperties.Property.SONAR_TELEMETRY_ENABLE;
+
+@ServerSide
+public class AsyncIssueIndexCreationTelemetry {
+  public static final String KEY_ASYNC_ISSUE_INDEXING_DURATION = &quot;async_issue_indexing_duration&quot;;
+  public static final String KEY_ASYNC_ISSUE_INDEXING_TASK_TOTAL_COUNT = &quot;async_issue_indexing_task_total_count&quot;;
+  public static final String KEY_ASYNC_ISSUE_INDEXING_TASK_FAILURE_COUNT = &quot;async_issue_indexing_task_failure_count&quot;;
+
+<span class="fc" id="L52">  private static final Logger LOGGER = LoggerFactory.getLogger(AsyncIssueIndexCreationTelemetry.class);</span>
+
+  private final DbClient dbClient;
+  private final TelemetryClient telemetryClient;
+  private final Server server;
+  private final UuidFactory uuidFactory;
+  private final Clock clock;
+  private final IssueIndexMonitoringScheduler scheduler;
+  private final Configuration config;
+
+  private ScheduledFuture&lt;?&gt; currentMonitoring;
+  private long startTime;
+  private int nbIndexingTasks;
+
+  public AsyncIssueIndexCreationTelemetry(DbClient dbClient, TelemetryClient telemetryClient, Server server, UuidFactory uuidFactory, Clock clock,
+<span class="fc" id="L67">    IssueIndexMonitoringScheduler scheduler, Configuration config) {</span>
+<span class="fc" id="L68">    this.dbClient = dbClient;</span>
+<span class="fc" id="L69">    this.telemetryClient = telemetryClient;</span>
+<span class="fc" id="L70">    this.server = server;</span>
+<span class="fc" id="L71">    this.uuidFactory = uuidFactory;</span>
+<span class="fc" id="L72">    this.clock = clock;</span>
+<span class="fc" id="L73">    this.scheduler = scheduler;</span>
+<span class="fc" id="L74">    this.config = config;</span>
+<span class="fc" id="L75">  }</span>
+
+  /**
+   * Initiates the monitoring of indexing progress using the IssueIndexSyncProgressChecker
+   * and sends telemetry once the indexing process is completed.
+   * &lt;p&gt;
+   */
+  public void startIndexCreationMonitoringToSendTelemetry(int nbIndexingTasks) {
+<span class="fc bfc" id="L83" title="All 2 branches covered.">    if (!config.getBoolean(SONAR_TELEMETRY_ENABLE.getKey()).orElse(false)) {</span>
+<span class="fc" id="L84">      return;</span>
+    }
+<span class="fc" id="L86">    startTime = clock.millis();</span>
+<span class="fc" id="L87">    this.nbIndexingTasks = nbIndexingTasks;</span>
+<span class="pc bpc" id="L88" title="1 of 2 branches missed.">    if (currentMonitoring != null) {</span>
+<span class="nc" id="L89">      currentMonitoring.cancel(false);</span>
+    }
+<span class="fc" id="L91">    currentMonitoring = scheduler.scheduleAtFixedRate(this::tryToSendTelemetry, 0, 5, TimeUnit.SECONDS);</span>
+
+<span class="fc" id="L93">  }</span>
+
+  @VisibleForTesting
+  void tryToSendTelemetry() {
+<span class="fc" id="L97">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="pc bpc" id="L98" title="1 of 2 branches missed.">      if (!dbClient.ceQueueDao().hasAnyIssueSyncTaskPendingOrInProgress(dbSession)) {</span>
+<span class="fc" id="L99">        sendIssueIndexationTelemetry(dbSession);</span>
+<span class="fc" id="L100">        currentMonitoring.cancel(false);</span>
+      }
+    }
+<span class="fc" id="L103">  }</span>
+
+  private void sendIssueIndexationTelemetry(DbSession dbSession) {
+<span class="fc" id="L106">    int nbBranchNotIndexed = dbClient.ceActivityDao().countFailedOrCancelledIssueSyncTasks(dbSession);</span>
+
+<span class="fc" id="L108">    BaseMessage baseMessage = new BaseMessage.Builder()</span>
+<span class="fc" id="L109">      .setInstallationId(server.getId())</span>
+<span class="fc" id="L110">      .setDimension(Dimension.INSTALLATION)</span>
+<span class="fc" id="L111">      .setMessageUuid(uuidFactory.create())</span>
+<span class="fc" id="L112">      .setMetrics(Set.of(</span>
+<span class="fc" id="L113">        new InstallationMetric(KEY_ASYNC_ISSUE_INDEXING_DURATION, clock.millis() - startTime, TelemetryDataType.INTEGER, Granularity.ADHOC),</span>
+<span class="fc" id="L114">        new InstallationMetric(KEY_ASYNC_ISSUE_INDEXING_TASK_TOTAL_COUNT, nbIndexingTasks, TelemetryDataType.INTEGER, Granularity.ADHOC),</span>
+<span class="fc" id="L115">        new InstallationMetric(KEY_ASYNC_ISSUE_INDEXING_TASK_FAILURE_COUNT, nbBranchNotIndexed, TelemetryDataType.INTEGER, Granularity.ADHOC)</span>
+<span class="fc" id="L116">      )).build();</span>
+<span class="fc" id="L117">    String asyncIssueSyncJsonMessage = MessageSerializer.serialize(baseMessage);</span>
+    try {
+<span class="fc" id="L119">      telemetryClient.uploadMetric(asyncIssueSyncJsonMessage);</span>
+<span class="nc" id="L120">    } catch (IOException e) {</span>
+<span class="nc" id="L121">      LOGGER.debug(&quot;Failed to upload telemetry data&quot;, e);</span>
+<span class="fc" id="L122">    }</span>
+<span class="fc" id="L123">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

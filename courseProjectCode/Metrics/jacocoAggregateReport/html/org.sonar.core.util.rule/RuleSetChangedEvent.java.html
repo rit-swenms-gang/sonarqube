@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RuleSetChangedEvent.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.core.util.rule</a> &gt; <span class="el_source">RuleSetChangedEvent.java</span></div><h1>RuleSetChangedEvent.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.core.util.rule;
+
+import java.io.Serializable;
+
+public class RuleSetChangedEvent implements Serializable {
+  private final String[] projects;
+  private final RuleChange[] activatedRules;
+  private final String[] deactivatedRules;
+
+<span class="fc" id="L29">  public RuleSetChangedEvent(String projectKey, RuleChange[] activatedRules, String[] deactivatedRules) {</span>
+<span class="fc" id="L30">    this.projects = new String[]{projectKey};</span>
+<span class="fc" id="L31">    this.activatedRules = activatedRules;</span>
+<span class="fc" id="L32">    this.deactivatedRules = deactivatedRules;</span>
+<span class="pc bpc" id="L33" title="1 of 4 branches missed.">    if (activatedRules.length == 0 &amp;&amp; deactivatedRules.length == 0) {</span>
+<span class="fc" id="L34">      throw new IllegalArgumentException(&quot;Can't create RuleSetChangedEvent without any rules that have changed&quot;);</span>
+    }
+<span class="fc" id="L36">  }</span>
+
+  public String[] getProjects() {
+<span class="nc" id="L39">    return projects;</span>
+  }
+
+  public RuleChange[] getActivatedRules() {
+<span class="fc" id="L43">    return activatedRules;</span>
+  }
+
+  public String[] getDeactivatedRules() {
+<span class="fc" id="L47">    return deactivatedRules;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

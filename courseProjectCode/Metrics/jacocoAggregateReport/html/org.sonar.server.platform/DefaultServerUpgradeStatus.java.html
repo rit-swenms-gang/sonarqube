@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultServerUpgradeStatus.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform</a> &gt; <span class="el_source">DefaultServerUpgradeStatus.java</span></div><h1>DefaultServerUpgradeStatus.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform;
+
+import java.util.Optional;
+import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
+import org.sonar.api.Startable;
+import org.sonar.api.config.Configuration;
+import org.sonar.api.platform.ServerUpgradeStatus;
+import org.sonar.process.ProcessProperties;
+import org.sonar.server.platform.db.migration.step.MigrationSteps;
+import org.sonar.server.platform.db.migration.version.DatabaseVersion;
+
+public class DefaultServerUpgradeStatus implements ServerUpgradeStatus, Startable {
+
+  private final DatabaseVersion dbVersion;
+  private final MigrationSteps migrationSteps;
+  private final Configuration configuration;
+
+  // available when connected to db
+  private long initialDbVersion;
+
+<span class="fc" id="L41">  public DefaultServerUpgradeStatus(DatabaseVersion dbVersion, MigrationSteps migrationSteps, Configuration configuration) {</span>
+<span class="fc" id="L42">    this.dbVersion = dbVersion;</span>
+<span class="fc" id="L43">    this.migrationSteps = migrationSteps;</span>
+<span class="fc" id="L44">    this.configuration = configuration;</span>
+<span class="fc" id="L45">  }</span>
+
+  @Override
+  public void start() {
+<span class="fc" id="L49">    Optional&lt;Long&gt; v = dbVersion.getVersion();</span>
+<span class="fc" id="L50">    this.initialDbVersion = v.orElse(-1L);</span>
+<span class="fc" id="L51">  }</span>
+
+  @Override
+  public void stop() {
+    // do nothing
+<span class="nc" id="L56">  }</span>
+
+  @Override
+  public boolean isUpgraded() {
+<span class="fc bfc" id="L60" title="All 4 branches covered.">    return !isFreshInstall() &amp;&amp; (initialDbVersion &lt; migrationSteps.getMaxMigrationNumber());</span>
+  }
+
+  @Override
+  public boolean isFreshInstall() {
+<span class="fc bfc" id="L65" title="All 2 branches covered.">    return initialDbVersion &lt; 0;</span>
+  }
+
+  @Override
+  public int getInitialDbVersion() {
+<span class="fc" id="L70">    return (int) initialDbVersion;</span>
+  }
+
+  public boolean isAutoDbUpgrade() {
+<span class="fc" id="L74">    return configuration.getBoolean(ProcessProperties.Property.AUTO_DATABASE_UPGRADE.getKey()).orElse(false);</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="nc" id="L79">    return new ReflectionToStringBuilder(this, ToStringStyle.SHORT_PREFIX_STYLE).toString();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ExternalIssueReportValidator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.externalissue</a> &gt; <span class="el_source">ExternalIssueReportValidator.java</span></div><h1>ExternalIssueReportValidator.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.externalissue;
+
+import java.nio.file.Path;
+import java.util.HashSet;
+import java.util.Set;
+import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.rules.RuleType;
+import org.sonar.api.scanner.ScannerSide;
+import org.sonar.core.documentation.DocumentationLinkGenerator;
+
+@ScannerSide
+public class ExternalIssueReportValidator {
+<span class="fc" id="L34">  private static final Logger LOGGER = LoggerFactory.getLogger(ExternalIssueReportValidator.class);</span>
+  private static final String ISSUE_RULE_ID = &quot;ruleId&quot;;
+  private static final String SEVERITY = &quot;severity&quot;;
+  private static final String TYPE = &quot;type&quot;;
+  private static final String DOCUMENTATION_SUFFIX = &quot;/analyzing-source-code/importing-external-issues/generic-issue-import-format/&quot;;
+  private final DocumentationLinkGenerator documentationLinkGenerator;
+
+<span class="fc" id="L41">  ExternalIssueReportValidator(DocumentationLinkGenerator documentationLinkGenerator) {</span>
+<span class="fc" id="L42">    this.documentationLinkGenerator = documentationLinkGenerator;</span>
+<span class="fc" id="L43">  }</span>
+
+  /**
+   * &lt;p&gt;Since we are supporting deprecated format, we decide which format it is in order by:
+   *   &lt;ul&gt;
+   *     &lt;li&gt;if both 'rules' and 'issues' fields are present, we assume it is CCT format&lt;/li&gt;
+   *     &lt;li&gt;if only 'issues' field is present, we assume it is deprecated format&lt;/li&gt;
+   *     &lt;li&gt;otherwise we throw exception as an invalid report was detected&lt;/li&gt;
+   *   &lt;/ul&gt;
+   * &lt;/p&gt;
+   */
+  public void validate(ExternalIssueReport report, Path reportPath) {
+<span class="pc bpc" id="L55" title="1 of 4 branches missed.">    if (report.rules != null &amp;&amp; report.issues != null) {</span>
+<span class="fc" id="L56">      Set&lt;String&gt; ruleIds = validateRules(report.rules, reportPath);</span>
+<span class="fc" id="L57">      validateIssuesNewFormat(report.issues, ruleIds, reportPath);</span>
+<span class="pc bpc" id="L58" title="1 of 4 branches missed.">    } else if (report.rules == null &amp;&amp; report.issues != null) {</span>
+<span class="fc" id="L59">      String documentationLink = documentationLinkGenerator.getDocumentationLink(DOCUMENTATION_SUFFIX);</span>
+<span class="fc" id="L60">      LOGGER.warn(&quot;External issues were imported with a deprecated format which will be removed soon. &quot; +</span>
+        &quot;Please switch to the newest format to fully benefit from Clean Code: {}&quot;, documentationLink);
+<span class="fc" id="L62">      validateIssuesDeprecatedFormat(report.issues, reportPath);</span>
+<span class="fc" id="L63">    } else {</span>
+<span class="fc" id="L64">      throw new IllegalStateException(String.format(&quot;Failed to parse report '%s': invalid report detected.&quot;, reportPath));</span>
+    }
+<span class="fc" id="L66">  }</span>
+
+  private static void validateIssuesNewFormat(ExternalIssueReport.Issue[] issues, Set&lt;String&gt; ruleIds, Path reportPath) {
+<span class="fc bfc" id="L69" title="All 2 branches covered.">    for (ExternalIssueReport.Issue issue : issues) {</span>
+<span class="fc" id="L70">      mandatoryField(issue.ruleId, ISSUE_RULE_ID, reportPath);</span>
+<span class="fc" id="L71">      checkRuleExistsInReport(ruleIds, issue, reportPath);</span>
+<span class="fc" id="L72">      checkNoField(issue.severity, SEVERITY, reportPath);</span>
+<span class="fc" id="L73">      checkNoField(issue.type, TYPE, reportPath);</span>
+<span class="fc" id="L74">      validateAlwaysRequiredIssueFields(issue, reportPath);</span>
+    }
+<span class="fc" id="L76">  }</span>
+
+  private static void validateIssuesDeprecatedFormat(ExternalIssueReport.Issue[] issues, Path reportPath) {
+<span class="fc bfc" id="L79" title="All 2 branches covered.">    for (ExternalIssueReport.Issue issue : issues) {</span>
+<span class="fc" id="L80">      mandatoryField(issue.ruleId, ISSUE_RULE_ID, reportPath);</span>
+<span class="fc" id="L81">      mandatoryField(issue.severity, SEVERITY, reportPath);</span>
+<span class="fc" id="L82">      mandatoryField(issue.type, TYPE, reportPath);</span>
+<span class="fc" id="L83">      mandatoryField(issue.engineId, &quot;engineId&quot;, reportPath);</span>
+<span class="fc" id="L84">      validateAlwaysRequiredIssueFields(issue, reportPath);</span>
+    }
+<span class="fc" id="L86">  }</span>
+
+  private static Set&lt;String&gt; validateRules(ExternalIssueReport.Rule[] rules, Path reportPath) {
+<span class="fc" id="L89">    Set&lt;String&gt; ruleIds = new HashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">    for (ExternalIssueReport.Rule rule : rules) {</span>
+<span class="fc" id="L91">      mandatoryField(rule.id, &quot;id&quot;, reportPath);</span>
+<span class="fc" id="L92">      mandatoryField(rule.name, &quot;name&quot;, reportPath);</span>
+<span class="fc" id="L93">      mandatoryField(rule.engineId, &quot;engineId&quot;, reportPath);</span>
+<span class="fc" id="L94">      validateTypeOrImpacts(reportPath, rule);</span>
+
+<span class="pc bpc" id="L96" title="1 of 2 branches missed.">      if (rule.impacts != null) {</span>
+<span class="fc" id="L97">        checkImpactsArray(rule.impacts, reportPath);</span>
+<span class="fc" id="L98">        validateImpactsOnSecurityHostpots(rule.impacts, rule.type, reportPath);</span>
+      }
+<span class="fc bfc" id="L100" title="All 2 branches covered.">      if (rule.type != null) {</span>
+<span class="nc" id="L101">        mandatoryField(rule.severity, SEVERITY, reportPath);</span>
+      }
+
+<span class="fc bfc" id="L104" title="All 2 branches covered.">      if (rule.severity != null) {</span>
+<span class="nc" id="L105">        mandatoryField(rule.type, TYPE, reportPath);</span>
+      }
+
+<span class="fc bfc" id="L108" title="All 2 branches covered.">      if (!ruleIds.add(rule.id)) {</span>
+<span class="fc" id="L109">        throw new IllegalStateException(String.format(&quot;Failed to parse report '%s': found duplicate rule ID '%s'.&quot;, reportPath, rule.id));</span>
+      }
+    }
+
+<span class="fc" id="L113">    return ruleIds;</span>
+  }
+
+  private static void validateImpactsOnSecurityHostpots(ExternalIssueReport.Impact[] impacts, String type, Path reportPath) {
+<span class="pc bpc" id="L117" title="1 of 4 branches missed.">    if (impacts.length &gt; 0 &amp;&amp; RuleType.SECURITY_HOTSPOT.name().equals(type)) {</span>
+<span class="fc" id="L118">      throw new IllegalStateException(String.format(&quot;Failed to parse report '%s': impacts should not be provided for rule type 'SECURITY_HOTSPOT'.&quot;, reportPath));</span>
+    }
+<span class="fc" id="L120">  }</span>
+
+  private static void validateTypeOrImpacts(Path reportPath, ExternalIssueReport.Rule rule) {
+<span class="fc bfc" id="L123" title="All 4 branches covered.">    if (rule.type == null &amp;&amp; rule.impacts == null) {</span>
+<span class="fc" id="L124">      throw new IllegalStateException(String.format(&quot;Failed to parse report '%s': either type, impacts or both should be provided.&quot;, reportPath));</span>
+    }
+<span class="fc" id="L126">  }</span>
+
+  private static void checkNoField(@Nullable Object value, String fieldName, Path reportPath) {
+<span class="fc bfc" id="L129" title="All 2 branches covered.">    if (value != null) {</span>
+<span class="fc" id="L130">      throw new IllegalStateException(String.format(&quot;Deprecated '%s' field found in the following report: '%s'.&quot;, fieldName, reportPath));</span>
+    }
+<span class="fc" id="L132">  }</span>
+
+  private static void validateAlwaysRequiredIssueFields(ExternalIssueReport.Issue issue, Path reportPath) {
+<span class="fc" id="L135">    mandatoryField(issue.primaryLocation, &quot;primaryLocation&quot;, reportPath);</span>
+<span class="fc" id="L136">    mandatoryFieldPrimaryLocation(issue.primaryLocation.filePath, &quot;filePath&quot;, reportPath);</span>
+<span class="fc" id="L137">    mandatoryFieldPrimaryLocation(issue.primaryLocation.message, &quot;message&quot;, reportPath);</span>
+
+<span class="fc bfc" id="L139" title="All 2 branches covered.">    if (issue.primaryLocation.textRange != null) {</span>
+<span class="fc" id="L140">      mandatoryFieldPrimaryLocation(issue.primaryLocation.textRange.startLine, &quot;startLine of the text range&quot;, reportPath);</span>
+    }
+
+<span class="fc bfc" id="L143" title="All 2 branches covered.">    if (issue.secondaryLocations != null) {</span>
+<span class="fc bfc" id="L144" title="All 2 branches covered.">      for (ExternalIssueReport.Location l : issue.secondaryLocations) {</span>
+<span class="fc" id="L145">        mandatoryFieldSecondaryLocation(l.filePath, &quot;filePath&quot;, reportPath);</span>
+<span class="fc" id="L146">        mandatoryFieldSecondaryLocation(l.textRange, &quot;textRange&quot;, reportPath);</span>
+<span class="fc" id="L147">        mandatoryFieldSecondaryLocation(l.textRange.startLine, &quot;startLine of the text range&quot;, reportPath);</span>
+      }
+    }
+<span class="fc" id="L150">  }</span>
+
+  private static void mandatoryFieldPrimaryLocation(@Nullable Object value, String fieldName, Path reportPath) {
+<span class="fc bfc" id="L153" title="All 2 branches covered.">    if (value == null) {</span>
+<span class="fc" id="L154">      throw new IllegalStateException(String.format(&quot;Failed to parse report '%s': missing mandatory field '%s' in the primary location of&quot; +</span>
+        &quot; the issue.&quot;, reportPath, fieldName));
+    }
+<span class="fc" id="L157">  }</span>
+
+  private static void mandatoryFieldSecondaryLocation(@Nullable Object value, String fieldName, Path reportPath) {
+<span class="fc bfc" id="L160" title="All 2 branches covered.">    if (value == null) {</span>
+<span class="fc" id="L161">      throw new IllegalStateException(String.format(&quot;Failed to parse report '%s': missing mandatory field '%s' in a secondary location of&quot; +</span>
+        &quot; the issue.&quot;, reportPath, fieldName));
+    }
+<span class="fc" id="L164">  }</span>
+
+  private static void mandatoryField(@Nullable Object value, String fieldName, Path reportPath) {
+<span class="fc bfc" id="L167" title="All 6 branches covered.">    if (value == null || (value instanceof String string &amp;&amp; string.isEmpty())) {</span>
+<span class="fc" id="L168">      throw new IllegalStateException(String.format(&quot;Failed to parse report '%s': missing mandatory field '%s'.&quot;, reportPath, fieldName));</span>
+    }
+<span class="fc" id="L170">  }</span>
+
+  private static void checkImpactsArray(@Nullable Object[] value, Path reportPath) {
+<span class="fc" id="L173">    mandatoryField(value, &quot;impacts&quot;, reportPath);</span>
+<span class="fc bfc" id="L174" title="All 2 branches covered.">    if (value.length == 0) {</span>
+<span class="fc" id="L175">      throw new IllegalStateException(String.format(&quot;Failed to parse report '%s': mandatory array '%s' not populated.&quot;, reportPath,</span>
+        &quot;impacts&quot;));
+    }
+<span class="fc" id="L178">  }</span>
+
+  private static void checkRuleExistsInReport(Set&lt;String&gt; ruleIds, ExternalIssueReport.Issue issue, Path reportPath) {
+<span class="fc bfc" id="L181" title="All 2 branches covered.">    if (!ruleIds.contains(issue.ruleId)) {</span>
+<span class="fc" id="L182">      throw new IllegalStateException(String.format(&quot;Failed to parse report '%s': rule with '%s' not present.&quot;, reportPath, issue.ruleId));</span>
+    }
+<span class="fc" id="L184">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

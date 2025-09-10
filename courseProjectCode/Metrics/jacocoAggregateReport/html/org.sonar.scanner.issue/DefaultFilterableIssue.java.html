@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultFilterableIssue.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.issue</a> &gt; <span class="el_source">DefaultFilterableIssue.java</span></div><h1>DefaultFilterableIssue.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.issue;
+
+import javax.annotation.concurrent.ThreadSafe;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
+import org.sonar.api.batch.fs.InputComponent;
+import org.sonar.api.batch.fs.TextRange;
+import org.sonar.api.batch.fs.internal.DefaultInputProject;
+import org.sonar.api.batch.fs.internal.DefaultTextPointer;
+import org.sonar.api.batch.fs.internal.DefaultTextRange;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.api.scan.issue.filter.FilterableIssue;
+import org.sonar.scanner.protocol.output.ScannerReport.Issue;
+
+@ThreadSafe
+public class DefaultFilterableIssue implements FilterableIssue {
+  private final Issue rawIssue;
+  private final String severity;
+  private final InputComponent component;
+  private DefaultInputProject project;
+
+<span class="fc" id="L41">  public DefaultFilterableIssue(DefaultInputProject project, Issue rawIssue, String severity, InputComponent component) {</span>
+<span class="fc" id="L42">    this.project = project;</span>
+<span class="fc" id="L43">    this.rawIssue = rawIssue;</span>
+<span class="fc" id="L44">    this.severity = severity;</span>
+<span class="fc" id="L45">    this.component = component;</span>
+<span class="fc" id="L46">  }</span>
+
+  @Override
+  public String componentKey() {
+<span class="fc" id="L50">    return component.key();</span>
+  }
+
+  @Override
+  public RuleKey ruleKey() {
+<span class="fc" id="L55">    return RuleKey.of(rawIssue.getRuleRepository(), rawIssue.getRuleKey());</span>
+  }
+
+  @Override
+  public String severity() {
+<span class="fc" id="L60">    return severity;</span>
+  }
+
+  @Override
+  public String message() {
+<span class="nc" id="L65">    return rawIssue.getMsg();</span>
+  }
+
+  @Deprecated
+  @Override
+  public Integer line() {
+<span class="fc bfc" id="L71" title="All 2 branches covered.">    return rawIssue.hasTextRange() ? rawIssue.getTextRange().getStartLine() : null;</span>
+  }
+
+  @Override
+  public TextRange textRange() {
+<span class="pc bpc" id="L76" title="1 of 2 branches missed.">    if (!rawIssue.hasTextRange()) {</span>
+<span class="nc" id="L77">      return null;</span>
+    }
+
+<span class="fc" id="L80">    return new DefaultTextRange(</span>
+<span class="fc" id="L81">      new DefaultTextPointer(rawIssue.getTextRange().getStartLine(), rawIssue.getTextRange().getStartOffset()),</span>
+<span class="fc" id="L82">      new DefaultTextPointer(rawIssue.getTextRange().getEndLine(), rawIssue.getTextRange().getEndOffset()));</span>
+  }
+
+  @Override
+  public Double gap() {
+<span class="fc bfc" id="L87" title="All 2 branches covered.">    return Double.compare(rawIssue.getGap(), 0D) != 0 ? rawIssue.getGap() : null;</span>
+  }
+
+  @Override
+  public String projectKey() {
+<span class="fc" id="L92">    return project.key();</span>
+  }
+
+  public InputComponent getComponent() {
+<span class="fc" id="L96">    return component;</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="fc" id="L101">    return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

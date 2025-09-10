@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultDevOpsProjectCreator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.common.almsettings</a> &gt; <span class="el_source">DefaultDevOpsProjectCreator.java</span></div><h1>DefaultDevOpsProjectCreator.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.common.almsettings;
+
+import java.util.Optional;
+import java.util.Set;
+import javax.annotation.CheckForNull;
+import org.jetbrains.annotations.Nullable;
+import org.sonar.db.permission.ProjectPermission;
+import org.sonar.auth.DevOpsPlatformSettings;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.alm.setting.AlmSettingDto;
+import org.sonar.db.alm.setting.ProjectAlmSettingDto;
+import org.sonar.db.component.BranchDto;
+import org.sonar.db.project.CreationMethod;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.db.user.UserIdDto;
+import org.sonar.server.common.almintegration.ProjectKeyGenerator;
+import org.sonar.server.common.permission.Operation;
+import org.sonar.server.common.permission.PermissionUpdater;
+import org.sonar.server.common.permission.UserPermissionChange;
+import org.sonar.server.common.project.ProjectCreator;
+import org.sonar.server.component.ComponentCreationData;
+import org.sonar.server.management.ManagedProjectService;
+import org.sonar.server.permission.PermissionService;
+import org.sonar.server.user.UserSession;
+
+import static java.util.Objects.requireNonNull;
+
+public class DefaultDevOpsProjectCreator implements DevOpsProjectCreator {
+
+  protected final DbClient dbClient;
+  protected final ProjectKeyGenerator projectKeyGenerator;
+  protected final DevOpsPlatformSettings devOpsPlatformSettings;
+  protected final ProjectCreator projectCreator;
+  protected final PermissionService permissionService;
+  protected final PermissionUpdater&lt;UserPermissionChange&gt; permissionUpdater;
+  protected final ManagedProjectService managedProjectService;
+  protected final DevOpsProjectCreationContext devOpsProjectCreationContext;
+
+  public DefaultDevOpsProjectCreator(DbClient dbClient, DevOpsProjectCreationContext devOpsProjectCreationContext, ProjectKeyGenerator projectKeyGenerator,
+    DevOpsPlatformSettings devOpsPlatformSettings, ProjectCreator projectCreator, PermissionService permissionService, PermissionUpdater&lt;UserPermissionChange&gt; permissionUpdater,
+<span class="fc" id="L61">    ManagedProjectService managedProjectService) {</span>
+<span class="fc" id="L62">    this.dbClient = dbClient;</span>
+<span class="fc" id="L63">    this.projectKeyGenerator = projectKeyGenerator;</span>
+<span class="fc" id="L64">    this.devOpsPlatformSettings = devOpsPlatformSettings;</span>
+<span class="fc" id="L65">    this.projectCreator = projectCreator;</span>
+<span class="fc" id="L66">    this.permissionService = permissionService;</span>
+<span class="fc" id="L67">    this.permissionUpdater = permissionUpdater;</span>
+<span class="fc" id="L68">    this.managedProjectService = managedProjectService;</span>
+<span class="fc" id="L69">    this.devOpsProjectCreationContext = devOpsProjectCreationContext;</span>
+<span class="fc" id="L70">  }</span>
+
+  @Override
+  public boolean isScanAllowedUsingPermissionsFromDevopsPlatform() {
+<span class="fc" id="L74">    throw new UnsupportedOperationException(&quot;Not Implemented&quot;);</span>
+  }
+
+  @Override
+  public ComponentCreationData createProjectAndBindToDevOpsPlatform(DbSession dbSession, CreationMethod creationMethod, Boolean monorepo, @Nullable String projectKey,
+    @Nullable String projectName) {
+<span class="fc" id="L80">    String key = Optional.ofNullable(projectKey).orElse(generateUniqueProjectKey());</span>
+<span class="fc" id="L81">    boolean isManaged = devOpsPlatformSettings.isProvisioningEnabled();</span>
+<span class="fc" id="L82">    Boolean shouldProjectBePrivate = shouldProjectBePrivate(devOpsProjectCreationContext.isPublic());</span>
+
+<span class="fc" id="L84">    ComponentCreationData componentCreationData = projectCreator.createProject(dbSession, key, getProjectName(projectName),</span>
+<span class="fc" id="L85">      devOpsProjectCreationContext.defaultBranchName(), creationMethod, shouldProjectBePrivate, isManaged);</span>
+<span class="fc" id="L86">    ProjectDto projectDto = Optional.ofNullable(componentCreationData.projectDto()).orElseThrow();</span>
+
+<span class="fc" id="L88">    createProjectAlmSettingDto(dbSession, projectDto, devOpsProjectCreationContext.almSettingDto(), monorepo);</span>
+<span class="fc" id="L89">    addScanPermissionToCurrentUser(dbSession, projectDto);</span>
+
+<span class="fc" id="L91">    BranchDto mainBranchDto = Optional.ofNullable(componentCreationData.mainBranchDto()).orElseThrow();</span>
+<span class="fc bfc" id="L92" title="All 2 branches covered.">    if (isManaged) {</span>
+<span class="fc" id="L93">      syncProjectPermissionsWithDevOpsPlatform(projectDto, mainBranchDto);</span>
+    }
+<span class="fc" id="L95">    return componentCreationData;</span>
+  }
+
+  @CheckForNull
+  private Boolean shouldProjectBePrivate(boolean isPublic) {
+<span class="fc bfc" id="L100" title="All 4 branches covered.">    if (devOpsPlatformSettings.isProvisioningEnabled() &amp;&amp; devOpsPlatformSettings.isProjectVisibilitySynchronizationActivated()) {</span>
+<span class="pc bpc" id="L101" title="1 of 2 branches missed.">      return !isPublic;</span>
+<span class="fc bfc" id="L102" title="All 2 branches covered.">    } else if (devOpsPlatformSettings.isProvisioningEnabled()) {</span>
+<span class="fc" id="L103">      return true;</span>
+    }
+<span class="fc" id="L105">    return null;</span>
+  }
+
+  private String getProjectName(@Nullable String projectName) {
+<span class="fc" id="L109">    return Optional.ofNullable(projectName).orElse(devOpsProjectCreationContext.name());</span>
+  }
+
+  private String generateUniqueProjectKey() {
+<span class="fc" id="L113">    return projectKeyGenerator.generateUniqueProjectKey(devOpsProjectCreationContext.fullName());</span>
+  }
+
+  private void createProjectAlmSettingDto(DbSession dbSession, ProjectDto projectDto, AlmSettingDto almSettingDto, Boolean monorepo) {
+<span class="fc" id="L117">    ProjectAlmSettingDto projectAlmSettingDto = new ProjectAlmSettingDto()</span>
+<span class="fc" id="L118">      .setAlmSettingUuid(almSettingDto.getUuid())</span>
+<span class="fc" id="L119">      .setAlmRepo(devOpsProjectCreationContext.devOpsPlatformIdentifier())</span>
+<span class="fc" id="L120">      .setProjectUuid(projectDto.getUuid())</span>
+<span class="fc" id="L121">      .setSummaryCommentEnabled(true)</span>
+<span class="fc" id="L122">      .setMonorepo(monorepo);</span>
+<span class="fc" id="L123">    dbClient.projectAlmSettingDao().insertOrUpdate(dbSession, projectAlmSettingDto, almSettingDto.getKey(), projectDto.getName(), projectDto.getKey());</span>
+<span class="fc" id="L124">  }</span>
+
+  private void addScanPermissionToCurrentUser(DbSession dbSession, ProjectDto projectDto) {
+<span class="fc" id="L127">    UserSession userSession = devOpsProjectCreationContext.userSession();</span>
+<span class="fc" id="L128">    UserIdDto userId = new UserIdDto(requireNonNull(userSession.getUuid()), requireNonNull(userSession.getLogin()));</span>
+<span class="fc" id="L129">    UserPermissionChange scanPermission = new UserPermissionChange(Operation.ADD, ProjectPermission.SCAN.getKey(), projectDto, userId, permissionService);</span>
+<span class="fc" id="L130">    permissionUpdater.apply(dbSession, Set.of(scanPermission));</span>
+<span class="fc" id="L131">  }</span>
+
+  private void syncProjectPermissionsWithDevOpsPlatform(ProjectDto projectDto, BranchDto mainBranchDto) {
+<span class="fc" id="L134">    String userUuid = requireNonNull(devOpsProjectCreationContext.userSession().getUuid());</span>
+<span class="fc" id="L135">    managedProjectService.queuePermissionSyncTask(userUuid, mainBranchDto.getUuid(), projectDto.getUuid());</span>
+<span class="fc" id="L136">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

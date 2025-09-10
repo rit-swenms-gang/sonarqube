@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ListAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.branch.ws</a> &gt; <span class="el_source">ListAction.java</span></div><h1>ListAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.branch.ws;
+
+import com.google.common.io.Resources;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import javax.annotation.Nullable;
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.db.permission.ProjectPermission;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.BranchDto;
+import org.sonar.db.component.SnapshotDto;
+import org.sonar.db.measure.MeasureDto;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.server.component.ComponentFinder;
+import org.sonar.server.user.UserSession;
+import org.sonar.server.ws.WsUtils;
+import org.sonarqube.ws.Common;
+import org.sonarqube.ws.ProjectBranches;
+
+import static java.util.Collections.singletonList;
+import static java.util.Optional.ofNullable;
+import static org.sonar.api.measures.CoreMetrics.ALERT_STATUS_KEY;
+import static org.sonar.api.utils.DateUtils.formatDateTime;
+import static org.sonar.db.permission.ProjectPermission.USER;
+import static org.sonar.db.component.BranchType.BRANCH;
+import static org.sonar.db.permission.GlobalPermission.SCAN;
+import static org.sonar.server.branch.ws.BranchesWs.addProjectParam;
+import static org.sonar.server.branch.ws.ProjectBranchesParameters.ACTION_LIST;
+import static org.sonar.server.branch.ws.ProjectBranchesParameters.PARAM_PROJECT;
+import static org.sonar.server.user.AbstractUserSession.insufficientPrivilegesException;
+
+public class ListAction implements BranchWsAction {
+  private final DbClient dbClient;
+  private final UserSession userSession;
+  private final ComponentFinder componentFinder;
+
+<span class="fc" id="L63">  public ListAction(DbClient dbClient, UserSession userSession, ComponentFinder componentFinder) {</span>
+<span class="fc" id="L64">    this.dbClient = dbClient;</span>
+<span class="fc" id="L65">    this.userSession = userSession;</span>
+<span class="fc" id="L66">    this.componentFinder = componentFinder;</span>
+<span class="fc" id="L67">  }</span>
+
+  @Override
+  public void define(WebService.NewController context) {
+<span class="fc" id="L71">    WebService.NewAction action = context.createAction(ACTION_LIST)</span>
+<span class="fc" id="L72">      .setSince(&quot;6.6&quot;)</span>
+<span class="fc" id="L73">      .setDescription(&quot;List the branches of a project or application.&lt;br/&gt;&quot; +</span>
+        &quot;Requires 'Browse' or 'Execute analysis' rights on the specified project or application.&quot;)
+<span class="fc" id="L75">      .setResponseExample(Resources.getResource(getClass(), &quot;list-example.json&quot;))</span>
+<span class="fc" id="L76">      .setChangelog(</span>
+        new Change(&quot;7.2&quot;, &quot;Application can be used on this web service&quot;),
+        new Change(&quot;10.6&quot;, &quot;Field 'branchId' added to the response&quot;))
+<span class="fc" id="L79">      .setHandler(this);</span>
+
+<span class="fc" id="L81">    addProjectParam(action);</span>
+<span class="fc" id="L82">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L86">    String projectKey = request.mandatoryParam(PARAM_PROJECT);</span>
+
+<span class="fc" id="L88">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L89">      ProjectDto projectOrApp = componentFinder.getProjectOrApplicationByKey(dbSession, projectKey);</span>
+<span class="fc" id="L90">      checkPermission(projectOrApp);</span>
+
+<span class="fc" id="L92">      Collection&lt;BranchDto&gt; branches = dbClient.branchDao().selectByProject(dbSession, projectOrApp).stream()</span>
+<span class="pc bpc" id="L93" title="1 of 2 branches missed.">        .filter(b -&gt; b.getBranchType() == BRANCH)</span>
+<span class="fc" id="L94">        .toList();</span>
+<span class="fc" id="L95">      List&lt;String&gt; branchUuids = branches.stream().map(BranchDto::getUuid).toList();</span>
+
+<span class="fc" id="L97">      Map&lt;String, MeasureDto&gt; qualityGateMeasuresByComponentUuids = dbClient.measureDao()</span>
+<span class="fc" id="L98">        .selectByComponentUuidsAndMetricKeys(dbSession, branchUuids, singletonList(ALERT_STATUS_KEY)).stream()</span>
+<span class="fc" id="L99">        .collect(Collectors.toMap(MeasureDto::getComponentUuid, Function.identity()));</span>
+<span class="fc" id="L100">      Map&lt;String, String&gt; analysisDateByBranchUuid = dbClient.snapshotDao()</span>
+<span class="fc" id="L101">        .selectLastAnalysesByRootComponentUuids(dbSession, branchUuids).stream()</span>
+<span class="fc" id="L102">        .collect(Collectors.toMap(SnapshotDto::getRootComponentUuid, s -&gt; formatDateTime(s.getCreatedAt())));</span>
+
+<span class="fc" id="L104">      ProjectBranches.ListWsResponse.Builder protobufResponse = ProjectBranches.ListWsResponse.newBuilder();</span>
+<span class="fc" id="L105">      branches.forEach(b -&gt; addBranch(protobufResponse, b, qualityGateMeasuresByComponentUuids.get(b.getUuid()),</span>
+<span class="fc" id="L106">        analysisDateByBranchUuid.get(b.getUuid())));</span>
+<span class="fc" id="L107">      WsUtils.writeProtobuf(protobufResponse.build(), request, response);</span>
+    }
+<span class="fc" id="L109">  }</span>
+
+  private static void addBranch(ProjectBranches.ListWsResponse.Builder response, BranchDto branch,
+    @Nullable MeasureDto qualityGateMeasure, @Nullable String analysisDate) {
+<span class="fc" id="L113">    ProjectBranches.Branch.Builder builder = toBranchBuilder(branch);</span>
+<span class="fc" id="L114">    setBranchStatus(builder, qualityGateMeasure);</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">    if (analysisDate != null) {</span>
+<span class="fc" id="L116">      builder.setAnalysisDate(analysisDate);</span>
+    }
+<span class="fc" id="L118">    response.addBranches(builder);</span>
+<span class="fc" id="L119">  }</span>
+
+  private static ProjectBranches.Branch.Builder toBranchBuilder(BranchDto branch) {
+<span class="fc" id="L122">    ProjectBranches.Branch.Builder builder = ProjectBranches.Branch.newBuilder();</span>
+<span class="fc" id="L123">    String branchKey = branch.getKey();</span>
+<span class="fc" id="L124">    ofNullable(branchKey).ifPresent(builder::setName);</span>
+<span class="fc" id="L125">    builder.setIsMain(branch.isMain());</span>
+<span class="fc" id="L126">    builder.setType(Common.BranchType.valueOf(branch.getBranchType().name()));</span>
+<span class="fc" id="L127">    builder.setExcludedFromPurge(branch.isExcludeFromPurge());</span>
+<span class="fc" id="L128">    builder.setBranchId(branch.getUuid());</span>
+<span class="fc" id="L129">    return builder;</span>
+  }
+
+  private static void setBranchStatus(ProjectBranches.Branch.Builder builder, @Nullable MeasureDto qualityGateMeasure) {
+<span class="fc" id="L133">    ProjectBranches.Status.Builder statusBuilder = ProjectBranches.Status.newBuilder();</span>
+<span class="fc bfc" id="L134" title="All 2 branches covered.">    if (qualityGateMeasure != null) {</span>
+<span class="fc" id="L135">      ofNullable(qualityGateMeasure.getString(ALERT_STATUS_KEY)).ifPresent(statusBuilder::setQualityGateStatus);</span>
+    }
+
+<span class="fc" id="L138">    builder.setStatus(statusBuilder);</span>
+<span class="fc" id="L139">  }</span>
+
+  private void checkPermission(ProjectDto project) {
+<span class="fc bfc" id="L142" title="All 2 branches covered.">    if (!userSession.hasEntityPermission(USER, project) &amp;&amp;</span>
+<span class="pc bpc" id="L143" title="1 of 2 branches missed.">        !userSession.hasEntityPermission(ProjectPermission.SCAN, project) &amp;&amp;</span>
+<span class="nc bnc" id="L144" title="All 2 branches missed.">        !userSession.hasPermission(SCAN)) {</span>
+<span class="nc" id="L145">      throw insufficientPrivilegesException();</span>
+    }
+<span class="fc" id="L147">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

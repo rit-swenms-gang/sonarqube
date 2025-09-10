@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TreeRootHolderImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.component</a> &gt; <span class="el_source">TreeRootHolderImpl.java</span></div><h1>TreeRootHolderImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.component;
+
+import com.google.common.collect.ImmutableMap;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import javax.annotation.CheckForNull;
+
+import static com.google.common.base.Preconditions.checkState;
+import static java.util.Objects.requireNonNull;
+import static org.apache.commons.lang3.StringUtils.isNotBlank;
+import static org.sonar.ce.task.projectanalysis.component.ComponentVisitor.Order.POST_ORDER;
+
+/**
+ * Holds the reference to the root of the {@link Component} tree for the current CE run.
+ */
+<span class="fc" id="L36">public class TreeRootHolderImpl implements MutableTreeRootHolder {</span>
+<span class="fc" id="L37">  @CheckForNull</span>
+  private Map&lt;Integer, Component&gt; componentsByRef = null;
+<span class="fc" id="L39">  @CheckForNull</span>
+  private Map&lt;Integer, Component&gt; extendedComponentsByRef = null;
+<span class="fc" id="L41">  @CheckForNull</span>
+  private Map&lt;String, Component&gt; componentsByUuid = null;
+<span class="fc" id="L43">  private int size = 0;</span>
+<span class="fc" id="L44">  private Component root = null;</span>
+<span class="fc" id="L45">  private Component extendedTreeRoot = null;</span>
+
+  @Override
+  public boolean isEmpty() {
+<span class="nc bnc" id="L49" title="All 2 branches missed.">    return this.root == null;</span>
+  }
+
+  @Override
+  public MutableTreeRootHolder setRoots(Component root, Component reportRoot) {
+<span class="fc bfc" id="L54" title="All 2 branches covered.">    checkState(this.root == null, &quot;root can not be set twice in holder&quot;);</span>
+<span class="fc" id="L55">    this.root = requireNonNull(root, &quot;root can not be null&quot;);</span>
+<span class="fc" id="L56">    this.extendedTreeRoot = requireNonNull(reportRoot, &quot;extended tree root can not be null&quot;);</span>
+<span class="fc" id="L57">    return this;</span>
+  }
+
+  @Override
+  public Component getRoot() {
+<span class="fc" id="L62">    checkInitialized();</span>
+<span class="fc" id="L63">    return this.root;</span>
+  }
+
+  @Override
+  public Component getReportTreeRoot() {
+<span class="fc" id="L68">    checkInitialized();</span>
+<span class="fc" id="L69">    return this.extendedTreeRoot;</span>
+  }
+
+  @Override
+  public Component getComponentByRef(int ref) {
+<span class="fc" id="L74">    return getOptionalComponentByRef(ref)</span>
+<span class="fc" id="L75">      .orElseThrow(() -&gt; new IllegalArgumentException(String.format(&quot;Component with ref '%s' can't be found&quot;, ref)));</span>
+  }
+
+  @Override
+  public Component getComponentByUuid(String uuid) {
+<span class="fc" id="L80">    checkInitialized();</span>
+<span class="fc" id="L81">    ensureComponentByRefAndUuidArePopulated();</span>
+<span class="fc" id="L82">    return componentsByUuid.get(uuid);</span>
+  }
+
+  @Override
+  public Optional&lt;Component&gt; getOptionalComponentByRef(int ref) {
+<span class="fc" id="L87">    checkInitialized();</span>
+<span class="fc" id="L88">    ensureComponentByRefAndUuidArePopulated();</span>
+<span class="fc" id="L89">    return Optional.ofNullable(componentsByRef.get(ref));</span>
+  }
+
+  @Override
+  public Component getReportTreeComponentByRef(int ref) {
+<span class="fc" id="L94">    checkInitialized();</span>
+<span class="fc" id="L95">    ensureExtendedComponentByRefIsPopulated();</span>
+<span class="fc" id="L96">    Component c = extendedComponentsByRef.get(ref);</span>
+<span class="fc bfc" id="L97" title="All 2 branches covered.">    if (c == null) {</span>
+<span class="fc" id="L98">      throw new IllegalArgumentException(String.format(&quot;Component with ref '%s' can't be found&quot;, ref));</span>
+    }
+<span class="fc" id="L100">    return c;</span>
+  }
+
+  @Override
+  public int getSize() {
+<span class="fc" id="L105">    checkInitialized();</span>
+<span class="fc" id="L106">    ensureComponentByRefAndUuidArePopulated();</span>
+<span class="fc" id="L107">    return size;</span>
+  }
+
+  private void ensureExtendedComponentByRefIsPopulated() {
+<span class="fc bfc" id="L111" title="All 2 branches covered.">    if (extendedComponentsByRef != null) {</span>
+<span class="fc" id="L112">      return;</span>
+    }
+
+<span class="fc" id="L115">    final ImmutableMap.Builder&lt;Integer, Component&gt; builder = ImmutableMap.builder();</span>
+<span class="fc" id="L116">    new DepthTraversalTypeAwareCrawler(</span>
+<span class="fc" id="L117">      new TypeAwareVisitorAdapter(CrawlerDepthLimit.FILE, POST_ORDER) {</span>
+        @Override
+        public void visitAny(Component component) {
+<span class="pc bpc" id="L120" title="1 of 2 branches missed.">          if (component.getReportAttributes().getRef() != null) {</span>
+<span class="fc" id="L121">            builder.put(component.getReportAttributes().getRef(), component);</span>
+          }
+<span class="fc" id="L123">        }</span>
+<span class="fc" id="L124">      }).visit(this.extendedTreeRoot);</span>
+<span class="fc" id="L125">    this.extendedComponentsByRef = builder.build();</span>
+<span class="fc" id="L126">  }</span>
+
+  private void ensureComponentByRefAndUuidArePopulated() {
+<span class="pc bpc" id="L129" title="1 of 4 branches missed.">    if (componentsByRef != null &amp;&amp; componentsByUuid != null) {</span>
+<span class="fc" id="L130">      return;</span>
+    }
+
+<span class="fc" id="L133">    final ImmutableMap.Builder&lt;Integer, Component&gt; builderByRef = ImmutableMap.builder();</span>
+<span class="fc" id="L134">    final Map&lt;String, Component&gt; builderByUuid = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L135">    new DepthTraversalTypeAwareCrawler(</span>
+<span class="fc" id="L136">      new TypeAwareVisitorAdapter(CrawlerDepthLimit.FILE, POST_ORDER) {</span>
+        @Override
+        public void visitAny(Component component) {
+<span class="fc" id="L139">          size++;</span>
+<span class="fc bfc" id="L140" title="All 2 branches covered.">          if (component.getReportAttributes().getRef() != null) {</span>
+<span class="fc" id="L141">            builderByRef.put(component.getReportAttributes().getRef(), component);</span>
+          }
+<span class="pc bpc" id="L143" title="1 of 2 branches missed.">          if (isNotBlank(component.getUuid())) {</span>
+<span class="fc" id="L144">            builderByUuid.put(component.getUuid(), component);</span>
+          }
+<span class="fc" id="L146">        }</span>
+<span class="fc" id="L147">      }).visit(this.root);</span>
+<span class="fc" id="L148">    this.componentsByRef = builderByRef.build();</span>
+<span class="fc" id="L149">    this.componentsByUuid = ImmutableMap.copyOf(builderByUuid);</span>
+<span class="fc" id="L150">  }</span>
+
+  private void checkInitialized() {
+<span class="fc bfc" id="L153" title="All 2 branches covered.">    checkState(this.root != null, &quot;Holder has not been initialized yet&quot;);</span>
+<span class="fc" id="L154">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

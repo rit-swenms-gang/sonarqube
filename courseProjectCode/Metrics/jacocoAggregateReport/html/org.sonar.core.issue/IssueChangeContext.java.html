@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IssueChangeContext.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.core.issue</a> &gt; <span class="el_source">IssueChangeContext.java</span></div><h1>IssueChangeContext.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.core.issue;
+
+import java.io.Serializable;
+import java.util.Date;
+import java.util.Objects;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+
+import static java.util.Objects.requireNonNull;
+
+public class IssueChangeContext implements Serializable {
+
+  private final String userUuid;
+  private final Date date;
+  private final boolean scan;
+  private final boolean refreshMeasures;
+  private final String externalUser;
+  private final String webhookSource;
+
+  private IssueChangeContext(Date date, boolean scan, boolean refreshMeasures, @Nullable String userUuid, @Nullable String externalUser,
+<span class="fc" id="L40">    @Nullable String webhookSource) {</span>
+<span class="fc" id="L41">    this.userUuid = userUuid;</span>
+<span class="fc" id="L42">    this.date = requireNonNull(date);</span>
+<span class="fc" id="L43">    this.scan = scan;</span>
+<span class="fc" id="L44">    this.refreshMeasures = refreshMeasures;</span>
+<span class="fc" id="L45">    this.externalUser = externalUser;</span>
+<span class="fc" id="L46">    this.webhookSource = webhookSource;</span>
+<span class="fc" id="L47">  }</span>
+
+  @CheckForNull
+  public String userUuid() {
+<span class="fc" id="L51">    return userUuid;</span>
+  }
+
+  public Date date() {
+<span class="fc" id="L55">    return date;</span>
+  }
+
+  public boolean scan() {
+<span class="fc" id="L59">    return scan;</span>
+  }
+
+  public boolean refreshMeasures() {
+<span class="fc" id="L63">    return refreshMeasures;</span>
+  }
+
+  @Nullable
+  public String getExternalUser() {
+<span class="fc" id="L68">    return externalUser;</span>
+  }
+
+  @Nullable
+  public String getWebhookSource() {
+<span class="fc" id="L73">    return webhookSource;</span>
+  }
+
+  @Override
+  public boolean equals(Object o) {
+<span class="fc bfc" id="L78" title="All 2 branches covered.">    if (this == o) {</span>
+<span class="fc" id="L79">      return true;</span>
+    }
+<span class="fc bfc" id="L81" title="All 4 branches covered.">    if (o == null || getClass() != o.getClass()) {</span>
+<span class="fc" id="L82">      return false;</span>
+    }
+<span class="fc" id="L84">    IssueChangeContext that = (IssueChangeContext) o;</span>
+<span class="pc bpc" id="L85" title="3 of 8 branches missed.">    return scan == that.scan &amp;&amp; refreshMeasures == that.refreshMeasures &amp;&amp;  Objects.equals(userUuid, that.userUuid) &amp;&amp; date.equals(that.date)</span>
+<span class="pc bpc" id="L86" title="2 of 4 branches missed.">      &amp;&amp; Objects.equals(externalUser, that.getExternalUser()) &amp;&amp; Objects.equals(webhookSource, that.getWebhookSource());</span>
+  }
+
+  @Override
+  public int hashCode() {
+<span class="fc" id="L91">    return Objects.hash(userUuid, date, scan, refreshMeasures, externalUser, webhookSource);</span>
+  }
+
+  public static IssueChangeContextBuilder newBuilder() {
+<span class="fc" id="L95">    return new IssueChangeContextBuilder();</span>
+  }
+
+  public static IssueChangeContextBuilder issueChangeContextByScanBuilder(Date date) {
+<span class="fc" id="L99">    return newBuilder().withScan().setUserUuid(null).setDate(date);</span>
+  }
+
+  public static IssueChangeContextBuilder issueChangeContextByUserBuilder(Date date, @Nullable String userUuid) {
+<span class="fc" id="L103">    return newBuilder().setUserUuid(userUuid).setDate(date);</span>
+  }
+
+  public static final class IssueChangeContextBuilder {
+    private String userUuid;
+    private Date date;
+<span class="fc" id="L109">    private boolean scan = false;</span>
+<span class="fc" id="L110">    private boolean refreshMeasures = false;</span>
+    private String externalUser;
+    private String webhookSource;
+
+<span class="fc" id="L114">    private IssueChangeContextBuilder() {</span>
+<span class="fc" id="L115">    }</span>
+
+    public IssueChangeContextBuilder setUserUuid(@Nullable String userUuid) {
+<span class="fc" id="L118">      this.userUuid = userUuid;</span>
+<span class="fc" id="L119">      return this;</span>
+    }
+
+    public IssueChangeContextBuilder setDate(Date date) {
+<span class="fc" id="L123">      this.date = date;</span>
+<span class="fc" id="L124">      return this;</span>
+    }
+
+    public IssueChangeContextBuilder withScan() {
+<span class="fc" id="L128">      this.scan = true;</span>
+<span class="fc" id="L129">      return this;</span>
+    }
+
+    public IssueChangeContextBuilder withRefreshMeasures() {
+<span class="fc" id="L133">      this.refreshMeasures = true;</span>
+<span class="fc" id="L134">      return this;</span>
+    }
+
+    public IssueChangeContextBuilder setExternalUser(@Nullable String externalUser) {
+<span class="fc" id="L138">      this.externalUser = externalUser;</span>
+<span class="fc" id="L139">      return this;</span>
+    }
+
+    public IssueChangeContextBuilder setWebhookSource(@Nullable String webhookSource) {
+<span class="fc" id="L143">      this.webhookSource = webhookSource;</span>
+<span class="fc" id="L144">      return this;</span>
+    }
+
+    public IssueChangeContext build() {
+<span class="fc" id="L148">      return new IssueChangeContext(date, scan, refreshMeasures, userUuid, externalUser, webhookSource);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

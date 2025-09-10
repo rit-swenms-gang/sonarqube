@@ -1,0 +1,280 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MeasureComputerContextImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.api.measurecomputer</a> &gt; <span class="el_source">MeasureComputerContextImpl.java</span></div><h1>MeasureComputerContextImpl.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.api.measurecomputer;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import org.sonar.api.ce.measure.Component;
+import org.sonar.api.ce.measure.Issue;
+import org.sonar.api.ce.measure.Measure;
+import org.sonar.api.ce.measure.MeasureComputer.MeasureComputerContext;
+import org.sonar.api.ce.measure.MeasureComputer.MeasureComputerDefinition;
+import org.sonar.api.ce.measure.Settings;
+import org.sonar.api.issue.IssueStatus;
+import org.sonar.api.issue.impact.Severity;
+import org.sonar.api.issue.impact.SoftwareQuality;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.api.rules.RuleType;
+import org.sonar.api.utils.Duration;
+import org.sonar.ce.task.projectanalysis.component.ConfigurationRepository;
+import org.sonar.ce.task.projectanalysis.issue.ComponentIssuesRepository;
+import org.sonar.ce.task.projectanalysis.measure.MeasureRepository;
+import org.sonar.ce.task.projectanalysis.metric.Metric;
+import org.sonar.ce.task.projectanalysis.metric.MetricRepository;
+import org.sonar.core.issue.DefaultIssue;
+import org.sonar.core.rule.RuleTypeMapper;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static org.sonar.ce.task.projectanalysis.measure.Measure.newMeasureBuilder;
+
+public class MeasureComputerContextImpl implements MeasureComputerContext {
+
+  private final ConfigurationRepository config;
+  private final MeasureRepository measureRepository;
+  private final MetricRepository metricRepository;
+
+  private final org.sonar.ce.task.projectanalysis.component.Component internalComponent;
+  private final Component component;
+  private final List&lt;DefaultIssue&gt; componentIssues;
+
+  private MeasureComputerDefinition definition;
+  private Set&lt;String&gt; allowedMetrics;
+
+  public MeasureComputerContextImpl(org.sonar.ce.task.projectanalysis.component.Component component, ConfigurationRepository config,
+<span class="fc" id="L69">    MeasureRepository measureRepository, MetricRepository metricRepository, ComponentIssuesRepository componentIssuesRepository) {</span>
+<span class="fc" id="L70">    this.config = config;</span>
+<span class="fc" id="L71">    this.internalComponent = component;</span>
+<span class="fc" id="L72">    this.measureRepository = measureRepository;</span>
+<span class="fc" id="L73">    this.metricRepository = metricRepository;</span>
+<span class="fc" id="L74">    this.component = newComponent(component);</span>
+<span class="fc" id="L75">    this.componentIssues = componentIssuesRepository.getIssues(component);</span>
+<span class="fc" id="L76">  }</span>
+
+  /**
+   * Definition needs to be reset each time a new computer is processed.
+   * Defining it by a setter allows to reduce the number of this class to be created (one per component instead of one per component and per computer).
+   */
+  public MeasureComputerContextImpl setDefinition(MeasureComputerDefinition definition) {
+<span class="fc" id="L83">    this.definition = definition;</span>
+<span class="fc" id="L84">    this.allowedMetrics = allowedMetric(definition);</span>
+<span class="fc" id="L85">    return this;</span>
+  }
+
+  private static Set&lt;String&gt; allowedMetric(MeasureComputerDefinition definition) {
+<span class="fc" id="L89">    Set&lt;String&gt; allowedMetrics = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L90">    allowedMetrics.addAll(definition.getInputMetrics());</span>
+<span class="fc" id="L91">    allowedMetrics.addAll(definition.getOutputMetrics());</span>
+<span class="fc" id="L92">    return allowedMetrics;</span>
+  }
+
+  @Override
+  public Component getComponent() {
+<span class="fc" id="L97">    return component;</span>
+  }
+
+  @Override
+  public Settings getSettings() {
+<span class="fc" id="L102">    return new Settings() {</span>
+      @Override
+      @CheckForNull
+      public String getString(String key) {
+<span class="fc" id="L106">        return config.getConfiguration().get(key).orElse(null);</span>
+      }
+
+      @Override
+      public String[] getStringArray(String key) {
+<span class="fc" id="L111">        return config.getConfiguration().getStringArray(key);</span>
+      }
+    };
+  }
+
+  @Override
+  @CheckForNull
+  public Measure getMeasure(String metric) {
+<span class="fc" id="L119">    validateInputMetric(metric);</span>
+<span class="fc" id="L120">    Optional&lt;org.sonar.ce.task.projectanalysis.measure.Measure&gt; measure = measureRepository.getRawMeasure(internalComponent, metricRepository.getByKey(metric));</span>
+<span class="fc bfc" id="L121" title="All 2 branches covered.">    if (measure.isPresent()) {</span>
+<span class="fc" id="L122">      return new MeasureImpl(measure.get());</span>
+    }
+<span class="fc" id="L124">    return null;</span>
+  }
+
+  @Override
+  public Iterable&lt;Measure&gt; getChildrenMeasures(String metric) {
+<span class="fc" id="L129">    validateInputMetric(metric);</span>
+<span class="fc" id="L130">    return () -&gt; internalComponent.getChildren().stream()</span>
+<span class="fc" id="L131">      .map(new ComponentToMeasure(metricRepository.getByKey(metric)))</span>
+<span class="fc" id="L132">      .map(ToMeasureAPI.INSTANCE)</span>
+<span class="fc" id="L133">      .filter(Objects::nonNull)</span>
+<span class="fc" id="L134">      .iterator();</span>
+  }
+
+  @Override
+  public void addMeasure(String metricKey, int value) {
+<span class="fc" id="L139">    Metric metric = metricRepository.getByKey(metricKey);</span>
+<span class="fc" id="L140">    validateAddMeasure(metric);</span>
+<span class="fc" id="L141">    measureRepository.add(internalComponent, metric, newMeasureBuilder().create(value));</span>
+<span class="fc" id="L142">  }</span>
+
+  @Override
+  public void addMeasure(String metricKey, double value) {
+<span class="fc" id="L146">    Metric metric = metricRepository.getByKey(metricKey);</span>
+<span class="fc" id="L147">    validateAddMeasure(metric);</span>
+<span class="fc" id="L148">    measureRepository.add(internalComponent, metric, newMeasureBuilder().create(value, metric.getDecimalScale()));</span>
+<span class="fc" id="L149">  }</span>
+
+  @Override
+  public void addMeasure(String metricKey, long value) {
+<span class="fc" id="L153">    Metric metric = metricRepository.getByKey(metricKey);</span>
+<span class="fc" id="L154">    validateAddMeasure(metric);</span>
+<span class="fc" id="L155">    measureRepository.add(internalComponent, metric, newMeasureBuilder().create(value));</span>
+<span class="fc" id="L156">  }</span>
+
+  @Override
+  public void addMeasure(String metricKey, String value) {
+<span class="fc" id="L160">    Metric metric = metricRepository.getByKey(metricKey);</span>
+<span class="fc" id="L161">    validateAddMeasure(metric);</span>
+<span class="fc" id="L162">    measureRepository.add(internalComponent, metric, newMeasureBuilder().create(value));</span>
+<span class="fc" id="L163">  }</span>
+
+  @Override
+  public void addMeasure(String metricKey, boolean value) {
+<span class="fc" id="L167">    Metric metric = metricRepository.getByKey(metricKey);</span>
+<span class="fc" id="L168">    validateAddMeasure(metric);</span>
+<span class="fc" id="L169">    measureRepository.add(internalComponent, metric, newMeasureBuilder().create(value));</span>
+<span class="fc" id="L170">  }</span>
+
+  private void validateInputMetric(String metric) {
+<span class="fc" id="L173">    checkArgument(allowedMetrics.contains(metric), &quot;Only metrics in %s can be used to load measures&quot;, definition.getInputMetrics());</span>
+<span class="fc" id="L174">  }</span>
+
+  private void validateAddMeasure(Metric metric) {
+<span class="fc" id="L177">    checkArgument(definition.getOutputMetrics().contains(metric.getKey()), &quot;Only metrics in %s can be used to add measures. Metric '%s' is not allowed.&quot;,</span>
+<span class="fc" id="L178">      definition.getOutputMetrics(), metric.getKey());</span>
+<span class="fc bfc" id="L179" title="All 2 branches covered.">    if (measureRepository.getRawMeasure(internalComponent, metric).isPresent()) {</span>
+<span class="fc" id="L180">      throw new UnsupportedOperationException(String.format(&quot;A measure on metric '%s' already exists on component '%s'&quot;, metric.getKey(), internalComponent.getKey()));</span>
+    }
+<span class="fc" id="L182">  }</span>
+
+  @Override
+  public List&lt;? extends Issue&gt; getIssues() {
+<span class="fc" id="L186">    return componentIssues.stream()</span>
+<span class="fc" id="L187">      .map(CeApiIssueAdapter::new)</span>
+<span class="fc" id="L188">      .toList();</span>
+  }
+
+  private static Component newComponent(org.sonar.ce.task.projectanalysis.component.Component component) {
+<span class="fc" id="L192">    return new ComponentImpl(</span>
+<span class="fc" id="L193">      component.getKey(),</span>
+<span class="fc" id="L194">      Component.Type.valueOf(component.getType().name()),</span>
+<span class="fc bfc" id="L195" title="All 2 branches covered.">      component.getType() == org.sonar.ce.task.projectanalysis.component.Component.Type.FILE</span>
+<span class="fc" id="L196">        ? new ComponentImpl.FileAttributesImpl(component.getFileAttributes().getLanguageKey(), component.getFileAttributes().isUnitTest())</span>
+<span class="fc" id="L197">        : null);</span>
+  }
+
+  private class ComponentToMeasure
+    implements Function&lt;org.sonar.ce.task.projectanalysis.component.Component, Optional&lt;org.sonar.ce.task.projectanalysis.measure.Measure&gt;&gt; {
+
+    private final Metric metric;
+
+<span class="fc" id="L205">    public ComponentToMeasure(Metric metric) {</span>
+<span class="fc" id="L206">      this.metric = metric;</span>
+<span class="fc" id="L207">    }</span>
+
+    @Override
+    public Optional&lt;org.sonar.ce.task.projectanalysis.measure.Measure&gt; apply(@Nonnull org.sonar.ce.task.projectanalysis.component.Component input) {
+<span class="fc" id="L211">      return measureRepository.getRawMeasure(input, metric);</span>
+    }
+  }
+
+<span class="fc" id="L215">  private enum ToMeasureAPI implements Function&lt;Optional&lt;org.sonar.ce.task.projectanalysis.measure.Measure&gt;, Measure&gt; {</span>
+<span class="fc" id="L216">    INSTANCE;</span>
+
+    @Nullable
+    @Override
+    public Measure apply(@Nonnull Optional&lt;org.sonar.ce.task.projectanalysis.measure.Measure&gt; input) {
+<span class="fc bfc" id="L221" title="All 2 branches covered.">      return input.isPresent() ? new MeasureImpl(input.get()) : null;</span>
+    }
+  }
+
+  static class CeApiIssueAdapter implements Issue {
+
+    DefaultIssue defaultIssue;
+
+<span class="fc" id="L229">    public CeApiIssueAdapter(DefaultIssue defaultIssue) {</span>
+<span class="fc" id="L230">      this.defaultIssue = defaultIssue;</span>
+<span class="fc" id="L231">    }</span>
+
+    @Override
+    public String key() {
+<span class="fc" id="L235">      return defaultIssue.key();</span>
+    }
+
+    @Override
+    public RuleKey ruleKey() {
+<span class="fc" id="L240">      return defaultIssue.ruleKey();</span>
+    }
+
+    @Override
+    public String status() {
+<span class="fc" id="L245">      return defaultIssue.status();</span>
+    }
+
+    @Override
+    public String resolution() {
+<span class="fc" id="L250">      return defaultIssue.resolution();</span>
+    }
+
+    @Override
+    public IssueStatus issueStatus() {
+<span class="nc" id="L255">      return defaultIssue.issueStatus();</span>
+    }
+
+    @Override
+    public String severity() {
+<span class="fc" id="L260">      return defaultIssue.severity();</span>
+    }
+
+    @Override
+    public Duration effort() {
+<span class="fc" id="L265">      return defaultIssue.effort();</span>
+    }
+
+    @Override
+    public RuleType type() {
+<span class="nc" id="L270">      return RuleTypeMapper.toApiRuleType(defaultIssue.type());</span>
+    }
+
+    @Override
+    public Map&lt;SoftwareQuality, Severity&gt; impacts() {
+<span class="nc" id="L275">      return defaultIssue.impacts();</span>
+    }
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

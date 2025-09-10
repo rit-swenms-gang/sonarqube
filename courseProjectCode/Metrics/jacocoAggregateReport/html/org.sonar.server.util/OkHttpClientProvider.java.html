@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OkHttpClientProvider.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.util</a> &gt; <span class="el_source">OkHttpClientProvider.java</span></div><h1>OkHttpClientProvider.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.util;
+
+import okhttp3.OkHttpClient;
+import org.sonar.api.ce.ComputeEngineSide;
+import org.sonar.api.config.Configuration;
+import org.sonar.api.server.ServerSide;
+import org.sonar.core.platform.SonarQubeVersion;
+import org.sonarqube.ws.client.OkHttpClientBuilder;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
+
+import static java.lang.String.format;
+import static org.sonar.process.ProcessProperties.Property.HTTP_PROXY_PASSWORD;
+import static org.sonar.process.ProcessProperties.Property.HTTP_PROXY_USER;
+
+/**
+ * Provide a unique instance of {@link OkHttpClient} which configuration:
+ * &lt;ul&gt;
+ *   &lt;li&gt;supports HTTPS&lt;/li&gt;
+ *   &lt;li&gt;supports proxy, including authentication, as defined by the properties like &quot;http.proxyHost&quot; in
+ *   conf/sonar.properties&lt;/li&gt;
+ *   &lt;li&gt;has connect and read timeouts of 10 seconds each&lt;/li&gt;
+ *   &lt;li&gt;sends automatically the HTTP header &quot;User-Agent&quot; with value &quot;SonarQube/{version}&quot;, for instance &quot;SonarQube/6.2&quot;&lt;/li&gt;
+ * &lt;/ul&gt;
+ */
+@ServerSide
+@ComputeEngineSide
+<span class="fc" id="L47">public class OkHttpClientProvider {</span>
+
+  private static final int DEFAULT_CONNECT_TIMEOUT_IN_MS = 10_000;
+  private static final int DEFAULT_READ_TIMEOUT_IN_MS = 10_000;
+
+  /**
+   * @return a {@link OkHttpClient} singleton
+   */
+  @Primary
+  @Bean(&quot;OkHttpClient&quot;)
+  public OkHttpClient provide(Configuration config, SonarQubeVersion version) {
+<span class="fc" id="L58">    OkHttpClientBuilder builder = new OkHttpClientBuilder();</span>
+<span class="fc" id="L59">    builder.setConnectTimeoutMs(DEFAULT_CONNECT_TIMEOUT_IN_MS);</span>
+<span class="fc" id="L60">    builder.setReadTimeoutMs(DEFAULT_READ_TIMEOUT_IN_MS);</span>
+    // no need to define proxy URL as system-wide proxy is used and properly
+    // configured by bootstrap process.
+<span class="fc" id="L63">    builder.setProxyLogin(config.get(HTTP_PROXY_USER.getKey()).orElse(null));</span>
+<span class="fc" id="L64">    builder.setProxyPassword(config.get(HTTP_PROXY_PASSWORD.getKey()).orElse(null));</span>
+<span class="fc" id="L65">    builder.setUserAgent(format(&quot;SonarQube/%s&quot;, version));</span>
+<span class="fc" id="L66">    return builder.build();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

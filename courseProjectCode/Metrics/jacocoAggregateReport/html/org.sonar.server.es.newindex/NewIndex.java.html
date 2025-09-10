@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NewIndex.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.es.newindex</a> &gt; <span class="el_source">NewIndex.java</span></div><h1>NewIndex.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.es.newindex;
+
+import com.google.common.collect.ImmutableSortedMap;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.stream.Stream;
+import javax.annotation.CheckForNull;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.Settings;
+import org.sonar.api.config.Configuration;
+import org.sonar.server.es.Index;
+import org.sonar.server.es.IndexType.IndexMainType;
+import org.sonar.server.es.IndexType.IndexRelationType;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkState;
+import static java.lang.String.valueOf;
+import static org.sonar.process.ProcessProperties.Property.CLUSTER_ENABLED;
+import static org.sonar.process.ProcessProperties.Property.SEARCH_REPLICAS;
+
+public abstract class NewIndex&lt;T extends NewIndex&lt;T&gt;&gt; {
+
+  private static final String ENABLED = &quot;enabled&quot;;
+  private final Index index;
+<span class="fc" id="L46">  private final Map&lt;String, IndexRelationType&gt; relations = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L47">  private final Settings.Builder settings = DefaultIndexSettings.defaults();</span>
+<span class="fc" id="L48">  private final Map&lt;String, Object&gt; attributes = new TreeMap&lt;&gt;();</span>
+<span class="fc" id="L49">  private final Map&lt;String, Object&gt; properties = new TreeMap&lt;&gt;();</span>
+<span class="fc" id="L50">  private final Map&lt;String, String&gt; customHashMetadata = new TreeMap&lt;&gt;();</span>
+
+<span class="fc" id="L52">  public NewIndex(Index index, SettingsConfiguration settingsConfiguration) {</span>
+<span class="fc" id="L53">    this.index = index;</span>
+<span class="fc" id="L54">    applySettingsConfiguration(settingsConfiguration);</span>
+<span class="fc" id="L55">    configureDefaultAttributes();</span>
+<span class="fc" id="L56">  }</span>
+
+  private void applySettingsConfiguration(SettingsConfiguration settingsConfiguration) {
+<span class="fc" id="L59">    settings.put(&quot;index.refresh_interval&quot;, refreshInterval(settingsConfiguration));</span>
+
+<span class="fc" id="L61">    Configuration config = settingsConfiguration.getConfiguration();</span>
+<span class="fc" id="L62">    boolean clusterMode = config.getBoolean(CLUSTER_ENABLED.getKey()).orElse(false);</span>
+<span class="fc" id="L63">    int shards = config.getInt(String.format(&quot;sonar.search.%s.shards&quot;, index.getName()))</span>
+<span class="fc" id="L64">      .orElse(settingsConfiguration.getDefaultNbOfShards());</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">    int replicas = clusterMode ? config.getInt(SEARCH_REPLICAS.getKey()).orElse(1) : 0;</span>
+
+<span class="fc" id="L67">    settings.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards);</span>
+<span class="fc" id="L68">    settings.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas);</span>
+<span class="fc" id="L69">    settings.put(&quot;index.max_ngram_diff&quot;, DefaultIndexSettings.MAXIMUM_NGRAM_LENGTH - DefaultIndexSettings.MINIMUM_NGRAM_LENGTH);</span>
+<span class="fc" id="L70">  }</span>
+
+  private void configureDefaultAttributes() {
+<span class="fc" id="L73">    attributes.put(&quot;dynamic&quot;, valueOf(false));</span>
+<span class="fc" id="L74">    attributes.put(&quot;_source&quot;, ImmutableSortedMap.of(ENABLED, true));</span>
+<span class="fc" id="L75">  }</span>
+
+  private static String refreshInterval(SettingsConfiguration settingsConfiguration) {
+<span class="fc" id="L78">    int refreshInterval = settingsConfiguration.getRefreshInterval();</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">    if (refreshInterval == -1) {</span>
+<span class="fc" id="L80">      return &quot;-1&quot;;</span>
+    }
+<span class="fc" id="L82">    return refreshInterval + &quot;s&quot;;</span>
+  }
+
+  protected Index getIndex() {
+<span class="nc" id="L86">    return index;</span>
+  }
+
+  public abstract IndexMainType getMainType();
+
+  Collection&lt;IndexRelationType&gt; getRelations() {
+<span class="fc" id="L92">    return relations.values();</span>
+  }
+
+  /**
+   * Public, read-only version of {@link #getRelations()}
+   */
+  public Stream&lt;IndexRelationType&gt; getRelationsStream() {
+<span class="fc" id="L99">    return relations.values().stream();</span>
+  }
+
+  Settings.Builder getSettings() {
+<span class="fc" id="L103">    return settings;</span>
+  }
+
+  @CheckForNull
+  public String getSetting(String key) {
+<span class="fc" id="L108">    return settings.get(key);</span>
+  }
+
+  protected TypeMapping createTypeMapping(IndexMainType mainType) {
+<span class="fc" id="L112">    checkArgument(mainType.getIndex().equals(index), &quot;Main type must belong to index %s&quot;, index);</span>
+<span class="fc" id="L113">    return new TypeMapping(this);</span>
+  }
+
+  protected TypeMapping createTypeMapping(IndexRelationType relationType) {
+<span class="fc" id="L117">    checkAcceptsRelations();</span>
+<span class="fc" id="L118">    IndexMainType mainType = getMainType();</span>
+<span class="fc" id="L119">    checkArgument(relationType.getMainType().equals(mainType), &quot;mainType of relation must be %s&quot;, mainType);</span>
+<span class="fc" id="L120">    String relationName = relationType.getName();</span>
+<span class="pc bpc" id="L121" title="1 of 2 branches missed.">    checkArgument(!relations.containsKey(relationName), &quot;relation %s already exists&quot;, relationName);</span>
+<span class="fc" id="L122">    relations.put(relationName, relationType);</span>
+<span class="fc" id="L123">    return new TypeMapping(this);</span>
+  }
+
+  private void checkAcceptsRelations() {
+<span class="fc" id="L127">    checkState(getMainType().getIndex().acceptsRelations(), &quot;Index is not configured to accept relations. Update IndexDefinition.Descriptor instance for this index&quot;);</span>
+<span class="fc" id="L128">  }</span>
+
+  /**
+   * Complete the json hash named &quot;properties&quot; in mapping type, usually to declare fields
+   */
+  void setFieldImpl(String fieldName, Object attributes) {
+<span class="fc" id="L134">    properties.put(fieldName, attributes);</span>
+<span class="fc" id="L135">  }</span>
+
+  public T setEnableSource(boolean enableSource) {
+<span class="fc" id="L138">    attributes.put(&quot;_source&quot;, ImmutableSortedMap.of(ENABLED, enableSource));</span>
+<span class="fc" id="L139">    return castThis();</span>
+  }
+
+  @SuppressWarnings(&quot;unchecked&quot;)
+  private T castThis() {
+<span class="fc" id="L144">    return (T) this;</span>
+  }
+
+  public Map&lt;String, Object&gt; getAttributes() {
+<span class="fc" id="L148">    return attributes;</span>
+  }
+
+  Map&lt;String, Object&gt; getProperties() {
+<span class="fc" id="L152">    return properties;</span>
+  }
+
+  @CheckForNull
+  public Object getProperty(String key) {
+<span class="fc" id="L157">    return properties.get(key);</span>
+  }
+
+  public abstract BuiltIndex&lt;T&gt; build();
+
+  /**
+   * Set additional information to be used to compute the hash of the index.
+   * If hash metadata changes, the hash of index will also change.
+   */
+  public T addCustomHashMetadata(String key, String value) {
+<span class="fc" id="L167">    this.customHashMetadata.put(key, value);</span>
+<span class="fc" id="L168">    return castThis();</span>
+  }
+
+  public Map&lt;String, String&gt; getCustomHashMetadata() {
+<span class="fc" id="L172">    return customHashMetadata;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

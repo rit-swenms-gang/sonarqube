@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PullRequestSourceBranchMerger.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.issue</a> &gt; <span class="el_source">PullRequestSourceBranchMerger.java</span></div><h1>PullRequestSourceBranchMerger.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.issue;
+
+import java.util.Collection;
+import java.util.Map;
+import org.sonar.ce.task.projectanalysis.component.Component;
+import org.sonar.core.issue.DefaultIssue;
+import org.sonar.core.issue.tracking.Input;
+import org.sonar.core.issue.tracking.Tracker;
+import org.sonar.core.issue.tracking.Tracking;
+
+public class PullRequestSourceBranchMerger {
+  private final Tracker&lt;DefaultIssue, DefaultIssue&gt; tracker;
+  private final IssueLifecycle issueLifecycle;
+  private final TrackerSourceBranchInputFactory sourceBranchInputFactory;
+
+<span class="fc" id="L35">  public PullRequestSourceBranchMerger(Tracker&lt;DefaultIssue, DefaultIssue&gt; tracker, IssueLifecycle issueLifecycle, TrackerSourceBranchInputFactory sourceBranchInputFactory) {</span>
+<span class="fc" id="L36">    this.tracker = tracker;</span>
+<span class="fc" id="L37">    this.issueLifecycle = issueLifecycle;</span>
+<span class="fc" id="L38">    this.sourceBranchInputFactory = sourceBranchInputFactory;</span>
+<span class="fc" id="L39">  }</span>
+
+  public void tryMergeIssuesFromSourceBranchOfPullRequest(Component component, Collection&lt;DefaultIssue&gt; newIssues, Input&lt;DefaultIssue&gt; rawInput) {
+<span class="fc bfc" id="L42" title="All 2 branches covered.">    if (sourceBranchInputFactory.hasSourceBranchAnalysis()) {</span>
+<span class="fc" id="L43">      Input&lt;DefaultIssue&gt; sourceBranchInput = sourceBranchInputFactory.createForSourceBranch(component);</span>
+<span class="fc" id="L44">      DefaultTrackingInput rawPrTrackingInput = new DefaultTrackingInput(newIssues, rawInput.getLineHashSequence(), rawInput.getBlockHashSequence());</span>
+<span class="fc" id="L45">      Tracking&lt;DefaultIssue, DefaultIssue&gt; prTracking = tracker.trackNonClosed(rawPrTrackingInput, sourceBranchInput);</span>
+<span class="fc bfc" id="L46" title="All 2 branches covered.">      for (Map.Entry&lt;DefaultIssue, DefaultIssue&gt; pair : prTracking.getMatchedRaws().entrySet()) {</span>
+<span class="fc" id="L47">        issueLifecycle.copyExistingIssueFromSourceBranchToPullRequest(pair.getKey(), pair.getValue());</span>
+<span class="fc" id="L48">      }</span>
+    }
+<span class="fc" id="L50">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

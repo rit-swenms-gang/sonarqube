@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>InputModuleHierarchyProvider.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.scan</a> &gt; <span class="el_source">InputModuleHierarchyProvider.java</span></div><h1>InputModuleHierarchyProvider.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.scan;
+
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonar.api.batch.bootstrap.ProjectDefinition;
+import org.sonar.api.batch.fs.internal.DefaultInputModule;
+import org.sonar.api.batch.fs.internal.DefaultInputProject;
+import org.sonar.scanner.scan.filesystem.ScannerComponentIdGenerator;
+import org.springframework.context.annotation.Bean;
+
+<span class="fc" id="L33">public class InputModuleHierarchyProvider {</span>
+
+<span class="fc" id="L35">  private static final Logger LOG = LoggerFactory.getLogger(InputModuleHierarchyProvider.class);</span>
+
+  @Bean(&quot;DefaultInputModuleHierarchy&quot;)
+  public DefaultInputModuleHierarchy provide(ScannerComponentIdGenerator scannerComponentIdGenerator, WorkDirectoriesInitializer workDirectoriesInit, DefaultInputProject project) {
+<span class="fc" id="L39">    LOG.debug(&quot;Creating module hierarchy&quot;);</span>
+<span class="fc" id="L40">    DefaultInputModule root = createModule(project.definition(), project.scannerId());</span>
+<span class="fc" id="L41">    Map&lt;DefaultInputModule, DefaultInputModule&gt; parents = createChildren(root, scannerComponentIdGenerator, new HashMap&lt;&gt;());</span>
+    DefaultInputModuleHierarchy inputModuleHierarchy;
+<span class="fc bfc" id="L43" title="All 2 branches covered.">    if (parents.isEmpty()) {</span>
+<span class="fc" id="L44">      inputModuleHierarchy = new DefaultInputModuleHierarchy(root);</span>
+    } else {
+<span class="fc" id="L46">      inputModuleHierarchy = new DefaultInputModuleHierarchy(root, parents);</span>
+    }
+<span class="fc" id="L48">    workDirectoriesInit.execute(inputModuleHierarchy);</span>
+<span class="fc" id="L49">    return inputModuleHierarchy;</span>
+  }
+
+  private static Map&lt;DefaultInputModule, DefaultInputModule&gt; createChildren(DefaultInputModule parent, ScannerComponentIdGenerator scannerComponentIdGenerator,
+    Map&lt;DefaultInputModule, DefaultInputModule&gt; parents) {
+<span class="fc bfc" id="L54" title="All 2 branches covered.">    for (ProjectDefinition def : parent.definition().getSubProjects()) {</span>
+<span class="fc" id="L55">      DefaultInputModule child = createModule(def, scannerComponentIdGenerator.getAsInt());</span>
+<span class="fc" id="L56">      parents.put(child, parent);</span>
+<span class="fc" id="L57">      createChildren(child, scannerComponentIdGenerator, parents);</span>
+<span class="fc" id="L58">    }</span>
+<span class="fc" id="L59">    return parents;</span>
+  }
+
+  private static DefaultInputModule createModule(ProjectDefinition def, int scannerComponentId) {
+<span class="fc" id="L63">    LOG.debug(&quot;  Init module '{}'&quot;, def.getName());</span>
+<span class="fc" id="L64">    DefaultInputModule module = new DefaultInputModule(def, scannerComponentId);</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">    if (LOG.isDebugEnabled()) {</span>
+<span class="fc" id="L66">      LOG.debug(&quot;    Base dir: {}&quot;, module.getBaseDir().toAbsolutePath());</span>
+<span class="fc" id="L67">      LOG.debug(&quot;    Working dir: {}&quot;, module.getWorkDir().toAbsolutePath());</span>
+<span class="fc" id="L68">      LOG.debug(&quot;    Module global encoding: {}, default locale: {}&quot;, module.getEncoding().displayName(), Locale.getDefault());</span>
+    }
+<span class="fc" id="L70">    return module;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

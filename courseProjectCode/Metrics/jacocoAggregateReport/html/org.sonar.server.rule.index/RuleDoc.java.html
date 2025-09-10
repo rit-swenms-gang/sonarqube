@@ -1,0 +1,390 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RuleDoc.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.rule.index</a> &gt; <span class="el_source">RuleDoc.java</span></div><h1>RuleDoc.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.rule.index;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
+import org.sonar.api.issue.impact.SoftwareQuality;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.api.rule.RuleStatus;
+import org.sonar.core.rule.RuleType;
+import org.sonar.db.issue.ImpactDto;
+import org.sonar.db.rule.RuleDescriptionSectionDto;
+import org.sonar.db.rule.RuleDto;
+import org.sonar.db.rule.RuleForIndexingDto;
+import org.sonar.markdown.Markdown;
+import org.sonar.server.es.BaseDoc;
+import org.sonar.server.security.SecurityStandards;
+import org.sonar.server.security.SecurityStandards.SQCategory;
+
+import static java.util.stream.Collectors.joining;
+import static org.sonar.server.rule.index.RuleIndexDefinition.SUB_FIELD_SEVERITY;
+import static org.sonar.server.rule.index.RuleIndexDefinition.SUB_FIELD_SOFTWARE_QUALITY;
+import static org.sonar.server.rule.index.RuleIndexDefinition.TYPE_RULE;
+
+/**
+ * Implementation of Rule based on an Elasticsearch document
+ */
+public class RuleDoc extends BaseDoc {
+
+  @VisibleForTesting
+  public RuleDoc(Map&lt;String, Object&gt; fields) {
+<span class="fc" id="L60">    super(TYPE_RULE, new HashMap&lt;&gt;(fields));</span>
+<span class="fc" id="L61">  }</span>
+
+  public RuleDoc() {
+<span class="fc" id="L64">    super(TYPE_RULE, Maps.newHashMapWithExpectedSize(16));</span>
+<span class="fc" id="L65">  }</span>
+
+  @Override
+  public String getId() {
+<span class="fc" id="L69">    return idAsString();</span>
+  }
+
+  private String idAsString() {
+<span class="fc" id="L73">    return getField(RuleIndexDefinition.FIELD_RULE_UUID);</span>
+  }
+
+  public RuleDoc setUuid(String ruleUuid) {
+<span class="fc" id="L77">    setField(RuleIndexDefinition.FIELD_RULE_UUID, ruleUuid);</span>
+<span class="fc" id="L78">    return this;</span>
+  }
+
+  @Override
+  protected Optional&lt;String&gt; getSimpleMainTypeRouting() {
+<span class="nc" id="L83">    return Optional.of(idAsString());</span>
+  }
+
+  public RuleKey key() {
+<span class="fc" id="L87">    return RuleKey.parse(keyAsString());</span>
+  }
+
+  private String keyAsString() {
+<span class="fc" id="L91">    return getField(RuleIndexDefinition.FIELD_RULE_KEY);</span>
+  }
+
+  public RuleDoc setKey(@Nullable String s) {
+<span class="fc" id="L95">    setField(RuleIndexDefinition.FIELD_RULE_KEY, s);</span>
+<span class="fc" id="L96">    return this;</span>
+  }
+
+  @CheckForNull
+  public String ruleKey() {
+<span class="fc" id="L101">    return getNullableField(RuleIndexDefinition.FIELD_RULE_RULE_KEY);</span>
+  }
+
+  public RuleDoc setRuleKey(@Nullable String s) {
+<span class="fc" id="L105">    setField(RuleIndexDefinition.FIELD_RULE_RULE_KEY, s);</span>
+<span class="fc" id="L106">    return this;</span>
+  }
+
+  @CheckForNull
+  public String repository() {
+<span class="fc" id="L111">    return getNullableField(RuleIndexDefinition.FIELD_RULE_REPOSITORY);</span>
+  }
+
+  public RuleDoc setRepository(@Nullable String s) {
+<span class="fc" id="L115">    setField(RuleIndexDefinition.FIELD_RULE_REPOSITORY, s);</span>
+<span class="fc" id="L116">    return this;</span>
+  }
+
+  @CheckForNull
+  public String internalKey() {
+<span class="fc" id="L121">    return getNullableField(RuleIndexDefinition.FIELD_RULE_INTERNAL_KEY);</span>
+  }
+
+  public RuleDoc setInternalKey(@Nullable String s) {
+<span class="fc" id="L125">    setField(RuleIndexDefinition.FIELD_RULE_INTERNAL_KEY, s);</span>
+<span class="fc" id="L126">    return this;</span>
+  }
+
+  @CheckForNull
+  public String language() {
+<span class="fc" id="L131">    return getNullableField(RuleIndexDefinition.FIELD_RULE_LANGUAGE);</span>
+  }
+
+  public RuleDoc setLanguage(@Nullable String s) {
+<span class="fc" id="L135">    setField(RuleIndexDefinition.FIELD_RULE_LANGUAGE, s);</span>
+<span class="fc" id="L136">    return this;</span>
+  }
+
+  public String name() {
+<span class="fc" id="L140">    return getField(RuleIndexDefinition.FIELD_RULE_NAME);</span>
+  }
+
+  public RuleDoc setName(@Nullable String s) {
+<span class="fc" id="L144">    setField(RuleIndexDefinition.FIELD_RULE_NAME, s);</span>
+<span class="fc" id="L145">    return this;</span>
+  }
+
+  @CheckForNull
+  public String htmlDescription() {
+<span class="fc" id="L150">    return getNullableField(RuleIndexDefinition.FIELD_RULE_HTML_DESCRIPTION);</span>
+  }
+
+  public RuleDoc setHtmlDescription(@Nullable String s) {
+<span class="fc" id="L154">    setField(RuleIndexDefinition.FIELD_RULE_HTML_DESCRIPTION, s);</span>
+<span class="fc" id="L155">    return this;</span>
+  }
+
+  @CheckForNull
+  public String severity() {
+<span class="fc" id="L160">    return getNullableField(RuleIndexDefinition.FIELD_RULE_SEVERITY);</span>
+  }
+
+  public RuleDoc setSeverity(@Nullable String s) {
+<span class="fc" id="L164">    setField(RuleIndexDefinition.FIELD_RULE_SEVERITY, s);</span>
+<span class="fc" id="L165">    return this;</span>
+  }
+
+  @CheckForNull
+  public Collection&lt;String&gt; getOwaspTop10() {
+<span class="fc" id="L170">    return getNullableField(RuleIndexDefinition.FIELD_RULE_OWASP_TOP_10);</span>
+  }
+
+  public RuleDoc setOwaspTop10(@Nullable Collection&lt;String&gt; o) {
+<span class="fc" id="L174">    setField(RuleIndexDefinition.FIELD_RULE_OWASP_TOP_10, o);</span>
+<span class="fc" id="L175">    return this;</span>
+  }
+
+  @CheckForNull
+  public Collection&lt;String&gt; getOwaspTop10For2021() {
+<span class="fc" id="L180">    return getNullableField(RuleIndexDefinition.FIELD_RULE_OWASP_TOP_10_2021);</span>
+  }
+
+  public RuleDoc setOwaspTop10For2021(@Nullable Collection&lt;String&gt; o) {
+<span class="fc" id="L184">    setField(RuleIndexDefinition.FIELD_RULE_OWASP_TOP_10_2021, o);</span>
+<span class="fc" id="L185">    return this;</span>
+  }
+
+  @CheckForNull
+  public Collection&lt;String&gt; getOwaspMobileTop10For2024() {
+<span class="fc" id="L190">    return getNullableField(RuleIndexDefinition.FIELD_RULE_OWASP_MOBILE_TOP_10_2024);</span>
+  }
+
+  public RuleDoc setOwaspMobileTop10For2024(@Nullable Collection&lt;String&gt; o) {
+<span class="fc" id="L194">    setField(RuleIndexDefinition.FIELD_RULE_OWASP_MOBILE_TOP_10_2024, o);</span>
+<span class="fc" id="L195">    return this;</span>
+  }
+
+  @CheckForNull
+  public Collection&lt;String&gt; getSansTop25() {
+<span class="fc" id="L200">    return getNullableField(RuleIndexDefinition.FIELD_RULE_SANS_TOP_25);</span>
+  }
+
+  public RuleDoc setSansTop25(@Nullable Collection&lt;String&gt; s) {
+<span class="fc" id="L204">    setField(RuleIndexDefinition.FIELD_RULE_SANS_TOP_25, s);</span>
+<span class="fc" id="L205">    return this;</span>
+  }
+
+  @CheckForNull
+  public Collection&lt;String&gt; getCwe() {
+<span class="fc" id="L210">    return getNullableField(RuleIndexDefinition.FIELD_RULE_CWE);</span>
+  }
+
+  public RuleDoc setCwe(@Nullable Collection&lt;String&gt; c) {
+<span class="fc" id="L214">    setField(RuleIndexDefinition.FIELD_RULE_CWE, c);</span>
+<span class="fc" id="L215">    return this;</span>
+  }
+
+  @CheckForNull
+  public SQCategory getSonarSourceSecurityCategory() {
+<span class="fc" id="L220">    String key = getNullableField(RuleIndexDefinition.FIELD_RULE_SONARSOURCE_SECURITY);</span>
+<span class="fc" id="L221">    return SQCategory.fromKey(key).orElse(null);</span>
+  }
+
+  public RuleDoc setSonarSourceSecurityCategory(@Nullable SQCategory sqCategory) {
+<span class="pc bpc" id="L225" title="1 of 2 branches missed.">    setField(RuleIndexDefinition.FIELD_RULE_SONARSOURCE_SECURITY, sqCategory == null ? null : sqCategory.getKey());</span>
+<span class="fc" id="L226">    return this;</span>
+  }
+
+  public Set&lt;String&gt; getTags() {
+<span class="fc" id="L230">    return getField(RuleIndexDefinition.FIELD_RULE_TAGS);</span>
+  }
+
+  public RuleDoc setTags(Set&lt;String&gt; tags) {
+<span class="fc" id="L234">    setField(RuleIndexDefinition.FIELD_RULE_TAGS, tags);</span>
+<span class="fc" id="L235">    return this;</span>
+  }
+
+  @CheckForNull
+  public RuleStatus status() {
+<span class="fc" id="L240">    return RuleStatus.valueOf(getField(RuleIndexDefinition.FIELD_RULE_STATUS));</span>
+  }
+
+  public RuleDoc setStatus(@Nullable String s) {
+<span class="fc" id="L244">    setField(RuleIndexDefinition.FIELD_RULE_STATUS, s);</span>
+<span class="fc" id="L245">    return this;</span>
+  }
+
+  @CheckForNull
+  public RuleKey templateKey() {
+<span class="fc" id="L250">    String templateKey = getNullableField(RuleIndexDefinition.FIELD_RULE_TEMPLATE_KEY);</span>
+<span class="pc bpc" id="L251" title="1 of 2 branches missed.">    return templateKey != null ? RuleKey.parse(templateKey) : null;</span>
+  }
+
+  public RuleDoc setTemplateKey(@Nullable String s) {
+<span class="fc" id="L255">    setField(RuleIndexDefinition.FIELD_RULE_TEMPLATE_KEY, s);</span>
+<span class="fc" id="L256">    return this;</span>
+  }
+
+  public boolean isTemplate() {
+<span class="nc" id="L260">    return getField(RuleIndexDefinition.FIELD_RULE_IS_TEMPLATE);</span>
+  }
+
+  public RuleDoc setIsTemplate(@Nullable Boolean b) {
+<span class="fc" id="L264">    setField(RuleIndexDefinition.FIELD_RULE_IS_TEMPLATE, b);</span>
+<span class="fc" id="L265">    return this;</span>
+  }
+
+  public boolean isExternal() {
+<span class="fc" id="L269">    return getField(RuleIndexDefinition.FIELD_RULE_IS_EXTERNAL);</span>
+  }
+
+  public RuleDoc setIsExternal(boolean b) {
+<span class="fc" id="L273">    setField(RuleIndexDefinition.FIELD_RULE_IS_EXTERNAL, b);</span>
+<span class="fc" id="L274">    return this;</span>
+  }
+
+  @CheckForNull
+  public RuleType type() {
+<span class="fc" id="L279">    String type = getNullableField(RuleIndexDefinition.FIELD_RULE_TYPE);</span>
+<span class="pc bpc" id="L280" title="1 of 2 branches missed.">    if (type == null) {</span>
+<span class="nc" id="L281">      return null;</span>
+    }
+<span class="fc" id="L283">    return RuleType.valueOf(type);</span>
+  }
+
+  public RuleDoc setType(@Nullable RuleType ruleType) {
+<span class="fc bfc" id="L287" title="All 2 branches covered.">    setField(RuleIndexDefinition.FIELD_RULE_TYPE, ruleType == null ? null : ruleType.name());</span>
+<span class="fc" id="L288">    return this;</span>
+  }
+
+  public long createdAt() {
+<span class="fc" id="L292">    return getField(RuleIndexDefinition.FIELD_RULE_CREATED_AT);</span>
+  }
+
+  public RuleDoc setCreatedAt(@Nullable Long l) {
+<span class="fc" id="L296">    setField(RuleIndexDefinition.FIELD_RULE_CREATED_AT, l);</span>
+<span class="fc" id="L297">    return this;</span>
+  }
+
+  public long updatedAt() {
+<span class="fc" id="L301">    return getField(RuleIndexDefinition.FIELD_RULE_UPDATED_AT);</span>
+  }
+
+  public RuleDoc setUpdatedAt(@Nullable Long l) {
+<span class="fc" id="L305">    setField(RuleIndexDefinition.FIELD_RULE_UPDATED_AT, l);</span>
+<span class="fc" id="L306">    return this;</span>
+  }
+
+  public RuleDoc setCleanCodeAttributeCategory(@Nullable String cleanCodeAttributeCategory) {
+<span class="fc" id="L310">    setField(RuleIndexDefinition.FIELD_RULE_CLEAN_CODE_ATTRIBUTE_CATEGORY, cleanCodeAttributeCategory);</span>
+<span class="fc" id="L311">    return this;</span>
+  }
+
+  public RuleDoc setImpacts(Map&lt;SoftwareQuality, org.sonar.api.issue.impact.Severity&gt; impacts) {
+<span class="fc" id="L315">    List&lt;Map&lt;String, String&gt;&gt; convertedMap = impacts</span>
+<span class="fc" id="L316">      .entrySet()</span>
+<span class="fc" id="L317">      .stream()</span>
+<span class="fc" id="L318">      .map(entry -&gt; Map.of(</span>
+<span class="fc" id="L319">        SUB_FIELD_SOFTWARE_QUALITY, entry.getKey().name(),</span>
+<span class="fc" id="L320">        SUB_FIELD_SEVERITY, entry.getValue().name()))</span>
+<span class="fc" id="L321">      .toList();</span>
+<span class="fc" id="L322">    setField(RuleIndexDefinition.FIELD_RULE_IMPACTS, convertedMap);</span>
+<span class="fc" id="L323">    return this;</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="nc" id="L328">    return ReflectionToStringBuilder.toString(this);</span>
+  }
+
+  public static RuleDoc createFrom(RuleForIndexingDto dto, SecurityStandards securityStandards) {
+<span class="fc" id="L332">    return new RuleDoc()</span>
+<span class="fc" id="L333">      .setUuid(dto.getUuid())</span>
+<span class="fc" id="L334">      .setKey(dto.getRuleKey().toString())</span>
+<span class="fc" id="L335">      .setRepository(dto.getRepository())</span>
+<span class="fc" id="L336">      .setInternalKey(dto.getInternalKey())</span>
+<span class="fc" id="L337">      .setIsTemplate(dto.isTemplate())</span>
+<span class="fc" id="L338">      .setIsExternal(dto.isExternal())</span>
+<span class="fc" id="L339">      .setLanguage(dto.getLanguage())</span>
+<span class="fc" id="L340">      .setCwe(securityStandards.getCwe())</span>
+<span class="fc" id="L341">      .setOwaspTop10(securityStandards.getOwaspTop10())</span>
+<span class="fc" id="L342">      .setOwaspTop10For2021(securityStandards.getOwaspTop10For2021())</span>
+<span class="fc" id="L343">      .setOwaspMobileTop10For2024(securityStandards.getOwaspMobileTop10For2024())</span>
+<span class="fc" id="L344">      .setSansTop25(securityStandards.getSansTop25())</span>
+<span class="fc" id="L345">      .setSonarSourceSecurityCategory(securityStandards.getSqCategory())</span>
+<span class="fc" id="L346">      .setName(dto.getName())</span>
+<span class="fc" id="L347">      .setRuleKey(dto.getPluginRuleKey())</span>
+<span class="fc" id="L348">      .setSeverity(dto.getSeverityAsString())</span>
+<span class="fc" id="L349">      .setStatus(dto.getStatus().toString())</span>
+<span class="fc" id="L350">      .setType(getType(dto))</span>
+<span class="fc" id="L351">      .setCreatedAt(dto.getCreatedAt())</span>
+<span class="fc" id="L352">      .setTags(Sets.union(dto.getTags(), dto.getSystemTags()))</span>
+<span class="fc" id="L353">      .setUpdatedAt(dto.getUpdatedAt())</span>
+<span class="fc" id="L354">      .setHtmlDescription(getConcatenatedSectionsInHtml(dto))</span>
+<span class="fc" id="L355">      .setTemplateKey(getRuleKey(dto))</span>
+<span class="fc bfc" id="L356" title="All 2 branches covered.">      .setCleanCodeAttributeCategory(dto.getTypeAsRuleType() != RuleType.SECURITY_HOTSPOT ? dto.getCleanCodeAttributeCategory() : null)</span>
+<span class="fc" id="L357">      .setImpacts(dto.getImpacts().stream().collect(Collectors.toMap(ImpactDto::getSoftwareQuality, ImpactDto::getSeverity)));</span>
+  }
+
+  @CheckForNull
+  private static RuleType getType(RuleForIndexingDto dto) {
+<span class="fc bfc" id="L362" title="All 4 branches covered.">    if (dto.isAdHoc() &amp;&amp; dto.getAdHocType() != null) {</span>
+<span class="fc" id="L363">      return RuleType.fromDbConstant(dto.getAdHocType());</span>
+    }
+<span class="fc" id="L365">    return dto.getTypeAsRuleType();</span>
+  }
+
+  @CheckForNull
+  private static String getRuleKey(RuleForIndexingDto dto) {
+<span class="pc bpc" id="L370" title="1 of 4 branches missed.">    if (dto.getTemplateRuleKey() != null &amp;&amp; dto.getTemplateRepository() != null) {</span>
+<span class="fc" id="L371">      return RuleKey.of(dto.getTemplateRepository(), dto.getTemplateRuleKey()).toString();</span>
+    }
+<span class="fc" id="L373">    return null;</span>
+  }
+
+  private static String getConcatenatedSectionsInHtml(RuleForIndexingDto dto) {
+<span class="fc" id="L377">    return dto.getRuleDescriptionSectionsDtos().stream()</span>
+<span class="fc" id="L378">      .map(RuleDescriptionSectionDto::getContent)</span>
+<span class="fc" id="L379">      .map(content -&gt; convertToHtmlIfNecessary(dto.getDescriptionFormat(), content))</span>
+<span class="fc" id="L380">      .collect(joining(&quot; &quot;));</span>
+  }
+
+  private static String convertToHtmlIfNecessary(RuleDto.Format format, String content) {
+<span class="fc bfc" id="L384" title="All 2 branches covered.">    if (RuleDto.Format.MARKDOWN.equals(format)) {</span>
+<span class="fc" id="L385">      return Markdown.convertToHtml(content);</span>
+    }
+<span class="fc" id="L387">    return content;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

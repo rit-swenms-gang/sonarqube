@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DeprecatedRuleKeyDto.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.rule</a> &gt; <span class="el_source">DeprecatedRuleKeyDto.java</span></div><h1>DeprecatedRuleKeyDto.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.rule;
+
+import java.util.Objects;
+import javax.annotation.CheckForNull;
+
+/**
+ * Map the table &quot;deprecated_rule_keys&quot;
+ */
+public class DeprecatedRuleKeyDto {
+  /**
+   *  Uuid of the deprecated key
+   */
+  private String uuid;
+  /**
+   * the uuid of the current rule for this deprecated key
+   */
+  private String ruleUuid;
+  /**
+   * repository key that was deprecated
+   */
+  private String oldRepositoryKey;
+  /**
+   * rule key that was deprecated, not nullable
+   */
+  private String oldRuleKey;
+  /**
+   * creation date of the row
+   */
+  private Long createdAt;
+
+  /**
+   * current repository key retrieved from an external join on rule_id
+   */
+  private String newRepositoryKey;
+  /**
+   * current rule key retrieved from an external join on rule_id
+   */
+  private String newRuleKey;
+
+<span class="fc" id="L59">  public DeprecatedRuleKeyDto() {</span>
+    // nothing to do here
+<span class="fc" id="L61">  }</span>
+
+  public String getUuid() {
+<span class="fc" id="L64">    return uuid;</span>
+  }
+
+  public DeprecatedRuleKeyDto setUuid(String uuid) {
+<span class="fc" id="L68">    this.uuid = uuid;</span>
+<span class="fc" id="L69">    return this;</span>
+  }
+
+  public String getRuleUuid() {
+<span class="fc" id="L73">    return ruleUuid;</span>
+  }
+
+  public DeprecatedRuleKeyDto setRuleUuid(String ruleUuid) {
+<span class="fc" id="L77">    this.ruleUuid = ruleUuid;</span>
+<span class="fc" id="L78">    return this;</span>
+  }
+
+  public String getOldRepositoryKey() {
+<span class="fc" id="L82">    return oldRepositoryKey;</span>
+  }
+
+  public DeprecatedRuleKeyDto setOldRepositoryKey(String oldRepositoryKey) {
+<span class="fc" id="L86">    this.oldRepositoryKey = oldRepositoryKey;</span>
+<span class="fc" id="L87">    return this;</span>
+  }
+
+  public String getOldRuleKey() {
+<span class="fc" id="L91">    return oldRuleKey;</span>
+  }
+
+  public DeprecatedRuleKeyDto setOldRuleKey(String oldRuleKey) {
+<span class="fc" id="L95">    this.oldRuleKey = oldRuleKey;</span>
+<span class="fc" id="L96">    return this;</span>
+  }
+
+  /**
+   * This value may be null if the rule has been deleted
+   *
+   * @return the current repository key
+   */
+  @CheckForNull
+  public String getNewRepositoryKey() {
+<span class="fc" id="L106">    return newRepositoryKey;</span>
+  }
+
+  /**
+   * This value may be null if the rule has been deleted
+   *
+   * @return the current rule key
+   */
+  @CheckForNull
+  public String getNewRuleKey() {
+<span class="fc" id="L116">    return newRuleKey;</span>
+  }
+
+  public long getCreatedAt() {
+<span class="fc" id="L120">    return createdAt;</span>
+  }
+
+  public DeprecatedRuleKeyDto setCreatedAt(long createdAt) {
+<span class="fc" id="L124">    this.createdAt = createdAt;</span>
+<span class="fc" id="L125">    return this;</span>
+  }
+
+  @Override
+  public int hashCode() {
+<span class="fc" id="L130">    return Objects.hash(uuid);</span>
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+<span class="pc bpc" id="L135" title="1 of 2 branches missed.">    if (this == obj) {</span>
+<span class="nc" id="L136">      return true;</span>
+    }
+<span class="pc bpc" id="L138" title="2 of 4 branches missed.">    if (obj == null || getClass() != obj.getClass()) {</span>
+<span class="nc" id="L139">      return false;</span>
+    }
+<span class="fc" id="L141">    final DeprecatedRuleKeyDto other = (DeprecatedRuleKeyDto) obj;</span>
+<span class="fc" id="L142">    return Objects.equals(this.uuid, other.uuid);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

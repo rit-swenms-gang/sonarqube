@@ -1,0 +1,366 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultIndexSettingsElement.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.es.newindex</a> &gt; <span class="el_source">DefaultIndexSettingsElement.java</span></div><h1>DefaultIndexSettingsElement.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.es.newindex;
+
+import com.google.common.collect.ImmutableSortedMap;
+import java.util.Arrays;
+import java.util.Locale;
+import java.util.SortedMap;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.Settings.Builder;
+
+import static org.sonar.server.es.newindex.DefaultIndexSettings.ANALYSIS;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.ANALYZER;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.ASCIIFOLDING;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.CHAR_FILTER;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.DELIMITER;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.FIELDDATA_ENABLED;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.FIELD_FIELDDATA;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.FIELD_TYPE_TEXT;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.FILTER;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.HTML_STRIP;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.INDEX;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.INDEX_SEARCHABLE;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.KEYWORD;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.LOWERCASE;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.MAXIMUM_NGRAM_LENGTH;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.MAX_GRAM;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.MINIMUM_NGRAM_LENGTH;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.MIN_GRAM;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.PATTERN;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.PORTER_STEM;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.SEARCH_ANALYZER;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.STANDARD;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.STOP;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.SUB_FIELD_DELIMITER;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.TOKENIZER;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.TRIM;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.TYPE;
+import static org.sonar.server.es.newindex.DefaultIndexSettings.WHITESPACE;
+
+<span class="fc" id="L58">public enum DefaultIndexSettingsElement {</span>
+
+  // Filters
+
+<span class="fc" id="L62">  WORD_FILTER(FILTER) {</span>
+
+    @Override
+    protected void setup() {
+<span class="fc" id="L66">      set(TYPE, &quot;word_delimiter&quot;);</span>
+<span class="fc" id="L67">      set(&quot;generate_word_parts&quot;, true);</span>
+<span class="fc" id="L68">      set(&quot;catenate_words&quot;, true);</span>
+<span class="fc" id="L69">      set(&quot;catenate_numbers&quot;, true);</span>
+<span class="fc" id="L70">      set(&quot;catenate_all&quot;, true);</span>
+<span class="fc" id="L71">      set(&quot;split_on_case_change&quot;, true);</span>
+<span class="fc" id="L72">      set(&quot;preserve_original&quot;, true);</span>
+<span class="fc" id="L73">      set(&quot;split_on_numerics&quot;, true);</span>
+<span class="fc" id="L74">      set(&quot;stem_english_possessive&quot;, true);</span>
+<span class="fc" id="L75">    }</span>
+  },
+<span class="fc" id="L77">  NGRAM_FILTER(FILTER) {</span>
+
+    @Override
+    protected void setup() {
+<span class="fc" id="L81">      set(TYPE, &quot;ngram&quot;);</span>
+<span class="fc" id="L82">      set(MIN_GRAM, MINIMUM_NGRAM_LENGTH);</span>
+<span class="fc" id="L83">      set(MAX_GRAM, MAXIMUM_NGRAM_LENGTH);</span>
+<span class="fc" id="L84">      setList(&quot;token_chars&quot;, &quot;letter&quot;, &quot;digit&quot;, &quot;punctuation&quot;, &quot;symbol&quot;);</span>
+<span class="fc" id="L85">    }</span>
+  },
+
+  // Tokenizers
+
+<span class="fc" id="L90">  GRAM_TOKENIZER(TOKENIZER) {</span>
+
+    @Override
+    protected void setup() {
+<span class="fc" id="L94">      set(TYPE, &quot;ngram&quot;);</span>
+<span class="fc" id="L95">      set(MIN_GRAM, MINIMUM_NGRAM_LENGTH);</span>
+<span class="fc" id="L96">      set(MAX_GRAM, MAXIMUM_NGRAM_LENGTH);</span>
+<span class="fc" id="L97">      setList(&quot;token_chars&quot;, &quot;letter&quot;, &quot;digit&quot;, &quot;punctuation&quot;, &quot;symbol&quot;);</span>
+<span class="fc" id="L98">    }</span>
+  },
+<span class="fc" id="L100">  PREFIX_TOKENIZER(TOKENIZER) {</span>
+
+    @Override
+    protected void setup() {
+<span class="fc" id="L104">      set(TYPE, &quot;edge_ngram&quot;);</span>
+<span class="fc" id="L105">      set(MIN_GRAM, MINIMUM_NGRAM_LENGTH);</span>
+<span class="fc" id="L106">      set(MAX_GRAM, MAXIMUM_NGRAM_LENGTH);</span>
+<span class="fc" id="L107">    }</span>
+  },
+<span class="fc" id="L109">  UUID_MODULE_TOKENIZER(TOKENIZER) {</span>
+
+    @Override
+    protected void setup() {
+<span class="fc" id="L113">      set(TYPE, PATTERN);</span>
+<span class="fc" id="L114">      set(PATTERN, &quot;\\.&quot;);</span>
+<span class="fc" id="L115">    }</span>
+  },
+
+  // Analyzers
+
+<span class="fc" id="L120">  SORTABLE_ANALYZER(ANALYZER) {</span>
+
+    @Override
+    protected void setup() {
+<span class="fc" id="L124">      set(TOKENIZER, KEYWORD);</span>
+<span class="fc" id="L125">      setList(FILTER, TRIM, LOWERCASE);</span>
+<span class="fc" id="L126">    }</span>
+
+    @Override
+    public SortedMap&lt;String, String&gt; fieldMapping() {
+<span class="fc" id="L130">      return ImmutableSortedMap.of(</span>
+        TYPE, FIELD_TYPE_TEXT,
+        INDEX, INDEX_SEARCHABLE,
+<span class="fc" id="L133">        ANALYZER, getName(),</span>
+        FIELD_FIELDDATA, FIELDDATA_ENABLED);
+    }
+  },
+<span class="fc" id="L137">  INDEX_GRAMS_ANALYZER(ANALYZER) {</span>
+
+    @Override
+    protected void setup() {
+<span class="fc" id="L141">      set(TOKENIZER, GRAM_TOKENIZER);</span>
+<span class="fc" id="L142">      setList(FILTER, TRIM, LOWERCASE);</span>
+<span class="fc" id="L143">    }</span>
+  },
+<span class="fc" id="L145">  SEARCH_GRAMS_ANALYZER(ANALYZER) {</span>
+
+    @Override
+    protected void setup() {
+<span class="fc" id="L149">      set(TOKENIZER, WHITESPACE);</span>
+<span class="fc" id="L150">      setList(FILTER, TRIM, LOWERCASE);</span>
+<span class="fc" id="L151">    }</span>
+
+    @Override
+    public SortedMap&lt;String, String&gt; fieldMapping() {
+<span class="fc" id="L155">      return ImmutableSortedMap.of(</span>
+        TYPE, FIELD_TYPE_TEXT,
+        INDEX, INDEX_SEARCHABLE,
+<span class="fc" id="L158">        ANALYZER, INDEX_GRAMS_ANALYZER.getName(),</span>
+<span class="fc" id="L159">        SEARCH_ANALYZER, getName());</span>
+    }
+  },
+<span class="fc" id="L162">  INDEX_PREFIX_ANALYZER(ANALYZER) {</span>
+
+    @Override
+    protected void setup() {
+<span class="fc" id="L166">      set(TOKENIZER, PREFIX_TOKENIZER);</span>
+<span class="fc" id="L167">      setList(FILTER, TRIM);</span>
+<span class="fc" id="L168">    }</span>
+  },
+<span class="fc" id="L170">  SEARCH_PREFIX_ANALYZER(ANALYZER) {</span>
+
+    @Override
+    protected void setup() {
+<span class="fc" id="L174">      set(TOKENIZER, WHITESPACE);</span>
+<span class="fc" id="L175">      setList(FILTER, TRIM);</span>
+<span class="fc" id="L176">    }</span>
+
+    @Override
+    public SortedMap&lt;String, String&gt; fieldMapping() {
+<span class="fc" id="L180">      return ImmutableSortedMap.of(</span>
+        TYPE, FIELD_TYPE_TEXT,
+        INDEX, INDEX_SEARCHABLE,
+<span class="fc" id="L183">        ANALYZER, INDEX_PREFIX_ANALYZER.getName(),</span>
+<span class="fc" id="L184">        SEARCH_ANALYZER, getName());</span>
+    }
+  },
+<span class="fc" id="L187">  INDEX_PREFIX_CASE_INSENSITIVE_ANALYZER(ANALYZER) {</span>
+
+    @Override
+    protected void setup() {
+<span class="fc" id="L191">      set(TOKENIZER, PREFIX_TOKENIZER);</span>
+<span class="fc" id="L192">      setList(FILTER, TRIM, LOWERCASE);</span>
+<span class="fc" id="L193">    }</span>
+  },
+<span class="fc" id="L195">  SEARCH_PREFIX_CASE_INSENSITIVE_ANALYZER(ANALYZER) {</span>
+
+    @Override
+    protected void setup() {
+<span class="fc" id="L199">      set(TOKENIZER, WHITESPACE);</span>
+<span class="fc" id="L200">      setList(FILTER, TRIM, LOWERCASE);</span>
+<span class="fc" id="L201">    }</span>
+
+    @Override
+    public SortedMap&lt;String, String&gt; fieldMapping() {
+<span class="fc" id="L205">      return ImmutableSortedMap.of(</span>
+        TYPE, FIELD_TYPE_TEXT,
+        INDEX, INDEX_SEARCHABLE,
+<span class="fc" id="L208">        ANALYZER, INDEX_PREFIX_CASE_INSENSITIVE_ANALYZER.getName(),</span>
+<span class="fc" id="L209">        SEARCH_ANALYZER, getName());</span>
+    }
+  },
+<span class="fc" id="L212">  USER_INDEX_GRAMS_ANALYZER(ANALYZER) {</span>
+
+    @Override
+    protected void setup() {
+<span class="fc" id="L216">      set(TOKENIZER, WHITESPACE);</span>
+<span class="fc" id="L217">      setList(FILTER, TRIM, LOWERCASE, NGRAM_FILTER.getName());</span>
+<span class="fc" id="L218">    }</span>
+  },
+<span class="fc" id="L220">  USER_SEARCH_GRAMS_ANALYZER(ANALYZER) {</span>
+
+    @Override
+    protected void setup() {
+<span class="fc" id="L224">      set(TOKENIZER, WHITESPACE);</span>
+<span class="fc" id="L225">      setList(FILTER, TRIM, LOWERCASE);</span>
+<span class="fc" id="L226">    }</span>
+
+    @Override
+    public SortedMap&lt;String, String&gt; fieldMapping() {
+<span class="nc" id="L230">      return ImmutableSortedMap.of(</span>
+        TYPE, FIELD_TYPE_TEXT,
+        INDEX, INDEX_SEARCHABLE,
+<span class="nc" id="L233">        ANALYZER, USER_INDEX_GRAMS_ANALYZER.getName(),</span>
+<span class="nc" id="L234">        SEARCH_ANALYZER, getName());</span>
+    }
+  },
+<span class="fc" id="L237">  INDEX_WORDS_ANALYZER(ANALYZER) {</span>
+
+    @Override
+    protected void setup() {
+<span class="fc" id="L241">      set(TOKENIZER, STANDARD);</span>
+<span class="fc" id="L242">      setList(FILTER, &quot;word_filter&quot;, LOWERCASE, STOP, ASCIIFOLDING, PORTER_STEM);</span>
+<span class="fc" id="L243">    }</span>
+  },
+<span class="fc" id="L245">  SEARCH_WORDS_ANALYZER(ANALYZER) {</span>
+
+    @Override
+    protected void setup() {
+<span class="fc" id="L249">      set(TOKENIZER, STANDARD);</span>
+<span class="fc" id="L250">      setList(FILTER, LOWERCASE, STOP, ASCIIFOLDING, PORTER_STEM);</span>
+<span class="fc" id="L251">    }</span>
+
+    @Override
+    public SortedMap&lt;String, String&gt; fieldMapping() {
+<span class="fc" id="L255">      return ImmutableSortedMap.of(</span>
+        TYPE, FIELD_TYPE_TEXT,
+        INDEX, INDEX_SEARCHABLE,
+<span class="fc" id="L258">        ANALYZER, INDEX_WORDS_ANALYZER.getName(),</span>
+<span class="fc" id="L259">        SEARCH_ANALYZER, getName());</span>
+    }
+  },
+<span class="fc" id="L262">  ENGLISH_HTML_ANALYZER(ANALYZER) {</span>
+
+    @Override
+    protected void setup() {
+<span class="fc" id="L266">      set(TOKENIZER, STANDARD);</span>
+<span class="fc" id="L267">      setList(FILTER, LOWERCASE, STOP, ASCIIFOLDING, PORTER_STEM);</span>
+<span class="fc" id="L268">      setList(CHAR_FILTER, HTML_STRIP);</span>
+<span class="fc" id="L269">    }</span>
+
+    @Override
+    public SortedMap&lt;String, String&gt; fieldMapping() {
+<span class="fc" id="L273">      return ImmutableSortedMap.of(</span>
+        TYPE, FIELD_TYPE_TEXT,
+        INDEX, INDEX_SEARCHABLE,
+<span class="fc" id="L276">        ANALYZER, getName());</span>
+    }
+  },
+<span class="fc" id="L279">  PATH_ANALYZER(ANALYZER) {</span>
+
+    @Override
+    protected void setup() {
+<span class="fc" id="L283">      set(TOKENIZER, &quot;path_hierarchy&quot;);</span>
+<span class="fc" id="L284">    }</span>
+  },
+<span class="fc" id="L286">  UUID_MODULE_ANALYZER(ANALYZER) {</span>
+
+    @Override
+    protected void setup() {
+<span class="fc" id="L290">      set(TOKENIZER, UUID_MODULE_TOKENIZER);</span>
+<span class="fc" id="L291">      setList(FILTER, TRIM);</span>
+<span class="fc" id="L292">    }</span>
+  },
+
+  ;
+
+  private final String type;
+  private final String name;
+
+<span class="fc" id="L300">  private Builder builder = Settings.builder();</span>
+
+<span class="fc" id="L302">  DefaultIndexSettingsElement(String type) {</span>
+<span class="fc" id="L303">    this.type = type;</span>
+<span class="fc" id="L304">    this.name = name().toLowerCase(Locale.ENGLISH);</span>
+<span class="fc" id="L305">    setup();</span>
+<span class="fc" id="L306">  }</span>
+
+  protected void set(String settingSuffix, int value) {
+<span class="fc" id="L309">    put(localName(settingSuffix), Integer.toString(value));</span>
+<span class="fc" id="L310">  }</span>
+
+  protected void set(String settingSuffix, boolean value) {
+<span class="fc" id="L313">    put(localName(settingSuffix), Boolean.toString(value));</span>
+<span class="fc" id="L314">  }</span>
+
+  protected void set(String settingSuffix, DefaultIndexSettingsElement otherElement) {
+<span class="fc" id="L317">    put(localName(settingSuffix), otherElement.name);</span>
+<span class="fc" id="L318">  }</span>
+
+  protected void set(String settingSuffix, String value) {
+<span class="fc" id="L321">    put(localName(settingSuffix), value);</span>
+<span class="fc" id="L322">  }</span>
+
+  protected void setList(String settingSuffix, String... values) {
+<span class="fc" id="L325">    putList(localName(settingSuffix), values);</span>
+<span class="fc" id="L326">  }</span>
+
+  protected void setList(String settingSuffix, DefaultIndexSettingsElement... values) {
+<span class="nc" id="L329">    putList(localName(settingSuffix), Arrays.stream(values).map(DefaultIndexSettingsElement::getName).toArray(String[]::new));</span>
+<span class="nc" id="L330">  }</span>
+
+  private void put(String setting, String value) {
+<span class="fc" id="L333">    builder = builder.put(setting, value);</span>
+<span class="fc" id="L334">  }</span>
+
+  private void putList(String setting, String... values) {
+<span class="fc" id="L337">    builder = builder.putList(setting, values);</span>
+<span class="fc" id="L338">  }</span>
+
+  private String localName(String settingSuffix) {
+<span class="fc" id="L341">    return ANALYSIS + DELIMITER + type + DELIMITER + name + DELIMITER + settingSuffix;</span>
+  }
+
+  public Settings settings() {
+<span class="fc" id="L345">    return builder.build();</span>
+  }
+
+  protected abstract void setup();
+
+  public SortedMap&lt;String, String&gt; fieldMapping() {
+<span class="nc" id="L351">    throw new UnsupportedOperationException(&quot;The elasticsearch configuration element '&quot; + name + &quot;' cannot be used as field mapping.&quot;);</span>
+  }
+
+  public String subField(String fieldName) {
+<span class="fc" id="L355">    return fieldName + SUB_FIELD_DELIMITER + getSubFieldSuffix();</span>
+  }
+
+  public String getSubFieldSuffix() {
+<span class="fc" id="L359">    return getName();</span>
+  }
+
+  public String getName() {
+<span class="fc" id="L363">    return name;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

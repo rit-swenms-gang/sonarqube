@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ScaProperties.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.scanner.sca</a> &gt; <span class="el_source">ScaProperties.java</span></div><h1>ScaProperties.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.scanner.sca;
+
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import org.sonar.scanner.config.DefaultConfiguration;
+
+public class ScaProperties {
+<span class="fc" id="L31">  private static final Pattern sonarScaPropertyRegex = Pattern.compile(&quot;^sonar\\.sca\\.([a-zA-Z]+)$&quot;);</span>
+  private static final String SONAR_SCA_PREFIX = &quot;sonar.sca.&quot;;
+<span class="fc" id="L33">  private static final Set&lt;String&gt; IGNORED_PROPERTIES = Set.of(</span>
+    // sonar.sca.exclusions is a special case which we handle when building --exclude
+    &quot;sonar.sca.exclusions&quot;,
+    // excludedManifests is a special case which we handle when building --exclude
+    &quot;sonar.sca.excludedManifests&quot;,
+    // keep recursive enabled to better match sonar-scanner behavior
+    &quot;sonar.sca.recursiveManifestSearch&quot;);
+
+  private ScaProperties() {
+  }
+
+  /**
+   * Build a map of environment variables from the sonar.sca.* properties in the configuration.
+   * The environment variable names are derived from the property names by removing the sonar.sca. prefix
+   * and converting to upper snake case to be used with the Tidelift CLI with the value from the configuration.
+   * &lt;p&gt;
+   * Examples:
+   * &lt;br&gt;
+   * { &quot;sonar.sca.propertyName&quot; : &quot;value&quot; } becomes { &quot;TIDELIFT_PROPERTY_NAME&quot; : &quot;value&quot; }
+   * &lt;br&gt;
+   * { &quot;sonar.someOtherProperty&quot; : &quot;value&quot; } returns an empty map
+   *
+   * @param configuration the scanner configuration possibly containing sonar.sca.* properties
+   * @return a map of Tidelift CLI compatible environment variable names to their configuration values
+   */
+  public static Map&lt;String, String&gt; buildFromScannerProperties(DefaultConfiguration configuration) {
+<span class="fc" id="L59">    HashMap&lt;String, String&gt; props = new HashMap&lt;&gt;(configuration.getProperties());</span>
+
+<span class="fc" id="L61">    return props</span>
+<span class="fc" id="L62">      .entrySet()</span>
+<span class="fc" id="L63">      .stream()</span>
+<span class="fc" id="L64">      .filter(entry -&gt; entry.getKey().startsWith(SONAR_SCA_PREFIX))</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">      .filter(entry -&gt; !IGNORED_PROPERTIES.contains(entry.getKey()))</span>
+<span class="fc" id="L66">      .collect(Collectors.toMap(entry -&gt; convertPropToEnvVariable(entry.getKey()), Map.Entry::getValue));</span>
+  }
+
+  // convert sonar.sca.* to TIDELIFT_* and convert from camelCase to UPPER_SNAKE_CASE
+  private static String convertPropToEnvVariable(String propertyName) {
+<span class="fc" id="L71">    var regexMatcher = sonarScaPropertyRegex.matcher(propertyName);</span>
+
+<span class="pc bpc" id="L73" title="2 of 4 branches missed.">    if (regexMatcher.matches() &amp;&amp; regexMatcher.groupCount() == 1) {</span>
+<span class="fc" id="L74">      var tideliftNamespace = &quot;TIDELIFT_&quot;;</span>
+<span class="fc" id="L75">      var convertedPropertyName = PropertyNamingStrategies.UpperSnakeCaseStrategy.INSTANCE.translate(regexMatcher.group(1));</span>
+
+<span class="fc" id="L77">      return tideliftNamespace + convertedPropertyName;</span>
+    }
+
+<span class="nc" id="L80">    return propertyName;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

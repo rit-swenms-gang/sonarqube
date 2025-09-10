@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RuleForIndexingDto.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.rule</a> &gt; <span class="el_source">RuleForIndexingDto.java</span></div><h1>RuleForIndexingDto.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.rule;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Sets;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+import javax.annotation.CheckForNull;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.api.rule.RuleStatus;
+import org.sonar.api.rules.CleanCodeAttribute;
+import org.sonar.core.rule.RuleType;
+import org.sonar.db.issue.ImpactDto;
+
+public class RuleForIndexingDto {
+
+  private String uuid;
+  private String repository;
+  private String pluginRuleKey;
+  private String name;
+  private RuleDto.Format descriptionFormat;
+  private Integer severity;
+  private RuleStatus status;
+  private boolean isTemplate;
+  private Set&lt;String&gt; systemTags;
+  private Set&lt;String&gt; tags;
+  private Set&lt;String&gt; securityStandards;
+  private String templateRuleKey;
+  private String templateRepository;
+  private String internalKey;
+  private String language;
+  private boolean isExternal;
+  private boolean isAdHoc;
+  private Integer adHocType;
+  private int type;
+
+  private long createdAt;
+  private long updatedAt;
+<span class="fc" id="L58">  private Set&lt;RuleDescriptionSectionDto&gt; ruleDescriptionSectionsDtos = new HashSet&lt;&gt;();</span>
+
+  private String cleanCodeAttributeCategory;
+<span class="fc" id="L61">  private Set&lt;ImpactDto&gt; impacts = new HashSet&lt;&gt;();</span>
+
+  @VisibleForTesting
+<span class="fc" id="L64">  public RuleForIndexingDto() {</span>
+    // nothing to do here
+<span class="fc" id="L66">  }</span>
+
+  public static RuleForIndexingDto fromRuleDto(RuleDto r) {
+<span class="fc" id="L69">    RuleForIndexingDto ruleForIndexingDto = new RuleForIndexingDto();</span>
+<span class="fc" id="L70">    ruleForIndexingDto.createdAt = r.getCreatedAt();</span>
+<span class="fc" id="L71">    ruleForIndexingDto.uuid = r.getUuid();</span>
+<span class="fc" id="L72">    ruleForIndexingDto.repository = r.getRepositoryKey();</span>
+<span class="fc" id="L73">    ruleForIndexingDto.pluginRuleKey = r.getRuleKey();</span>
+<span class="fc" id="L74">    ruleForIndexingDto.name = r.getName();</span>
+<span class="fc" id="L75">    ruleForIndexingDto.descriptionFormat = r.getDescriptionFormat();</span>
+<span class="fc" id="L76">    ruleForIndexingDto.severity = r.getSeverity();</span>
+<span class="fc" id="L77">    ruleForIndexingDto.status = r.getStatus();</span>
+<span class="fc" id="L78">    ruleForIndexingDto.isTemplate = r.isTemplate();</span>
+<span class="fc" id="L79">    ruleForIndexingDto.systemTags = Sets.newHashSet(r.getSystemTags());</span>
+<span class="pc bpc" id="L80" title="1 of 2 branches missed.">    ruleForIndexingDto.tags = r.getTags() != null ? Sets.newHashSet(r.getTags()) : Collections.emptySet();</span>
+<span class="fc" id="L81">    ruleForIndexingDto.securityStandards = Sets.newHashSet(r.getSecurityStandards());</span>
+<span class="fc" id="L82">    ruleForIndexingDto.internalKey = r.getConfigKey();</span>
+<span class="fc" id="L83">    ruleForIndexingDto.language = r.getLanguage();</span>
+<span class="fc" id="L84">    ruleForIndexingDto.isExternal = r.isExternal();</span>
+<span class="fc" id="L85">    ruleForIndexingDto.isAdHoc = r.isAdHoc();</span>
+<span class="fc" id="L86">    ruleForIndexingDto.adHocType = r.getAdHocType();</span>
+<span class="fc" id="L87">    ruleForIndexingDto.type = r.getType();</span>
+<span class="fc" id="L88">    ruleForIndexingDto.createdAt = r.getCreatedAt();</span>
+<span class="fc" id="L89">    ruleForIndexingDto.updatedAt = r.getUpdatedAt();</span>
+<span class="pc bpc" id="L90" title="1 of 2 branches missed.">    if (r.getRuleDescriptionSectionDtos() != null) {</span>
+<span class="fc" id="L91">      ruleForIndexingDto.setRuleDescriptionSectionsDtos(Sets.newHashSet(r.getRuleDescriptionSectionDtos()));</span>
+    }
+
+<span class="fc" id="L94">    CleanCodeAttribute cleanCodeAttribute = r.getCleanCodeAttribute();</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">    if (cleanCodeAttribute != null) {</span>
+<span class="fc" id="L96">      ruleForIndexingDto.cleanCodeAttributeCategory = cleanCodeAttribute.getAttributeCategory().name();</span>
+    }
+<span class="fc" id="L98">    ruleForIndexingDto.setImpacts(r.getDefaultImpacts());</span>
+
+<span class="fc" id="L100">    return ruleForIndexingDto;</span>
+  }
+
+  public String getUuid() {
+<span class="fc" id="L104">    return uuid;</span>
+  }
+
+  public String getRepository() {
+<span class="fc" id="L108">    return repository;</span>
+  }
+
+  public void setRepository(String repository) {
+<span class="nc" id="L112">    this.repository = repository;</span>
+<span class="nc" id="L113">  }</span>
+
+  public String getPluginRuleKey() {
+<span class="fc" id="L116">    return pluginRuleKey;</span>
+  }
+
+  public void setPluginRuleKey(String pluginRuleKey) {
+<span class="nc" id="L120">    this.pluginRuleKey = pluginRuleKey;</span>
+<span class="nc" id="L121">  }</span>
+
+  public String getName() {
+<span class="fc" id="L124">    return name;</span>
+  }
+
+  public RuleDto.Format getDescriptionFormat() {
+<span class="fc" id="L128">    return descriptionFormat;</span>
+  }
+
+  public void setDescriptionFormat(RuleDto.Format descriptionFormat) {
+<span class="nc" id="L132">    this.descriptionFormat = descriptionFormat;</span>
+<span class="nc" id="L133">  }</span>
+
+  public Integer getSeverity() {
+<span class="fc" id="L136">    return severity;</span>
+  }
+
+  public RuleStatus getStatus() {
+<span class="fc" id="L140">    return status;</span>
+  }
+
+  public boolean isTemplate() {
+<span class="fc" id="L144">    return isTemplate;</span>
+  }
+
+  public Set&lt;String&gt; getSystemTags() {
+<span class="fc" id="L148">    return Collections.unmodifiableSet(systemTags);</span>
+  }
+
+  public Set&lt;String&gt; getTags() {
+<span class="fc" id="L152">    return Collections.unmodifiableSet(tags);</span>
+  }
+
+  public Set&lt;String&gt; getSecurityStandards() {
+<span class="fc" id="L156">    return Collections.unmodifiableSet(securityStandards);</span>
+  }
+
+  public String getTemplateRuleKey() {
+<span class="fc" id="L160">    return templateRuleKey;</span>
+  }
+
+  public String getTemplateRepository() {
+<span class="fc" id="L164">    return templateRepository;</span>
+  }
+
+  public String getInternalKey() {
+<span class="fc" id="L168">    return internalKey;</span>
+  }
+
+  public String getLanguage() {
+<span class="fc" id="L172">    return language;</span>
+  }
+
+  public int getType() {
+<span class="fc" id="L176">    return type;</span>
+  }
+
+  public boolean isExternal() {
+<span class="fc" id="L180">    return isExternal;</span>
+  }
+
+  public boolean isAdHoc() {
+<span class="fc" id="L184">    return isAdHoc;</span>
+  }
+
+  public Integer getAdHocType() {
+<span class="fc" id="L188">    return adHocType;</span>
+  }
+
+  public long getCreatedAt() {
+<span class="fc" id="L192">    return createdAt;</span>
+  }
+
+  public long getUpdatedAt() {
+<span class="fc" id="L196">    return updatedAt;</span>
+  }
+
+  @CheckForNull
+  public RuleType getTypeAsRuleType() {
+<span class="fc" id="L201">    return RuleType.valueOfNullable(type);</span>
+  }
+
+  public String getSeverityAsString() {
+<span class="fc bfc" id="L205" title="All 2 branches covered.">    return severity != null ? SeverityUtil.getSeverityFromOrdinal(severity) : null;</span>
+  }
+
+  public RuleKey getRuleKey() {
+<span class="fc" id="L209">    return RuleKey.of(repository, pluginRuleKey);</span>
+  }
+
+  public Set&lt;RuleDescriptionSectionDto&gt; getRuleDescriptionSectionsDtos() {
+<span class="fc" id="L213">    return Collections.unmodifiableSet(ruleDescriptionSectionsDtos);</span>
+  }
+
+  public void setRuleDescriptionSectionsDtos(Set&lt;RuleDescriptionSectionDto&gt; ruleDescriptionSectionsDtos) {
+<span class="fc" id="L217">    this.ruleDescriptionSectionsDtos = ruleDescriptionSectionsDtos;</span>
+<span class="fc" id="L218">  }</span>
+
+  public void setTemplateRuleKey(String templateRuleKey) {
+<span class="fc" id="L221">    this.templateRuleKey = templateRuleKey;</span>
+<span class="fc" id="L222">  }</span>
+
+  public void setTemplateRepository(String templateRepository) {
+<span class="fc" id="L225">    this.templateRepository = templateRepository;</span>
+<span class="fc" id="L226">  }</span>
+
+  public void setType(int type) {
+<span class="nc" id="L229">    this.type = type;</span>
+<span class="nc" id="L230">  }</span>
+
+  @CheckForNull
+  public String getCleanCodeAttributeCategory() {
+<span class="fc" id="L234">    return cleanCodeAttributeCategory;</span>
+  }
+
+  public void setCleanCodeAttributeCategory(String cleanCodeAttributeCategory) {
+<span class="nc" id="L238">    this.cleanCodeAttributeCategory = cleanCodeAttributeCategory;</span>
+<span class="nc" id="L239">  }</span>
+
+  public Set&lt;ImpactDto&gt; getImpacts() {
+<span class="fc" id="L242">    return impacts;</span>
+  }
+
+  public void setImpacts(Set&lt;ImpactDto&gt; impacts) {
+<span class="fc" id="L246">    this.impacts = impacts;</span>
+<span class="fc" id="L247">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

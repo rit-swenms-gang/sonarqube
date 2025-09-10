@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OneIssuePerTestFileSensor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.xoo.rule</a> &gt; <span class="el_source">OneIssuePerTestFileSensor.java</span></div><h1>OneIssuePerTestFileSensor.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.xoo.rule;
+
+import org.sonar.api.batch.fs.FilePredicates;
+import org.sonar.api.batch.fs.FileSystem;
+import org.sonar.api.batch.fs.InputFile;
+import org.sonar.api.batch.fs.InputFile.Type;
+import org.sonar.api.batch.rule.ActiveRules;
+import org.sonar.api.batch.sensor.Sensor;
+import org.sonar.api.batch.sensor.SensorContext;
+import org.sonar.api.batch.sensor.SensorDescriptor;
+import org.sonar.api.batch.sensor.issue.NewIssue;
+import org.sonar.api.rule.RuleKey;
+import org.sonar.xoo.Xoo;
+
+public class OneIssuePerTestFileSensor implements Sensor {
+
+  public static final String RULE_KEY = &quot;OneIssuePerTestFile&quot;;
+
+  private final FileSystem fs;
+  private final ActiveRules activeRules;
+
+<span class="fc" id="L41">  public OneIssuePerTestFileSensor(FileSystem fs, ActiveRules activeRules) {</span>
+<span class="fc" id="L42">    this.fs = fs;</span>
+<span class="fc" id="L43">    this.activeRules = activeRules;</span>
+<span class="fc" id="L44">  }</span>
+
+  @Override
+  public void describe(SensorDescriptor descriptor) {
+<span class="fc" id="L48">    descriptor</span>
+<span class="fc" id="L49">      .onlyOnLanguage(Xoo.KEY)</span>
+<span class="fc" id="L50">      .onlyOnFileType(Type.TEST)</span>
+<span class="fc" id="L51">      .createIssuesForRuleRepository(XooRulesDefinition.XOO_REPOSITORY);</span>
+<span class="fc" id="L52">  }</span>
+
+  @Override
+  public void execute(SensorContext context) {
+<span class="fc" id="L56">    RuleKey ruleKey = RuleKey.of(XooRulesDefinition.XOO_REPOSITORY, RULE_KEY);</span>
+<span class="pc bpc" id="L57" title="1 of 2 branches missed.">    if (activeRules.find(ruleKey) == null) {</span>
+<span class="fc" id="L58">      return;</span>
+    }
+<span class="nc" id="L60">    FilePredicates p = fs.predicates();</span>
+<span class="nc bnc" id="L61" title="All 2 branches missed.">    for (InputFile inputFile : fs.inputFiles(p.and(p.hasLanguages(Xoo.KEY), p.hasType(Type.TEST)))) {</span>
+<span class="nc" id="L62">      processFile(inputFile, context, ruleKey);</span>
+<span class="nc" id="L63">    }</span>
+<span class="nc" id="L64">  }</span>
+
+  private void processFile(InputFile inputFile, SensorContext context, RuleKey ruleKey) {
+<span class="nc" id="L67">    NewIssue newIssue = context.newIssue();</span>
+<span class="nc" id="L68">    newIssue</span>
+<span class="nc" id="L69">      .forRule(ruleKey)</span>
+<span class="nc" id="L70">      .at(newIssue.newLocation().message(&quot;This issue is generated on each test file&quot;)</span>
+<span class="nc" id="L71">        .on(inputFile))</span>
+<span class="nc" id="L72">      .save();</span>
+<span class="nc" id="L73">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

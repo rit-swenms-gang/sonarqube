@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CreateUniqueIndexOnArchitectureGraphs.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.platform.db.migration.version.v202502</a> &gt; <span class="el_source">CreateUniqueIndexOnArchitectureGraphs.java</span></div><h1>CreateUniqueIndexOnArchitectureGraphs.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.platform.db.migration.version.v202502;
+
+import java.sql.Connection;
+import java.sql.SQLException;
+import org.sonar.db.Database;
+import org.sonar.db.DatabaseUtils;
+import org.sonar.server.platform.db.migration.sql.CreateIndexBuilder;
+import org.sonar.server.platform.db.migration.step.DdlChange;
+
+public class CreateUniqueIndexOnArchitectureGraphs extends DdlChange {
+
+  static final String TABLE_NAME = &quot;architecture_graphs&quot;;
+  static final String INDEX_NAME = &quot;uq_idx_ag_branch_type_source&quot;;
+  static final String COLUMN_NAME_BRANCH_UUID = &quot;branch_uuid&quot;;
+  static final String COLUMN_NAME_TYPE = &quot;type&quot;;
+  static final String COLUMN_NAME_SOURCE = &quot;source&quot;;
+
+  public CreateUniqueIndexOnArchitectureGraphs(Database db) {
+<span class="fc" id="L38">    super(db);</span>
+<span class="fc" id="L39">  }</span>
+
+  @Override
+  public void execute(Context context) throws SQLException {
+<span class="fc" id="L43">    try (Connection connection = getDatabase().getDataSource().getConnection()) {</span>
+<span class="fc" id="L44">      createIndex(context, connection);</span>
+    }
+<span class="fc" id="L46">  }</span>
+
+  private void createIndex(Context context, Connection connection) {
+<span class="pc bpc" id="L49" title="1 of 2 branches missed.">    if(!DatabaseUtils.tableColumnExists(connection, TABLE_NAME, COLUMN_NAME_BRANCH_UUID)) {</span>
+<span class="nc" id="L50">      return;</span>
+    }
+<span class="pc bpc" id="L52" title="1 of 2 branches missed.">    if(!DatabaseUtils.tableColumnExists(connection, TABLE_NAME, COLUMN_NAME_TYPE)) {</span>
+<span class="nc" id="L53">      return;</span>
+    }
+<span class="pc bpc" id="L55" title="1 of 2 branches missed.">    if(!DatabaseUtils.tableColumnExists(connection, TABLE_NAME, COLUMN_NAME_SOURCE)) {</span>
+<span class="nc" id="L56">      return;</span>
+    }
+<span class="fc bfc" id="L58" title="All 2 branches covered.">    if (DatabaseUtils.indexExistsIgnoreCase(TABLE_NAME, INDEX_NAME, connection)) {</span>
+<span class="fc" id="L59">      return;</span>
+    }
+
+<span class="fc" id="L62">    context.execute(new CreateIndexBuilder(getDialect())</span>
+<span class="fc" id="L63">      .setTable(TABLE_NAME)</span>
+<span class="fc" id="L64">      .setName(INDEX_NAME)</span>
+<span class="fc" id="L65">      .setUnique(true)</span>
+<span class="fc" id="L66">      .addColumn(COLUMN_NAME_BRANCH_UUID, false)</span>
+<span class="fc" id="L67">      .addColumn(COLUMN_NAME_TYPE, false)</span>
+<span class="fc" id="L68">      .addColumn(COLUMN_NAME_SOURCE, false)</span>
+<span class="fc" id="L69">      .build());</span>
+<span class="fc" id="L70">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

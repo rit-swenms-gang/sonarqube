@@ -1,0 +1,345 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ComponentAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.ui.ws</a> &gt; <span class="el_source">ComponentAction.java</span></div><h1>ComponentAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.ui.ws;
+
+import com.google.common.collect.Lists;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import javax.annotation.Nullable;
+import org.sonar.api.config.Configuration;
+import org.sonar.db.component.ComponentQualifiers;
+import org.sonar.server.component.ComponentType;
+import org.sonar.server.component.ComponentTypes;
+import org.sonar.db.component.ComponentScopes;
+import org.sonar.api.server.ws.Change;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService.NewAction;
+import org.sonar.api.server.ws.WebService.NewController;
+import org.sonar.api.utils.text.JsonWriter;
+import org.sonar.db.permission.ProjectPermission;
+import org.sonar.api.web.page.Page;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.component.BranchDto;
+import org.sonar.db.component.ComponentDto;
+import org.sonar.db.component.SnapshotDto;
+import org.sonar.db.permission.GlobalPermission;
+import org.sonar.db.property.PropertyDto;
+import org.sonar.db.property.PropertyQuery;
+import org.sonar.db.qualityprofile.QProfileDto;
+import org.sonar.server.component.ComponentFinder;
+import org.sonar.server.exceptions.BadRequestException;
+import org.sonar.server.project.Visibility;
+import org.sonar.server.qualitygate.QualityGateFinder;
+import org.sonar.server.qualityprofile.QPMeasureData;
+import org.sonar.server.qualityprofile.QualityProfile;
+import org.sonar.server.ui.PageRepository;
+import org.sonar.server.user.UserSession;
+
+import static java.lang.String.format;
+import static java.util.Collections.emptySortedSet;
+import static org.sonar.api.CoreProperties.CORE_ALLOW_PERMISSION_MANAGEMENT_FOR_PROJECT_ADMINS_DEFAULT_VALUE;
+import static org.sonar.api.CoreProperties.CORE_ALLOW_PERMISSION_MANAGEMENT_FOR_PROJECT_ADMINS_PROPERTY;
+import static org.sonar.api.measures.CoreMetrics.QUALITY_PROFILES_KEY;
+import static org.sonar.api.utils.DateUtils.formatDateTime;
+import static org.sonar.db.permission.ProjectPermission.ADMIN;
+import static org.sonar.db.permission.ProjectPermission.USER;
+import static org.sonar.db.permission.GlobalPermission.ADMINISTER_QUALITY_GATES;
+import static org.sonar.db.permission.GlobalPermission.ADMINISTER_QUALITY_PROFILES;
+import static org.sonar.server.user.AbstractUserSession.insufficientPrivilegesException;
+import static org.sonar.server.ws.KeyExamples.KEY_BRANCH_EXAMPLE_001;
+import static org.sonar.server.ws.KeyExamples.KEY_PROJECT_EXAMPLE_001;
+import static org.sonar.server.ws.KeyExamples.KEY_PULL_REQUEST_EXAMPLE_001;
+
+public class ComponentAction implements NavigationWsAction {
+
+<span class="fc" id="L80">  private static final Set&lt;String&gt; MODULE_OR_DIR_QUALIFIERS = Set.of(ComponentQualifiers.MODULE, ComponentQualifiers.DIRECTORY);</span>
+  static final String PARAM_COMPONENT = &quot;component&quot;;
+  private static final String PARAM_BRANCH = &quot;branch&quot;;
+  private static final String PARAM_PULL_REQUEST = &quot;pullRequest&quot;;
+
+  private static final String PROPERTY_CONFIGURABLE = &quot;configurable&quot;;
+  private static final String PROPERTY_HAS_ROLE_POLICY = &quot;hasRolePolicy&quot;;
+  private static final String PROPERTY_MODIFIABLE_HISTORY = &quot;modifiable_history&quot;;
+  private static final String PROPERTY_UPDATABLE_KEY = &quot;updatable_key&quot;;
+  /**
+   * The concept of &quot;visibility&quot; will only be configured for these qualifiers.
+   */
+<span class="fc" id="L92">  private static final Set&lt;String&gt; QUALIFIERS_WITH_VISIBILITY = Set.of(ComponentQualifiers.PROJECT, ComponentQualifiers.VIEW, ComponentQualifiers.APP);</span>
+
+  private final DbClient dbClient;
+  private final PageRepository pageRepository;
+  private final ComponentTypes componentTypes;
+  private final UserSession userSession;
+  private final ComponentFinder componentFinder;
+  private final QualityGateFinder qualityGateFinder;
+  private final Configuration config;
+
+  public ComponentAction(DbClient dbClient, PageRepository pageRepository, ComponentTypes componentTypes, UserSession userSession,
+<span class="fc" id="L103">    ComponentFinder componentFinder, QualityGateFinder qualityGateFinder, Configuration config) {</span>
+<span class="fc" id="L104">    this.dbClient = dbClient;</span>
+<span class="fc" id="L105">    this.pageRepository = pageRepository;</span>
+<span class="fc" id="L106">    this.componentTypes = componentTypes;</span>
+<span class="fc" id="L107">    this.userSession = userSession;</span>
+<span class="fc" id="L108">    this.componentFinder = componentFinder;</span>
+<span class="fc" id="L109">    this.qualityGateFinder = qualityGateFinder;</span>
+<span class="fc" id="L110">    this.config = config;</span>
+<span class="fc" id="L111">  }</span>
+
+  @Override
+  public void define(NewController context) {
+<span class="fc" id="L115">    NewAction action = context.createAction(&quot;component&quot;)</span>
+<span class="fc" id="L116">      .setDescription(&quot;Get information concerning component navigation for the current user. &quot; +</span>
+        &quot;Requires the 'Browse' permission on the component's project. &lt;br&gt;&quot; +
+        &quot;For applications, it also requires 'Browse' permission on its child projects.&quot;)
+<span class="fc" id="L119">      .setHandler(this)</span>
+<span class="fc" id="L120">      .setInternal(true)</span>
+<span class="fc" id="L121">      .setResponseExample(getClass().getResource(&quot;component-example.json&quot;))</span>
+<span class="fc" id="L122">      .setSince(&quot;5.2&quot;)</span>
+<span class="fc" id="L123">      .setChangelog(</span>
+<span class="fc" id="L124">        new Change(&quot;10.1&quot;, String.format(&quot;The use of module keys in parameter '%s' is removed&quot;, PARAM_COMPONENT)),</span>
+        new Change(&quot;8.8&quot;, &quot;Deprecated parameter 'componentKey' has been removed. Please use parameter 'component' instead&quot;),
+<span class="fc" id="L126">        new Change(&quot;7.6&quot;, format(&quot;The use of module keys in parameter '%s' is deprecated&quot;, PARAM_COMPONENT)),</span>
+        new Change(&quot;7.3&quot;, &quot;The 'almRepoUrl' and 'almId' fields are added&quot;),
+        new Change(&quot;6.4&quot;, &quot;The 'visibility' field is added&quot;));
+
+<span class="fc" id="L130">    action.createParam(PARAM_COMPONENT)</span>
+<span class="fc" id="L131">      .setDescription(&quot;A component key.&quot;)</span>
+<span class="fc" id="L132">      .setExampleValue(KEY_PROJECT_EXAMPLE_001);</span>
+
+<span class="fc" id="L134">    action</span>
+<span class="fc" id="L135">      .createParam(PARAM_BRANCH)</span>
+<span class="fc" id="L136">      .setDescription(&quot;Branch key&quot;)</span>
+<span class="fc" id="L137">      .setExampleValue(KEY_BRANCH_EXAMPLE_001);</span>
+
+<span class="fc" id="L139">    action</span>
+<span class="fc" id="L140">      .createParam(PARAM_PULL_REQUEST)</span>
+<span class="fc" id="L141">      .setDescription(&quot;Pull request id&quot;)</span>
+<span class="fc" id="L142">      .setExampleValue(KEY_PULL_REQUEST_EXAMPLE_001);</span>
+<span class="fc" id="L143">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L147">    String componentKey = request.mandatoryParam(PARAM_COMPONENT);</span>
+<span class="fc" id="L148">    try (DbSession session = dbClient.openSession(false)) {</span>
+<span class="fc" id="L149">      String branch = request.param(PARAM_BRANCH);</span>
+<span class="fc" id="L150">      String pullRequest = request.param(PARAM_PULL_REQUEST);</span>
+<span class="fc" id="L151">      ComponentDto component = componentFinder.getByKeyAndOptionalBranchOrPullRequest(session, componentKey, branch, pullRequest);</span>
+<span class="fc" id="L152">      checkComponentNotAModuleAndNotADirectory(component);</span>
+<span class="fc" id="L153">      ComponentDto rootComponent = getRootProjectOrBranch(component, session);</span>
+      // will be empty for portfolios
+<span class="fc" id="L155">      Optional&lt;BranchDto&gt; branchDto = dbClient.branchDao().selectByUuid(session, rootComponent.branchUuid());</span>
+<span class="fc" id="L156">      String projectOrPortfolioUuid = branchDto.map(BranchDto::getProjectUuid).orElse(rootComponent.branchUuid());</span>
+<span class="fc bfc" id="L157" title="All 2 branches covered.">      if (!userSession.hasComponentPermission(USER, component) &amp;&amp;</span>
+<span class="fc bfc" id="L158" title="All 2 branches covered.">        !userSession.hasComponentPermission(ADMIN, component) &amp;&amp;</span>
+<span class="fc bfc" id="L159" title="All 2 branches covered.">        !userSession.isSystemAdministrator()) {</span>
+<span class="fc" id="L160">        throw insufficientPrivilegesException();</span>
+      }
+<span class="fc" id="L162">      Optional&lt;SnapshotDto&gt; analysis = dbClient.snapshotDao().selectLastAnalysisByRootComponentUuid(session, component.branchUuid());</span>
+
+<span class="fc" id="L164">      try (JsonWriter json = response.newJsonWriter()) {</span>
+<span class="fc" id="L165">        json.beginObject();</span>
+<span class="fc" id="L166">        boolean isFavourite = isFavourite(session, projectOrPortfolioUuid, component);</span>
+<span class="fc" id="L167">        writeComponent(json, component, analysis.orElse(null), isFavourite, branchDto.map(BranchDto::getBranchKey).orElse(null));</span>
+<span class="fc" id="L168">        writeProfiles(json, session, component);</span>
+<span class="fc" id="L169">        writeQualityGate(json, session, projectOrPortfolioUuid);</span>
+<span class="fc bfc" id="L170" title="All 2 branches covered.">        if (userSession.hasComponentPermission(ADMIN, component) ||</span>
+<span class="fc bfc" id="L171" title="All 2 branches covered.">          userSession.hasPermission(ADMINISTER_QUALITY_PROFILES) ||</span>
+<span class="fc bfc" id="L172" title="All 2 branches covered.">          userSession.hasPermission(ADMINISTER_QUALITY_GATES)) {</span>
+<span class="fc" id="L173">          writeConfiguration(json, component);</span>
+        }
+<span class="fc" id="L175">        writeBreadCrumbs(json, session, component);</span>
+<span class="fc" id="L176">        json.endObject().close();</span>
+      }
+    }
+<span class="fc" id="L179">  }</span>
+
+  private static void checkComponentNotAModuleAndNotADirectory(ComponentDto component) {
+<span class="fc bfc" id="L182" title="All 2 branches covered.">    BadRequestException.checkRequest(!MODULE_OR_DIR_QUALIFIERS.contains(component.qualifier()), &quot;Operation not supported for module or directory components&quot;);</span>
+<span class="fc" id="L183">  }</span>
+
+  private ComponentDto getRootProjectOrBranch(ComponentDto component, DbSession session) {
+<span class="fc bfc" id="L186" title="All 2 branches covered.">    if (!component.isRootProject()) {</span>
+<span class="fc" id="L187">      return dbClient.componentDao().selectOrFailByUuid(session, component.branchUuid());</span>
+    } else {
+<span class="fc" id="L189">      return component;</span>
+    }
+  }
+
+  private static void writeToJson(JsonWriter json, QualityProfile profile, boolean deleted) {
+<span class="fc" id="L194">    json.beginObject()</span>
+<span class="fc" id="L195">      .prop(&quot;key&quot;, profile.getQpKey())</span>
+<span class="fc" id="L196">      .prop(&quot;name&quot;, profile.getQpName())</span>
+<span class="fc" id="L197">      .prop(&quot;language&quot;, profile.getLanguageKey())</span>
+<span class="fc" id="L198">      .prop(&quot;deleted&quot;, deleted)</span>
+<span class="fc" id="L199">      .endObject();</span>
+<span class="fc" id="L200">  }</span>
+
+  private static void writePage(JsonWriter json, Page page) {
+<span class="fc" id="L203">    json.beginObject()</span>
+<span class="fc" id="L204">      .prop(&quot;key&quot;, page.getKey())</span>
+<span class="fc" id="L205">      .prop(&quot;name&quot;, page.getName())</span>
+<span class="fc" id="L206">      .endObject();</span>
+<span class="fc" id="L207">  }</span>
+
+  private void writeComponent(JsonWriter json, ComponentDto component, @Nullable SnapshotDto analysis, boolean isFavourite, @Nullable String branchKey) {
+<span class="fc" id="L210">    json.prop(&quot;key&quot;, component.getKey())</span>
+<span class="fc" id="L211">      .prop(&quot;id&quot;, component.uuid())</span>
+<span class="fc" id="L212">      .prop(&quot;name&quot;, component.name())</span>
+<span class="fc" id="L213">      .prop(&quot;description&quot;, component.description())</span>
+<span class="fc" id="L214">      .prop(&quot;isFavorite&quot;, isFavourite);</span>
+<span class="fc bfc" id="L215" title="All 2 branches covered.">    if (branchKey != null) {</span>
+<span class="fc" id="L216">      json.prop(&quot;branch&quot;, branchKey);</span>
+    }
+<span class="fc bfc" id="L218" title="All 2 branches covered.">    if (ComponentQualifiers.APP.equals(component.qualifier())) {</span>
+<span class="fc" id="L219">      json.prop(&quot;canBrowseAllChildProjects&quot;, userSession.hasChildProjectsPermission(USER, component));</span>
+    }
+<span class="fc bfc" id="L221" title="All 4 branches covered.">    if (ComponentQualifiers.VIEW.equals(component.qualifier()) || ComponentQualifiers.SUBVIEW.equals(component.qualifier())) {</span>
+<span class="fc" id="L222">      json.prop(&quot;canBrowseAllChildProjects&quot;, userSession.hasPortfolioChildProjectsPermission(USER, component));</span>
+    }
+<span class="fc bfc" id="L224" title="All 2 branches covered.">    if (QUALIFIERS_WITH_VISIBILITY.contains(component.qualifier())) {</span>
+<span class="fc" id="L225">      json.prop(&quot;visibility&quot;, Visibility.getLabel(component.isPrivate()));</span>
+    }
+<span class="fc" id="L227">    List&lt;Page&gt; pages = pageRepository.getComponentPages(false, component.qualifier());</span>
+<span class="fc" id="L228">    writeExtensions(json, component, pages);</span>
+<span class="fc bfc" id="L229" title="All 2 branches covered.">    if (analysis != null) {</span>
+<span class="fc" id="L230">      json.prop(&quot;version&quot;, analysis.getProjectVersion())</span>
+<span class="fc" id="L231">        .prop(&quot;analysisDate&quot;, formatDateTime(new Date(analysis.getCreatedAt())));</span>
+    }
+<span class="fc" id="L233">  }</span>
+
+  private boolean isFavourite(DbSession session, String projectOrPortfolioUuid, ComponentDto component) {
+<span class="fc" id="L236">    PropertyQuery propertyQuery = PropertyQuery.builder()</span>
+<span class="fc" id="L237">      .setUserUuid(userSession.getUuid())</span>
+<span class="fc" id="L238">      .setKey(&quot;favourite&quot;)</span>
+<span class="fc bfc" id="L239" title="All 2 branches covered.">      .setEntityUuid(isSubview(component) ? component.uuid() : projectOrPortfolioUuid)</span>
+<span class="fc" id="L240">      .build();</span>
+<span class="fc" id="L241">    List&lt;PropertyDto&gt; componentFavourites = dbClient.propertiesDao().selectByQuery(propertyQuery, session);</span>
+<span class="fc bfc" id="L242" title="All 2 branches covered.">    return componentFavourites.size() == 1;</span>
+  }
+
+  private static boolean isSubview(ComponentDto component) {
+<span class="pc bpc" id="L246" title="1 of 4 branches missed.">    return ComponentQualifiers.SUBVIEW.equals(component.qualifier()) &amp;&amp; ComponentScopes.PROJECT.equals(component.scope());</span>
+  }
+
+  private void writeProfiles(JsonWriter json, DbSession dbSession, ComponentDto component) {
+<span class="fc" id="L250">    Set&lt;QualityProfile&gt; qualityProfiles = dbClient.measureDao().selectByComponentUuid(dbSession, component.branchUuid())</span>
+<span class="fc" id="L251">      .map(m -&gt; m.getString(QUALITY_PROFILES_KEY))</span>
+<span class="fc" id="L252">      .map(data -&gt; QPMeasureData.fromJson(data).getProfiles())</span>
+<span class="fc" id="L253">      .orElse(emptySortedSet());</span>
+<span class="fc" id="L254">    Map&lt;String, QProfileDto&gt; dtoByQPKey = dbClient.qualityProfileDao().selectByUuids(dbSession, qualityProfiles.stream().map(QualityProfile::getQpKey).toList())</span>
+<span class="fc" id="L255">      .stream()</span>
+<span class="fc" id="L256">      .collect(Collectors.toMap(QProfileDto::getKee, Function.identity()));</span>
+<span class="fc" id="L257">    json.name(&quot;qualityProfiles&quot;).beginArray();</span>
+<span class="fc bfc" id="L258" title="All 2 branches covered.">    qualityProfiles.forEach(qp -&gt; writeToJson(json, qp, !dtoByQPKey.containsKey(qp.getQpKey())));</span>
+<span class="fc" id="L259">    json.endArray();</span>
+<span class="fc" id="L260">  }</span>
+
+  private void writeQualityGate(JsonWriter json, DbSession session, String projectOrPortfolioUuid) {
+<span class="fc" id="L263">    var qualityGateData = qualityGateFinder.getEffectiveQualityGate(session, projectOrPortfolioUuid);</span>
+<span class="fc" id="L264">    json.name(&quot;qualityGate&quot;).beginObject()</span>
+<span class="fc" id="L265">      .prop(&quot;key&quot;, qualityGateData.getUuid())</span>
+<span class="fc" id="L266">      .prop(&quot;name&quot;, qualityGateData.getName())</span>
+<span class="fc" id="L267">      .prop(&quot;isDefault&quot;, qualityGateData.isDefault())</span>
+<span class="fc" id="L268">      .endObject();</span>
+<span class="fc" id="L269">  }</span>
+
+  private void writeExtensions(JsonWriter json, ComponentDto component, List&lt;Page&gt; pages) {
+<span class="fc" id="L272">    json.name(&quot;extensions&quot;).beginArray();</span>
+<span class="fc" id="L273">    Predicate&lt;Page&gt; isAuthorized = page -&gt; {</span>
+<span class="pc bpc" id="L274" title="1 of 2 branches missed.">      ProjectPermission requiredPermission = page.isAdmin() ? ProjectPermission.ADMIN : ProjectPermission.USER;</span>
+<span class="fc" id="L275">      return userSession.hasComponentPermission(requiredPermission, component);</span>
+    };
+<span class="fc" id="L277">    pages.stream()</span>
+<span class="fc" id="L278">      .filter(isAuthorized)</span>
+<span class="fc" id="L279">      .forEach(page -&gt; writePage(json, page));</span>
+<span class="fc" id="L280">    json.endArray();</span>
+<span class="fc" id="L281">  }</span>
+
+  private void writeConfiguration(JsonWriter json, ComponentDto component) {
+<span class="fc" id="L284">    boolean isProjectAdmin = userSession.hasComponentPermission(ADMIN, component);</span>
+
+<span class="fc" id="L286">    json.name(&quot;configuration&quot;).beginObject();</span>
+<span class="fc" id="L287">    writeConfigPageAccess(json, isProjectAdmin, component);</span>
+
+<span class="fc bfc" id="L289" title="All 2 branches covered.">    if (isProjectAdmin) {</span>
+<span class="fc" id="L290">      json.name(&quot;extensions&quot;).beginArray();</span>
+<span class="fc" id="L291">      List&lt;Page&gt; configPages = pageRepository.getComponentPages(true, component.qualifier());</span>
+<span class="fc" id="L292">      configPages.forEach(page -&gt; writePage(json, page));</span>
+<span class="fc" id="L293">      json.endArray();</span>
+    }
+<span class="fc" id="L295">    json.endObject();</span>
+<span class="fc" id="L296">  }</span>
+
+  private void writeConfigPageAccess(JsonWriter json, boolean isProjectAdmin, ComponentDto component) {
+<span class="fc" id="L299">    boolean isProject = ComponentQualifiers.PROJECT.equals(component.qualifier());</span>
+<span class="pc bpc" id="L300" title="5 of 8 branches missed.">    boolean showBackgroundTasks = isProjectAdmin &amp;&amp; (isProject || ComponentQualifiers.VIEW.equals(component.qualifier()) || ComponentQualifiers.APP.equals(component.qualifier()));</span>
+<span class="fc" id="L301">    boolean isQualityProfileAdmin = userSession.hasPermission(GlobalPermission.ADMINISTER_QUALITY_PROFILES);</span>
+<span class="fc" id="L302">    boolean isQualityGateAdmin = userSession.hasPermission(GlobalPermission.ADMINISTER_QUALITY_GATES);</span>
+<span class="fc" id="L303">    boolean isGlobalAdmin = userSession.hasPermission(GlobalPermission.ADMINISTER);</span>
+<span class="fc" id="L304">    boolean canBrowseProject = userSession.hasComponentPermission(USER, component);</span>
+<span class="fc" id="L305">    boolean allowChangingPermissionsByProjectAdmins = config.getBoolean(CORE_ALLOW_PERMISSION_MANAGEMENT_FOR_PROJECT_ADMINS_PROPERTY)</span>
+<span class="fc" id="L306">      .orElse(CORE_ALLOW_PERMISSION_MANAGEMENT_FOR_PROJECT_ADMINS_DEFAULT_VALUE);</span>
+
+<span class="pc bpc" id="L308" title="1 of 4 branches missed.">    json.prop(&quot;showSettings&quot;, isProjectAdmin &amp;&amp; componentTypeHasProperty(component, PROPERTY_CONFIGURABLE));</span>
+<span class="pc bpc" id="L309" title="1 of 6 branches missed.">    json.prop(&quot;showQualityProfiles&quot;, isProject &amp;&amp; (isProjectAdmin || isQualityProfileAdmin));</span>
+<span class="pc bpc" id="L310" title="1 of 6 branches missed.">    json.prop(&quot;showQualityGates&quot;, isProject &amp;&amp; (isProjectAdmin || isQualityGateAdmin));</span>
+<span class="pc bpc" id="L311" title="1 of 4 branches missed.">    json.prop(&quot;showLinks&quot;, isProjectAdmin &amp;&amp; isProject);</span>
+<span class="pc bpc" id="L312" title="1 of 8 branches missed.">    json.prop(&quot;showPermissions&quot;, isProjectAdmin &amp;&amp; componentTypeHasProperty(component, PROPERTY_HAS_ROLE_POLICY)</span>
+      &amp;&amp; (isGlobalAdmin || allowChangingPermissionsByProjectAdmins));
+<span class="pc bpc" id="L314" title="1 of 4 branches missed.">    json.prop(&quot;showHistory&quot;, isProjectAdmin &amp;&amp; componentTypeHasProperty(component, PROPERTY_MODIFIABLE_HISTORY));</span>
+<span class="pc bpc" id="L315" title="1 of 4 branches missed.">    json.prop(&quot;showUpdateKey&quot;, isProjectAdmin &amp;&amp; componentTypeHasProperty(component, PROPERTY_UPDATABLE_KEY));</span>
+<span class="fc" id="L316">    json.prop(&quot;showBackgroundTasks&quot;, showBackgroundTasks);</span>
+<span class="fc" id="L317">    json.prop(&quot;canApplyPermissionTemplate&quot;, isGlobalAdmin);</span>
+<span class="fc" id="L318">    json.prop(&quot;canBrowseProject&quot;, canBrowseProject);</span>
+<span class="fc" id="L319">    json.prop(&quot;canUpdateProjectVisibilityToPrivate&quot;, isProjectAdmin);</span>
+<span class="fc" id="L320">  }</span>
+
+  private boolean componentTypeHasProperty(ComponentDto component, String resourceTypeProperty) {
+<span class="fc" id="L323">    ComponentType componentType = componentTypes.get(component.qualifier());</span>
+<span class="pc bpc" id="L324" title="2 of 4 branches missed.">    return componentType != null &amp;&amp; componentType.getBooleanProperty(resourceTypeProperty);</span>
+  }
+
+  private void writeBreadCrumbs(JsonWriter json, DbSession session, ComponentDto component) {
+<span class="fc" id="L328">    json.name(&quot;breadcrumbs&quot;).beginArray();</span>
+
+<span class="fc" id="L330">    List&lt;ComponentDto&gt; breadcrumb = Lists.newArrayList();</span>
+<span class="fc" id="L331">    breadcrumb.addAll(dbClient.componentDao().selectAncestors(session, component));</span>
+<span class="fc" id="L332">    breadcrumb.add(component);</span>
+
+<span class="fc bfc" id="L334" title="All 2 branches covered.">    for (ComponentDto c : breadcrumb) {</span>
+<span class="fc" id="L335">      json.beginObject()</span>
+<span class="fc" id="L336">        .prop(&quot;key&quot;, c.getKey())</span>
+<span class="fc" id="L337">        .prop(&quot;name&quot;, c.name())</span>
+<span class="fc" id="L338">        .prop(&quot;qualifier&quot;, c.qualifier())</span>
+<span class="fc" id="L339">        .endObject();</span>
+<span class="fc" id="L340">    }</span>
+
+<span class="fc" id="L342">    json.endArray();</span>
+<span class="fc" id="L343">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

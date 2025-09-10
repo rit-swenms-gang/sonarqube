@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AddUserAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.permission.ws</a> &gt; <span class="el_source">AddUserAction.java</span></div><h1>AddUserAction.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.permission.ws;
+
+import org.sonar.api.config.Configuration;
+import org.sonar.api.server.ws.Request;
+import org.sonar.api.server.ws.Response;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbSession;
+import org.sonar.db.entity.EntityDto;
+import org.sonar.db.user.UserId;
+import org.sonar.server.common.management.ManagedInstanceChecker;
+import org.sonar.server.common.permission.Operation;
+import org.sonar.server.permission.PermissionService;
+import org.sonar.server.common.permission.PermissionUpdater;
+import org.sonar.server.common.permission.UserPermissionChange;
+import org.sonar.server.user.UserSession;
+
+import static java.util.Collections.singletonList;
+import static org.sonar.server.permission.PermissionPrivilegeChecker.checkProjectAdmin;
+import static org.sonar.server.permission.ws.WsParameters.createProjectParameters;
+import static org.sonar.server.permission.ws.WsParameters.createUserLoginParameter;
+import static org.sonarqube.ws.client.permission.PermissionsWsParameters.PARAM_PERMISSION;
+import static org.sonarqube.ws.client.permission.PermissionsWsParameters.PARAM_USER_LOGIN;
+
+public class AddUserAction implements PermissionsWsAction {
+
+  public static final String ACTION = &quot;add_user&quot;;
+
+  private final DbClient dbClient;
+  private final UserSession userSession;
+  private final PermissionUpdater&lt;UserPermissionChange&gt; permissionUpdater;
+  private final PermissionWsSupport wsSupport;
+  private final WsParameters wsParameters;
+  private final PermissionService permissionService;
+  private final Configuration configuration;
+  private final ManagedInstanceChecker managedInstanceChecker;
+
+  public AddUserAction(DbClient dbClient, UserSession userSession, PermissionUpdater&lt;UserPermissionChange&gt; permissionUpdater, PermissionWsSupport wsSupport,
+<span class="fc" id="L58">    WsParameters wsParameters, PermissionService permissionService, Configuration configuration, ManagedInstanceChecker managedInstanceChecker) {</span>
+<span class="fc" id="L59">    this.dbClient = dbClient;</span>
+<span class="fc" id="L60">    this.userSession = userSession;</span>
+<span class="fc" id="L61">    this.permissionUpdater = permissionUpdater;</span>
+<span class="fc" id="L62">    this.wsSupport = wsSupport;</span>
+<span class="fc" id="L63">    this.wsParameters = wsParameters;</span>
+<span class="fc" id="L64">    this.permissionService = permissionService;</span>
+<span class="fc" id="L65">    this.configuration = configuration;</span>
+<span class="fc" id="L66">    this.managedInstanceChecker = managedInstanceChecker;</span>
+<span class="fc" id="L67">  }</span>
+
+  @Override
+  public void define(WebService.NewController context) {
+<span class="fc" id="L71">    WebService.NewAction action = context.createAction(ACTION)</span>
+<span class="fc" id="L72">      .setDescription(&quot;Add permission to a user.&lt;br /&gt; &quot; +</span>
+        &quot;This service defaults to global permissions, but can be limited to project permissions by providing project id or project key.&lt;br /&gt;&quot; +
+        &quot;Requires one of the following permissions:&quot; +
+        &quot;&lt;ul&gt;&quot; +
+        &quot;&lt;li&gt;'Administer System'&lt;/li&gt;&quot; +
+        &quot;&lt;li&gt;'Administer' rights on the specified project&lt;/li&gt;&quot; +
+        &quot;&lt;/ul&gt;&quot;)
+<span class="fc" id="L79">      .setSince(&quot;5.2&quot;)</span>
+<span class="fc" id="L80">      .setPost(true)</span>
+<span class="fc" id="L81">      .setHandler(this);</span>
+
+<span class="fc" id="L83">    wsParameters.createPermissionParameter(action, &quot;The permission you would like to grant to the user&quot;);</span>
+<span class="fc" id="L84">    createUserLoginParameter(action);</span>
+<span class="fc" id="L85">    createProjectParameters(action);</span>
+<span class="fc" id="L86">  }</span>
+
+  @Override
+  public void handle(Request request, Response response) throws Exception {
+<span class="fc" id="L90">    try (DbSession dbSession = dbClient.openSession(false)) {</span>
+<span class="fc" id="L91">      String userLogin = request.mandatoryParam(PARAM_USER_LOGIN);</span>
+<span class="fc" id="L92">      EntityDto entityDto = wsSupport.findEntity(dbSession, request);</span>
+<span class="fc" id="L93">      checkProjectAdmin(userSession, configuration, entityDto);</span>
+<span class="pc bpc" id="L94" title="2 of 6 branches missed.">      if (!userSession.isSystemAdministrator() &amp;&amp; entityDto != null &amp;&amp; entityDto.isProject()) {</span>
+<span class="fc" id="L95">        managedInstanceChecker.throwIfProjectIsManaged(dbSession, entityDto.getUuid());</span>
+      }
+<span class="fc" id="L97">      UserId user = wsSupport.findUser(dbSession, userLogin);</span>
+
+<span class="fc" id="L99">      UserPermissionChange change = new UserPermissionChange(</span>
+        Operation.ADD,
+<span class="fc" id="L101">        request.mandatoryParam(PARAM_PERMISSION),</span>
+        entityDto,
+        user,
+        permissionService);
+<span class="fc" id="L105">      permissionUpdater.apply(dbSession, singletonList(change));</span>
+    }
+<span class="fc" id="L107">    response.noContent();</span>
+<span class="fc" id="L108">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

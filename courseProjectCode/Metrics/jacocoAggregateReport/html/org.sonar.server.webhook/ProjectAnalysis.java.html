@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ProjectAnalysis.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.webhook</a> &gt; <span class="el_source">ProjectAnalysis.java</span></div><h1>ProjectAnalysis.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.webhook;
+
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import javax.annotation.Nullable;
+import org.sonar.server.qualitygate.EvaluatedQualityGate;
+
+import static com.google.common.collect.ImmutableMap.copyOf;
+import static java.util.Objects.requireNonNull;
+
+public class ProjectAnalysis {
+  private final Project project;
+  private final CeTask ceTask;
+  private final Branch branch;
+  private final EvaluatedQualityGate qualityGate;
+  private final Long updatedAt;
+  private final Map&lt;String, String&gt; properties;
+  private final Analysis analysis;
+
+  public ProjectAnalysis(Project project, @Nullable CeTask ceTask, @Nullable Analysis analysis,
+    @Nullable Branch branch, @Nullable EvaluatedQualityGate qualityGate, @Nullable Long updatedAt,
+<span class="fc" id="L42">    Map&lt;String, String&gt; properties) {</span>
+<span class="fc" id="L43">    this.project = requireNonNull(project, &quot;project can't be null&quot;);</span>
+<span class="fc" id="L44">    this.ceTask = ceTask;</span>
+<span class="fc" id="L45">    this.branch = branch;</span>
+<span class="fc" id="L46">    this.qualityGate = qualityGate;</span>
+<span class="fc" id="L47">    this.updatedAt = updatedAt;</span>
+<span class="fc" id="L48">    this.properties = copyOf(requireNonNull(properties, &quot;properties can't be null&quot;));</span>
+<span class="fc" id="L49">    this.analysis = analysis;</span>
+<span class="fc" id="L50">  }</span>
+
+  public Optional&lt;CeTask&gt; getCeTask() {
+<span class="fc" id="L53">    return Optional.ofNullable(ceTask);</span>
+  }
+
+  public Project getProject() {
+<span class="fc" id="L57">    return project;</span>
+  }
+
+  public Optional&lt;Branch&gt; getBranch() {
+<span class="fc" id="L61">    return Optional.ofNullable(branch);</span>
+  }
+
+  public Optional&lt;EvaluatedQualityGate&gt; getQualityGate() {
+<span class="fc" id="L65">    return Optional.ofNullable(qualityGate);</span>
+  }
+
+  public Map&lt;String, String&gt; getProperties() {
+<span class="fc" id="L69">    return properties;</span>
+  }
+
+  public Optional&lt;Analysis&gt; getAnalysis() {
+<span class="fc" id="L73">    return Optional.ofNullable(analysis);</span>
+  }
+
+  public Optional&lt;Long&gt; getUpdatedAt() {
+<span class="fc" id="L77">    return Optional.ofNullable(updatedAt);</span>
+  }
+
+  @Override
+  public boolean equals(Object o) {
+<span class="fc bfc" id="L82" title="All 2 branches covered.">    if (this == o) {</span>
+<span class="fc" id="L83">      return true;</span>
+    }
+<span class="pc bpc" id="L85" title="1 of 4 branches missed.">    if (o == null || getClass() != o.getClass()) {</span>
+<span class="fc" id="L86">      return false;</span>
+    }
+<span class="fc" id="L88">    ProjectAnalysis that = (ProjectAnalysis) o;</span>
+<span class="fc bfc" id="L89" title="All 2 branches covered.">    return Objects.equals(project, that.project) &amp;&amp;</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">      Objects.equals(ceTask, that.ceTask) &amp;&amp;</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">      Objects.equals(branch, that.branch) &amp;&amp;</span>
+<span class="fc bfc" id="L92" title="All 2 branches covered.">      Objects.equals(qualityGate, that.qualityGate) &amp;&amp;</span>
+<span class="fc bfc" id="L93" title="All 2 branches covered.">      Objects.equals(updatedAt, that.updatedAt) &amp;&amp;</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">      Objects.equals(properties, that.properties) &amp;&amp;</span>
+<span class="pc bpc" id="L95" title="1 of 2 branches missed.">      Objects.equals(analysis, that.analysis);</span>
+  }
+
+  @Override
+  public int hashCode() {
+<span class="fc" id="L100">    return Objects.hash(project, ceTask, branch, qualityGate, updatedAt, properties, analysis);</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="fc" id="L105">    return &quot;ProjectAnalysis{&quot; +</span>
+      &quot;project=&quot; + project +
+      &quot;, ceTask=&quot; + ceTask +
+      &quot;, branch=&quot; + branch +
+      &quot;, qualityGate=&quot; + qualityGate +
+      &quot;, updatedAt=&quot; + updatedAt +
+      &quot;, properties=&quot; + properties +
+      &quot;, analysis=&quot; + analysis +
+      '}';
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,280 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>QualityGateMeasuresStep.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ce.task.projectanalysis.step</a> &gt; <span class="el_source">QualityGateMeasuresStep.java</span></div><h1>QualityGateMeasuresStep.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.task.projectanalysis.step;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Multimap;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import javax.annotation.Nullable;
+import org.apache.commons.lang3.StringUtils;
+import org.sonar.api.measures.CoreMetrics;
+import org.sonar.ce.task.projectanalysis.component.Component;
+import org.sonar.ce.task.projectanalysis.component.CrawlerDepthLimit;
+import org.sonar.ce.task.projectanalysis.component.DepthTraversalTypeAwareCrawler;
+import org.sonar.ce.task.projectanalysis.component.TreeRootHolder;
+import org.sonar.ce.task.projectanalysis.component.TypeAwareVisitorAdapter;
+import org.sonar.ce.task.projectanalysis.measure.Measure;
+import org.sonar.ce.task.projectanalysis.measure.MeasureRepository;
+import org.sonar.ce.task.projectanalysis.measure.QualityGateStatus;
+import org.sonar.ce.task.projectanalysis.measure.qualitygatedetails.EvaluatedCondition;
+import org.sonar.ce.task.projectanalysis.measure.qualitygatedetails.QualityGateDetailsData;
+import org.sonar.ce.task.projectanalysis.metric.Metric;
+import org.sonar.ce.task.projectanalysis.metric.MetricRepository;
+import org.sonar.ce.task.projectanalysis.qualitygate.Condition;
+import org.sonar.ce.task.projectanalysis.qualitygate.ConditionEvaluator;
+import org.sonar.ce.task.projectanalysis.qualitygate.ConditionStatus;
+import org.sonar.ce.task.projectanalysis.qualitygate.EvaluationResult;
+import org.sonar.ce.task.projectanalysis.qualitygate.EvaluationResultTextConverter;
+import org.sonar.ce.task.projectanalysis.qualitygate.MutableQualityGateStatusHolder;
+import org.sonar.ce.task.projectanalysis.qualitygate.QualityGate;
+import org.sonar.ce.task.projectanalysis.qualitygate.QualityGateHolder;
+import org.sonar.ce.task.step.ComputationStep;
+import org.sonar.core.util.stream.MoreCollectors;
+
+import static java.lang.String.format;
+import static org.sonar.ce.task.projectanalysis.component.ComponentVisitor.Order.PRE_ORDER;
+import static org.sonar.ce.task.projectanalysis.qualitygate.ConditionStatus.NO_VALUE_STATUS;
+import static org.sonar.ce.task.projectanalysis.qualitygate.ConditionStatus.create;
+
+/**
+ * This step:
+ * &lt;ul&gt;
+ * &lt;li&gt;updates the QualityGateStatus of all the project's measures for the metrics of the conditions of the current
+ * QualityGate (retrieved from {@link QualityGateHolder})&lt;/li&gt;
+ * &lt;li&gt;computes the measures on the project for metrics {@link CoreMetrics#QUALITY_GATE_DETAILS_KEY} and
+ * {@link CoreMetrics#ALERT_STATUS_KEY}&lt;/li&gt;
+ * &lt;/ul&gt;
+ *
+ */
+public class QualityGateMeasuresStep implements ComputationStep {
+  private final TreeRootHolder treeRootHolder;
+  private final QualityGateHolder qualityGateHolder;
+  private final MutableQualityGateStatusHolder qualityGateStatusHolder;
+  private final MeasureRepository measureRepository;
+  private final MetricRepository metricRepository;
+  private final EvaluationResultTextConverter evaluationResultTextConverter;
+  private final SmallChangesetQualityGateSpecialCase smallChangesetQualityGateSpecialCase;
+
+  public QualityGateMeasuresStep(TreeRootHolder treeRootHolder,
+    QualityGateHolder qualityGateHolder, MutableQualityGateStatusHolder qualityGateStatusHolder,
+    MeasureRepository measureRepository, MetricRepository metricRepository,
+<span class="fc" id="L85">    EvaluationResultTextConverter evaluationResultTextConverter, SmallChangesetQualityGateSpecialCase smallChangesetQualityGateSpecialCase) {</span>
+<span class="fc" id="L86">    this.treeRootHolder = treeRootHolder;</span>
+<span class="fc" id="L87">    this.qualityGateHolder = qualityGateHolder;</span>
+<span class="fc" id="L88">    this.qualityGateStatusHolder = qualityGateStatusHolder;</span>
+<span class="fc" id="L89">    this.evaluationResultTextConverter = evaluationResultTextConverter;</span>
+<span class="fc" id="L90">    this.measureRepository = measureRepository;</span>
+<span class="fc" id="L91">    this.metricRepository = metricRepository;</span>
+<span class="fc" id="L92">    this.smallChangesetQualityGateSpecialCase = smallChangesetQualityGateSpecialCase;</span>
+<span class="fc" id="L93">  }</span>
+
+  @Override
+  public void execute(ComputationStep.Context context) {
+<span class="fc" id="L97">    new DepthTraversalTypeAwareCrawler(</span>
+<span class="fc" id="L98">      new TypeAwareVisitorAdapter(CrawlerDepthLimit.PROJECT, PRE_ORDER) {</span>
+        @Override
+        public void visitProject(Component project) {
+<span class="fc" id="L101">          executeForProject(project);</span>
+<span class="fc" id="L102">        }</span>
+<span class="fc" id="L103">      }).visit(treeRootHolder.getRoot());</span>
+<span class="fc" id="L104">  }</span>
+
+  private void executeForProject(Component project) {
+<span class="fc" id="L107">    Optional&lt;QualityGate&gt; qualityGate = qualityGateHolder.getQualityGate();</span>
+<span class="fc bfc" id="L108" title="All 2 branches covered.">    if (qualityGate.isPresent()) {</span>
+<span class="fc" id="L109">      QualityGateDetailsDataBuilder builder = new QualityGateDetailsDataBuilder();</span>
+<span class="fc" id="L110">      updateMeasures(project, qualityGate.get().getConditions(), builder);</span>
+
+<span class="fc" id="L112">      addProjectMeasure(project, builder);</span>
+
+<span class="fc" id="L114">      updateQualityGateStatusHolder(qualityGate.get(), builder);</span>
+    }
+<span class="fc" id="L116">  }</span>
+
+  private void updateQualityGateStatusHolder(QualityGate qualityGate, QualityGateDetailsDataBuilder builder) {
+<span class="fc" id="L119">    qualityGateStatusHolder.setStatus(convert(builder.getGlobalLevel()), createStatusPerCondition(qualityGate.getConditions(), builder.getEvaluatedConditions()));</span>
+<span class="fc" id="L120">  }</span>
+
+  private static ConditionStatus.EvaluationStatus toEvaluationStatus(Measure.Level globalLevel) {
+<span class="pc bpc" id="L123" title="1 of 3 branches missed.">    switch (globalLevel) {</span>
+      case OK:
+<span class="fc" id="L125">        return ConditionStatus.EvaluationStatus.OK;</span>
+      case ERROR:
+<span class="fc" id="L127">        return ConditionStatus.EvaluationStatus.ERROR;</span>
+      default:
+<span class="nc" id="L129">        throw new IllegalArgumentException(format(</span>
+          &quot;Unsupported value '%s' of Measure.Level can not be converted to EvaluationStatus&quot;,
+          globalLevel));
+    }
+  }
+
+  private static org.sonar.ce.task.projectanalysis.qualitygate.QualityGateStatus convert(Measure.Level globalLevel) {
+<span class="pc bpc" id="L136" title="1 of 3 branches missed.">    switch (globalLevel) {</span>
+      case OK:
+<span class="fc" id="L138">        return org.sonar.ce.task.projectanalysis.qualitygate.QualityGateStatus.OK;</span>
+      case ERROR:
+<span class="fc" id="L140">        return org.sonar.ce.task.projectanalysis.qualitygate.QualityGateStatus.ERROR;</span>
+      default:
+<span class="nc" id="L142">        throw new IllegalArgumentException(format(</span>
+          &quot;Unsupported value '%s' of Measure.Level can not be converted to QualityGateStatus&quot;,
+          globalLevel));
+    }
+  }
+
+  private static Map&lt;Condition, ConditionStatus&gt; createStatusPerCondition(Collection&lt;Condition&gt; conditions, Collection&lt;EvaluatedCondition&gt; evaluatedConditions) {
+<span class="fc" id="L149">    Map&lt;Condition, EvaluatedCondition&gt; evaluatedConditionPerCondition = evaluatedConditions.stream()</span>
+<span class="fc" id="L150">      .collect(Collectors.toMap(EvaluatedCondition::getCondition, Function.identity()));</span>
+
+<span class="fc" id="L152">    ImmutableMap.Builder&lt;Condition, ConditionStatus&gt; builder = ImmutableMap.builder();</span>
+<span class="fc bfc" id="L153" title="All 2 branches covered.">    for (Condition condition : conditions) {</span>
+<span class="fc" id="L154">      EvaluatedCondition evaluatedCondition = evaluatedConditionPerCondition.get(condition);</span>
+
+<span class="fc bfc" id="L156" title="All 2 branches covered.">      if (evaluatedCondition == null) {</span>
+<span class="fc" id="L157">        builder.put(condition, NO_VALUE_STATUS);</span>
+      } else {
+<span class="fc" id="L159">        builder.put(condition, create(toEvaluationStatus(evaluatedCondition.getLevel()), evaluatedCondition.getActualValue()));</span>
+      }
+<span class="fc" id="L161">    }</span>
+<span class="fc" id="L162">    return builder.build();</span>
+  }
+
+  private void updateMeasures(Component project, Set&lt;Condition&gt; conditions, QualityGateDetailsDataBuilder builder) {
+<span class="fc" id="L166">    Multimap&lt;Metric, Condition&gt; conditionsPerMetric = conditions.stream().collect(MoreCollectors.index(Condition::getMetric, Function.identity()));</span>
+<span class="fc" id="L167">    boolean ignoredConditions = false;</span>
+<span class="fc bfc" id="L168" title="All 2 branches covered.">    for (Map.Entry&lt;Metric, Collection&lt;Condition&gt;&gt; entry : conditionsPerMetric.asMap().entrySet()) {</span>
+<span class="fc" id="L169">      Metric metric = entry.getKey();</span>
+<span class="fc" id="L170">      Optional&lt;Measure&gt; measure = measureRepository.getRawMeasure(project, metric);</span>
+<span class="fc bfc" id="L171" title="All 2 branches covered.">      if (!measure.isPresent()) {</span>
+<span class="fc" id="L172">        continue;</span>
+      }
+
+<span class="fc" id="L175">      final MetricEvaluationResult metricEvaluationResult = evaluateQualityGate(measure.get(), entry.getValue());</span>
+      final MetricEvaluationResult finalMetricEvaluationResult;
+<span class="pc bpc" id="L177" title="1 of 2 branches missed.">      if (smallChangesetQualityGateSpecialCase.appliesTo(project, metricEvaluationResult)) {</span>
+<span class="nc" id="L178">        finalMetricEvaluationResult = smallChangesetQualityGateSpecialCase.apply(metricEvaluationResult);</span>
+<span class="nc" id="L179">        ignoredConditions = true;</span>
+      } else {
+<span class="fc" id="L181">        finalMetricEvaluationResult = metricEvaluationResult;</span>
+      }
+<span class="fc" id="L183">      String text = evaluationResultTextConverter.asText(finalMetricEvaluationResult.condition, finalMetricEvaluationResult.evaluationResult);</span>
+<span class="fc" id="L184">      builder.addLabel(text);</span>
+
+<span class="fc" id="L186">      Measure updatedMeasure = Measure.updatedMeasureBuilder(measure.get())</span>
+<span class="fc" id="L187">        .setQualityGateStatus(new QualityGateStatus(finalMetricEvaluationResult.evaluationResult.level(), text))</span>
+<span class="fc" id="L188">        .create();</span>
+<span class="fc" id="L189">      measureRepository.update(project, metric, updatedMeasure);</span>
+
+<span class="fc" id="L191">      builder.addEvaluatedCondition(finalMetricEvaluationResult);</span>
+<span class="fc" id="L192">    }</span>
+<span class="fc" id="L193">    builder.setIgnoredConditions(ignoredConditions);</span>
+<span class="fc" id="L194">  }</span>
+
+  private static MetricEvaluationResult evaluateQualityGate(Measure measure, Collection&lt;Condition&gt; conditions) {
+<span class="fc" id="L197">    ConditionEvaluator conditionEvaluator = new ConditionEvaluator();</span>
+<span class="fc" id="L198">    MetricEvaluationResult metricEvaluationResult = null;</span>
+<span class="fc bfc" id="L199" title="All 2 branches covered.">    for (Condition newCondition : conditions) {</span>
+<span class="fc" id="L200">      EvaluationResult newEvaluationResult = conditionEvaluator.evaluate(newCondition, measure);</span>
+<span class="pc bpc" id="L201" title="3 of 4 branches missed.">      if (metricEvaluationResult == null || newEvaluationResult.level().ordinal() &gt; metricEvaluationResult.evaluationResult.level().ordinal()) {</span>
+<span class="fc" id="L202">        metricEvaluationResult = new MetricEvaluationResult(newEvaluationResult, newCondition);</span>
+      }
+<span class="fc" id="L204">    }</span>
+<span class="fc" id="L205">    return metricEvaluationResult;</span>
+  }
+
+  private void addProjectMeasure(Component project, QualityGateDetailsDataBuilder builder) {
+<span class="fc" id="L209">    Measure globalMeasure = Measure.newMeasureBuilder()</span>
+<span class="fc" id="L210">      .setQualityGateStatus(new QualityGateStatus(builder.getGlobalLevel(), StringUtils.join(builder.getLabels(), &quot;, &quot;)))</span>
+<span class="fc" id="L211">      .create(builder.getGlobalLevel());</span>
+<span class="fc" id="L212">    Metric metric = metricRepository.getByKey(CoreMetrics.ALERT_STATUS_KEY);</span>
+<span class="fc" id="L213">    measureRepository.add(project, metric, globalMeasure);</span>
+
+<span class="fc" id="L215">    String detailMeasureValue = new QualityGateDetailsData(builder.getGlobalLevel(), builder.getEvaluatedConditions(), builder.isIgnoredConditions()).toJson();</span>
+<span class="fc" id="L216">    Measure detailsMeasure = Measure.newMeasureBuilder().create(detailMeasureValue);</span>
+<span class="fc" id="L217">    Metric qgDetailsMetric = metricRepository.getByKey(CoreMetrics.QUALITY_GATE_DETAILS_KEY);</span>
+<span class="fc" id="L218">    measureRepository.add(project, qgDetailsMetric, detailsMeasure);</span>
+<span class="fc" id="L219">  }</span>
+
+  @Override
+  public String getDescription() {
+<span class="nc" id="L223">    return &quot;Compute Quality Gate measures&quot;;</span>
+  }
+
+<span class="fc" id="L226">  private static final class QualityGateDetailsDataBuilder {</span>
+<span class="fc" id="L227">    private Measure.Level globalLevel = Measure.Level.OK;</span>
+<span class="fc" id="L228">    private List&lt;String&gt; labels = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L229">    private List&lt;EvaluatedCondition&gt; evaluatedConditions = new ArrayList&lt;&gt;();</span>
+    private boolean ignoredConditions;
+
+    public Measure.Level getGlobalLevel() {
+<span class="fc" id="L233">      return globalLevel;</span>
+    }
+
+    public void addLabel(@Nullable String label) {
+<span class="pc bpc" id="L237" title="1 of 2 branches missed.">      if (StringUtils.isNotBlank(label)) {</span>
+<span class="fc" id="L238">        labels.add(label);</span>
+      }
+<span class="fc" id="L240">    }</span>
+
+    public List&lt;String&gt; getLabels() {
+<span class="fc" id="L243">      return labels;</span>
+    }
+
+    public void addEvaluatedCondition(MetricEvaluationResult metricEvaluationResult) {
+<span class="fc" id="L247">      Measure.Level level = metricEvaluationResult.evaluationResult.level();</span>
+<span class="fc bfc" id="L248" title="All 2 branches covered.">      if (Measure.Level.ERROR == level) {</span>
+<span class="fc" id="L249">        globalLevel = Measure.Level.ERROR;</span>
+      }
+<span class="fc" id="L251">      evaluatedConditions.add(</span>
+<span class="fc" id="L252">        new EvaluatedCondition(metricEvaluationResult.condition, level, metricEvaluationResult.evaluationResult.value()));</span>
+<span class="fc" id="L253">    }</span>
+
+    public List&lt;EvaluatedCondition&gt; getEvaluatedConditions() {
+<span class="fc" id="L256">      return evaluatedConditions;</span>
+    }
+
+    public boolean isIgnoredConditions() {
+<span class="fc" id="L260">      return ignoredConditions;</span>
+    }
+
+    public QualityGateDetailsDataBuilder setIgnoredConditions(boolean ignoredConditions) {
+<span class="fc" id="L264">      this.ignoredConditions = ignoredConditions;</span>
+<span class="fc" id="L265">      return this;</span>
+    }
+  }
+
+  static class MetricEvaluationResult {
+    final EvaluationResult evaluationResult;
+    final Condition condition;
+
+<span class="fc" id="L273">    MetricEvaluationResult(EvaluationResult evaluationResult, Condition condition) {</span>
+<span class="fc" id="L274">      this.evaluationResult = evaluationResult;</span>
+<span class="fc" id="L275">      this.condition = condition;</span>
+<span class="fc" id="L276">    }</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

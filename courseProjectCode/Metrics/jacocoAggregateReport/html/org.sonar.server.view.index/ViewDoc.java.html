@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ViewDoc.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.server.view.index</a> &gt; <span class="el_source">ViewDoc.java</span></div><h1>ViewDoc.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.view.index;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import org.sonar.server.es.BaseDoc;
+
+import static org.sonar.server.view.index.ViewIndexDefinition.TYPE_VIEW;
+
+public class ViewDoc extends BaseDoc {
+
+  public ViewDoc(Map&lt;String, Object&gt; fields) {
+<span class="fc" id="L32">    super(TYPE_VIEW, fields);</span>
+<span class="fc" id="L33">  }</span>
+
+  public ViewDoc() {
+<span class="fc" id="L36">    super(TYPE_VIEW, new HashMap&lt;&gt;());</span>
+<span class="fc" id="L37">  }</span>
+
+  @Override
+  public String getId() {
+<span class="fc" id="L41">    return uuid();</span>
+  }
+
+  /**
+   * Uuid of the view.
+   * It may or may not be the root view (Qualifiers SVW, SW, APP).
+   */
+  public String uuid() {
+<span class="fc" id="L49">    return getField(ViewIndexDefinition.FIELD_UUID);</span>
+  }
+
+  public List&lt;String&gt; projectBranchUuids() {
+<span class="fc" id="L53">    return getField(ViewIndexDefinition.FIELD_PROJECTS);</span>
+  }
+
+  /**
+   * Uuid of the view.
+   * It may or may not be the root view (Qualifiers SVW, SW, APP).
+   */
+  public ViewDoc setUuid(String s) {
+<span class="fc" id="L61">    setField(ViewIndexDefinition.FIELD_UUID, s);</span>
+<span class="fc" id="L62">    return this;</span>
+  }
+
+  public ViewDoc setProjectBranchUuids(List&lt;String&gt; s) {
+<span class="fc" id="L66">    setField(ViewIndexDefinition.FIELD_PROJECTS, s);</span>
+<span class="fc" id="L67">    return this;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

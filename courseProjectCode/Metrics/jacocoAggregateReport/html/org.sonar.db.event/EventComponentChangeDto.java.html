@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EventComponentChangeDto.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.db.event</a> &gt; <span class="el_source">EventComponentChangeDto.java</span></div><h1>EventComponentChangeDto.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.db.event;
+
+import java.util.Arrays;
+import java.util.Optional;
+import javax.annotation.Nullable;
+
+<span class="fc" id="L26">public class EventComponentChangeDto {</span>
+  private String uuid;
+  private String eventUuid;
+  private ChangeCategory category;
+  private String componentUuid;
+  private String componentKey;
+  private String componentName;
+  @Nullable
+  private String componentBranchKey;
+  /**read-only*/
+  private long createdAt;
+
+<span class="fc" id="L38">  public enum ChangeCategory {</span>
+<span class="fc" id="L39">    FAILED_QUALITY_GATE(&quot;FAILED_QG&quot;), ADDED(&quot;ADDED&quot;), REMOVED(&quot;REMOVED&quot;);</span>
+
+    private final String dbValue;
+
+<span class="fc" id="L43">    ChangeCategory(String dbValue) {</span>
+<span class="fc" id="L44">      this.dbValue = dbValue;</span>
+<span class="fc" id="L45">    }</span>
+
+    public static Optional&lt;ChangeCategory&gt; fromDbValue(String dbValue) {
+<span class="fc" id="L48">      return Arrays.stream(values())</span>
+<span class="fc" id="L49">        .filter(t -&gt; t.dbValue.equals(dbValue))</span>
+<span class="fc" id="L50">        .findAny();</span>
+    }
+  }
+
+  public String getUuid() {
+<span class="fc" id="L55">    return uuid;</span>
+  }
+
+  public EventComponentChangeDto setUuid(String uuid) {
+<span class="fc" id="L59">    this.uuid = uuid;</span>
+<span class="fc" id="L60">    return this;</span>
+  }
+
+  public String getEventUuid() {
+<span class="fc" id="L64">    return eventUuid;</span>
+  }
+
+  public EventComponentChangeDto setEventUuid(String eventUuid) {
+<span class="fc" id="L68">    this.eventUuid = eventUuid;</span>
+<span class="fc" id="L69">    return this;</span>
+  }
+
+  public ChangeCategory getCategory() {
+<span class="fc" id="L73">    return category;</span>
+  }
+
+  public EventComponentChangeDto setCategory(ChangeCategory category) {
+<span class="fc" id="L77">    this.category = category;</span>
+<span class="fc" id="L78">    return this;</span>
+  }
+
+  /**
+   * Used by MyBatis through reflection.
+   */
+  private String getChangeCategory() {
+<span class="pc bpc" id="L85" title="1 of 2 branches missed.">    return category == null ? null : category.dbValue;</span>
+  }
+
+  /**
+   * Used by MyBatis through reflection.
+   *
+   * @throws IllegalArgumentException if not a support change category DB value
+   */
+  private EventComponentChangeDto setChangeCategory(String changeCategory) {
+<span class="fc" id="L94">    this.category = ChangeCategory.fromDbValue(changeCategory)</span>
+<span class="pc" id="L95">      .orElseThrow(() -&gt; new IllegalArgumentException(&quot;Unsupported changeCategory DB value: &quot; + changeCategory));</span>
+<span class="fc" id="L96">    return this;</span>
+  }
+
+  public String getComponentUuid() {
+<span class="fc" id="L100">    return componentUuid;</span>
+  }
+
+  public EventComponentChangeDto setComponentUuid(String componentUuid) {
+<span class="fc" id="L104">    this.componentUuid = componentUuid;</span>
+<span class="fc" id="L105">    return this;</span>
+  }
+
+  public String getComponentKey() {
+<span class="fc" id="L109">    return componentKey;</span>
+  }
+
+  public EventComponentChangeDto setComponentKey(String componentKey) {
+<span class="fc" id="L113">    this.componentKey = componentKey;</span>
+<span class="fc" id="L114">    return this;</span>
+  }
+
+  public String getComponentName() {
+<span class="fc" id="L118">    return componentName;</span>
+  }
+
+  public EventComponentChangeDto setComponentName(String componentName) {
+<span class="fc" id="L122">    this.componentName = componentName;</span>
+<span class="fc" id="L123">    return this;</span>
+  }
+
+  @Nullable
+  public String getComponentBranchKey() {
+<span class="fc" id="L128">    return componentBranchKey;</span>
+  }
+
+  public EventComponentChangeDto setComponentBranchKey(@Nullable String componentBranchKey) {
+<span class="fc" id="L132">    this.componentBranchKey = componentBranchKey;</span>
+<span class="fc" id="L133">    return this;</span>
+  }
+
+  public long getCreatedAt() {
+<span class="fc" id="L137">    return createdAt;</span>
+  }
+
+  /**
+   * Used by MyBatis through reflection.
+   */
+  private void setCreatedAt(long createdAt) {
+<span class="fc" id="L144">    this.createdAt = createdAt;</span>
+<span class="fc" id="L145">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,251 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ApacheDS.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">sonarqube</a> &gt; <a href="index.source.html" class="el_package">org.sonar.ldap</a> &gt; <span class="el_source">ApacheDS.java</span></div><h1>ApacheDS.java</h1><pre class="source lang-java linenums">/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ldap;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import org.apache.directory.api.ldap.model.constants.SupportedSaslMechanisms;
+import org.apache.directory.api.ldap.model.entry.DefaultEntry;
+import org.apache.directory.api.ldap.model.entry.DefaultModification;
+import org.apache.directory.api.ldap.model.entry.ModificationOperation;
+import org.apache.directory.api.ldap.model.ldif.ChangeType;
+import org.apache.directory.api.ldap.model.ldif.LdifEntry;
+import org.apache.directory.api.ldap.model.ldif.LdifReader;
+import org.apache.directory.api.ldap.model.name.Dn;
+import org.apache.directory.api.util.FileUtils;
+import org.apache.directory.server.core.api.CoreSession;
+import org.apache.directory.server.core.api.DirectoryService;
+import org.apache.directory.server.core.api.InstanceLayout;
+import org.apache.directory.server.core.factory.DefaultDirectoryServiceFactory;
+import org.apache.directory.server.core.kerberos.KeyDerivationInterceptor;
+import org.apache.directory.server.core.partition.impl.avl.AvlPartition;
+import org.apache.directory.server.ldap.LdapServer;
+import org.apache.directory.server.ldap.handlers.sasl.MechanismHandler;
+import org.apache.directory.server.ldap.handlers.sasl.cramMD5.CramMd5MechanismHandler;
+import org.apache.directory.server.ldap.handlers.sasl.digestMD5.DigestMd5MechanismHandler;
+import org.apache.directory.server.ldap.handlers.sasl.gssapi.GssapiMechanismHandler;
+import org.apache.directory.server.ldap.handlers.sasl.plain.PlainMechanismHandler;
+import org.apache.directory.server.protocol.shared.transport.TcpTransport;
+import org.apache.directory.server.xdbm.impl.avl.AvlIndex;
+import org.apache.kerby.kerberos.kerb.KrbException;
+import org.apache.kerby.kerberos.kerb.client.KrbConfigKey;
+import org.apache.kerby.kerberos.kerb.identity.backend.BackendConfig;
+import org.apache.kerby.kerberos.kerb.server.KdcConfigKey;
+import org.apache.kerby.kerberos.kerb.server.KdcServer;
+import org.apache.mina.util.AvailablePortFinder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public final class ApacheDS {
+<span class="fc" id="L62">  private static final Logger LOG = LoggerFactory.getLogger(ApacheDS.class);</span>
+  private static final String HOSTNAME_LOCALHOST = &quot;localhost&quot;;
+  private final String realm;
+  private final String baseDn;
+  private int ldapPort;
+
+  private DirectoryService directoryService;
+  private LdapServer ldapServer;
+  private KdcServer kdcServer;
+
+<span class="fc" id="L72">  private ApacheDS(String realm, String baseDn) {</span>
+<span class="fc" id="L73">    this.realm = realm;</span>
+<span class="fc" id="L74">    this.baseDn = baseDn;</span>
+<span class="fc" id="L75">    ldapServer = new LdapServer();</span>
+<span class="fc" id="L76">  }</span>
+
+  public static ApacheDS start(String realm, String baseDn, String workDir, Integer port) throws Exception {
+<span class="fc" id="L79">    return new ApacheDS(realm, baseDn)</span>
+<span class="fc" id="L80">      .startDirectoryService(workDir)</span>
+<span class="pc bpc" id="L81" title="1 of 2 branches missed.">      .startLdapServer(port == null ? AvailablePortFinder.getNextAvailable(1024) : port)</span>
+<span class="fc" id="L82">      .startKdcServer()</span>
+<span class="fc" id="L83">      .activateNis();</span>
+  }
+
+  public static ApacheDS start(String realm, String baseDn, String workDir) throws Exception {
+<span class="nc" id="L87">    return start(realm, baseDn, workDir + realm, null);</span>
+  }
+
+  public static ApacheDS start(String realm, String baseDn) throws Exception {
+<span class="fc" id="L91">    return start(realm, baseDn, &quot;target/ldap-work/&quot; + realm, null);</span>
+  }
+
+  public void stop() {
+    try {
+<span class="fc" id="L96">      kdcServer.stop();</span>
+<span class="fc" id="L97">      kdcServer = null;</span>
+<span class="fc" id="L98">      ldapServer.stop();</span>
+<span class="fc" id="L99">      ldapServer = null;</span>
+<span class="fc" id="L100">      directoryService.shutdown();</span>
+<span class="fc" id="L101">      directoryService = null;</span>
+<span class="nc" id="L102">    } catch (Exception e) {</span>
+<span class="nc" id="L103">      throw new IllegalStateException(e);</span>
+<span class="fc" id="L104">    }</span>
+<span class="fc" id="L105">  }</span>
+
+  public String getUrl() {
+<span class="fc" id="L108">    return &quot;ldap://localhost:&quot; + ldapServer.getPort();</span>
+  }
+
+  /**
+   * Stream will be closed automatically.
+   */
+  public void importLdif(InputStream is) throws Exception {
+<span class="fc" id="L115">    try (LdifReader reader = new LdifReader(is)) {</span>
+<span class="fc" id="L116">      CoreSession coreSession = directoryService.getAdminSession();</span>
+      // see LdifFileLoader
+<span class="fc bfc" id="L118" title="All 2 branches covered.">      for (LdifEntry ldifEntry : reader) {</span>
+<span class="fc" id="L119">        String ldif = ldifEntry.toString();</span>
+<span class="fc" id="L120">        LOG.info(ldif);</span>
+<span class="pc bpc" id="L121" title="1 of 4 branches missed.">        if (ChangeType.Add == ldifEntry.getChangeType() || /* assume &quot;add&quot; by default */ ChangeType.None == ldifEntry.getChangeType()) {</span>
+<span class="fc" id="L122">          coreSession.add(new DefaultEntry(coreSession.getDirectoryService().getSchemaManager(), ldifEntry.getEntry()));</span>
+<span class="fc bfc" id="L123" title="All 2 branches covered.">        } else if (ChangeType.Modify == ldifEntry.getChangeType()) {</span>
+<span class="fc" id="L124">          coreSession.modify(ldifEntry.getDn(), ldifEntry.getModifications());</span>
+<span class="pc bpc" id="L125" title="1 of 2 branches missed.">        } else if (ChangeType.Delete == ldifEntry.getChangeType()) {</span>
+<span class="fc" id="L126">          coreSession.delete(ldifEntry.getDn());</span>
+        } else {
+<span class="nc" id="L128">          throw new IllegalStateException();</span>
+        }
+<span class="fc" id="L130">      }</span>
+    }
+<span class="fc" id="L132">  }</span>
+
+  public void disableAnonymousAccess() {
+<span class="fc" id="L135">    directoryService.setAllowAnonymousAccess(false);</span>
+<span class="fc" id="L136">  }</span>
+
+  public void enableAnonymousAccess() {
+<span class="fc" id="L139">    directoryService.setAllowAnonymousAccess(true);</span>
+<span class="fc" id="L140">  }</span>
+
+  private ApacheDS startDirectoryService(String workDirStr) throws Exception {
+<span class="fc" id="L143">    DefaultDirectoryServiceFactory factory = new DefaultDirectoryServiceFactory();</span>
+<span class="fc" id="L144">    factory.init(realm);</span>
+
+<span class="fc" id="L146">    directoryService = factory.getDirectoryService();</span>
+<span class="fc" id="L147">    directoryService.getChangeLog().setEnabled(false);</span>
+<span class="fc" id="L148">    directoryService.setShutdownHookEnabled(false);</span>
+<span class="fc" id="L149">    directoryService.setAllowAnonymousAccess(true);</span>
+
+<span class="fc" id="L151">    File workDir = new File(workDirStr);</span>
+<span class="pc bpc" id="L152" title="1 of 2 branches missed.">    if (workDir.exists()) {</span>
+<span class="fc" id="L153">      FileUtils.deleteDirectory(workDir);</span>
+    }
+<span class="fc" id="L155">    InstanceLayout instanceLayout = new InstanceLayout(workDir);</span>
+<span class="fc" id="L156">    directoryService.setInstanceLayout(instanceLayout);</span>
+
+<span class="fc" id="L158">    AvlPartition partition = new AvlPartition(directoryService.getSchemaManager());</span>
+<span class="fc" id="L159">    partition.setId(&quot;Test&quot;);</span>
+<span class="fc" id="L160">    partition.setSuffixDn(new Dn(directoryService.getSchemaManager(), baseDn));</span>
+<span class="fc" id="L161">    partition.addIndexedAttributes(</span>
+      new AvlIndex&lt;&gt;(&quot;ou&quot;),
+      new AvlIndex&lt;&gt;(&quot;uid&quot;),
+      new AvlIndex&lt;&gt;(&quot;dc&quot;),
+      new AvlIndex&lt;&gt;(&quot;objectClass&quot;));
+<span class="fc" id="L166">    partition.initialize();</span>
+<span class="fc" id="L167">    directoryService.addPartition(partition);</span>
+<span class="fc" id="L168">    directoryService.addLast(new KeyDerivationInterceptor());</span>
+
+<span class="fc" id="L170">    directoryService.shutdown();</span>
+<span class="fc" id="L171">    directoryService.startup();</span>
+
+<span class="fc" id="L173">    return this;</span>
+  }
+
+  private ApacheDS startLdapServer(int port) throws Exception {
+<span class="fc" id="L177">    this.ldapPort = port;</span>
+<span class="fc" id="L178">    ldapServer.setTransports(new TcpTransport(port));</span>
+<span class="fc" id="L179">    ldapServer.setDirectoryService(directoryService);</span>
+
+    // Setup SASL mechanisms
+<span class="fc" id="L182">    Map&lt;String, MechanismHandler&gt; mechanismHandlerMap = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L183">    mechanismHandlerMap.put(SupportedSaslMechanisms.PLAIN, new PlainMechanismHandler());</span>
+<span class="fc" id="L184">    mechanismHandlerMap.put(SupportedSaslMechanisms.CRAM_MD5, new CramMd5MechanismHandler());</span>
+<span class="fc" id="L185">    mechanismHandlerMap.put(SupportedSaslMechanisms.DIGEST_MD5, new DigestMd5MechanismHandler());</span>
+<span class="fc" id="L186">    mechanismHandlerMap.put(SupportedSaslMechanisms.GSSAPI, new GssapiMechanismHandler());</span>
+<span class="fc" id="L187">    ldapServer.setSaslMechanismHandlers(mechanismHandlerMap);</span>
+
+<span class="fc" id="L189">    ldapServer.setSaslHost(HOSTNAME_LOCALHOST);</span>
+<span class="fc" id="L190">    ldapServer.setSaslRealms(Collections.singletonList(realm));</span>
+    // TODO ldapServer.setSaslPrincipal();
+    // The base DN containing users that can be SASL authenticated.
+<span class="fc" id="L193">    ldapServer.setSearchBaseDn(baseDn);</span>
+
+<span class="fc" id="L195">    ldapServer.start();</span>
+
+<span class="fc" id="L197">    return this;</span>
+  }
+
+
+  private ApacheDS startKdcServer() throws IOException, KrbException {
+<span class="fc" id="L202">    int port = AvailablePortFinder.getNextAvailable(6088);</span>
+
+<span class="fc" id="L204">    File krbConf = new File(&quot;target/krb5.conf&quot;);</span>
+<span class="fc" id="L205">    FileUtils.writeStringToFile(krbConf, &quot;&quot;</span>
+        + &quot;[libdefaults]\n&quot;
+        + &quot;    default_realm = EXAMPLE.ORG\n&quot;
+        + &quot;\n&quot;
+        + &quot;[realms]\n&quot;
+        + &quot;    EXAMPLE.ORG = {\n&quot;
+        + &quot;        kdc = localhost:&quot; + port + &quot;\n&quot;
+        + &quot;    }\n&quot;
+        + &quot;\n&quot;
+        + &quot;[domain_realm]\n&quot;
+        + &quot;    .example.org = EXAMPLE.ORG\n&quot;
+        + &quot;    example.org = EXAMPLE.ORG\n&quot;,
+<span class="fc" id="L217">      StandardCharsets.UTF_8.name());</span>
+
+<span class="fc" id="L219">    kdcServer = new KdcServer(krbConf);</span>
+<span class="fc" id="L220">    kdcServer.setKdcRealm(&quot;EXAMPLE.ORG&quot;);</span>
+<span class="fc" id="L221">    kdcServer.getKdcConfig().setBoolean(KrbConfigKey.PA_ENC_TIMESTAMP_REQUIRED, false);</span>
+
+<span class="fc" id="L223">    BackendConfig backendConfig = kdcServer.getBackendConfig();</span>
+<span class="fc" id="L224">    backendConfig.setString(&quot;host&quot;, HOSTNAME_LOCALHOST);</span>
+<span class="fc" id="L225">    backendConfig.setString(&quot;base_dn&quot;, baseDn);</span>
+<span class="fc" id="L226">    backendConfig.setInt(&quot;port&quot;, this.ldapPort);</span>
+<span class="fc" id="L227">    backendConfig.setString(KdcConfigKey.KDC_IDENTITY_BACKEND,</span>
+      &quot;org.apache.kerby.kerberos.kdc.identitybackend.LdapIdentityBackend&quot;);
+
+<span class="fc" id="L230">    kdcServer.setAllowUdp(true);</span>
+<span class="fc" id="L231">    kdcServer.setAllowTcp(false);</span>
+<span class="fc" id="L232">    kdcServer.setKdcUdpPort(port);</span>
+<span class="fc" id="L233">    kdcServer.setKdcHost(HOSTNAME_LOCALHOST);</span>
+
+<span class="fc" id="L235">    kdcServer.init();</span>
+<span class="fc" id="L236">    kdcServer.start();</span>
+<span class="fc" id="L237">    return this;</span>
+  }
+
+  /**
+   * This seems to be required for objectClass posixGroup.
+   */
+  private ApacheDS activateNis() throws Exception {
+<span class="fc" id="L244">    directoryService.getAdminSession().modify(</span>
+      new Dn(&quot;cn=nis,ou=schema&quot;),
+      new DefaultModification(ModificationOperation.REPLACE_ATTRIBUTE, &quot;m-disabled&quot;, &quot;FALSE&quot;));
+<span class="fc" id="L247">    return this;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>
