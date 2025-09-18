@@ -142,6 +142,9 @@ table.coverage {
 
 table.coverage thead {
   background-color:#e0e0e0;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 table.coverage thead td {
