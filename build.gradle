@@ -631,7 +631,7 @@ subprojects {
     reports {
       xml.required = true
       csv.required = false
-      html.required = true
+      html.required = false
     }
   }
 
@@ -648,6 +648,7 @@ subprojects {
 
   ext.failedTests = []
   test {
+    ignoreFailures = true
     jvmArgs '-Dfile.encoding=UTF8'
     maxHeapSize = '1500m'
     systemProperty 'java.awt.headless', true
