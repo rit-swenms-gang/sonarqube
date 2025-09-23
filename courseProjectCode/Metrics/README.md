@@ -30,7 +30,8 @@ of test cases. The authors used the Chat GPT and `jacocoAggregateReport` Gradle 
 `build.gradle` file to compile a comprehensive coverage report.
 
 ### Steps
+
 1. Clone the `sonarqube` fork repo with `git clone`.
-1. As shown in the root `README`, run the `./gradlew jacocoAggregateReport` command.
-1. Reports are generated under the `./build/reports/jacoco/jacocoAggregateReport/` directory.
+2. As shown in the root `README`, run the `./gradlew jacocoAggregateReport` command.
+3. Reports are generated under the `./build/reports/jacoco/jacocoAggregateReport/` directory.
    View results in a browser from `./build/reports/jacoco/jacocoAggregateReport/html/index.html`.
