@@ -24,7 +24,7 @@ seems to be used to generate reports into the build directory for each subsystem
 possible to run the automated build and test processes, the reviewing the results of all tests does
 not appear to be a trivial process. For one, the project relies on JDK 17 and at most Gradle 8.
 The authors have been working with Java 22 and Gradle 9, which has resulted in the removal of
-deprecated features and incompatible test suites. While it is difficult to guage exactly how many
+deprecated features and incompatible test suites. While it is difficult to gauge exactly how many
 tests there are, the test compilation process took over 15 minutes to run and contained thousands
 of test cases. The authors used the Chat GPT and `jacocoAggregateReport` Gradle plugin to modify the
 `build.gradle` file to compile a comprehensive coverage report.
