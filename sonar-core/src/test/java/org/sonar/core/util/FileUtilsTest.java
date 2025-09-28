@@ -162,6 +162,11 @@ public class FileUtilsTest {
     assertThat(FileUtils.humanReadableByteCountSI(0)).isEqualTo("0 bytes");
     assertThat(FileUtils.humanReadableByteCountSI(1)).isEqualTo("1 byte");
   }
+  
+  @Test
+  public void humanReadableByteCountSI_returns_negative_byte_values() {
+    assertThat(FileUtils.humanReadableByteCountSI(-1)).isEqualTo("-1 bytes");
+  }
 
   @Test
   public void humanReadableByteCountSI_returns_kbs() {
@@ -179,6 +184,21 @@ public class FileUtilsTest {
   @Test
   public void humanReadableByteCountSI_returns_mbs() {
     assertThat(FileUtils.humanReadableByteCountSI(1234567)).isEqualTo("1.2 MB");
+  }
+
+  @Test
+  public void humanReadableByteCountSI_returns_gbs() {
+    assertThat(FileUtils.humanReadableByteCountSI(1_234_567_890)).isEqualTo("1.2 GB");
+  }
+
+  @Test
+  public void humanReadableByteCountSI_returns_pbs() {
+    assertThat(FileUtils.humanReadableByteCountSI(4_200_000_000_000_000L)).isEqualTo("4.2 PB");
+  }
+
+  @Test
+  public void humanReadableByteCountSI_returns_ebs() {
+    assertThat(FileUtils.humanReadableByteCountSI(7_200_000_000_000_000_000L)).isEqualTo("7.2 EB");
   }
 
   @Test
