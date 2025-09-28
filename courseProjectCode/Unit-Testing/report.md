@@ -8,3 +8,9 @@
   * `humanReadableByteCountSI_returns_gbs` The existing cases test `bytes`, `kB`, `MB`, and `TB`. Add support for implementations `GB` case.
   * `humanReadableByteCountSI_returns_pbs` Add support for implementations `PB` case.
   * `humanReadableByteCountSI_returns_ebs`  Add support for implementations `EB` case.
+
+* sonar-core/src/main/util/Slug - SlugTest
+  
+  > `Slug.slugify` appears to convert a string into URL-safe format.
+
+  * `slugify_collapses_multiple_dashes` The `Slug.slugify` method internally implments more behavior than is accounted for the existing tests. The function strips all prefixed and appended `-` characters, as well as collapses multiple dashes into a single character.

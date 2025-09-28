@@ -36,4 +36,10 @@ public class SlugTest {
     assertThat(Slug.slugify("<foo>")).isEqualTo("foo");
     assertThat(Slug.slugify("<\"foo:\">")).isEqualTo("foo");
   }
+
+  @Test
+  public void slugify_collapses_multiple_dashes() {
+    assertThat(Slug.slugify("---all-i-wanna-do---")).isEqualTo("all-i-wanna-do");
+    assertThat(Slug.slugify("is----have--some-----------fun")).isEqualTo("is-have-some-fun");
+  }
 }
