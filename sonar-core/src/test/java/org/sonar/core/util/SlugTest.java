@@ -19,9 +19,9 @@
  */
 package org.sonar.core.util;
 
-import org.junit.Test;
-
 import static org.assertj.core.api.Assertions.assertThat;
+
+import org.junit.Test;
 
 public class SlugTest {
 
@@ -41,5 +41,29 @@ public class SlugTest {
   public void slugify_collapses_multiple_dashes() {
     assertThat(Slug.slugify("---all-i-wanna-do---")).isEqualTo("all-i-wanna-do");
     assertThat(Slug.slugify("is----have--some-----------fun")).isEqualTo("is-have-some-fun");
+  }
+
+  @Test
+  public void slugify_handles_empty_strings() {
+    assertThat(Slug.slugify("")).isEqualTo("");
+    assertThat(Slug.slugify("     ")).isEqualTo("");
+    assertThat(Slug.slugify("----")).isEqualTo("");
+  }
+
+  @Test
+  public void slugify_handles_numbers() {
+    assertThat(Slug.slugify("test 123")).isEqualTo("test-123");
+    assertThat(Slug.slugify("123test")).isEqualTo("123test");
+    assertThat(Slug.slugify("version 2.0")).isEqualTo("version-2-0");
+  }
+
+  @Test
+  public void slugify_handles_special_characters() {
+    assertThat(Slug.slugify("C# Developer")).isEqualTo("c-developer");
+    assertThat(Slug.slugify("C++ Developer")).isEqualTo("c-developer");
+    assertThat(Slug.slugify("Node.js Developer")).isEqualTo("node-js-developer");
+    assertThat(Slug.slugify("100% Effective!")).isEqualTo("100-effective");
+    assertThat(Slug.slugify("$$$")).isEqualTo("");
+    assertThat(Slug.slugify("$$$ --- $$$")).isEqualTo("");
   }
 }

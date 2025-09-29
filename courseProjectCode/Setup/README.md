@@ -49,8 +49,6 @@ Authors followed [this video][sq_setup] to gather these setup steps.
 
    Replace `<token>` with the generated token.
 
-   Given the sheer size of the repository, this scan will take quite some time.
-    The authors report an average execution time of about *2 hours*,
-    so find a nice game or book in the meantime!
+   Given the sheer size of the repository, this scan might take quite some time.
 
 [sq_setup]: https://www.youtube.com/watch?v=6vdRvz_LnbQ
