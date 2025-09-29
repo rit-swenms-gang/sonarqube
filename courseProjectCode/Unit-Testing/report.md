@@ -28,8 +28,21 @@
   * `slugify_handles_numbers` Add support for numbers (integers and decimals).
   * `slugify_handles_special_characters` Add support for special characters.
 
+* [sonar-core UtcDateUtils][utc-date-utils] - [UtcDateUtilsTest][utc-date-utils-test]
+
+  > `UtcDateUtils.parseDateTime` appears to parse a string into a `Date` object.
+
+  * `parseDateTime_throws_exception_for_invalid_formats` The existing tests only accounted for
+   one type of invalid date-time string. The implementation throws an `IllegalArgumentException`
+   for any invalid formats. This test adds a variety of invalid date-time string
+   formats to ensure the exception is thrown.
+  * `parseDateTime_handles_empty_input` Add support for empty strings and `null` input.
+
 [file-util]: /sonar-core/src/main/java/org/sonar/core/util/FileUtils.java
 [file-util-test]: /sonar-core/src/test/java/org/sonar/core/util/FileUtilsTest.java
 
 [slug]: /sonar-core/src/main/java/org/sonar/core/util/Slug.java
 [slug-test]: /sonar-core/src/test/java/org/sonar/core/util/SlugTest.java
+
+[utc-date-utils]: /sonar-core/src/main/java/org/sonar/core/util/UtcDateUtils.java
+[utc-date-utils-test]: /sonar-core/src/test/java/org/sonar/core/util/UtcDateUtilsTest.java
