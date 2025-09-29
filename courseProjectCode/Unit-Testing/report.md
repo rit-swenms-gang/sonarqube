@@ -18,7 +18,7 @@
 
 * [sonar-core Slug][slug] - [SlugTest][slug-test]
   
-  > `Slug.slugify` appears to convert a string into URL-safe format.
+  > `Slug.slugify` converts a string into a URL-safe format.
 
   * `slugify_collapses_multiple_dashes` The `Slug.slugify` method internally implements more
    behavior than is accounted for the existing tests. The function strips all prefixed and
@@ -30,7 +30,7 @@
 
 * [sonar-core UtcDateUtils][utc-date-utils] - [UtcDateUtilsTest][utc-date-utils-test]
 
-  > `UtcDateUtils.parseDateTime` appears to parse a string into a `Date` object.
+  > `UtcDateUtils.parseDateTime` parses a string into a `Date` object.
 
   * `parseDateTime_throws_exception_for_invalid_formats` The existing tests only accounted for
    one type of invalid date-time string. The implementation throws an `IllegalArgumentException`
@@ -46,3 +46,12 @@
 
 [utc-date-utils]: /sonar-core/src/main/java/org/sonar/core/util/UtcDateUtils.java
 [utc-date-utils-test]: /sonar-core/src/test/java/org/sonar/core/util/UtcDateUtilsTest.java
+
+## Impact
+
+Given the size and longevity of the `sonarqube` repository, many of the core classes
+ already have substantial coverage. The classes chosen for this project were selected because they had
+ a variety of testable edge cases and were utility classes that could be tested in isolation.
+
+While the tests do not add a significant amount of coverage,
+ they do add value by testing edge cases that were not previously tested.
