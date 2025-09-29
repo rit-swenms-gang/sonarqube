@@ -15,26 +15,29 @@ containers were used to analyze the base repository.
 
 ## SonarQube Analysis
 
+Authors followed [this video][sq_setup] to gather these setup steps.
+
 1. Clone `sonarqube` repo.
 2. Ensure Docker is installed (authors used Docker Desktop).
 3. Use command `docker pull sonarqube` to get the latest official SonarQube image.
-4. Connect to a database. Authors followed [this video][sq_setup], using the following command:
+4. Connect to a database. The following example uses a PostgreSQL Docker image:
 
    ```console
-   docker run -d \
-   --name sonarqube \
-   -p 9000:9000 \
-   --link sonarqube-db:db \ 
-   -e SONAR_JDBC_URL=jdbc:postgresql://db:5432/sonarqube \
-   -e SONAR_JDBC_USERNAME=sonar \
-   -e SONAR_JDBC_PASSWORD=sonar sonarqube
+   docker run -d --name sonarqube-db -e POSTGRES_USER=sonar -e POSTGRES_PASSWORD=sonar -e POSTGRES_DB=sonarqube postgres:alpine
    ```
 
-5. Navigate to [the exposed port](http://localhost:9000/) and sign in with default credentials (
+5. Run the SonarQube server and connect it to the database using the following command:
+
+   ```console
+   docker run -d --name sonarqube -p 9000:9000 --link sonarqube-db:db -e SONAR_JDBC_URL=jdbc:postgresql://db:5432/sonarqube -e SONAR_JDBC_USERNAME=sonar -e SONAR_JDBC_PASSWORD=sonar sonarqube
+   ```
+
+6. Navigate to [the exposed port](http://localhost:9000/) and sign in with default credentials (
    `admin` and `admin`).
-6. Set up a local project. Name the project `sonarqube` with a `gradle` configuration. Select all
-   local configuration properties. Copy the generated token for the next step.
-7. Navigate to the cloned repo and run the following command:
+7. Set up a local project. Name the project `sonarqube` with a main branch called `master`.
+    Use global settings. Analyze the project locally with a `gradle` configuration.
+    Copy the generated token for the next step.
+8. Navigate to the cloned repo and run the command given by SonarQube:
 
    ```console
    ./gradlew clean build sonar \
@@ -45,5 +48,9 @@ containers were used to analyze the base repository.
    ```
 
    Replace `<token>` with the generated token.
+
+   Given the sheer size of the repository, this scan will take quite some time.
+    The authors report an average execution time of about *2 hours*,
+    so find a nice game or book in the meantime!
 
 [sq_setup]: https://www.youtube.com/watch?v=6vdRvz_LnbQ
