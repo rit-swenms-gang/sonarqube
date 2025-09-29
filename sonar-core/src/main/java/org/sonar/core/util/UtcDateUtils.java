@@ -24,6 +24,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Date;
+
 import org.sonar.api.utils.DateUtils;
 
 public class UtcDateUtils {
@@ -43,6 +44,8 @@ public class UtcDateUtils {
       return Date.from(OffsetDateTime.parse(s, formatter).toInstant());
     } catch (DateTimeParseException e) {
       throw new IllegalArgumentException("Fail to parse date: " + s, e);
+    } catch (NullPointerException e) {
+      throw new IllegalArgumentException("Date string cannot be null", e);
     }
   }
 }

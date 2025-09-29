@@ -19,11 +19,13 @@
  */
 package org.sonar.core.util;
 
-import java.util.Date;
-import org.junit.Test;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.fail;
+
+import java.util.Date;
+
+import org.junit.Assert;
+import org.junit.Test;
 
 public class UtcDateUtilsTest {
 
@@ -40,6 +42,40 @@ public class UtcDateUtilsTest {
       fail();
     } catch (IllegalArgumentException e) {
       assertThat(e).hasMessage("Fail to parse date: 2014-01-14");
+    }
+  }
+
+  @Test
+  public void parseDateTime_handles_various_invalid_formats() {
+    String[] invalidFormats = {
+      "2014/01/14T12:00:00+0000",   // Wrong date separator
+      "2014-01-14 12:00:00+0000",   // Missing T separator
+      "2014-01-14T12:00:00",        // Missing timezone
+      "14-01-2014T12:00:00+0000",   // Wrong date order
+      "2014-13-14T12:00:00+0000",   // Invalid month
+      "2014-01-32T12:00:00+0000",   // Invalid day
+      "2014-01-14T25:00:00+0000",   // Invalid hour
+      "2014-01-14T12:60:00+0000",   // Invalid minute
+      "2014-01-14T12:00:60+0000"    // Invalid second
+    };
+
+    for (String invalidFormat : invalidFormats) {
+      Assert.assertThrows(
+        IllegalArgumentException.class, 
+        () -> UtcDateUtils.parseDateTime(invalidFormat)
+      );
+    }
+  }
+
+  @Test
+  public void parseDateTime_handles_empty_input() {
+    String[] emptyInputs = { "", "   ", null };
+
+    for (String emptyInput : emptyInputs) {
+      Assert.assertThrows(
+        IllegalArgumentException.class, 
+        () -> UtcDateUtils.parseDateTime(emptyInput)
+      );
     }
   }
 }

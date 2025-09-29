@@ -4,11 +4,13 @@
 
 The system shall analyze reports and continuously monitor code coverage as a test quality metric.
 
-The system shall analyze cyclomatic complexity of individual software components and enforce an opinionated limit.
+The system shall analyze cyclomatic complexity of individual software components and enforce an
+ opinionated limit.
 
 The system shall detect injection vulnerabilities in application source code.
 
-The system shall alert the user of injection vulnerabilities in their application source code and recommend remediation options.
+The system shall alert the user of injection vulnerabilities in their application source code and
+ recommend remediation options.
 
 ## Non-Functional Requirements
 
@@ -16,7 +18,8 @@ The system shall provide analysis support for multiple programming languages.
 
 The system shall support installation as a plug-in for multiple IDEs.
 
-The system shall accept coverage reports from multiple popular test frameworks. (i.e., JaCoco, CodeCov, etc.)
+The system shall accept coverage reports from multiple popular test frameworks.
+ (i.e., JaCoco, CodeCov, etc.)
 
 The system shall analyze complexity in less than 2 minutes.
 
