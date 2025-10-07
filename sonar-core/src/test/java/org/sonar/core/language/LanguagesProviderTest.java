@@ -20,15 +20,16 @@
 package org.sonar.core.language;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import org.junit.Test;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import org.sonar.api.resources.Language;
-import org.sonar.api.resources.Languages;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+
+import org.junit.Test;
+import org.sonar.api.resources.Language;
+import org.sonar.api.resources.Languages;
 
 public class LanguagesProviderTest {
 
@@ -56,6 +57,31 @@ public class LanguagesProviderTest {
     assertThat(languages.all())
       .hasSize(2)
       .contains(A, B);
+  }
+
+  @Test
+  public void should_preserve_language_order() {
+    Language java = mock(Language.class);
+    when(java.getKey()).thenReturn("java");
+    when(java.getName()).thenReturn("Java");
+
+    Language py = mock(Language.class);
+    when(py.getKey()).thenReturn("py");
+    when(py.getName()).thenReturn("Python");
+
+    Language js = mock(Language.class);
+    when(js.getKey()).thenReturn("js");
+    when(js.getName()).thenReturn("JavaScript");
+
+    LanguagesProvider provider = new LanguagesProvider();
+    List<Language> languageList = Arrays.asList(java, py, js);
+    Languages languages = provider.provide(Optional.of(languageList));
+
+    Language[] allLanguages = languages.all();
+    assertThat(allLanguages).hasSize(3);
+    assertThat(allLanguages[0].getKey()).isEqualTo("java");
+    assertThat(allLanguages[1].getKey()).isEqualTo("py");
+    assertThat(allLanguages[2].getKey()).isEqualTo("js");
   }
 
 }

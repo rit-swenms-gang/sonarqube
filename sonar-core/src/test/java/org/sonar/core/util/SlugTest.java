@@ -45,9 +45,9 @@ public class SlugTest {
 
   @Test
   public void slugify_handles_empty_strings() {
-    assertThat(Slug.slugify("")).isEqualTo("");
-    assertThat(Slug.slugify("     ")).isEqualTo("");
-    assertThat(Slug.slugify("----")).isEqualTo("");
+    assertThat(Slug.slugify("")).isEmpty();
+    assertThat(Slug.slugify("     ")).isEmpty();
+    assertThat(Slug.slugify("----")).isEmpty();
   }
 
   @Test
@@ -63,7 +63,7 @@ public class SlugTest {
     assertThat(Slug.slugify("C++ Developer")).isEqualTo("c++-developer");
     assertThat(Slug.slugify("Node.js Developer")).isEqualTo("node-js-developer");
     assertThat(Slug.slugify("100% Effective!")).isEqualTo("100-effective");
-    assertThat(Slug.slugify("$$$")).isEqualTo("");
-    assertThat(Slug.slugify("$$$ --- $$$")).isEqualTo("");
+    assertThat(Slug.slugify("$$$")).isEmpty();
+    assertThat(Slug.slugify("$$$ --- $$$")).isEmpty();
   }
 }

@@ -37,17 +37,13 @@ Authors followed [this video][sq_setup] to gather these setup steps.
 7. Set up a local project. Name the project `sonarqube` with a main branch called `master`.
     Use global settings. Analyze the project locally with a `gradle` configuration.
     Copy the generated token for the next step.
-8. Navigate to the cloned repo and run the command given by SonarQube:
+8. Navigate to the cloned repo. Create an environment variable `SONAR_TOKEN` that
+    holds the value of the generated token.
+9. Build the project and run the analysis with the command:
 
    ```console
-   ./gradlew clean build sonar \
-   -Dsonar.projectKey=sonarqube \
-   -Dsonar.projectName='sonarqube' \
-   -Dsonar.host.url=http://localhost:9000 \
-   -Dsonar.token=<token>
+   ./gradlew clean build jacocoTestReport sonar
    ```
-
-   Replace `<token>` with the generated token.
 
    Given the sheer size of the repository, this scan might take quite some time.
 
