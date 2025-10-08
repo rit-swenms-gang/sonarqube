@@ -2,6 +2,13 @@
 
 ## Tests Added
 
+* [sonar-core DefaultIssueComment][default-issue-comment] - [DefaultIssueCommentTest][default-issue-comment-test]
+  
+  > `DefaultIssueComment` provides a default comment for issues in SonarQube.
+
+  * `create_comment_without_user_uuid` Add support for creating comments without a user UUID.
+  * `create_comment_with_user_uuid` Add support for creating comments with a user UUID.
+
 * [sonar-core FileUtil][file-util] - [FileUtilsTest][file-util-test]
   
   > `FileUtil.humanReadableByteCountSI` prints and the converts the size of a file into a
@@ -37,6 +44,9 @@
    for any invalid formats. This test adds a variety of invalid date-time string
    formats to ensure the exception is thrown.
   * `parseDateTime_handles_empty_input` Add support for empty strings and `null` input.
+
+[default-issue-comment]: /sonar-core/src/main/java/org/sonar/core/issue/DefaultIssueComment.java
+[default-issue-comment-test]: /sonar-core/src/test/java/org/sonar/core/issue/DefaultIssueCommentTest.java
 
 [file-util]: /sonar-core/src/main/java/org/sonar/core/util/FileUtils.java
 [file-util-test]: /sonar-core/src/test/java/org/sonar/core/util/FileUtilsTest.java
