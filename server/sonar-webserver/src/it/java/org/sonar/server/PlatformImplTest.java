@@ -1,5 +1,6 @@
 package org.sonar.server;
 
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
 
 import java.util.Properties;
@@ -9,7 +10,6 @@ import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.DisableOnDebug;
-import org.junit.rules.TemporaryFolder;
 import org.junit.rules.TestRule;
 import org.junit.rules.Timeout;
 import org.sonar.api.config.internal.MapSettings;
@@ -24,8 +24,6 @@ public class PlatformImplTest {
   @Rule
   public LogTester logTester = new LogTester();
   @Rule
-  public TemporaryFolder temporaryFolder = new TemporaryFolder();
-  @Rule
   public TestRule safeguardTimeout = new DisableOnDebug(Timeout.seconds(60));
 
   private MapSettings settings = new MapSettings();
@@ -39,19 +37,18 @@ public class PlatformImplTest {
     }
   }
 
-  @Ignore
+  @Ignore("Problems: unable to mock database instance before able to access doStart")
   @Test
   public void test_doStart() {
-    Properties mock_props = mock(Properties.class);
-    ServletContext mock_ctx = mock(ServletContext.class);
+    Properties mockProps = mock(Properties.class);
+    ServletContext mockCtx = mock(ServletContext.class);
     PlatformImpl testPI = PlatformImpl.getInstance();
-    
-    //problems: unable to mock database instance before able to access doStart
+
     testDb.start();
-    testPI.init(mock_props, mock_ctx);
+    testPI.init(mockProps, mockCtx);
 
-    // testPI.doStart();
+    testPI.doStart();
 
-    // assertThat(mock_ctx.getServletRegistrations()).hasSize(1);
+    assertEquals(1, mockCtx.getServletRegistrations().size());
   }
 }
