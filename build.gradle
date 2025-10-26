@@ -16,7 +16,7 @@ plugins {
   id "org.cyclonedx.bom" version "2.3.1" apply false
   id "org.sonarqube" version "6.3.1.5724"
   id 'jacoco-report-aggregation'
-  id 'info.solidsoft.pitest' version '1.19.0-rc.2' apply false // 
+  id 'info.solidsoft.pitest' version '1.19.0-rc.2' apply false
 }
 
 if (!JavaVersion.current().isCompatibleWith(VERSION_17)) {
@@ -221,6 +221,7 @@ subprojects {
   apply plugin: 'com.github.hierynomus.license'
   apply plugin: 'io.spring.dependency-management'
   apply plugin: 'jacoco'
+  apply plugin: 'java'
   apply plugin: 'java-library'
   apply plugin: 'idea'
   apply plugin: 'signing'
@@ -552,6 +553,7 @@ subprojects {
       }
       dependency 'com.google.code.findbugs:jsr305:3.0.2'
       // please keep this list alphabetically ordered
+      dependency 'com.arcmutate:arcmutate-spring:1.1.2'
     }
   }
 
@@ -683,30 +685,44 @@ subprojects {
     }
   }
 
-
   // apply plugin: 'info.solidsoft.pitest.aggregator' // to 'pitestReportAggregate' appear
 
   pitest {
-        targetClasses = ['com.sonar.*', 'com.sonarsource.*', 'org.sonar.*', 'org.sonarqube.*', 'org.sonarsource.*']       // adjust based on module
-        targetTests   = ['com.sonar.*Test', 'com.sonarsource.*Test', 'org.sonar.*Test', 'org.sonarqube.*Test', 'org.sonarsource.*Test']
-        threads = 4
+    dependencies {
+      // requires a license, skipping
+      // pitest 'com.arcmutate:arcmutate-spring:1.1.2'
+      
+      // JUnit 5
+      testImplementation 'org.junit.jupiter:junit-jupiter-api:5.11.0'
+      testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.11.0'
 
-        // if (project.name in ['module-without-any-test']) {
-        failWhenNoMutations = false
-        // }
-        // export mutations.xml and line coverage for aggregation
-        outputFormats = ["XML"]
-        exportLineCoverage = true
-        timestampedReports = false
-        verbose = true
-        // // ...
-        junit5PluginVersion = '1.2.2'
-        pitestVersion = '1.19.0'
-        // reportAggregator {  //since 1.9.11 - extra results validation, if needed
-        //     testStrengthThreshold.set(50)   //simpler Groovy syntax (testStrengthThreshold = 50) does not seem to be supported for nested properties
-        //     mutationThreshold.set(40)
-        //     maxSurviving.set(3)
-        // }
+      // JUnit 4
+      testImplementation 'junit:junit:4.13.2'
+    }
+    avoidCallsTo = ['java.*', 'javax.*']
+    useClasspathFile = true
+    targetClasses = ['com.sonar.*', 'com.sonarsource.*', 'org.sonar.*', 'org.sonarqube.*', 'org.sonarsource.*']
+    targetTests   = ['com.sonar.*Test', 'com.sonarsource.*Test', 'org.sonar.*Test', 'org.sonarqube.*Test', 'org.sonarsource.*Test']
+    // excludedClasses = ['org.sonarsource.sonarqube_sonar-duplications.*']
+    // targetTests   = ['com.sonar.*Test', 'com.sonarsource.*Test', 'org.sonar.*Test', 'org.sonarqube.*Test', 'org.sonarsource.*Test']
+    threads = 4
+
+    // if (project.name in ['module-without-any-test']) {
+    failWhenNoMutations = false
+    // }
+    // export mutations.xml and line coverage for aggregation
+    outputFormats = ["XML"]
+    exportLineCoverage = true
+    timestampedReports = false
+    // verbose = true
+    // // ...
+    junit5PluginVersion = '1.2.2'
+    pitestVersion = '1.19.0'
+    // reportAggregator {  //since 1.9.11 - extra results validation, if needed
+    //     testStrengthThreshold.set(50)   //simpler Groovy syntax (testStrengthThreshold = 50) does not seem to be supported for nested properties
+    //     mutationThreshold.set(40)
+    //     maxSurviving.set(3)
+    // }
     }
 
   gradle.buildFinished {
