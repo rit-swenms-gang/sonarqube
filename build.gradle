@@ -16,6 +16,7 @@ plugins {
   id "org.cyclonedx.bom" version "2.3.1" apply false
   id "org.sonarqube" version "6.3.1.5724"
   id 'jacoco-report-aggregation'
+  id 'info.solidsoft.pitest' version '1.19.0-rc.2' apply false // 
 }
 
 if (!JavaVersion.current().isCompatibleWith(VERSION_17)) {
@@ -223,6 +224,7 @@ subprojects {
   apply plugin: 'java-library'
   apply plugin: 'idea'
   apply plugin: 'signing'
+  apply plugin: 'info.solidsoft.pitest'
 
   // do not deploy to Artifactory by default
   artifactoryPublish.skip = true
@@ -680,6 +682,32 @@ subprojects {
       }
     }
   }
+
+
+  // apply plugin: 'info.solidsoft.pitest.aggregator' // to 'pitestReportAggregate' appear
+
+  pitest {
+        targetClasses = ['com.sonar.*', 'com.sonarsource.*', 'org.sonar.*', 'org.sonarqube.*', 'org.sonarsource.*']       // adjust based on module
+        targetTests   = ['com.sonar.*Test', 'com.sonarsource.*Test', 'org.sonar.*Test', 'org.sonarqube.*Test', 'org.sonarsource.*Test']
+        threads = 4
+
+        // if (project.name in ['module-without-any-test']) {
+        failWhenNoMutations = false
+        // }
+        // export mutations.xml and line coverage for aggregation
+        outputFormats = ["XML"]
+        exportLineCoverage = true
+        timestampedReports = false
+        verbose = true
+        // // ...
+        junit5PluginVersion = '1.2.2'
+        pitestVersion = '1.19.0'
+        // reportAggregator {  //since 1.9.11 - extra results validation, if needed
+        //     testStrengthThreshold.set(50)   //simpler Groovy syntax (testStrengthThreshold = 50) does not seem to be supported for nested properties
+        //     mutationThreshold.set(40)
+        //     maxSurviving.set(3)
+        // }
+    }
 
   gradle.buildFinished {
     if (!failedTests.empty) {
