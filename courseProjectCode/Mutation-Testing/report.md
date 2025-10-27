@@ -12,15 +12,9 @@ of each nested directory with a `build.gradle` file.
 
 ## Initial Mutation Testing Results
 
-After running the initial mutation tests using PIT, we obtained quite a few results over the multi-module project.
+After running the initial mutation tests using PIT, we obtained quite a few results over
+the multi-module project.
 The tests took multiple hours to run, so for brevity only some samples are shown below:
-
-| Metric                     | Value          |
-|----------------------------|----------------|
-| Total Mutants              | X              |
-| Killed Mutants             | Y              |
-| Surviving Mutants          | Z              |
-| Mutation Coverage (%)      | (Y / X) * 100  |
 
 | sonar-application          | Value          |
 |----------------------------|----------------|
@@ -125,16 +119,17 @@ To resolve some of the surviving mutants, we added the following tests:
 
 After adding the tests, we ran the mutation tests again and obtained the following results:
 
-| Metric                     | Value          |
+| sonar-core                 | Value          |
 |----------------------------|----------------|
-| Total Mutants              | X              |
-| Killed Mutants             | Y              |
-| Surviving Mutants          | Z              |
-| Mutation Coverage (%)      | (Y / X) * 100  |
+| Total Mutants              | 1499           |
+| Killed Mutants             | 1060           |
+| Surviving Mutants          | 439            |
+| Mutation Coverage (%)      | 71             |
 
 ## Group Contributions
 
 | Member | Task/Contribution | Notes |
 |--------|-------------------|-------|
 | Andrew | Create README and report | Initial write-up of mutation testing setup and results |
+|        | Create tests for DefaultUser class | Added JUnit tests to cover DefaultUser functionality and mutations |
 | Christian | Set up PIT configuration | Configured PIT settings in gradle build file |

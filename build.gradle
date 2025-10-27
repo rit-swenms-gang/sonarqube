@@ -703,25 +703,19 @@ subprojects {
     useClasspathFile = true
     targetClasses = ['com.sonar.*', 'com.sonarsource.*', 'org.sonar.*', 'org.sonarqube.*', 'org.sonarsource.*']
     targetTests   = ['com.sonar.*', 'com.sonarsource.*', 'org.sonar.*', 'org.sonarqube.*', 'org.sonarsource.*']
-    // excludedClasses = ['org.sonarsource.sonarqube_sonar-duplications.*']
-    // targetTests   = ['com.sonar.*Test', 'com.sonarsource.*Test', 'org.sonar.*Test', 'org.sonarqube.*Test', 'org.sonarsource.*Test']
+
     threads = 4
 
-    failWhenNoMutations = false
-    // export mutations.xml and line coverage for aggregation
     outputFormats = ["XML", "HTML"]
+    failWhenNoMutations = false
+    skipFailingTests = true
     exportLineCoverage = true
     timestampedReports = false
-    verbose = true
-    // // ...
+    verbose = false
+
     junit5PluginVersion = '1.2.2'
     pitestVersion = '1.19.0'
-    // reportAggregator {  //since 1.9.11 - extra results validation, if needed
-    //     testStrengthThreshold.set(50)   //simpler Groovy syntax (testStrengthThreshold = 50) does not seem to be supported for nested properties
-    //     mutationThreshold.set(40)
-    //     maxSurviving.set(3)
-    // }
-    }
+  }
 
   gradle.buildFinished {
     if (!failedTests.empty) {

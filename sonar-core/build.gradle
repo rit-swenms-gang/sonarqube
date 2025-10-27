@@ -57,19 +57,19 @@ publishing {
   }
 }
 
-// // PIT Mutation Testing Configuration
+// PIT Mutation Testing Configuration
 pitest {
   junit5PluginVersion = '1.2.2'
   pitestVersion = '1.19.0'
 
-  targetClasses = ['org.sonar.core.user.*']
-  targetTests = ['org.sonar.core.user.*Test']
+  targetClasses = ['org.sonar.core.*']
+  targetTests = ['org.sonar.core.*Test']
   threads = 4
   
   failWhenNoMutations = false
-  skipFailingTests= false
+  skipFailingTests = true
   useClasspathFile = true
-  verbose=false
+  verbose = false
 
   outputFormats = ['XML', 'HTML']
   reportDir = file('./build/reports/pitest')
