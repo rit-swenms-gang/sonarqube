@@ -711,7 +711,7 @@ subprojects {
     failWhenNoMutations = false
     // }
     // export mutations.xml and line coverage for aggregation
-    outputFormats = ["XML"]
+    outputFormats = ["XML", "HTML"]
     exportLineCoverage = true
     timestampedReports = false
     // verbose = true
