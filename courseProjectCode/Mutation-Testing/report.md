@@ -24,8 +24,9 @@ After running the initial mutation tests using PIT, we obtained the following re
 
 To resolve some of the surviving mutants, we added the following tests:
 
-| Test File | Test Name | Description |
-|-----------|-----------|-------------|
+| Test File | Description | Impact |
+|-----------|-------------|--------|
+| DefaultUserTest.java | Added tests for the DefaultUser class | Increased coverage from 0% to 100%, killed all 18 mutants |
 
 ## Final Mutation Testing Results
 

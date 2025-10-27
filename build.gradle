@@ -11,12 +11,12 @@ plugins {
   id 'com.google.protobuf' version '0.8.19' apply false
   // dont update com.jfrog.artifactory, new version contains a bug
   id 'com.jfrog.artifactory' version '5.2.5'
+  id 'info.solidsoft.pitest' version '1.19.0-rc.2' apply false
   id "de.undercouch.download" version "5.6.0" apply false
   id 'io.spring.dependency-management' version '1.1.7'
   id "org.cyclonedx.bom" version "2.3.1" apply false
   id "org.sonarqube" version "6.3.1.5724"
   id 'jacoco-report-aggregation'
-  id 'info.solidsoft.pitest' version '1.19.0-rc.2' apply false
 }
 
 if (!JavaVersion.current().isCompatibleWith(VERSION_17)) {
@@ -219,13 +219,13 @@ tasks.named('wrapper') {
 
 subprojects {
   apply plugin: 'com.github.hierynomus.license'
+  apply plugin: 'info.solidsoft.pitest'
   apply plugin: 'io.spring.dependency-management'
   apply plugin: 'jacoco'
   apply plugin: 'java'
   apply plugin: 'java-library'
   apply plugin: 'idea'
   apply plugin: 'signing'
-  apply plugin: 'info.solidsoft.pitest'
 
   // do not deploy to Artifactory by default
   artifactoryPublish.skip = true
@@ -702,19 +702,17 @@ subprojects {
     avoidCallsTo = ['java.*', 'javax.*']
     useClasspathFile = true
     targetClasses = ['com.sonar.*', 'com.sonarsource.*', 'org.sonar.*', 'org.sonarqube.*', 'org.sonarsource.*']
-    targetTests   = ['com.sonar.*Test', 'com.sonarsource.*Test', 'org.sonar.*Test', 'org.sonarqube.*Test', 'org.sonarsource.*Test']
+    targetTests   = ['com.sonar.*', 'com.sonarsource.*', 'org.sonar.*', 'org.sonarqube.*', 'org.sonarsource.*']
     // excludedClasses = ['org.sonarsource.sonarqube_sonar-duplications.*']
     // targetTests   = ['com.sonar.*Test', 'com.sonarsource.*Test', 'org.sonar.*Test', 'org.sonarqube.*Test', 'org.sonarsource.*Test']
     threads = 4
 
-    // if (project.name in ['module-without-any-test']) {
     failWhenNoMutations = false
-    // }
     // export mutations.xml and line coverage for aggregation
     outputFormats = ["XML"]
     exportLineCoverage = true
     timestampedReports = false
-    // verbose = true
+    verbose = true
     // // ...
     junit5PluginVersion = '1.2.2'
     pitestVersion = '1.19.0'
