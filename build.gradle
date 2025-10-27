@@ -11,6 +11,7 @@ plugins {
   id 'com.google.protobuf' version '0.8.19' apply false
   // dont update com.jfrog.artifactory, new version contains a bug
   id 'com.jfrog.artifactory' version '5.2.5'
+  id 'info.solidsoft.pitest' version '1.19.0-rc.2' apply false
   id "de.undercouch.download" version "5.6.0" apply false
   id 'io.spring.dependency-management' version '1.1.7'
   id "org.cyclonedx.bom" version "2.3.1" apply false
@@ -218,8 +219,10 @@ tasks.named('wrapper') {
 
 subprojects {
   apply plugin: 'com.github.hierynomus.license'
+  apply plugin: 'info.solidsoft.pitest'
   apply plugin: 'io.spring.dependency-management'
   apply plugin: 'jacoco'
+  apply plugin: 'java'
   apply plugin: 'java-library'
   apply plugin: 'idea'
   apply plugin: 'signing'
@@ -550,6 +553,7 @@ subprojects {
       }
       dependency 'com.google.code.findbugs:jsr305:3.0.2'
       // please keep this list alphabetically ordered
+      dependency 'com.arcmutate:arcmutate-spring:1.1.2'
     }
   }
 
@@ -679,6 +683,38 @@ subprojects {
         failedTests << failedTest
       }
     }
+  }
+
+  // apply plugin: 'info.solidsoft.pitest.aggregator' // to 'pitestReportAggregate' appear
+
+  pitest {
+    dependencies {
+      // requires a license, skipping
+      // pitest 'com.arcmutate:arcmutate-spring:1.1.2'
+      
+      // JUnit 5
+      testImplementation 'org.junit.jupiter:junit-jupiter-api:5.11.0'
+      testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.11.0'
+
+      // JUnit 4
+      testImplementation 'junit:junit:4.13.2'
+    }
+    avoidCallsTo = ['java.*', 'javax.*']
+    useClasspathFile = true
+    targetClasses = ['com.sonar.*', 'com.sonarsource.*', 'org.sonar.*', 'org.sonarqube.*', 'org.sonarsource.*']
+    targetTests   = ['com.sonar.*', 'com.sonarsource.*', 'org.sonar.*', 'org.sonarqube.*', 'org.sonarsource.*']
+
+    threads = 4
+
+    outputFormats = ["XML", "HTML"]
+    failWhenNoMutations = false
+    skipFailingTests = true
+    exportLineCoverage = true
+    timestampedReports = false
+    verbose = false
+
+    junit5PluginVersion = '1.2.2'
+    pitestVersion = '1.19.0'
   }
 
   gradle.buildFinished {
