@@ -41,15 +41,15 @@ public class DefaultUserTest {
         .setEmail(null)
         .setActive(false);
 
-    assertEquals(user1.login(), "jdoe");
-    assertEquals(user1.name(), "John Doe");
-    assertEquals(user1.email(), "john.doe@example.com");
-    assertEquals(user1.active(), true);
+    assertEquals("jdoe", user1.login());
+    assertEquals("John Doe", user1.name());
+    assertEquals("john.doe@example.com", user1.email());
+    assertEquals(true, user1.active());
 
-    assertEquals(user2.login(), "janed");
-    assertEquals(user2.name(), "Jane Doe");
-    assertEquals(user2.email(), null);
-    assertEquals(user2.active(), false);
+    assertEquals("janed", user2.login());
+    assertEquals("Jane Doe", user2.name());
+    assertEquals(null, user2.email());
+    assertEquals(false, user2.active());
   }
 
   @Test
