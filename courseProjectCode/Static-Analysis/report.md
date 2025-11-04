@@ -12,7 +12,7 @@ JUnit 5.
 
 As mentioned in previous reports, the build pipeline can be summarized in the following command:
 
-```bash
+```console
 # MacOS
 ./gradlew clean build test jacocoTestReport sonar # optional sonar properties as CLI args
 ```
@@ -33,7 +33,14 @@ value before the expected value. Convention dictates that this should be reverse
 
 ![Sample SonarQubeIssue for Intentionality](./Sample-issue.png)
 
-This required only a simple update in the test file. The results of this new commit are as follows:
+This required only a simple update in the test file.
+
+One of the pre-existing issues found was in a UUID utility class, where a deprecated method
+`createFast` was being used. This method has been deprecated in favor of the `create` method, which
+is now the preferred way to generate UUIDs. We updated all references to this method in the
+project to use the `create` method instead.
+
+The results of this new commits are as follows:
 
 ![Final SonarQube static analysis report. Key point: 0 issues](./Final-report.png)
 
@@ -41,6 +48,5 @@ This required only a simple update in the test file. The results of this new com
 
 | Member | Task/Contribution | Notes |
 |--------|-------------------|-------|
-| Andrew | Create report | Initial writeup of changes and collected supporting images |
-|        | Implement changes | Completed suggested SQ changes |
+| Andrew | Implement changes to UUID util | Remove deprecated `createFast` method and replace references with `create` method |
 | Christian | Analyze report findings and implement | Reviewed SonarQube report and wrote suggested changes |

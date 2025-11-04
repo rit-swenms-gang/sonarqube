@@ -19,19 +19,6 @@
  */
 package org.sonar.db.rule;
 
-import com.google.common.collect.ImmutableSet;
-import java.util.Collections;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
-import org.jetbrains.annotations.NotNull;
-import org.junit.jupiter.api.Test;
-import org.sonar.api.issue.impact.Severity;
-import org.sonar.api.issue.impact.SoftwareQuality;
-import org.sonar.core.rule.RuleType;
-import org.sonar.core.util.Uuids;
-import org.sonar.db.issue.ImpactDto;
-
 import static org.apache.commons.lang3.RandomStringUtils.secure;
 import static org.apache.commons.lang3.StringUtils.repeat;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -40,6 +27,21 @@ import static org.assertj.core.api.Assertions.tuple;
 import static org.sonar.db.rule.RuleDto.ERROR_MESSAGE_SECTION_ALREADY_EXISTS;
 import static org.sonar.db.rule.RuleTesting.newRule;
 
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+
+import org.jetbrains.annotations.NotNull;
+import org.junit.jupiter.api.Test;
+import org.sonar.api.issue.impact.Severity;
+import org.sonar.api.issue.impact.SoftwareQuality;
+import org.sonar.core.rule.RuleType;
+import org.sonar.core.util.Uuids;
+import org.sonar.db.issue.ImpactDto;
+
+import com.google.common.collect.ImmutableSet;
+
 class RuleDtoTest {
 
   private static final String SECTION_KEY = "section key";
@@ -47,15 +49,15 @@ class RuleDtoTest {
   @Test
   void setRuleKey_whenTooLong_shouldFail() {
     assertThatThrownBy(() -> new RuleDto().setRuleKey(repeat("x", 250)))
-      .isInstanceOf(IllegalArgumentException.class)
-      .hasMessageContaining("Rule key is too long: ");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Rule key is too long: ");
   }
 
   @Test
   void setName_whenTooLong_shouldFail() {
     assertThatThrownBy(() -> new RuleDto().setName(repeat("x", 300)))
-      .isInstanceOf(IllegalArgumentException.class)
-      .hasMessageContaining("Rule name is too long: ");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Rule name is too long: ");
   }
 
   @Test
@@ -64,8 +66,8 @@ class RuleDtoTest {
       Set<String> tags = ImmutableSet.of(repeat("a", 25), repeat("b", 20), repeat("c", 41));
       new RuleDto().setTags(tags);
     })
-      .isInstanceOf(IllegalArgumentException.class)
-      .hasMessageContaining("Rule tag is too long: ccccccccccccccccccccccccccccccccccccccccc");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Rule tag is too long: ccccccccccccccccccccccccccccccccccccccccc");
   }
 
   @Test
@@ -97,32 +99,32 @@ class RuleDtoTest {
 
   @Test
   void equals_shouldBeBasedOnUuid() {
-    String uuid = Uuids.createFast();
+    String uuid = Uuids.create();
     RuleDto dto = newRule().setUuid(uuid);
 
     assertThat(dto)
-      .isEqualTo(dto)
-      .isEqualTo(newRule().setUuid(uuid))
-      .isEqualTo(newRule().setRuleKey(dto.getRuleKey()).setUuid(uuid))
-      .isNotNull()
-      .isNotEqualTo(new Object())
-      .isNotEqualTo(newRule().setRuleKey(dto.getRuleKey()).setUuid(Uuids.createFast()))
-      .isNotEqualTo(newRule().setUuid(Uuids.createFast()));
+        .isEqualTo(dto)
+        .isEqualTo(newRule().setUuid(uuid))
+        .isEqualTo(newRule().setRuleKey(dto.getRuleKey()).setUuid(uuid))
+        .isNotNull()
+        .isNotEqualTo(new Object())
+        .isNotEqualTo(newRule().setRuleKey(dto.getRuleKey()).setUuid(Uuids.create()))
+        .isNotEqualTo(newRule().setUuid(Uuids.create()));
   }
 
   @Test
   void hashcode_shouldBeBasedOnUuid() {
-    String uuid = Uuids.createFast();
+    String uuid = Uuids.create();
     RuleDto dto = newRule().setUuid(uuid);
 
     assertThat(dto)
-      .hasSameHashCodeAs(dto)
-      .hasSameHashCodeAs(newRule().setUuid(uuid))
-      .hasSameHashCodeAs(newRule().setRuleKey(dto.getRuleKey()).setUuid(uuid));
+        .hasSameHashCodeAs(dto)
+        .hasSameHashCodeAs(newRule().setUuid(uuid))
+        .hasSameHashCodeAs(newRule().setRuleKey(dto.getRuleKey()).setUuid(uuid));
     assertThat(dto.hashCode())
-      .isNotEqualTo(new Object().hashCode())
-      .isNotEqualTo(newRule().setRuleKey(dto.getRuleKey()).setUuid(Uuids.createFast()).hashCode())
-      .isNotEqualTo(newRule().setUuid(Uuids.createFast()).hashCode());
+        .isNotEqualTo(new Object().hashCode())
+        .isNotEqualTo(newRule().setRuleKey(dto.getRuleKey()).setUuid(Uuids.create()).hashCode())
+        .isNotEqualTo(newRule().setUuid(Uuids.create()).hashCode());
   }
 
   @Test
@@ -134,23 +136,25 @@ class RuleDtoTest {
 
     RuleDescriptionSectionDto section2 = createSection(SECTION_KEY);
     assertThatThrownBy(() -> dto.addRuleDescriptionSectionDto(section2))
-      .isInstanceOf(IllegalArgumentException.class)
-      .hasMessage(String.format(ERROR_MESSAGE_SECTION_ALREADY_EXISTS, SECTION_KEY, "null"));
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(String.format(ERROR_MESSAGE_SECTION_ALREADY_EXISTS, SECTION_KEY, "null"));
   }
 
   @Test
   void addRuleDescriptionSectionDto_whenDifferentContext() {
     RuleDto dto = new RuleDto();
 
-    RuleDescriptionSectionDto section1 = createSection(RuleDtoTest.SECTION_KEY, "context key 1", "context display Name 1");
+    RuleDescriptionSectionDto section1 = createSection(RuleDtoTest.SECTION_KEY, "context key 1",
+        "context display Name 1");
     dto.addRuleDescriptionSectionDto(section1);
 
-    RuleDescriptionSectionDto section2 = createSection(RuleDtoTest.SECTION_KEY, "context key 2", "context display Name 2");
+    RuleDescriptionSectionDto section2 = createSection(RuleDtoTest.SECTION_KEY, "context key 2",
+        "context display Name 2");
     dto.addRuleDescriptionSectionDto(section2);
 
     assertThat(dto.getRuleDescriptionSectionDtos())
-      .usingRecursiveFieldByFieldElementComparator()
-      .containsExactlyInAnyOrder(section1, section2);
+        .usingRecursiveFieldByFieldElementComparator()
+        .containsExactlyInAnyOrder(section1, section2);
 
   }
 
@@ -164,8 +168,8 @@ class RuleDtoTest {
     RuleDescriptionSectionDto section2 = createSection(SECTION_KEY, contextKey, displayName);
 
     assertThatThrownBy(() -> dto.addRuleDescriptionSectionDto(section2))
-      .isInstanceOf(IllegalArgumentException.class)
-      .hasMessage(String.format(ERROR_MESSAGE_SECTION_ALREADY_EXISTS, SECTION_KEY, contextKey));
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(String.format(ERROR_MESSAGE_SECTION_ALREADY_EXISTS, SECTION_KEY, contextKey));
   }
 
   @Test
@@ -176,8 +180,8 @@ class RuleDtoTest {
     ImpactDto duplicatedImpact = newImpactDto(SoftwareQuality.MAINTAINABILITY, Severity.HIGH);
 
     assertThatThrownBy(() -> dto.addDefaultImpact(duplicatedImpact))
-      .isInstanceOf(IllegalStateException.class)
-      .hasMessage("Impact already defined on rule for Software Quality [MAINTAINABILITY]");
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Impact already defined on rule for Software Quality [MAINTAINABILITY]");
   }
 
   @Test
@@ -188,11 +192,11 @@ class RuleDtoTest {
     dto.addDefaultImpact(newImpactDto(SoftwareQuality.RELIABILITY, Severity.LOW));
 
     Set<ImpactDto> duplicatedImpacts = Set.of(
-      newImpactDto(SoftwareQuality.MAINTAINABILITY, Severity.HIGH),
-      newImpactDto(SoftwareQuality.MAINTAINABILITY, Severity.LOW));
+        newImpactDto(SoftwareQuality.MAINTAINABILITY, Severity.HIGH),
+        newImpactDto(SoftwareQuality.MAINTAINABILITY, Severity.LOW));
     assertThatThrownBy(() -> dto.replaceAllDefaultImpacts(duplicatedImpacts))
-      .isInstanceOf(IllegalStateException.class)
-      .hasMessage("Impacts must have unique Software Quality values");
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Impacts must have unique Software Quality values");
   }
 
   @Test
@@ -203,16 +207,16 @@ class RuleDtoTest {
     dto.addDefaultImpact(newImpactDto(SoftwareQuality.RELIABILITY, Severity.LOW));
 
     Set<ImpactDto> duplicatedImpacts = Set.of(
-      newImpactDto(SoftwareQuality.MAINTAINABILITY, Severity.HIGH),
-      newImpactDto(SoftwareQuality.SECURITY, Severity.LOW));
+        newImpactDto(SoftwareQuality.MAINTAINABILITY, Severity.HIGH),
+        newImpactDto(SoftwareQuality.SECURITY, Severity.LOW));
 
     dto.replaceAllDefaultImpacts(duplicatedImpacts);
 
     assertThat(dto.getDefaultImpacts())
-      .extracting(ImpactDto::getSoftwareQuality, ImpactDto::getSeverity)
-      .containsExactlyInAnyOrder(
-        tuple(SoftwareQuality.MAINTAINABILITY, Severity.HIGH),
-        tuple(SoftwareQuality.SECURITY, Severity.LOW));
+        .extracting(ImpactDto::getSoftwareQuality, ImpactDto::getSeverity)
+        .containsExactlyInAnyOrder(
+            tuple(SoftwareQuality.MAINTAINABILITY, Severity.HIGH),
+            tuple(SoftwareQuality.SECURITY, Severity.LOW));
   }
 
   @Test
@@ -223,9 +227,9 @@ class RuleDtoTest {
     dto.addDefaultImpact(newImpactDto(SoftwareQuality.RELIABILITY, Severity.LOW));
 
     assertThat(dto.getDefaultImpactsMap())
-      .containsExactlyInAnyOrderEntriesOf(Map.of(SoftwareQuality.MAINTAINABILITY, Severity.MEDIUM,
-        SoftwareQuality.SECURITY, Severity.HIGH,
-        SoftwareQuality.RELIABILITY, Severity.LOW));
+        .containsExactlyInAnyOrderEntriesOf(Map.of(SoftwareQuality.MAINTAINABILITY, Severity.MEDIUM,
+            SoftwareQuality.SECURITY, Severity.HIGH,
+            SoftwareQuality.RELIABILITY, Severity.LOW));
   }
 
   @Test
@@ -245,18 +249,19 @@ class RuleDtoTest {
   }
 
   @NotNull
-  private static RuleDescriptionSectionDto createSection(String section_key, String contextKey, String contextDisplayName) {
+  private static RuleDescriptionSectionDto createSection(String sectionKey, String contextKey,
+      String contextDisplayName) {
     return RuleDescriptionSectionDto.builder()
-      .key(section_key)
-      .context(RuleDescriptionSectionContextDto.of(contextKey, contextDisplayName))
-      .build();
+        .key(sectionKey)
+        .context(RuleDescriptionSectionContextDto.of(contextKey, contextDisplayName))
+        .build();
   }
 
   @NotNull
-  private static RuleDescriptionSectionDto createSection(String section_key) {
+  private static RuleDescriptionSectionDto createSection(String sectionKey) {
     return RuleDescriptionSectionDto.builder()
-      .key(section_key)
-      .build();
+        .key(sectionKey)
+        .build();
   }
 
   static ImpactDto newImpactDto(SoftwareQuality softwareQuality, Severity severity) {

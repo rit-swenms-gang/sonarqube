@@ -65,8 +65,10 @@ public class TransitionActionIT {
 
   private final IssueFieldsSetter updater = new IssueFieldsSetter();
   private final IssueWorkflow workflow = new IssueWorkflow(
-    new CodeQualityIssueWorkflow(new CodeQualityIssueWorkflowActionsFactory(updater), new CodeQualityIssueWorkflowDefinition(), mock(TaintChecker.class)),
-    new SecurityHotspotWorkflow(new SecurityHotspotWorkflowActionsFactory(updater), new SecurityHotspotWorkflowDefinition()));
+      new CodeQualityIssueWorkflow(new CodeQualityIssueWorkflowActionsFactory(updater),
+          new CodeQualityIssueWorkflowDefinition(), mock(TaintChecker.class)),
+      new SecurityHotspotWorkflow(new SecurityHotspotWorkflowActionsFactory(updater),
+          new SecurityHotspotWorkflowDefinition()));
   private final TransitionService transitionService = new TransitionService(userSession, workflow);
   private final Action.Context context = mock(Action.Context.class);
   private final DefaultIssue issue = newIssue().toDefaultIssue();
@@ -113,8 +115,8 @@ public class TransitionActionIT {
   @Test
   public void fail_to_verify_when_parameter_not_found() {
     assertThatThrownBy(() -> action.verify(ImmutableMap.of("unknown", "reopen"), Lists.newArrayList(), userSession))
-      .isInstanceOf(IllegalArgumentException.class)
-      .hasMessage("Missing parameter : 'transition'");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Missing parameter : 'transition'");
   }
 
   @Test
@@ -124,7 +126,7 @@ public class TransitionActionIT {
   }
 
   private IssueDto newIssue() {
-    RuleDto rule = newRule().setUuid(Uuids.createFast());
+    RuleDto rule = newRule().setUuid(Uuids.create());
     ComponentDto project = ComponentTesting.newPrivateProjectDto();
     ComponentDto file = (newFileDto(project));
     return IssueTesting.newIssue(rule, project, file);
@@ -132,9 +134,10 @@ public class TransitionActionIT {
 
   private void loginAndAddProjectPermission(String login, ProjectPermission permission) {
     ProjectDto projectDto = ComponentTesting.newProjectDto();
-    BranchDto branchDto = ComponentTesting.newBranchDto(projectDto.getUuid(), BranchType.BRANCH).setIsMain(true).setUuid(issue.projectUuid());
+    BranchDto branchDto = ComponentTesting.newBranchDto(projectDto.getUuid(), BranchType.BRANCH).setIsMain(true)
+        .setUuid(issue.projectUuid());
     userSession.logIn(login).addProjectPermission(permission, projectDto)
-      .registerBranches(branchDto);
+        .registerBranches(branchDto);
   }
 
 }

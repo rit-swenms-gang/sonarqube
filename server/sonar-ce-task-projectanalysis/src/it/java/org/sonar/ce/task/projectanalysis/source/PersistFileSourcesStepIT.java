@@ -19,11 +19,18 @@
  */
 package org.sonar.ce.task.projectanalysis.source;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
+
 import org.apache.commons.codec.digest.DigestUtils;
 import org.junit.Before;
 import org.junit.Rule;
@@ -48,12 +55,6 @@ import org.sonar.db.source.FileHashesDto;
 import org.sonar.db.source.FileSourceDto;
 import org.sonar.db.source.LineHashVersion;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
 public class PersistFileSourcesStepIT extends BaseStepTest {
 
   private static final int FILE1_REF = 3;
@@ -71,7 +72,8 @@ public class PersistFileSourcesStepIT extends BaseStepTest {
   public TreeRootHolderRule treeRootHolder = new TreeRootHolderRule();
 
   private final SourceLinesHashRepository sourceLinesHashRepository = mock(SourceLinesHashRepository.class);
-  private final SourceLinesHashRepositoryImpl.LineHashesComputer lineHashesComputer = mock(SourceLinesHashRepositoryImpl.LineHashesComputer.class);
+  private final SourceLinesHashRepositoryImpl.LineHashesComputer lineHashesComputer = mock(
+      SourceLinesHashRepositoryImpl.LineHashesComputer.class);
   private final FileSourceDataComputer fileSourceDataComputer = mock(FileSourceDataComputer.class);
   private final FileSourceDataWarnings fileSourceDataWarnings = mock(FileSourceDataWarnings.class);
   private final PreviousSourceHashRepository previousSourceHashRepository = mock(PreviousSourceHashRepository.class);
@@ -85,8 +87,9 @@ public class PersistFileSourcesStepIT extends BaseStepTest {
   public void setup() {
     when(system2.now()).thenReturn(NOW);
     when(sourceLinesHashRepository.getLineHashesComputerToPersist(any(Component.class))).thenReturn(lineHashesComputer);
-    underTest = new PersistFileSourcesStep(dbClient, system2, treeRootHolder, sourceLinesHashRepository, fileSourceDataComputer, fileSourceDataWarnings,
-      new SequenceUuidFactory(), previousSourceHashRepository);
+    underTest = new PersistFileSourcesStep(dbClient, system2, treeRootHolder, sourceLinesHashRepository,
+        fileSourceDataComputer, fileSourceDataWarnings,
+        new SequenceUuidFactory(), previousSourceHashRepository);
     initBasicReport(1);
   }
 
@@ -100,12 +103,12 @@ public class PersistFileSourcesStepIT extends BaseStepTest {
     List<String> lineHashes = Arrays.asList("137f72c3708c6bd0de00a0e5a69c699b", "e6251bcf1a7dc3ba5e7933e325bbe605");
     String sourceHash = "ee5a58024a155466b43bc559d953e018";
     DbFileSources.Data fileSourceData = DbFileSources.Data.newBuilder()
-      .addAllLines(Arrays.asList(
-        DbFileSources.Line.newBuilder().setSource("line1").setLine(1).build(),
-        DbFileSources.Line.newBuilder().setSource("line2").setLine(2).build()))
-      .build();
+        .addAllLines(Arrays.asList(
+            DbFileSources.Line.newBuilder().setSource("line1").setLine(1).build(),
+            DbFileSources.Line.newBuilder().setSource("line2").setLine(2).build()))
+        .build();
     when(fileSourceDataComputer.compute(fileComponent().build(), fileSourceDataWarnings))
-      .thenReturn(new FileSourceDataComputer.Data(fileSourceData, lineHashes, sourceHash, null));
+        .thenReturn(new FileSourceDataComputer.Data(fileSourceData, lineHashes, sourceHash, null));
 
     underTest.execute(new TestComputationStepContext());
 
@@ -139,7 +142,8 @@ public class PersistFileSourcesStepIT extends BaseStepTest {
 
     assertThat(dbTester.countRowsOfTable("file_sources")).isOne();
     FileSourceDto fileSourceDto = dbClient.fileSourceDao().selectByFileUuid(session, FILE1_UUID);
-    assertThat(fileSourceDto.getLineHashes()).containsExactly("137f72c3708c6bd0de00a0e5a69c699b", "e6251bcf1a7dc3ba5e7933e325bbe605");
+    assertThat(fileSourceDto.getLineHashes()).containsExactly("137f72c3708c6bd0de00a0e5a69c699b",
+        "e6251bcf1a7dc3ba5e7933e325bbe605");
     assertThat(fileSourceDto.getSrcHash()).isEqualTo("ee5a58024a155466b43bc559d953e018");
     verify(fileSourceDataWarnings).commitWarnings();
   }
@@ -147,13 +151,13 @@ public class PersistFileSourcesStepIT extends BaseStepTest {
   @Test
   public void persist_coverage() {
     DbFileSources.Data dbData = DbFileSources.Data.newBuilder().addLines(
-      DbFileSources.Line.newBuilder()
-        .setConditions(10)
-        .setCoveredConditions(2)
-        .setLineHits(1)
-        .setLine(1)
-        .build())
-      .build();
+        DbFileSources.Line.newBuilder()
+            .setConditions(10)
+            .setCoveredConditions(2)
+            .setLineHits(1)
+            .setLine(1)
+            .build())
+        .build();
     setComputedData(dbData);
 
     underTest.execute(new TestComputationStepContext());
@@ -165,18 +169,19 @@ public class PersistFileSourcesStepIT extends BaseStepTest {
   }
 
   private ReportComponent.Builder fileComponent() {
-    return ReportComponent.builder(Component.Type.FILE, FILE1_REF).setUuid(FILE1_UUID).setKey("PROJECT_KEY" + ":src/Foo.java");
+    return ReportComponent.builder(Component.Type.FILE, FILE1_REF).setUuid(FILE1_UUID)
+        .setKey("PROJECT_KEY" + ":src/Foo.java");
   }
 
   @Test
   public void persist_scm() {
     DbFileSources.Data dbData = DbFileSources.Data.newBuilder().addLines(
-      DbFileSources.Line.newBuilder()
-        .setScmAuthor("john")
-        .setScmDate(123456789L)
-        .setScmRevision("rev-1")
-        .build())
-      .build();
+        DbFileSources.Line.newBuilder()
+            .setScmAuthor("john")
+            .setScmDate(123456789L)
+            .setScmRevision("rev-1")
+            .build())
+        .build();
     setComputedData(dbData);
 
     underTest.execute(new TestComputationStepContext());
@@ -191,17 +196,17 @@ public class PersistFileSourcesStepIT extends BaseStepTest {
   @Test
   public void persist_scm_some_lines() {
     DbFileSources.Data dbData = DbFileSources.Data.newBuilder().addAllLines(Arrays.asList(
-      DbFileSources.Line.newBuilder()
-        .setScmAuthor("john")
-        .setScmDate(123456789L)
-        .setScmRevision("rev-1")
-        .build(),
-      DbFileSources.Line.newBuilder()
-        .setScmDate(223456789L)
-        .build(),
-      DbFileSources.Line.newBuilder()
-        .build()))
-      .build();
+        DbFileSources.Line.newBuilder()
+            .setScmAuthor("john")
+            .setScmDate(123456789L)
+            .setScmRevision("rev-1")
+            .build(),
+        DbFileSources.Line.newBuilder()
+            .setScmDate(223456789L)
+            .build(),
+        DbFileSources.Line.newBuilder()
+            .build()))
+        .build();
     setComputedData(dbData);
 
     underTest.execute(new TestComputationStepContext());
@@ -230,10 +235,10 @@ public class PersistFileSourcesStepIT extends BaseStepTest {
   @Test
   public void persist_highlighting() {
     DbFileSources.Data dbData = DbFileSources.Data.newBuilder().addLines(
-      DbFileSources.Line.newBuilder()
-        .setHighlighting("2,4,a")
-        .build())
-      .build();
+        DbFileSources.Line.newBuilder()
+            .setHighlighting("2,4,a")
+            .build())
+        .build();
     setComputedData(dbData);
 
     underTest.execute(new TestComputationStepContext());
@@ -250,14 +255,14 @@ public class PersistFileSourcesStepIT extends BaseStepTest {
   @Test
   public void persist_symbols() {
     DbFileSources.Data dbData = DbFileSources.Data.newBuilder().addAllLines(Arrays.asList(
-      DbFileSources.Line.newBuilder()
-        .setSymbols("2,4,1")
-        .build(),
-      DbFileSources.Line.newBuilder().build(),
-      DbFileSources.Line.newBuilder()
-        .setSymbols("1,3,1")
-        .build()))
-      .build();
+        DbFileSources.Line.newBuilder()
+            .setSymbols("2,4,1")
+            .build(),
+        DbFileSources.Line.newBuilder().build(),
+        DbFileSources.Line.newBuilder()
+            .setSymbols("1,3,1")
+            .build()))
+        .build();
     setComputedData(dbData);
 
     underTest.execute(new TestComputationStepContext());
@@ -271,10 +276,10 @@ public class PersistFileSourcesStepIT extends BaseStepTest {
   @Test
   public void persist_duplication() {
     DbFileSources.Data dbData = DbFileSources.Data.newBuilder().addLines(
-      DbFileSources.Line.newBuilder()
-        .addDuplication(2)
-        .build())
-      .build();
+        DbFileSources.Line.newBuilder()
+            .addDuplication(2)
+            .build())
+        .build();
     setComputedData(dbData);
 
     underTest.execute(new TestComputationStepContext());
@@ -288,7 +293,8 @@ public class PersistFileSourcesStepIT extends BaseStepTest {
   @Test
   public void save_revision() {
     Changeset latest = Changeset.newChangesetBuilder().setDate(0L).setRevision("rev-1").build();
-    setComputedData(DbFileSources.Data.newBuilder().build(), Collections.singletonList("lineHashes"), "srcHash", latest);
+    setComputedData(DbFileSources.Data.newBuilder().build(), Collections.singletonList("lineHashes"), "srcHash",
+        latest);
 
     underTest.execute(new TestComputationStepContext());
 
@@ -315,7 +321,8 @@ public class PersistFileSourcesStepIT extends BaseStepTest {
     dbTester.getSession().commit();
 
     Changeset changeset = Changeset.newChangesetBuilder().setDate(1L).setRevision("rev-1").build();
-    setComputedData(DbFileSources.Data.newBuilder().build(), Collections.singletonList("lineHash"), "sourceHash", changeset);
+    setComputedData(DbFileSources.Data.newBuilder().build(), Collections.singletonList("lineHash"), "sourceHash",
+        changeset);
 
     underTest.execute(new TestComputationStepContext());
 
@@ -333,37 +340,38 @@ public class PersistFileSourcesStepIT extends BaseStepTest {
     // Existing sources
     long past = 150000L;
     FileSourceDto dbFileSources = new FileSourceDto()
-      .setUuid(Uuids.createFast())
-      .setProjectUuid(PROJECT_UUID)
-      .setFileUuid(FILE1_UUID)
-      .setSrcHash("5b4bd9815cdb17b8ceae19eb1810c34c")
-      .setLineHashes(Collections.singletonList("6438c669e0d0de98e6929c2cc0fac474"))
-      .setDataHash("6cad150e3d065976c230cddc5a09efaa")
-      .setSourceData(DbFileSources.Data.newBuilder()
-        .addLines(DbFileSources.Line.newBuilder()
-          .setLine(1)
-          .setSource("old line")
-          .build())
-        .build())
-      .setCreatedAt(past)
-      .setUpdatedAt(past)
-      .setRevision("rev-0");
+        .setUuid(Uuids.create())
+        .setProjectUuid(PROJECT_UUID)
+        .setFileUuid(FILE1_UUID)
+        .setSrcHash("5b4bd9815cdb17b8ceae19eb1810c34c")
+        .setLineHashes(Collections.singletonList("6438c669e0d0de98e6929c2cc0fac474"))
+        .setDataHash("6cad150e3d065976c230cddc5a09efaa")
+        .setSourceData(DbFileSources.Data.newBuilder()
+            .addLines(DbFileSources.Line.newBuilder()
+                .setLine(1)
+                .setSource("old line")
+                .build())
+            .build())
+        .setCreatedAt(past)
+        .setUpdatedAt(past)
+        .setRevision("rev-0");
     dbClient.fileSourceDao().insert(dbTester.getSession(), dbFileSources);
     dbTester.getSession().commit();
     setPastAnalysisHashes(dbFileSources);
 
     DbFileSources.Data newSourceData = DbFileSources.Data.newBuilder()
-      .addLines(DbFileSources.Line.newBuilder()
-        .setLine(1)
-        .setSource("old line")
-        .setScmDate(123456789L)
-        .setScmRevision("rev-1")
-        .setScmAuthor("john")
-        .build())
-      .build();
+        .addLines(DbFileSources.Line.newBuilder()
+            .setLine(1)
+            .setSource("old line")
+            .setScmDate(123456789L)
+            .setScmRevision("rev-1")
+            .setScmAuthor("john")
+            .build())
+        .build();
 
     Changeset changeset = Changeset.newChangesetBuilder().setDate(1L).setRevision("rev-1").build();
-    setComputedData(newSourceData, Collections.singletonList("6438c669e0d0de98e6929c2cc0fac474"), "5b4bd9815cdb17b8ceae19eb1810c34c", changeset);
+    setComputedData(newSourceData, Collections.singletonList("6438c669e0d0de98e6929c2cc0fac474"),
+        "5b4bd9815cdb17b8ceae19eb1810c34c", changeset);
 
     underTest.execute(new TestComputationStepContext());
 
@@ -398,11 +406,11 @@ public class PersistFileSourcesStepIT extends BaseStepTest {
   @Test
   public void update_sources_when_revision_is_missing() {
     DbFileSources.Data sourceData = DbFileSources.Data.newBuilder()
-      .addLines(DbFileSources.Line.newBuilder()
-        .setLine(1)
-        .setSource("line")
-        .build())
-      .build();
+        .addLines(DbFileSources.Line.newBuilder()
+            .setLine(1)
+            .setSource("line")
+            .build())
+        .build();
 
     FileSourceDto dbFileSources = createDto(dto -> dto.setRevision(null));
     dbClient.fileSourceDao().insert(dbTester.getSession(), dbFileSources);
@@ -410,7 +418,8 @@ public class PersistFileSourcesStepIT extends BaseStepTest {
     setPastAnalysisHashes(dbFileSources);
 
     Changeset changeset = Changeset.newChangesetBuilder().setDate(1L).setRevision("revision").build();
-    setComputedData(sourceData, Collections.singletonList("137f72c3708c6bd0de00a0e5a69c699b"), "29f25900140c94db38035128cb6de6a2", changeset);
+    setComputedData(sourceData, Collections.singletonList("137f72c3708c6bd0de00a0e5a69c699b"),
+        "29f25900140c94db38035128cb6de6a2", changeset);
 
     underTest.execute(new TestComputationStepContext());
 
@@ -433,16 +442,16 @@ public class PersistFileSourcesStepIT extends BaseStepTest {
     String dataHash = DigestUtils.md5Hex(data);
 
     FileSourceDto dto = new FileSourceDto()
-      .setUuid(Uuids.createFast())
-      .setProjectUuid(PROJECT_UUID)
-      .setFileUuid(FILE1_UUID)
-      .setSrcHash("sourceHash")
-      .setLineHashes(Collections.singletonList("lineHash"))
-      .setDataHash(dataHash)
-      .setRevision("rev-1")
-      .setSourceData(sourceData)
-      .setCreatedAt(PAST)
-      .setUpdatedAt(PAST);
+        .setUuid(Uuids.create())
+        .setProjectUuid(PROJECT_UUID)
+        .setFileUuid(FILE1_UUID)
+        .setSrcHash("sourceHash")
+        .setLineHashes(Collections.singletonList("lineHash"))
+        .setDataHash(dataHash)
+        .setRevision("rev-1")
+        .setSourceData(sourceData)
+        .setCreatedAt(PAST)
+        .setUpdatedAt(PAST);
 
     modifier.accept(dto);
     return dto;
@@ -453,9 +462,9 @@ public class PersistFileSourcesStepIT extends BaseStepTest {
     byte[] data = FileSourceDto.encodeSourceData(sourceData);
     String dataHash = DigestUtils.md5Hex(data);
     FileHashesDto fileHashesDto = new FileHashesDto()
-      .setSrcHash("sourceHash")
-      .setDataHash(dataHash)
-      .setRevision("rev-1");
+        .setSrcHash("sourceHash")
+        .setDataHash(dataHash)
+        .setRevision("rev-1");
     setPastAnalysisHashes(fileHashesDto);
   }
 
@@ -463,8 +472,10 @@ public class PersistFileSourcesStepIT extends BaseStepTest {
     when(previousSourceHashRepository.getDbFile(any(Component.class))).thenReturn(Optional.of(fileHashesDto));
   }
 
-  private void setComputedData(DbFileSources.Data data, List<String> lineHashes, String sourceHash, Changeset latestChangeWithRevision) {
-    FileSourceDataComputer.Data computedData = new FileSourceDataComputer.Data(data, lineHashes, sourceHash, latestChangeWithRevision);
+  private void setComputedData(DbFileSources.Data data, List<String> lineHashes, String sourceHash,
+      Changeset latestChangeWithRevision) {
+    FileSourceDataComputer.Data computedData = new FileSourceDataComputer.Data(data, lineHashes, sourceHash,
+        latestChangeWithRevision);
     when(fileSourceDataComputer.compute(fileComponent().build(), fileSourceDataWarnings)).thenReturn(computedData);
   }
 
@@ -474,9 +485,10 @@ public class PersistFileSourcesStepIT extends BaseStepTest {
   }
 
   private void initBasicReport(int numberOfLines) {
-    ReportComponent root = ReportComponent.builder(Component.Type.PROJECT, 1).setUuid(PROJECT_UUID).setKey(PROJECT_KEY).addChildren(
-      fileComponent().setFileAttributes(new FileAttributes(false, null, numberOfLines)).build())
-      .build();
+    ReportComponent root = ReportComponent.builder(Component.Type.PROJECT, 1).setUuid(PROJECT_UUID).setKey(PROJECT_KEY)
+        .addChildren(
+            fileComponent().setFileAttributes(new FileAttributes(false, null, numberOfLines)).build())
+        .build();
     treeRootHolder.setRoots(root, root);
   }
 }

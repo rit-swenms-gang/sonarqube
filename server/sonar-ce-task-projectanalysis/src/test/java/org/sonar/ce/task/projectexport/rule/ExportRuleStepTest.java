@@ -19,10 +19,13 @@
  */
 package org.sonar.ce.task.projectexport.rule;
 
-import com.sonarsource.governance.projectdump.protobuf.ProjectDump;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+
 import org.junit.Test;
 import org.slf4j.event.Level;
 import org.sonar.api.rule.RuleKey;
@@ -32,8 +35,7 @@ import org.sonar.ce.task.projectexport.steps.FakeDumpWriter;
 import org.sonar.ce.task.step.TestComputationStepContext;
 import org.sonar.core.util.Uuids;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import com.sonarsource.governance.projectdump.protobuf.ProjectDump;
 
 public class ExportRuleStepTest {
   private static final String REPOSITORY = "repository";
@@ -86,12 +88,12 @@ public class ExportRuleStepTest {
   @Test
   public void excuse_throws_ISE_exception_with_number_of_successfully_exported_rules() {
     ruleRepository.add("A").add("B").add("C")
-      // will cause NPE
-      .addNull();
+        // will cause NPE
+        .addNull();
 
     assertThatThrownBy(() -> underTest.execute(new TestComputationStepContext()))
-      .isInstanceOf(IllegalStateException.class)
-      .hasMessage("Rule Export failed after processing 3 rules successfully");
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Rule Export failed after processing 3 rules successfully");
   }
 
   private static class SimpleRuleRepository implements RuleRepository {
@@ -104,7 +106,7 @@ public class ExportRuleStepTest {
     }
 
     public SimpleRuleRepository add(String key) {
-      this.rules.add(new Rule(Uuids.createFast(), REPOSITORY, key));
+      this.rules.add(new Rule(Uuids.create(), REPOSITORY, key));
       return this;
     }
 

@@ -19,9 +19,20 @@
  */
 package org.sonar.ce.task.projectexport.issue;
 
-import com.sonarsource.governance.projectdump.protobuf.ProjectDump;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.sonar.api.issue.Issue.STATUS_CLOSED;
+import static org.sonar.api.issue.Issue.STATUS_CONFIRMED;
+import static org.sonar.api.issue.Issue.STATUS_OPEN;
+import static org.sonar.api.issue.Issue.STATUS_REOPENED;
+import static org.sonar.api.issue.Issue.STATUS_RESOLVED;
+
 import java.util.List;
+
 import javax.annotation.Nullable;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -42,15 +53,7 @@ import org.sonar.db.component.ProjectData;
 import org.sonar.db.issue.IssueChangeDto;
 import org.sonar.db.issue.IssueDto;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-import static org.sonar.api.issue.Issue.STATUS_CLOSED;
-import static org.sonar.api.issue.Issue.STATUS_CONFIRMED;
-import static org.sonar.api.issue.Issue.STATUS_OPEN;
-import static org.sonar.api.issue.Issue.STATUS_REOPENED;
-import static org.sonar.api.issue.Issue.STATUS_RESOLVED;
+import com.sonarsource.governance.projectdump.protobuf.ProjectDump;
 
 public class ExportIssuesChangelogStepIT {
   private static final String PROJECT_UUID = "project uuid";
@@ -69,7 +72,8 @@ public class ExportIssuesChangelogStepIT {
   private final DbSession dbSession = dbClient.openSession(false);
   private final ProjectHolder projectHolder = mock(ProjectHolder.class);
   private final FakeDumpWriter dumpWriter = new FakeDumpWriter();
-  private final ExportIssuesChangelogStep underTest = new ExportIssuesChangelogStep(dbClient, projectHolder, dumpWriter);
+  private final ExportIssuesChangelogStep underTest = new ExportIssuesChangelogStep(dbClient, projectHolder,
+      dumpWriter);
 
   private BranchDto mainBranch;
   private int issueChangeUuidGenerator = 0;
@@ -110,17 +114,17 @@ public class ExportIssuesChangelogStepIT {
   public void execute_writes_entries_of_issues_of_any_type_but_CLOSED() {
     long createdAt = 1_999_993L;
     String[] expectedKeys = new String[] {
-      insertIssueChange(ISSUE_OPEN_UUID, createdAt).getKey(),
-      insertIssueChange(ISSUE_CONFIRMED_UUID, createdAt + 1).getKey(),
-      insertIssueChange(ISSUE_REOPENED_UUID, createdAt + 2).getKey(),
-      insertIssueChange(ISSUE_RESOLVED_UUID, createdAt + 3).getKey()
+        insertIssueChange(ISSUE_OPEN_UUID, createdAt).getKey(),
+        insertIssueChange(ISSUE_CONFIRMED_UUID, createdAt + 1).getKey(),
+        insertIssueChange(ISSUE_REOPENED_UUID, createdAt + 2).getKey(),
+        insertIssueChange(ISSUE_RESOLVED_UUID, createdAt + 3).getKey()
     };
     insertIssueChange(ISSUE_CLOSED_UUID, createdAt + 4);
 
     underTest.execute(new TestComputationStepContext());
 
     assertThat(dumpWriter.getWrittenMessagesOf(DumpElement.ISSUES_CHANGELOG))
-      .extracting(ProjectDump.IssueChange::getKey).containsExactly(expectedKeys);
+        .extracting(ProjectDump.IssueChange::getKey).containsExactly(expectedKeys);
   }
 
   @Test
@@ -137,14 +141,14 @@ public class ExportIssuesChangelogStepIT {
   @Test
   public void execute_maps_all_fields_to_protobuf() {
     IssueChangeDto issueChangeDto = new IssueChangeDto()
-      .setUuid("uuid")
-      .setKey("key")
-      .setIssueKey(ISSUE_OPEN_UUID)
-      .setChangeData("change data")
-      .setChangeType("change type")
-      .setUserUuid("user_uuid")
-      .setIssueChangeCreationDate(454135L)
-      .setProjectUuid(mainBranch.getUuid());
+        .setUuid("uuid")
+        .setKey("key")
+        .setIssueKey(ISSUE_OPEN_UUID)
+        .setChangeData("change data")
+        .setChangeType("change type")
+        .setUserUuid("user_uuid")
+        .setIssueChangeCreationDate(454135L)
+        .setProjectUuid(mainBranch.getUuid());
     insertIssueChange(issueChangeDto);
 
     underTest.execute(new TestComputationStepContext());
@@ -171,14 +175,15 @@ public class ExportIssuesChangelogStepIT {
     underTest.execute(new TestComputationStepContext());
 
     assertThat(dumpWriter.getWrittenMessagesOf(DumpElement.ISSUES_CHANGELOG))
-      .extracting(ProjectDump.IssueChange::getKey)
-      .containsExactly(key3, key2, key1, key4);
+        .extracting(ProjectDump.IssueChange::getKey)
+        .containsExactly(key3, key2, key1, key4);
   }
 
   @Test
   public void execute_sets_missing_fields_to_default_values() {
     long createdAt = 1_999_888L;
-    insertIssueChange(new IssueChangeDto().setUuid(Uuids.createFast()).setIssueKey(ISSUE_REOPENED_UUID).setCreatedAt(createdAt).setProjectUuid("project_uuid"));
+    insertIssueChange(new IssueChangeDto().setUuid(Uuids.create()).setIssueKey(ISSUE_REOPENED_UUID)
+        .setCreatedAt(createdAt).setProjectUuid("project_uuid"));
 
     underTest.execute(new TestComputationStepContext());
 
@@ -192,7 +197,8 @@ public class ExportIssuesChangelogStepIT {
 
   @Test
   public void execute_sets_createAt_to_zero_if_both_createdAt_and_issueChangeDate_are_null() {
-    insertIssueChange(new IssueChangeDto().setUuid(Uuids.createFast()).setIssueKey(ISSUE_REOPENED_UUID).setProjectUuid(mainBranch.getUuid()));
+    insertIssueChange(new IssueChangeDto().setUuid(Uuids.create()).setIssueKey(ISSUE_REOPENED_UUID)
+        .setProjectUuid(mainBranch.getUuid()));
 
     underTest.execute(new TestComputationStepContext());
 
@@ -230,8 +236,8 @@ public class ExportIssuesChangelogStepIT {
     TestComputationStepContext context = new TestComputationStepContext();
 
     assertThatThrownBy(() -> underTest.execute(context))
-      .isInstanceOf(IllegalStateException.class)
-      .hasMessage("Issues changelog export failed after processing 2 issue changes successfully");
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Issues changelog export failed after processing 2 issue changes successfully");
   }
 
   private void insertIssueChange(String issueUuid) {
@@ -244,11 +250,11 @@ public class ExportIssuesChangelogStepIT {
 
   private IssueChangeDto insertIssueChange(String issueUuid, long creationDate, @Nullable Long issueChangeDate) {
     IssueChangeDto dto = new IssueChangeDto()
-      .setKey("uuid_" + issueChangeUuidGenerator++)
-      .setUuid(Uuids.createFast())
-      .setCreatedAt(creationDate)
-      .setIssueKey(issueUuid)
-      .setProjectUuid("project_uuid");
+        .setKey("uuid_" + issueChangeUuidGenerator++)
+        .setUuid(Uuids.create())
+        .setCreatedAt(creationDate)
+        .setIssueKey(issueUuid)
+        .setProjectUuid("project_uuid");
     if (issueChangeDate != null) {
       dto.setIssueChangeCreationDate(issueChangeDate);
     }
@@ -263,9 +269,9 @@ public class ExportIssuesChangelogStepIT {
 
   private void insertIssue(String branchUuid, String uuid, String status) {
     IssueDto dto = new IssueDto()
-      .setKee(uuid)
-      .setProjectUuid(branchUuid)
-      .setStatus(status);
+        .setKee(uuid)
+        .setProjectUuid(branchUuid)
+        .setStatus(status);
     dbClient.issueDao().insert(dbSession, dto);
     dbSession.commit();
   }

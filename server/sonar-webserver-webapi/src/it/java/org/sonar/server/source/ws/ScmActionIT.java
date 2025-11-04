@@ -57,8 +57,9 @@ public class ScmActionIT {
 
   private final DbClient dbClient = dbTester.getDbClient();
   private final DbSession dbSession = dbTester.getSession();
-  private final ScmAction underTest = new ScmAction(dbClient, new SourceService(dbTester.getDbClient(), new HtmlSourceDecorator()),
-    userSessionRule, TestComponentFinder.from(dbTester));
+  private final ScmAction underTest = new ScmAction(dbClient,
+      new SourceService(dbTester.getDbClient(), new HtmlSourceDecorator()),
+      userSessionRule, TestComponentFinder.from(dbTester));
   private final WsActionTester tester = new WsActionTester(underTest);
   private ProjectData project;
   private ComponentDto file;
@@ -75,182 +76,182 @@ public class ScmActionIT {
   public void show_scm() {
     userSessionRule.logIn();
     userSessionRule.addProjectPermission(ProjectPermission.CODEVIEWER, project.getProjectDto())
-      .registerBranches(project.getMainBranchDto());
+        .registerBranches(project.getMainBranchDto());
 
     dbTester.getDbClient().fileSourceDao().insert(dbSession, new FileSourceDto()
-      .setUuid(Uuids.createFast())
-      .setProjectUuid(PROJECT_UUID)
-      .setFileUuid(FILE_UUID)
-      .setSourceData(DbFileSources.Data.newBuilder().addLines(
-        newSourceLine("julien", "123-456-789", DateUtils.parseDateTime("2015-03-30T12:34:56+0000"), 1)).build()));
+        .setUuid(Uuids.create())
+        .setProjectUuid(PROJECT_UUID)
+        .setFileUuid(FILE_UUID)
+        .setSourceData(DbFileSources.Data.newBuilder().addLines(
+            newSourceLine("julien", "123-456-789", DateUtils.parseDateTime("2015-03-30T12:34:56+0000"), 1)).build()));
     dbSession.commit();
 
     tester.newRequest()
-      .setParam("key", FILE_KEY)
-      .execute()
-      .assertJson(getClass(), "show_scm.json");
+        .setParam("key", FILE_KEY)
+        .execute()
+        .assertJson(getClass(), "show_scm.json");
   }
 
   @Test
   public void hide_author_if_not_logged_in() {
     userSessionRule.addProjectPermission(ProjectPermission.CODEVIEWER, project.getProjectDto())
-      .registerBranches(project.getMainBranchDto());
+        .registerBranches(project.getMainBranchDto());
 
     dbTester.getDbClient().fileSourceDao().insert(dbSession, new FileSourceDto()
-      .setUuid(Uuids.createFast())
-      .setProjectUuid(PROJECT_UUID)
-      .setFileUuid(FILE_UUID)
-      .setSourceData(DbFileSources.Data.newBuilder().addLines(
-        newSourceLine("julien", "123-456-789", DateUtils.parseDateTime("2015-03-30T12:34:56+0000"), 1)).build()));
+        .setUuid(Uuids.create())
+        .setProjectUuid(PROJECT_UUID)
+        .setFileUuid(FILE_UUID)
+        .setSourceData(DbFileSources.Data.newBuilder().addLines(
+            newSourceLine("julien", "123-456-789", DateUtils.parseDateTime("2015-03-30T12:34:56+0000"), 1)).build()));
     dbSession.commit();
 
     tester.newRequest()
-      .setParam("key", FILE_KEY)
-      .execute()
-      .assertJson(getClass(), "hide_author.json");
+        .setParam("key", FILE_KEY)
+        .execute()
+        .assertJson(getClass(), "hide_author.json");
   }
 
   @Test
   public void show_scm_from_given_range_lines() {
     userSessionRule.logIn();
     userSessionRule.addProjectPermission(ProjectPermission.CODEVIEWER, project.getProjectDto())
-      .registerBranches(project.getMainBranchDto());
+        .registerBranches(project.getMainBranchDto());
 
     dbTester.getDbClient().fileSourceDao().insert(dbSession, new FileSourceDto()
-      .setUuid(Uuids.createFast())
-      .setProjectUuid(PROJECT_UUID)
-      .setFileUuid(FILE_UUID)
-      .setSourceData(DbFileSources.Data.newBuilder()
-        .addLines(newSourceLine("julien", "123-456-789", DateUtils.parseDateTime("2015-03-30T12:34:56+0000"), 1))
-        .addLines(newSourceLine("julien", "123-456-789", DateUtils.parseDateTime("2015-03-30T12:34:56+0000"), 2))
-        .addLines(newSourceLine("julien", "456-789-101", DateUtils.parseDateTime("2015-03-27T12:34:56+0000"), 3))
-        .addLines(newSourceLine("simon", "789-101-112", DateUtils.parseDateTime("2015-03-31T12:34:56+0000"), 4))
-        .build()));
+        .setUuid(Uuids.create())
+        .setProjectUuid(PROJECT_UUID)
+        .setFileUuid(FILE_UUID)
+        .setSourceData(DbFileSources.Data.newBuilder()
+            .addLines(newSourceLine("julien", "123-456-789", DateUtils.parseDateTime("2015-03-30T12:34:56+0000"), 1))
+            .addLines(newSourceLine("julien", "123-456-789", DateUtils.parseDateTime("2015-03-30T12:34:56+0000"), 2))
+            .addLines(newSourceLine("julien", "456-789-101", DateUtils.parseDateTime("2015-03-27T12:34:56+0000"), 3))
+            .addLines(newSourceLine("simon", "789-101-112", DateUtils.parseDateTime("2015-03-31T12:34:56+0000"), 4))
+            .build()));
     dbSession.commit();
 
     tester.newRequest()
-      .setParam("key", FILE_KEY)
-      .setParam("from", "2")
-      .setParam("to", "3")
-      .execute()
-      .assertJson(getClass(), "show_scm_from_given_range_lines.json");
+        .setParam("key", FILE_KEY)
+        .setParam("from", "2")
+        .setParam("to", "3")
+        .execute()
+        .assertJson(getClass(), "show_scm_from_given_range_lines.json");
   }
 
   @Test
   public void not_group_lines_by_commit() {
     userSessionRule.logIn();
     userSessionRule.addProjectPermission(ProjectPermission.CODEVIEWER, project.getProjectDto())
-      .registerBranches(project.getMainBranchDto());
+        .registerBranches(project.getMainBranchDto());
 
     // lines 1 and 2 are the same commit, but not 3 (different date)
     dbTester.getDbClient().fileSourceDao().insert(dbSession, new FileSourceDto()
-      .setUuid(Uuids.createFast())
-      .setProjectUuid(PROJECT_UUID)
-      .setFileUuid(FILE_UUID)
-      .setSourceData(DbFileSources.Data.newBuilder()
-        .addLines(newSourceLine("julien", "123-456-789", DateUtils.parseDateTime("2015-03-30T12:34:56+0000"), 1))
-        .addLines(newSourceLine("julien", "123-456-789", DateUtils.parseDateTime("2015-03-30T12:34:56+0000"), 2))
-        .addLines(newSourceLine("julien", "456-789-101", DateUtils.parseDateTime("2015-03-27T12:34:56+0000"), 3))
-        .addLines(newSourceLine("simon", "789-101-112", DateUtils.parseDateTime("2015-03-31T12:34:56+0000"), 4))
-        .build()));
+        .setUuid(Uuids.create())
+        .setProjectUuid(PROJECT_UUID)
+        .setFileUuid(FILE_UUID)
+        .setSourceData(DbFileSources.Data.newBuilder()
+            .addLines(newSourceLine("julien", "123-456-789", DateUtils.parseDateTime("2015-03-30T12:34:56+0000"), 1))
+            .addLines(newSourceLine("julien", "123-456-789", DateUtils.parseDateTime("2015-03-30T12:34:56+0000"), 2))
+            .addLines(newSourceLine("julien", "456-789-101", DateUtils.parseDateTime("2015-03-27T12:34:56+0000"), 3))
+            .addLines(newSourceLine("simon", "789-101-112", DateUtils.parseDateTime("2015-03-31T12:34:56+0000"), 4))
+            .build()));
     dbSession.commit();
 
     tester.newRequest()
-      .setParam("key", FILE_KEY)
-      .setParam("commits_by_line", "true")
-      .execute()
-      .assertJson(getClass(), "not_group_lines_by_commit.json");
+        .setParam("key", FILE_KEY)
+        .setParam("commits_by_line", "true")
+        .execute()
+        .assertJson(getClass(), "not_group_lines_by_commit.json");
   }
 
   @Test
   public void group_lines_by_commit() {
     userSessionRule.logIn();
     userSessionRule.addProjectPermission(ProjectPermission.CODEVIEWER, project.getProjectDto())
-      .registerBranches(project.getMainBranchDto());
+        .registerBranches(project.getMainBranchDto());
 
     // lines 1 and 2 are the same commit, but not 3 (different date)
     dbTester.getDbClient().fileSourceDao().insert(dbSession, new FileSourceDto()
-      .setUuid(Uuids.createFast())
-      .setProjectUuid(PROJECT_UUID)
-      .setFileUuid(FILE_UUID)
-      .setSourceData(DbFileSources.Data.newBuilder()
-        .addLines(newSourceLine("julien", "123-456-789", DateUtils.parseDateTime("2015-03-30T12:34:56+0000"), 1))
-        .addLines(newSourceLine("julien", "123-456-789", DateUtils.parseDateTime("2015-03-30T12:34:56+0000"), 2))
-        .addLines(newSourceLine("julien", "456-789-101", DateUtils.parseDateTime("2015-03-27T12:34:56+0000"), 3))
-        .addLines(newSourceLine("simon", "789-101-112", DateUtils.parseDateTime("2015-03-31T12:34:56+0000"), 4))
-        .build()));
+        .setUuid(Uuids.create())
+        .setProjectUuid(PROJECT_UUID)
+        .setFileUuid(FILE_UUID)
+        .setSourceData(DbFileSources.Data.newBuilder()
+            .addLines(newSourceLine("julien", "123-456-789", DateUtils.parseDateTime("2015-03-30T12:34:56+0000"), 1))
+            .addLines(newSourceLine("julien", "123-456-789", DateUtils.parseDateTime("2015-03-30T12:34:56+0000"), 2))
+            .addLines(newSourceLine("julien", "456-789-101", DateUtils.parseDateTime("2015-03-27T12:34:56+0000"), 3))
+            .addLines(newSourceLine("simon", "789-101-112", DateUtils.parseDateTime("2015-03-31T12:34:56+0000"), 4))
+            .build()));
     dbSession.commit();
 
     tester.newRequest()
-      .setParam("key", FILE_KEY)
-      .setParam("commits_by_line", "false")
-      .execute()
-      .assertJson(getClass(), "group_lines_by_commit.json");
+        .setParam("key", FILE_KEY)
+        .setParam("commits_by_line", "false")
+        .execute()
+        .assertJson(getClass(), "group_lines_by_commit.json");
   }
 
   @Test
   public void accept_negative_value_in_from_parameter() {
     userSessionRule.logIn();
     userSessionRule.addProjectPermission(ProjectPermission.CODEVIEWER, project.getProjectDto())
-      .registerBranches(project.getMainBranchDto());
+        .registerBranches(project.getMainBranchDto());
 
     dbTester.getDbClient().fileSourceDao().insert(dbSession, new FileSourceDto()
-      .setUuid(Uuids.createFast())
-      .setProjectUuid(PROJECT_UUID)
-      .setFileUuid(FILE_UUID)
-      .setSourceData(DbFileSources.Data.newBuilder()
-        .addLines(newSourceLine("julien", "123-456-789", DateUtils.parseDateTime("2015-03-30T12:34:56+0000"), 1))
-        .addLines(newSourceLine("julien", "123-456-710", DateUtils.parseDateTime("2015-03-29T12:34:56+0000"), 2))
-        .addLines(newSourceLine("julien", "456-789-101", DateUtils.parseDateTime("2015-03-27T12:34:56+0000"), 3))
-        .addLines(newSourceLine("simon", "789-101-112", DateUtils.parseDateTime("2015-03-31T12:34:56+0000"), 4))
-        .build()));
+        .setUuid(Uuids.create())
+        .setProjectUuid(PROJECT_UUID)
+        .setFileUuid(FILE_UUID)
+        .setSourceData(DbFileSources.Data.newBuilder()
+            .addLines(newSourceLine("julien", "123-456-789", DateUtils.parseDateTime("2015-03-30T12:34:56+0000"), 1))
+            .addLines(newSourceLine("julien", "123-456-710", DateUtils.parseDateTime("2015-03-29T12:34:56+0000"), 2))
+            .addLines(newSourceLine("julien", "456-789-101", DateUtils.parseDateTime("2015-03-27T12:34:56+0000"), 3))
+            .addLines(newSourceLine("simon", "789-101-112", DateUtils.parseDateTime("2015-03-31T12:34:56+0000"), 4))
+            .build()));
     dbSession.commit();
 
     tester.newRequest()
-      .setParam("key", FILE_KEY)
-      .setParam("from", "-2")
-      .setParam("to", "3")
-      .execute()
-      .assertJson(getClass(), "accept_negative_value_in_from_parameter.json");
+        .setParam("key", FILE_KEY)
+        .setParam("from", "-2")
+        .setParam("to", "3")
+        .execute()
+        .assertJson(getClass(), "accept_negative_value_in_from_parameter.json");
   }
 
   @Test
   public void return_empty_value_when_no_scm() {
     userSessionRule.addProjectPermission(ProjectPermission.CODEVIEWER, project.getProjectDto())
-      .registerBranches(project.getMainBranchDto());
+        .registerBranches(project.getMainBranchDto());
 
     dbTester.getDbClient().fileSourceDao().insert(dbSession, new FileSourceDto()
-      .setUuid(Uuids.createFast())
-      .setProjectUuid(PROJECT_UUID)
-      .setFileUuid(FILE_UUID)
-      .setSourceData(DbFileSources.Data.newBuilder().build()));
+        .setUuid(Uuids.create())
+        .setProjectUuid(PROJECT_UUID)
+        .setFileUuid(FILE_UUID)
+        .setSourceData(DbFileSources.Data.newBuilder().build()));
     dbSession.commit();
 
     tester.newRequest()
-      .setParam("key", FILE_KEY)
-      .execute()
-      .assertJson(getClass(), "return_empty_value_when_no_scm.json");
+        .setParam("key", FILE_KEY)
+        .execute()
+        .assertJson(getClass(), "return_empty_value_when_no_scm.json");
   }
 
   @Test
   public void fail_without_code_viewer_permission() {
     userSessionRule.addProjectPermission(ProjectPermission.USER, project.getProjectDto())
-      .registerBranches(project.getMainBranchDto());
+        .registerBranches(project.getMainBranchDto());
 
     assertThatThrownBy(() -> {
       tester.newRequest()
-        .setParam("key", FILE_KEY)
-        .execute();
+          .setParam("key", FILE_KEY)
+          .execute();
     })
-      .isInstanceOf(ForbiddenException.class);
+        .isInstanceOf(ForbiddenException.class);
   }
 
   private DbFileSources.Line newSourceLine(String author, String revision, Date date, int line) {
     return DbFileSources.Line.newBuilder()
-      .setScmAuthor(author)
-      .setScmRevision(revision)
-      .setScmDate(date.getTime())
-      .setLine(line)
-      .build();
+        .setScmAuthor(author)
+        .setScmRevision(revision)
+        .setScmDate(date.getTime())
+        .setLine(line)
+        .build();
   }
 }

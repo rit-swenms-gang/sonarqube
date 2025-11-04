@@ -76,7 +76,8 @@ public class RemoveGroupActionIT extends BasePermissionWsIT<RemoveGroupAction> {
 
   @Override
   protected RemoveGroupAction buildWsAction() {
-    return new RemoveGroupAction(db.getDbClient(), userSession, newPermissionUpdater(), newPermissionWsSupport(), wsParameters, permissionService, managedInstanceChecker);
+    return new RemoveGroupAction(db.getDbClient(), userSession, newPermissionUpdater(), newPermissionWsSupport(),
+        wsParameters, permissionService, managedInstanceChecker);
   }
 
   @Test
@@ -87,8 +88,9 @@ public class RemoveGroupActionIT extends BasePermissionWsIT<RemoveGroupAction> {
     assertThat(wsDef.since()).isEqualTo("5.2");
     assertThat(wsDef.isPost()).isTrue();
     assertThat(wsDef.changelog()).extracting(Change::getVersion, Change::getDescription).containsOnly(
-      tuple("10.0", "Parameter 'groupId' is removed. Use 'groupName' instead."),
-      tuple("8.4", "Parameter 'groupId' is deprecated. Format changes from integer to string. Use 'groupName' instead."));
+        tuple("10.0", "Parameter 'groupId' is removed. Use 'groupName' instead."),
+        tuple("8.4",
+            "Parameter 'groupId' is deprecated. Format changes from integer to string. Use 'groupName' instead."));
   }
 
   @Test
@@ -98,9 +100,9 @@ public class RemoveGroupActionIT extends BasePermissionWsIT<RemoveGroupAction> {
     loginAsAdmin();
 
     newRequest()
-      .setParam(PARAM_GROUP_NAME, aGroup.getName())
-      .setParam(PARAM_PERMISSION, GlobalPermission.PROVISION_PROJECTS.getKey())
-      .execute();
+        .setParam(PARAM_GROUP_NAME, aGroup.getName())
+        .setParam(PARAM_PERMISSION, GlobalPermission.PROVISION_PROJECTS.getKey())
+        .execute();
 
     assertThat(db.users().selectGroupPermissions(aGroup, null)).containsOnly(GlobalPermission.ADMINISTER.getKey());
   }
@@ -114,10 +116,10 @@ public class RemoveGroupActionIT extends BasePermissionWsIT<RemoveGroupAction> {
     loginAsAdmin();
 
     newRequest()
-      .setParam(PARAM_GROUP_NAME, aGroup.getName())
-      .setParam(PARAM_PROJECT_ID, project.getUuid())
-      .setParam(PARAM_PERMISSION, ProjectPermission.ADMIN.getKey())
-      .execute();
+        .setParam(PARAM_GROUP_NAME, aGroup.getName())
+        .setParam(PARAM_PROJECT_ID, project.getUuid())
+        .setParam(PARAM_PERMISSION, ProjectPermission.ADMIN.getKey())
+        .execute();
 
     assertThat(db.users().selectGroupPermissions(aGroup, null)).containsOnly(GlobalPermission.ADMINISTER.getKey());
     assertThat(db.users().selectGroupPermissions(aGroup, project)).containsOnly(ProjectPermission.ISSUE_ADMIN.getKey());
@@ -132,13 +134,14 @@ public class RemoveGroupActionIT extends BasePermissionWsIT<RemoveGroupAction> {
     loginAsAdmin();
 
     newRequest()
-      .setParam(PARAM_GROUP_NAME, aGroup.getName())
-      .setParam(PARAM_PROJECT_ID, portfolio.getUuid())
-      .setParam(PARAM_PERMISSION, ProjectPermission.ADMIN.getKey())
-      .execute();
+        .setParam(PARAM_GROUP_NAME, aGroup.getName())
+        .setParam(PARAM_PROJECT_ID, portfolio.getUuid())
+        .setParam(PARAM_PERMISSION, ProjectPermission.ADMIN.getKey())
+        .execute();
 
     assertThat(db.users().selectGroupPermissions(aGroup, null)).containsOnly(GlobalPermission.ADMINISTER.getKey());
-    assertThat(db.users().selectGroupPermissions(aGroup, portfolio)).containsOnly(ProjectPermission.ISSUE_ADMIN.getKey());
+    assertThat(db.users().selectGroupPermissions(aGroup, portfolio))
+        .containsOnly(ProjectPermission.ISSUE_ADMIN.getKey());
   }
 
   @Test
@@ -150,10 +153,10 @@ public class RemoveGroupActionIT extends BasePermissionWsIT<RemoveGroupAction> {
     loginAsAdmin();
 
     newRequest()
-      .setParam(PARAM_GROUP_NAME, aGroup.getName())
-      .setParam(PARAM_PROJECT_KEY, project.getKey())
-      .setParam(PARAM_PERMISSION, ProjectPermission.ADMIN.getKey())
-      .execute();
+        .setParam(PARAM_GROUP_NAME, aGroup.getName())
+        .setParam(PARAM_PROJECT_KEY, project.getKey())
+        .setParam(PARAM_PERMISSION, ProjectPermission.ADMIN.getKey())
+        .execute();
 
     assertThat(db.users().selectGroupPermissions(aGroup, null)).containsOnly(GlobalPermission.ADMINISTER.getKey());
     assertThat(db.users().selectGroupPermissions(aGroup, project)).containsOnly(ProjectPermission.ISSUE_ADMIN.getKey());
@@ -166,8 +169,8 @@ public class RemoveGroupActionIT extends BasePermissionWsIT<RemoveGroupAction> {
     loginAsAdmin();
 
     assertThatThrownBy(() -> executeRequest(aGroup, GlobalPermission.ADMINISTER))
-      .isInstanceOf(BadRequestException.class)
-      .hasMessage("Last group with permission 'admin'. Permission cannot be removed.");
+        .isInstanceOf(BadRequestException.class)
+        .hasMessage("Last group with permission 'admin'. Permission cannot be removed.");
   }
 
   @Test
@@ -175,13 +178,13 @@ public class RemoveGroupActionIT extends BasePermissionWsIT<RemoveGroupAction> {
     loginAsAdmin();
 
     TestRequest testRequest = newRequest()
-      .setParam(PARAM_GROUP_NAME, aGroup.getName())
-      .setParam(PARAM_PROJECT_ID, "unknown-project-uuid")
-      .setParam(PARAM_PERMISSION, GlobalPermission.ADMINISTER.getKey());
+        .setParam(PARAM_GROUP_NAME, aGroup.getName())
+        .setParam(PARAM_PROJECT_ID, "unknown-project-uuid")
+        .setParam(PARAM_PERMISSION, GlobalPermission.ADMINISTER.getKey());
 
     assertThatThrownBy(testRequest::execute)
-      .isInstanceOf(NotFoundException.class)
-      .hasMessage("Entity not found");
+        .isInstanceOf(NotFoundException.class)
+        .hasMessage("Entity not found");
   }
 
   @Test
@@ -189,8 +192,9 @@ public class RemoveGroupActionIT extends BasePermissionWsIT<RemoveGroupAction> {
     loginAsAdmin();
 
     assertThatThrownBy(() -> executeRequest(aGroup, ProjectPermission.ISSUE_ADMIN))
-      .isInstanceOf(BadRequestException.class)
-      .hasMessage("Invalid global permission 'issueadmin'. Valid values are [admin, gateadmin, profileadmin, provisioning, scan]");
+        .isInstanceOf(BadRequestException.class)
+        .hasMessage(
+            "Invalid global permission 'issueadmin'. Valid values are [admin, gateadmin, profileadmin, provisioning, scan]");
   }
 
   @Test
@@ -220,12 +224,12 @@ public class RemoveGroupActionIT extends BasePermissionWsIT<RemoveGroupAction> {
   private void failIfComponentIsNotAProjectOrView(ComponentDto file) {
     loginAsAdmin();
     TestRequest testRequest = newRequest()
-      .setParam(PARAM_GROUP_NAME, aGroup.getName())
-      .setParam(PARAM_PROJECT_ID, file.uuid())
-      .setParam(PARAM_PERMISSION, GlobalPermission.ADMINISTER.getKey());
+        .setParam(PARAM_GROUP_NAME, aGroup.getName())
+        .setParam(PARAM_PROJECT_ID, file.uuid())
+        .setParam(PARAM_PERMISSION, GlobalPermission.ADMINISTER.getKey());
     assertThatThrownBy(testRequest::execute)
-      .isInstanceOf(NotFoundException.class)
-      .hasMessage("Entity not found");
+        .isInstanceOf(NotFoundException.class)
+        .hasMessage("Entity not found");
   }
 
   @Test
@@ -233,16 +237,17 @@ public class RemoveGroupActionIT extends BasePermissionWsIT<RemoveGroupAction> {
     ProjectDto project = db.components().insertPrivateProject().getProjectDto();
     db.users().insertEntityPermissionOnGroup(aGroup, ProjectPermission.CODEVIEWER, project);
 
-    doThrow(new IllegalStateException("Managed project and group")).when(managedInstanceChecker).throwIfGroupAndProjectAreManaged(any(), eq(aGroup.getUuid()), eq(project.getUuid()));
+    doThrow(new IllegalStateException("Managed project and group")).when(managedInstanceChecker)
+        .throwIfGroupAndProjectAreManaged(any(), eq(aGroup.getUuid()), eq(project.getUuid()));
 
     TestRequest request = newRequest()
-      .setParam(PARAM_GROUP_NAME, aGroup.getName())
-      .setParam(PARAM_PROJECT_KEY, project.getKey())
-      .setParam(PARAM_PERMISSION, GlobalPermission.ADMINISTER.getKey());
+        .setParam(PARAM_GROUP_NAME, aGroup.getName())
+        .setParam(PARAM_PROJECT_KEY, project.getKey())
+        .setParam(PARAM_PERMISSION, GlobalPermission.ADMINISTER.getKey());
 
     assertThatThrownBy(request::execute)
-      .isInstanceOf(IllegalStateException.class)
-      .hasMessage("Managed project and group");
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Managed project and group");
 
     assertThat(db.users().selectGroupPermissions(aGroup, project)).containsOnly(ProjectPermission.CODEVIEWER.getKey());
   }
@@ -254,8 +259,8 @@ public class RemoveGroupActionIT extends BasePermissionWsIT<RemoveGroupAction> {
     TestRequest testRequest = newRequest().setParam(PARAM_PERMISSION, GlobalPermission.ADMINISTER.getKey());
 
     assertThatThrownBy(testRequest::execute)
-      .isInstanceOf(IllegalArgumentException.class)
-      .hasMessage("The 'groupName' parameter is missing");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("The 'groupName' parameter is missing");
   }
 
   @Test
@@ -265,8 +270,8 @@ public class RemoveGroupActionIT extends BasePermissionWsIT<RemoveGroupAction> {
     TestRequest testRequest = newRequest().setParam(PARAM_GROUP_NAME, aGroup.getName());
 
     assertThatThrownBy(testRequest::execute)
-      .isInstanceOf(IllegalArgumentException.class)
-      .hasMessage("The 'permission' parameter is missing");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("The 'permission' parameter is missing");
   }
 
   @Test
@@ -275,14 +280,14 @@ public class RemoveGroupActionIT extends BasePermissionWsIT<RemoveGroupAction> {
     loginAsAdmin();
 
     TestRequest testRequest = newRequest()
-      .setParam(PARAM_GROUP_NAME, aGroup.getName())
-      .setParam(PARAM_PERMISSION, GlobalPermission.ADMINISTER.getKey())
-      .setParam(PARAM_PROJECT_ID, project.uuid())
-      .setParam(PARAM_PROJECT_KEY, project.getKey());
+        .setParam(PARAM_GROUP_NAME, aGroup.getName())
+        .setParam(PARAM_PERMISSION, GlobalPermission.ADMINISTER.getKey())
+        .setParam(PARAM_PROJECT_ID, project.uuid())
+        .setParam(PARAM_PROJECT_KEY, project.getKey());
 
     assertThatThrownBy(testRequest::execute)
-      .isInstanceOf(BadRequestException.class)
-      .hasMessage("Project id or project key can be provided, not both.");
+        .isInstanceOf(BadRequestException.class)
+        .hasMessage("Project id or project key can be provided, not both.");
   }
 
   private void executeRequest(GroupDto groupDto, ProjectPermission permission) {
@@ -295,9 +300,9 @@ public class RemoveGroupActionIT extends BasePermissionWsIT<RemoveGroupAction> {
 
   private void executeRequest(GroupDto groupDto, String permission) {
     newRequest()
-      .setParam(PARAM_GROUP_NAME, groupDto.getName())
-      .setParam(PARAM_PERMISSION, permission)
-      .execute();
+        .setParam(PARAM_GROUP_NAME, groupDto.getName())
+        .setParam(PARAM_PERMISSION, permission)
+        .execute();
   }
 
   @Test
@@ -305,11 +310,11 @@ public class RemoveGroupActionIT extends BasePermissionWsIT<RemoveGroupAction> {
     userSession.logIn();
 
     TestRequest testRequest = newRequest()
-      .setParam(PARAM_GROUP_NAME, aGroup.getName())
-      .setParam(PARAM_PERMISSION, GlobalPermission.PROVISION_PROJECTS.getKey());
+        .setParam(PARAM_GROUP_NAME, aGroup.getName())
+        .setParam(PARAM_PERMISSION, GlobalPermission.PROVISION_PROJECTS.getKey());
 
     assertThatThrownBy(testRequest::execute)
-      .isInstanceOf(ForbiddenException.class);
+        .isInstanceOf(ForbiddenException.class);
   }
 
   @Test
@@ -318,12 +323,12 @@ public class RemoveGroupActionIT extends BasePermissionWsIT<RemoveGroupAction> {
     userSession.logIn();
 
     TestRequest testRequest = newRequest()
-      .setParam(PARAM_GROUP_NAME, aGroup.getName())
-      .setParam(PARAM_PERMISSION, GlobalPermission.PROVISION_PROJECTS.getKey())
-      .setParam(PARAM_PROJECT_KEY, project.getKey());
+        .setParam(PARAM_GROUP_NAME, aGroup.getName())
+        .setParam(PARAM_PERMISSION, GlobalPermission.PROVISION_PROJECTS.getKey())
+        .setParam(PARAM_PROJECT_KEY, project.getKey());
 
     assertThatThrownBy(testRequest::execute)
-      .isInstanceOf(ForbiddenException.class);
+        .isInstanceOf(ForbiddenException.class);
   }
 
   @Test
@@ -334,10 +339,10 @@ public class RemoveGroupActionIT extends BasePermissionWsIT<RemoveGroupAction> {
 
     userSession.logIn().addProjectPermission(ProjectPermission.ADMIN, project);
     newRequest()
-      .setParam(PARAM_GROUP_NAME, aGroup.getName())
-      .setParam(PARAM_PROJECT_ID, project.getUuid())
-      .setParam(PARAM_PERMISSION, ProjectPermission.ISSUE_ADMIN.getKey())
-      .execute();
+        .setParam(PARAM_GROUP_NAME, aGroup.getName())
+        .setParam(PARAM_PROJECT_ID, project.getUuid())
+        .setParam(PARAM_PERMISSION, ProjectPermission.ISSUE_ADMIN.getKey())
+        .execute();
 
     assertThat(db.users().selectGroupPermissions(aGroup, project)).containsOnly(ProjectPermission.CODEVIEWER.getKey());
   }
@@ -346,19 +351,19 @@ public class RemoveGroupActionIT extends BasePermissionWsIT<RemoveGroupAction> {
   public void wsAction_whenRemovingAnyPermissionFromGroupAnyoneOnPrivateProject_shouldHaveNoEffect() {
     ProjectDto project = db.components().insertPrivateProject().getProjectDto();
     permissionService.getAllProjectPermissions()
-      .forEach(perm -> unsafeInsertProjectPermissionOnAnyone(perm, project));
+        .forEach(perm -> unsafeInsertProjectPermissionOnAnyone(perm, project));
     userSession.logIn().addProjectPermission(ProjectPermission.ADMIN, project);
 
     permissionService.getAllProjectPermissions()
-      .forEach(permission -> {
-        newRequest()
-          .setParam(PARAM_GROUP_NAME, "anyone")
-          .setParam(PARAM_PROJECT_ID, project.getUuid())
-          .setParam(PARAM_PERMISSION, permission.getKey())
-          .execute();
+        .forEach(permission -> {
+          newRequest()
+              .setParam(PARAM_GROUP_NAME, "anyone")
+              .setParam(PARAM_PROJECT_ID, project.getUuid())
+              .setParam(PARAM_PERMISSION, permission.getKey())
+              .execute();
 
-        assertThat(db.users().selectAnyonePermissions(project.getUuid())).contains(permission.getKey());
-      });
+          assertThat(db.users().selectAnyonePermissions(project.getUuid())).contains(permission.getKey());
+        });
   }
 
   @Test
@@ -367,13 +372,13 @@ public class RemoveGroupActionIT extends BasePermissionWsIT<RemoveGroupAction> {
     userSession.logIn().addProjectPermission(ProjectPermission.ADMIN, project);
 
     TestRequest testRequest = newRequest()
-      .setParam(PARAM_GROUP_NAME, "anyone")
-      .setParam(PARAM_PROJECT_ID, project.getUuid())
-      .setParam(PARAM_PERMISSION, ProjectPermission.USER.getKey());
+        .setParam(PARAM_GROUP_NAME, "anyone")
+        .setParam(PARAM_PROJECT_ID, project.getUuid())
+        .setParam(PARAM_PERMISSION, ProjectPermission.USER.getKey());
 
     assertThatThrownBy(testRequest::execute)
-      .isInstanceOf(BadRequestException.class)
-      .hasMessage("Permission user can't be removed from a public component");
+        .isInstanceOf(BadRequestException.class)
+        .hasMessage("Permission user can't be removed from a public component");
   }
 
   @Test
@@ -382,13 +387,13 @@ public class RemoveGroupActionIT extends BasePermissionWsIT<RemoveGroupAction> {
     userSession.logIn().addProjectPermission(ProjectPermission.ADMIN, project);
 
     TestRequest testRequest = newRequest()
-      .setParam(PARAM_GROUP_NAME, "anyone")
-      .setParam(PARAM_PROJECT_ID, project.getUuid())
-      .setParam(PARAM_PERMISSION, ProjectPermission.CODEVIEWER.getKey());
+        .setParam(PARAM_GROUP_NAME, "anyone")
+        .setParam(PARAM_PROJECT_ID, project.getUuid())
+        .setParam(PARAM_PERMISSION, ProjectPermission.CODEVIEWER.getKey());
 
     assertThatThrownBy(testRequest::execute)
-      .isInstanceOf(BadRequestException.class)
-      .hasMessage("Permission codeviewer can't be removed from a public component");
+        .isInstanceOf(BadRequestException.class)
+        .hasMessage("Permission codeviewer can't be removed from a public component");
   }
 
   @Test
@@ -398,13 +403,13 @@ public class RemoveGroupActionIT extends BasePermissionWsIT<RemoveGroupAction> {
     userSession.logIn().addProjectPermission(ProjectPermission.ADMIN, project);
 
     TestRequest testRequest = newRequest()
-      .setParam(PARAM_GROUP_NAME, group.getName())
-      .setParam(PARAM_PROJECT_ID, project.getUuid())
-      .setParam(PARAM_PERMISSION, ProjectPermission.USER.getKey());
+        .setParam(PARAM_GROUP_NAME, group.getName())
+        .setParam(PARAM_PROJECT_ID, project.getUuid())
+        .setParam(PARAM_PERMISSION, ProjectPermission.USER.getKey());
 
     assertThatThrownBy(testRequest::execute)
-      .isInstanceOf(BadRequestException.class)
-      .hasMessage("Permission user can't be removed from a public component");
+        .isInstanceOf(BadRequestException.class)
+        .hasMessage("Permission user can't be removed from a public component");
   }
 
   @Test
@@ -414,13 +419,13 @@ public class RemoveGroupActionIT extends BasePermissionWsIT<RemoveGroupAction> {
     userSession.logIn().addProjectPermission(ProjectPermission.ADMIN, project);
 
     TestRequest testRequest = newRequest()
-      .setParam(PARAM_GROUP_NAME, group.getName())
-      .setParam(PARAM_PROJECT_ID, project.getUuid())
-      .setParam(PARAM_PERMISSION, ProjectPermission.CODEVIEWER.getKey());
+        .setParam(PARAM_GROUP_NAME, group.getName())
+        .setParam(PARAM_PROJECT_ID, project.getUuid())
+        .setParam(PARAM_PERMISSION, ProjectPermission.CODEVIEWER.getKey());
 
     assertThatThrownBy(testRequest::execute)
-      .isInstanceOf(BadRequestException.class)
-      .hasMessage("Permission codeviewer can't be removed from a public component");
+        .isInstanceOf(BadRequestException.class)
+        .hasMessage("Permission codeviewer can't be removed from a public component");
   }
 
   @Test
@@ -431,13 +436,13 @@ public class RemoveGroupActionIT extends BasePermissionWsIT<RemoveGroupAction> {
     ComponentDto branch = db.components().insertProjectBranch(project);
 
     TestRequest testRequest = newRequest()
-      .setParam(PARAM_PROJECT_ID, branch.uuid())
-      .setParam(PARAM_GROUP_NAME, group.getName())
-      .setParam(PARAM_PERMISSION, GlobalPermission.ADMINISTER.getKey());
+        .setParam(PARAM_PROJECT_ID, branch.uuid())
+        .setParam(PARAM_GROUP_NAME, group.getName())
+        .setParam(PARAM_PERMISSION, GlobalPermission.ADMINISTER.getKey());
 
     assertThatThrownBy(testRequest::execute)
-      .isInstanceOf(NotFoundException.class)
-      .hasMessage("Entity not found");
+        .isInstanceOf(NotFoundException.class)
+        .hasMessage("Entity not found");
   }
 
   @Test
@@ -451,8 +456,8 @@ public class RemoveGroupActionIT extends BasePermissionWsIT<RemoveGroupAction> {
     userSession.logIn(user).setGroups(projectAdminGroup).addProjectPermission(ProjectPermission.ADMIN, project);
 
     assertThatThrownBy(() -> removeBrowsePermissionFromGroup(project, projectAdminGroup))
-      .isInstanceOf(BadRequestException.class)
-      .hasMessage("Permission 'Browse' cannot be removed from a private project for a project administrator.");
+        .isInstanceOf(BadRequestException.class)
+        .hasMessage("Permission 'Browse' cannot be removed from a private project for a project administrator.");
   }
 
   @Test
@@ -465,12 +470,15 @@ public class RemoveGroupActionIT extends BasePermissionWsIT<RemoveGroupAction> {
     db.users().insertEntityPermissionOnGroup(projectAdminGroup, ProjectPermission.ADMIN, project);
     db.users().insertEntityPermissionOnGroup(otherProjectAdminGroup, ProjectPermission.USER, project);
     db.users().insertEntityPermissionOnGroup(otherProjectAdminGroup, ProjectPermission.ADMIN, project);
-    userSession.logIn(user).setGroups(projectAdminGroup, otherProjectAdminGroup).addProjectPermission(ProjectPermission.ADMIN, project);
+    userSession.logIn(user).setGroups(projectAdminGroup, otherProjectAdminGroup)
+        .addProjectPermission(ProjectPermission.ADMIN, project);
 
     removeBrowsePermissionFromGroup(project, projectAdminGroup);
 
-    assertThat(db.users().selectGroupPermissions(projectAdminGroup, project)).containsOnly(ProjectPermission.ADMIN.getKey());
-    assertThat(db.users().selectGroupPermissions(otherProjectAdminGroup, project)).containsExactlyInAnyOrder(ProjectPermission.USER.getKey(), ProjectPermission.ADMIN.getKey());
+    assertThat(db.users().selectGroupPermissions(projectAdminGroup, project))
+        .containsOnly(ProjectPermission.ADMIN.getKey());
+    assertThat(db.users().selectGroupPermissions(otherProjectAdminGroup, project))
+        .containsExactlyInAnyOrder(ProjectPermission.USER.getKey(), ProjectPermission.ADMIN.getKey());
   }
 
   @Test
@@ -486,24 +494,25 @@ public class RemoveGroupActionIT extends BasePermissionWsIT<RemoveGroupAction> {
 
     removeBrowsePermissionFromGroup(project, projectAdminGroup);
 
-    assertThat(db.users().selectGroupPermissions(projectAdminGroup, project)).containsOnly(ProjectPermission.ADMIN.getKey());
+    assertThat(db.users().selectGroupPermissions(projectAdminGroup, project))
+        .containsOnly(ProjectPermission.ADMIN.getKey());
   }
 
   private void removeBrowsePermissionFromGroup(ProjectDto project, GroupDto projectAdminGroup) {
     newRequest()
-      .setParam(PARAM_PROJECT_ID, project.getUuid())
-      .setParam(PARAM_GROUP_NAME, projectAdminGroup.getName())
-      .setParam(PARAM_PERMISSION, ProjectPermission.USER.getKey())
-      .execute();
+        .setParam(PARAM_PROJECT_ID, project.getUuid())
+        .setParam(PARAM_GROUP_NAME, projectAdminGroup.getName())
+        .setParam(PARAM_PERMISSION, ProjectPermission.USER.getKey())
+        .execute();
   }
 
   private void unsafeInsertProjectPermissionOnAnyone(ProjectPermission perm, ProjectDto project) {
     GroupPermissionDto dto = new GroupPermissionDto()
-      .setUuid(Uuids.createFast())
-      .setGroupUuid(null)
-      .setRole(perm.getKey())
-      .setEntityUuid(project.getUuid())
-      .setEntityName(project.getName());
+        .setUuid(Uuids.create())
+        .setGroupUuid(null)
+        .setRole(perm.getKey())
+        .setEntityUuid(project.getUuid())
+        .setEntityName(project.getName());
     db.getDbClient().groupPermissionDao().insert(db.getSession(), dto, project, null);
     db.commit();
   }

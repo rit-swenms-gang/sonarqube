@@ -19,12 +19,20 @@
  */
 package org.sonar.ce.task.projectanalysis.scm;
 
-import com.google.common.collect.ImmutableList;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.slf4j.event.Level.TRACE;
+import static org.sonar.ce.task.projectanalysis.component.ReportComponent.builder;
+
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
+
 import javax.annotation.Nullable;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -47,12 +55,7 @@ import org.sonar.db.newcodeperiod.NewCodePeriodType;
 import org.sonar.db.protobuf.DbFileSources;
 import org.sonar.db.source.FileSourceDto;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.fail;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-import static org.slf4j.event.Level.TRACE;
-import static org.sonar.ce.task.projectanalysis.component.ReportComponent.builder;
+import com.google.common.collect.ImmutableList;
 
 class ScmInfoDbLoaderIT {
   static final int FILE_REF = 1;
@@ -60,9 +63,9 @@ class ScmInfoDbLoaderIT {
   static final long DATE_1 = 123456789L;
 
   static Analysis baseProjectAnalysis = new Analysis.Builder()
-    .setUuid("uuid_1")
-    .setCreatedAt(123456789L)
-    .build();
+      .setUuid("uuid_1")
+      .setCreatedAt(123456789L)
+      .build();
 
   @RegisterExtension
   private final LogTesterJUnit5 logTester = new LogTesterJUnit5();
@@ -77,7 +80,8 @@ class ScmInfoDbLoaderIT {
 
   private final Branch branch = mock(Branch.class);
   private final BranchComponentUuidsDelegate referenceBranchComponentUuids = mock(BranchComponentUuidsDelegate.class);
-  private final OriginalFileResolver originalFileResolver = new OriginalFileResolver(analysisMetadataHolder, movedFiles, referenceBranchComponentUuids);
+  private final OriginalFileResolver originalFileResolver = new OriginalFileResolver(analysisMetadataHolder, movedFiles,
+      referenceBranchComponentUuids);
 
   private final ScmInfoDbLoader underTest = new ScmInfoDbLoader(dbTester.getDbClient(), originalFileResolver);
 
@@ -213,14 +217,16 @@ class ScmInfoDbLoaderIT {
     return sourceHashComputer.getHash();
   }
 
-  private void addFileSourceInDb(@Nullable String author, @Nullable Long date, @Nullable String revision, String srcHash) {
+  private void addFileSourceInDb(@Nullable String author, @Nullable Long date, @Nullable String revision,
+      String srcHash) {
     addFileSourceInDb(author, date, revision, srcHash, FILE.getUuid());
   }
 
-  private void addFileSourceInDb(@Nullable String author, @Nullable Long date, @Nullable String revision, String srcHash, String fileUuid) {
+  private void addFileSourceInDb(@Nullable String author, @Nullable Long date, @Nullable String revision,
+      String srcHash, String fileUuid) {
     DbFileSources.Data.Builder fileDataBuilder = DbFileSources.Data.newBuilder();
     DbFileSources.Line.Builder builder = fileDataBuilder.addLinesBuilder()
-      .setLine(1);
+        .setLine(1);
     if (author != null) {
       builder.setScmAuthor(author);
     }
@@ -231,12 +237,12 @@ class ScmInfoDbLoaderIT {
       builder.setScmRevision(revision);
     }
     dbTester.getDbClient().fileSourceDao().insert(dbTester.getSession(), new FileSourceDto()
-      .setUuid(Uuids.createFast())
-      .setLineHashes(Collections.singletonList("lineHash"))
-      .setFileUuid(fileUuid)
-      .setProjectUuid("PROJECT_UUID")
-      .setSourceData(fileDataBuilder.build())
-      .setSrcHash(srcHash));
+        .setUuid(Uuids.create())
+        .setLineHashes(Collections.singletonList("lineHash"))
+        .setFileUuid(fileUuid)
+        .setProjectUuid("PROJECT_UUID")
+        .setSourceData(fileDataBuilder.build())
+        .setSrcHash(srcHash));
     dbTester.commit();
   }
 

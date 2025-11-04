@@ -19,6 +19,10 @@
  */
 package org.sonar.db.issue;
 
+import static org.apache.commons.lang3.RandomStringUtils.secure;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
@@ -27,6 +31,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
+
 import org.apache.ibatis.session.ResultContext;
 import org.apache.ibatis.session.ResultHandler;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,10 +43,10 @@ import org.sonar.api.impl.utils.AlwaysIncreasingSystem2;
 import org.sonar.api.issue.Issue;
 import org.sonar.api.issue.impact.Severity;
 import org.sonar.api.issue.impact.SoftwareQuality;
-import org.sonar.core.rule.RuleType;
 import org.sonar.api.utils.DateUtils;
 import org.sonar.api.utils.System2;
 import org.sonar.core.issue.FieldDiffs;
+import org.sonar.core.rule.RuleType;
 import org.sonar.core.util.UuidFactoryFast;
 import org.sonar.core.util.Uuids;
 import org.sonar.db.DbSession;
@@ -50,10 +55,6 @@ import org.sonar.db.component.ComponentDto;
 import org.sonar.db.component.ComponentTesting;
 import org.sonar.db.rule.RuleDto;
 import org.sonar.db.rule.RuleTesting;
-
-import static org.apache.commons.lang3.RandomStringUtils.secure;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.tuple;
 
 class IssueMapperIT {
 
@@ -178,15 +179,15 @@ class IssueMapperIT {
     underTest.insert(newIssue());
 
     IssueDto dto = newIssue()
-      .setComponentUuid(file2.uuid())
-      .setType(3)
-      .setLine(600)
-      .setGap(1.12d)
-      .setEffort(50L)
-      .setIssueUpdateTime(1_600_000_000_000L)
-      .setUpdatedAt(1_600_000_000_000L)
-      .setTags(Set.of("tag2", "tag3"))
-      .setCodeVariants(Set.of("variant2", "variant3"));
+        .setComponentUuid(file2.uuid())
+        .setType(3)
+        .setLine(600)
+        .setGap(1.12d)
+        .setEffort(50L)
+        .setIssueUpdateTime(1_600_000_000_000L)
+        .setUpdatedAt(1_600_000_000_000L)
+        .setTags(Set.of("tag2", "tag3"))
+        .setCodeVariants(Set.of("variant2", "variant3"));
 
     // selected after last update -> ok
     dto.setSelectedAt(1_500_000_000_000L);
@@ -213,15 +214,15 @@ class IssueMapperIT {
     underTest.insert(newIssue());
 
     IssueDto dto = newIssue()
-      .setComponentUuid(file2.uuid())
-      .setType(3)
-      .setLine(600)
-      .setGap(1.12d)
-      .setEffort(50L)
-      .setIssueUpdateTime(1_600_000_000_000L)
-      .setUpdatedAt(1_600_000_000_000L)
-      .setTags(Set.of("tag2", "tag3"))
-      .setCodeVariants(Set.of("variant2", "variant3"));
+        .setComponentUuid(file2.uuid())
+        .setType(3)
+        .setLine(600)
+        .setGap(1.12d)
+        .setEffort(50L)
+        .setIssueUpdateTime(1_600_000_000_000L)
+        .setUpdatedAt(1_600_000_000_000L)
+        .setTags(Set.of("tag2", "tag3"))
+        .setCodeVariants(Set.of("variant2", "variant3"));
 
     // selected before last update -> ko
     dto.setSelectedAt(1_400_000_000_000L);
@@ -283,8 +284,8 @@ class IssueMapperIT {
     underTest.scrollClosedByComponentUuid(component.uuid(), NO_FILTERING_ON_CLOSE_DATE, resultHandler);
 
     assertThat(resultHandler.issues)
-      .extracting(IssueDto::getKey, t -> t.getClosedChangeData().get())
-      .containsOnly(tuple(issueWithRule.getKey(), issueChange.getChangeData()));
+        .extracting(IssueDto::getKey, t -> t.getClosedChangeData().get())
+        .containsOnly(tuple(issueWithRule.getKey(), issueChange.getChangeData()));
   }
 
   @ParameterizedTest
@@ -293,7 +294,8 @@ class IssueMapperIT {
     ComponentDto component = randomComponent();
     IssueDto issue = insertNewClosedIssue(component, ruleType);
     IssueChangeDto issueChange = insertToClosedDiff(issue);
-    IssueDto issueMissingComponent = insertNewClosedIssue(component, ruleType, t -> t.setComponentUuid("does_not_exist"));
+    IssueDto issueMissingComponent = insertNewClosedIssue(component, ruleType,
+        t -> t.setComponentUuid("does_not_exist"));
     insertToClosedDiff(issueMissingComponent);
     IssueDto issueMissingProject = insertNewClosedIssue(component, ruleType, t -> t.setProjectUuid("does_not_exist"));
     insertToClosedDiff(issueMissingProject);
@@ -302,8 +304,8 @@ class IssueMapperIT {
     underTest.scrollClosedByComponentUuid(component.uuid(), NO_FILTERING_ON_CLOSE_DATE, resultHandler);
 
     assertThat(resultHandler.issues)
-      .extracting(IssueDto::getKey, t -> t.getClosedChangeData().get())
-      .containsOnly(tuple(issue.getKey(), issueChange.getChangeData()));
+        .extracting(IssueDto::getKey, t -> t.getClosedChangeData().get())
+        .containsOnly(tuple(issue.getKey(), issueChange.getChangeData()));
   }
 
   @ParameterizedTest
@@ -318,8 +320,8 @@ class IssueMapperIT {
     underTest.scrollClosedByComponentUuid(component.uuid(), NO_FILTERING_ON_CLOSE_DATE, resultHandler);
 
     assertThat(resultHandler.issues)
-      .extracting(IssueDto::getKey, t -> t.getClosedChangeData().get())
-      .containsOnly(tuple(issueWithLineDiff.getKey(), issueChange.getChangeData()));
+        .extracting(IssueDto::getKey, t -> t.getClosedChangeData().get())
+        .containsOnly(tuple(issueWithLineDiff.getKey(), issueChange.getChangeData()));
   }
 
   @Test
@@ -335,10 +337,10 @@ class IssueMapperIT {
     underTest.scrollClosedByComponentUuid(component.uuid(), NO_FILTERING_ON_CLOSE_DATE, resultHandler);
 
     assertThat(resultHandler.issues)
-      .extracting(IssueDto::getKey, t -> t.getClosedChangeData().get())
-      .containsOnly(
-        tuple(issue.getKey(), issueChange.getChangeData()),
-        tuple(securityHotspotIssue.getKey(), hotspotChangedData.getChangeData()));
+        .extracting(IssueDto::getKey, t -> t.getClosedChangeData().get())
+        .containsOnly(
+            tuple(issue.getKey(), issueChange.getChangeData()),
+            tuple(securityHotspotIssue.getKey(), hotspotChangedData.getChangeData()));
   }
 
   @Test
@@ -364,11 +366,11 @@ class IssueMapperIT {
     RuleType ruleType = randomSupportedRuleType();
     ComponentDto component = randomComponent();
     RuleDto rule1 = dbTester.rules().insert(t -> t.setType(ruleType));
-    IssueDto[] issues = new IssueDto[]{
-      insertNewClosedIssue(component, rule1, 1_999_999L),
-      insertNewClosedIssue(component, rule1, 3_999_999L),
-      insertNewClosedIssue(component, rule1, 2_999_999L),
-      insertNewClosedIssue(component, rule1, 10_999_999L)
+    IssueDto[] issues = new IssueDto[] {
+        insertNewClosedIssue(component, rule1, 1_999_999L),
+        insertNewClosedIssue(component, rule1, 3_999_999L),
+        insertNewClosedIssue(component, rule1, 2_999_999L),
+        insertNewClosedIssue(component, rule1, 10_999_999L)
     };
     Arrays.stream(issues).forEach(this::insertToClosedDiff);
 
@@ -376,8 +378,8 @@ class IssueMapperIT {
     underTest.scrollClosedByComponentUuid(component.uuid(), 4_000_000L, resultHandler);
 
     assertThat(resultHandler.issues)
-      .extracting(IssueDto::getKey)
-      .containsOnly(issues[3].getKey());
+        .extracting(IssueDto::getKey)
+        .containsOnly(issues[3].getKey());
 
     resultHandler = new RecorderResultHandler();
     underTest.scrollClosedByComponentUuid(component.uuid(), 11_999_999L, resultHandler);
@@ -388,45 +390,46 @@ class IssueMapperIT {
     underTest.scrollClosedByComponentUuid(component.uuid(), 3_999_999L, resultHandler);
 
     assertThat(resultHandler.issues)
-      .extracting(IssueDto::getKey)
-      .containsOnly(issues[3].getKey(), issues[1].getKey());
+        .extracting(IssueDto::getKey)
+        .containsOnly(issues[3].getKey(), issues[1].getKey());
 
     resultHandler = new RecorderResultHandler();
     underTest.scrollClosedByComponentUuid(component.uuid(), 2_999_999L, resultHandler);
 
     assertThat(resultHandler.issues)
-      .extracting(IssueDto::getKey)
-      .containsOnly(issues[3].getKey(), issues[1].getKey(), issues[2].getKey());
+        .extracting(IssueDto::getKey)
+        .containsOnly(issues[3].getKey(), issues[1].getKey(), issues[2].getKey());
 
     resultHandler = new RecorderResultHandler();
     underTest.scrollClosedByComponentUuid(component.uuid(), 1L, resultHandler);
 
     assertThat(resultHandler.issues)
-      .extracting(IssueDto::getKey)
-      .containsOnly(issues[3].getKey(), issues[1].getKey(), issues[2].getKey(), issues[0].getKey());
+        .extracting(IssueDto::getKey)
+        .containsOnly(issues[3].getKey(), issues[1].getKey(), issues[2].getKey(), issues[0].getKey());
   }
 
   @ParameterizedTest
   @MethodSource("closedIssuesSupportedRuleTypes")
-  void scrollClosedByComponentUuid_return_one_row_per_status_diff_to_CLOSED_sorted_by_most_recent_creation_date_first(RuleType ruleType) {
+  void scrollClosedByComponentUuid_return_one_row_per_status_diff_to_CLOSED_sorted_by_most_recent_creation_date_first(
+      RuleType ruleType) {
     ComponentDto component = randomComponent();
     IssueDto issue = insertNewClosedIssue(component, ruleType);
     Date date = new Date();
-    IssueChangeDto[] changes = new IssueChangeDto[]{
-      insertToClosedDiff(issue, DateUtils.addDays(date, -10)),
-      insertToClosedDiff(issue, DateUtils.addDays(date, -60)),
-      insertToClosedDiff(issue, date),
-      insertToClosedDiff(issue, DateUtils.addDays(date, -5))
+    IssueChangeDto[] changes = new IssueChangeDto[] {
+        insertToClosedDiff(issue, DateUtils.addDays(date, -10)),
+        insertToClosedDiff(issue, DateUtils.addDays(date, -60)),
+        insertToClosedDiff(issue, date),
+        insertToClosedDiff(issue, DateUtils.addDays(date, -5))
     };
 
     RecorderResultHandler resultHandler = new RecorderResultHandler();
     underTest.scrollClosedByComponentUuid(component.uuid(), NO_FILTERING_ON_CLOSE_DATE, resultHandler);
 
     assertThat(resultHandler.issues)
-      .hasSize(1)
-      .extracting(IssueDto::getKey, t -> t.getClosedChangeData().get())
-      // we are interested only in the latest closed issue change data
-      .containsExactly(tuple(issue.getKey(), changes[2].getChangeData()));
+        .hasSize(1)
+        .extracting(IssueDto::getKey, t -> t.getClosedChangeData().get())
+        // we are interested only in the latest closed issue change data
+        .containsExactly(tuple(issue.getKey(), changes[2].getChangeData()));
   }
 
   @ParameterizedTest
@@ -435,22 +438,22 @@ class IssueMapperIT {
     ComponentDto component = randomComponent();
     IssueDto issue = insertNewClosedIssue(component, ruleType);
     Date date = new Date();
-    IssueChangeDto[] changes = new IssueChangeDto[]{
-      insertToClosedDiff(issue, DateUtils.addDays(date, -10), Issue.STATUS_CLOSED, Issue.STATUS_REOPENED),
-      insertToClosedDiff(issue, DateUtils.addDays(date, -60)),
-      insertToClosedDiff(issue, date),
-      insertToClosedDiff(issue, DateUtils.addDays(date, -5))
+    IssueChangeDto[] changes = new IssueChangeDto[] {
+        insertToClosedDiff(issue, DateUtils.addDays(date, -10), Issue.STATUS_CLOSED, Issue.STATUS_REOPENED),
+        insertToClosedDiff(issue, DateUtils.addDays(date, -60)),
+        insertToClosedDiff(issue, date),
+        insertToClosedDiff(issue, DateUtils.addDays(date, -5))
     };
 
     RecorderResultHandler resultHandler = new RecorderResultHandler();
     underTest.scrollClosedByComponentUuid(component.uuid(), NO_FILTERING_ON_CLOSE_DATE, resultHandler);
 
     assertThat(resultHandler.issues)
-      .hasSize(1)
-      .extracting(IssueDto::getKey, t -> t.getClosedChangeData().get())
-      .containsExactly(
-        // we are interested only in the latest closed issue change data
-        tuple(issue.getKey(), changes[2].getChangeData()));
+        .hasSize(1)
+        .extracting(IssueDto::getKey, t -> t.getClosedChangeData().get())
+        .containsExactly(
+            // we are interested only in the latest closed issue change data
+            tuple(issue.getKey(), changes[2].getChangeData()));
   }
 
   private IssueChangeDto insertToClosedDiff(IssueDto issueDto) {
@@ -459,21 +462,22 @@ class IssueMapperIT {
 
   private IssueChangeDto insertToClosedDiff(IssueDto issueDto, Date date) {
     String[] statusesButClosed = Issue.STATUSES.stream()
-      .filter(t -> !Issue.STATUS_CLOSED.equals(t))
-      .toArray(String[]::new);
+        .filter(t -> !Issue.STATUS_CLOSED.equals(t))
+        .toArray(String[]::new);
     String previousStatus = statusesButClosed[random.nextInt(statusesButClosed.length)];
     return insertToClosedDiff(issueDto, date, previousStatus, Issue.STATUS_CLOSED);
   }
 
-  private IssueChangeDto insertToClosedDiff(IssueDto issue, Date creationDate, String previousStatus, String nextStatus) {
+  private IssueChangeDto insertToClosedDiff(IssueDto issue, Date creationDate, String previousStatus,
+      String nextStatus) {
     FieldDiffs diffs = new FieldDiffs()
-      .setCreationDate(creationDate);
+        .setCreationDate(creationDate);
     IntStream.range(0, random.nextInt(3)).forEach(i -> diffs.setDiff("key_b" + i, "old_" + i, "new_" + i));
     diffs.setDiff("status", previousStatus, nextStatus);
     IntStream.range(0, random.nextInt(3)).forEach(i -> diffs.setDiff("key_a" + i, "old_" + i, "new_" + i));
 
     IssueChangeDto changeDto = IssueChangeDto.of(issue.getKey(), diffs, issue.getProjectUuid());
-    changeDto.setUuid(Uuids.createFast());
+    changeDto.setUuid(Uuids.create());
     dbTester.getDbClient().issueChangeDao().insert(dbSession, changeDto);
     return changeDto;
   }
@@ -490,21 +494,22 @@ class IssueMapperIT {
   }
 
   @SafeVarargs
-  private IssueDto insertNewClosedIssue(ComponentDto component, RuleDto rule, long issueCloseTime, Consumer<IssueDto>... consumers) {
+  private IssueDto insertNewClosedIssue(ComponentDto component, RuleDto rule, long issueCloseTime,
+      Consumer<IssueDto>... consumers) {
     IssueDto res = new IssueDto()
-      .setKee(UuidFactoryFast.getInstance().create())
-      .setRuleUuid(rule.getUuid())
-      .setType(rule.getType())
-      .setComponentUuid(component.uuid())
-      .setProjectUuid(component.branchUuid())
-      .setStatus(Issue.STATUS_CLOSED)
-      .setIssueCloseTime(issueCloseTime)
-      .addImpact(new ImpactDto()
-        .setSeverity(Severity.HIGH)
-        .setSoftwareQuality(SoftwareQuality.MAINTAINABILITY))
-      .addImpact(new ImpactDto()
-        .setSeverity(Severity.LOW)
-        .setSoftwareQuality(SoftwareQuality.SECURITY));
+        .setKee(UuidFactoryFast.getInstance().create())
+        .setRuleUuid(rule.getUuid())
+        .setType(rule.getType())
+        .setComponentUuid(component.uuid())
+        .setProjectUuid(component.branchUuid())
+        .setStatus(Issue.STATUS_CLOSED)
+        .setIssueCloseTime(issueCloseTime)
+        .addImpact(new ImpactDto()
+            .setSeverity(Severity.HIGH)
+            .setSoftwareQuality(SoftwareQuality.MAINTAINABILITY))
+        .addImpact(new ImpactDto()
+            .setSeverity(Severity.LOW)
+            .setSoftwareQuality(SoftwareQuality.SECURITY));
     Arrays.asList(consumers).forEach(c -> c.accept(res));
     dbTester.getDbClient().issueDao().insert(dbSession, res);
     dbSession.commit();
@@ -512,13 +517,13 @@ class IssueMapperIT {
   }
 
   private static final RuleType[] SUPPORTED_RULE_TYPES = Arrays.stream(RuleType.values())
-    .filter(t -> t != RuleType.SECURITY_HOTSPOT)
-    .toArray(RuleType[]::new);
+      .filter(t -> t != RuleType.SECURITY_HOTSPOT)
+      .toArray(RuleType[]::new);
 
   private static Object[][] closedIssuesSupportedRuleTypes() {
     return Arrays.stream(SUPPORTED_RULE_TYPES)
-      .map(t -> new Object[]{t})
-      .toArray(Object[][]::new);
+        .map(t -> new Object[] { t })
+        .toArray(Object[][]::new);
   }
 
   private static RuleType randomSupportedRuleType() {
@@ -529,34 +534,34 @@ class IssueMapperIT {
     ComponentDto project = dbTester.components().insertPublicProject().getMainBranchComponent();
     ComponentDto dir = dbTester.components().insertComponent(ComponentTesting.newDirectory(project, "foo"));
     ComponentDto file = dbTester.components().insertComponent(ComponentTesting.newFileDto(project, dir));
-    ComponentDto[] components = new ComponentDto[]{project, dir, file};
+    ComponentDto[] components = new ComponentDto[] { project, dir, file };
     return components[random.nextInt(components.length)];
   }
 
   private IssueDto newIssue() {
     return new IssueDto()
-      .setKee("ABCDE")
-      .setComponentUuid(file.uuid())
-      .setProjectUuid(project.uuid())
-      .setRuleUuid(rule.getUuid())
-      .setType(2)
-      .setLine(500)
-      .setGap(3.14)
-      .setEffort(10L)
-      .setResolution("FIXED")
-      .setStatus("RESOLVED")
-      .setSeverity("BLOCKER")
-      .setAuthorLogin("morgan")
-      .setAssigneeUuid("karadoc")
-      .setChecksum("123456789")
-      .setMessage("the message")
-      .setIssueCreationTime(1_401_000_000_000L)
-      .setIssueUpdateTime(1_402_000_000_000L)
-      .setIssueCloseTime(1_403_000_000_000L)
-      .setCreatedAt(1_400_000_000_000L)
-      .setUpdatedAt(1_500_000_000_000L)
-      .setTags(Set.of("tag1", "tag2"))
-      .setCodeVariants(Set.of("variant1", "variant2"));
+        .setKee("ABCDE")
+        .setComponentUuid(file.uuid())
+        .setProjectUuid(project.uuid())
+        .setRuleUuid(rule.getUuid())
+        .setType(2)
+        .setLine(500)
+        .setGap(3.14)
+        .setEffort(10L)
+        .setResolution("FIXED")
+        .setStatus("RESOLVED")
+        .setSeverity("BLOCKER")
+        .setAuthorLogin("morgan")
+        .setAssigneeUuid("karadoc")
+        .setChecksum("123456789")
+        .setMessage("the message")
+        .setIssueCreationTime(1_401_000_000_000L)
+        .setIssueUpdateTime(1_402_000_000_000L)
+        .setIssueCloseTime(1_403_000_000_000L)
+        .setCreatedAt(1_400_000_000_000L)
+        .setUpdatedAt(1_500_000_000_000L)
+        .setTags(Set.of("tag1", "tag2"))
+        .setCodeVariants(Set.of("variant1", "variant2"));
   }
 
   private static class RecorderResultHandler implements ResultHandler<IssueDto> {

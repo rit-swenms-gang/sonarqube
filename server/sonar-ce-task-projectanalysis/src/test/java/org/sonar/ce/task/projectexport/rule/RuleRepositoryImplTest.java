@@ -19,21 +19,21 @@
  */
 package org.sonar.ce.task.projectexport.rule;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.Collection;
 import java.util.Random;
+
 import org.junit.Test;
 import org.sonar.api.rule.RuleKey;
 import org.sonar.core.util.Uuids;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class RuleRepositoryImplTest {
   private static final String SOME_UUID = "uuid-846";
   private static final String SOME_REPOSITORY = "rep";
   private static final String SOME_RULE_KEY = "key";
   private static final Rule SOME_RULE = new Rule("uuid-1", SOME_REPOSITORY, SOME_RULE_KEY);
-
 
   private Random random = new Random();
 
@@ -42,8 +42,8 @@ public class RuleRepositoryImplTest {
   @Test
   public void register_throws_NPE_if_ruleKey_is_null() {
     assertThatThrownBy(() -> underTest.register(SOME_UUID, null))
-      .isInstanceOf(NullPointerException.class)
-      .hasMessage("ruleKey can not be null");
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("ruleKey can not be null");
   }
 
   @Test
@@ -62,8 +62,10 @@ public class RuleRepositoryImplTest {
     underTest.register(SOME_UUID, RuleKey.of(SOME_REPOSITORY, SOME_RULE_KEY));
 
     assertThatThrownBy(() -> underTest.register(SOME_UUID, RuleKey.of("other repo", SOME_RULE_KEY)))
-      .isInstanceOf(IllegalArgumentException.class)
-      .hasMessage("Specified RuleKey 'other repo:key' is not equal to the one already registered in repository for ref " + SOME_UUID + ": 'rep:key'");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Specified RuleKey 'other repo:key' is not equal to the one already registered in repository for ref "
+                + SOME_UUID + ": 'rep:key'");
   }
 
   @Test
@@ -71,15 +73,18 @@ public class RuleRepositoryImplTest {
     underTest.register(SOME_UUID, RuleKey.of(SOME_REPOSITORY, SOME_RULE_KEY));
 
     assertThatThrownBy(() -> underTest.register(SOME_UUID, RuleKey.of(SOME_REPOSITORY, "other key")))
-      .isInstanceOf(IllegalArgumentException.class)
-      .hasMessage("Specified RuleKey 'rep:other key' is not equal to the one already registered in repository for ref " + SOME_UUID + ": 'rep:key'");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Specified RuleKey 'rep:other key' is not equal to the one already registered in repository for ref "
+                + SOME_UUID + ": 'rep:key'");
   }
 
   @Test
   public void register_returns_the_same_object_for_every_call_with_equals_RuleKey_objects() {
     Rule rule = underTest.register(SOME_UUID, RuleKey.of(SOME_REPOSITORY, SOME_RULE_KEY));
     for (int i = 0; i < someRandomInt(); i++) {
-      assertThat(underTest.register(Uuids.createFast(), RuleKey.of(SOME_REPOSITORY, SOME_RULE_KEY)).ref()).isNotEqualTo(rule.ref());
+      assertThat(underTest.register(Uuids.create(), RuleKey.of(SOME_REPOSITORY, SOME_RULE_KEY)).ref())
+          .isNotEqualTo(rule.ref());
     }
   }
 
@@ -101,7 +106,7 @@ public class RuleRepositoryImplTest {
     assertThat(all).isEmpty();
 
     assertThatThrownBy(() -> all.add(SOME_RULE))
-      .isInstanceOf(UnsupportedOperationException.class);
+        .isInstanceOf(UnsupportedOperationException.class);
   }
 
   @Test
@@ -112,7 +117,7 @@ public class RuleRepositoryImplTest {
     for (int i = 0; i < size; i++) {
       String key = "key_" + i;
       String repository = "repo_" + i;
-      underTest.register(Uuids.createFast(), RuleKey.of(repository, key));
+      underTest.register(Uuids.create(), RuleKey.of(repository, key));
       repositories[i] = repository;
       keys[i] = key;
     }
@@ -123,7 +128,7 @@ public class RuleRepositoryImplTest {
     assertThat(all).extracting(Rule::key).containsOnly(keys);
 
     assertThatThrownBy(() -> all.add(SOME_RULE))
-      .isInstanceOf(UnsupportedOperationException.class);
+        .isInstanceOf(UnsupportedOperationException.class);
   }
 
   private int someRandomInt() {

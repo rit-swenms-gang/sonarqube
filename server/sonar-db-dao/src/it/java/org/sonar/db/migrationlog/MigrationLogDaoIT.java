@@ -19,15 +19,16 @@
  */
 package org.sonar.db.migrationlog;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.List;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.sonar.api.utils.System2;
 import org.sonar.core.util.Uuids;
 import org.sonar.db.DbSession;
 import org.sonar.db.DbTester;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 class MigrationLogDaoIT {
 
@@ -39,14 +40,14 @@ class MigrationLogDaoIT {
 
   @Test
   void insert() {
-    String uuid = Uuids.createFast();
+    String uuid = Uuids.create();
     underTest.insert(dbSession, new MigrationLogDto()
-      .setUuid(uuid)
-      .setStep("coverage")
-      .setDurationInMs(123L)
-      .setSuccess(true)
-      .setStartedAt(1_000L)
-      .setTargetVersion("2025.1"));
+        .setUuid(uuid)
+        .setStep("coverage")
+        .setDurationInMs(123L)
+        .setSuccess(true)
+        .setStartedAt(1_000L)
+        .setTargetVersion("2025.1"));
 
     List<MigrationLogDto> result = underTest.selectAll(dbSession);
     assertThat(result).hasSize(1);
@@ -65,10 +66,12 @@ class MigrationLogDaoIT {
     List<MigrationLogDto> result = underTest.selectAll(dbSession);
     assertThat(result).isEmpty();
 
-    String uuid1 = Uuids.createFast();
-    String uuid2 = Uuids.createFast();
-    underTest.insert(dbSession, new MigrationLogDto().setUuid(uuid1).setStep("coverage").setDurationInMs(123L).setSuccess(true).setStartedAt(1_000L).setTargetVersion("2025.1"));
-    underTest.insert(dbSession, new MigrationLogDto().setUuid(uuid2).setStep("coverage").setDurationInMs(456L).setSuccess(false).setStartedAt(2_000L).setTargetVersion("2025.2"));
+    String uuid1 = Uuids.create();
+    String uuid2 = Uuids.create();
+    underTest.insert(dbSession, new MigrationLogDto().setUuid(uuid1).setStep("coverage").setDurationInMs(123L)
+        .setSuccess(true).setStartedAt(1_000L).setTargetVersion("2025.1"));
+    underTest.insert(dbSession, new MigrationLogDto().setUuid(uuid2).setStep("coverage").setDurationInMs(456L)
+        .setSuccess(false).setStartedAt(2_000L).setTargetVersion("2025.2"));
 
     result = underTest.selectAll(dbSession);
     assertThat(result).hasSize(2);

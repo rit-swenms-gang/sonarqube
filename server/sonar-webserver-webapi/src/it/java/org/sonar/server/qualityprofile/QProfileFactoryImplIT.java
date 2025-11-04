@@ -19,8 +19,19 @@
  */
 package org.sonar.server.qualityprofile;
 
+import static java.util.Arrays.asList;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+
 import java.util.Collection;
 import java.util.Collections;
+
 import org.assertj.core.api.AbstractObjectAssert;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.Before;
@@ -49,16 +60,6 @@ import org.sonar.server.exceptions.BadRequestException;
 import org.sonar.server.qualityprofile.builtin.QProfileName;
 import org.sonar.server.qualityprofile.index.ActiveRuleIndexer;
 
-import static java.util.Arrays.asList;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyCollection;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-
 public class QProfileFactoryImplIT {
 
   private System2 system2 = new AlwaysIncreasingSystem2();
@@ -68,7 +69,8 @@ public class QProfileFactoryImplIT {
 
   private DbSession dbSession = db.getSession();
   private ActiveRuleIndexer activeRuleIndexer = mock(ActiveRuleIndexer.class);
-  private QProfileFactory underTest = new QProfileFactoryImpl(db.getDbClient(), new SequenceUuidFactory(), system2, activeRuleIndexer);
+  private QProfileFactory underTest = new QProfileFactoryImpl(db.getDbClient(), new SequenceUuidFactory(), system2,
+      activeRuleIndexer);
   private RuleDto rule;
   private RuleParamDto ruleParam;
 
@@ -88,23 +90,27 @@ public class QProfileFactoryImplIT {
     assertThat(profile.getRulesProfileUuid()).isNotNull();
     assertThat(profile.isBuiltIn()).isFalse();
 
-    QProfileDto reloaded = db.getDbClient().qualityProfileDao().selectByNameAndLanguage(dbSession, profile.getName(), profile.getLanguage());
+    QProfileDto reloaded = db.getDbClient().qualityProfileDao().selectByNameAndLanguage(dbSession, profile.getName(),
+        profile.getLanguage());
     assertEqual(profile, reloaded);
-    assertThat(db.getDbClient().qualityProfileDao().selectAll(dbSession)).extracting(QProfileDto::getKee).containsExactly(profile.getKee());
+    assertThat(db.getDbClient().qualityProfileDao().selectAll(dbSession)).extracting(QProfileDto::getKee)
+        .containsExactly(profile.getKee());
   }
 
   @Test
   public void checkAndCreateCustom_throws_BadRequestException_if_name_null() {
     QProfileName name = new QProfileName("xoo", null);
 
-    expectBadRequestException(() -> underTest.checkAndCreateCustom(dbSession, name), "quality_profiles.profile_name_cant_be_blank");
+    expectBadRequestException(() -> underTest.checkAndCreateCustom(dbSession, name),
+        "quality_profiles.profile_name_cant_be_blank");
   }
 
   @Test
   public void checkAndCreateCustom_throws_BadRequestException_if_name_empty() {
     QProfileName name = new QProfileName("xoo", "");
 
-    expectBadRequestException(() -> underTest.checkAndCreateCustom(dbSession, name), "quality_profiles.profile_name_cant_be_blank");
+    expectBadRequestException(() -> underTest.checkAndCreateCustom(dbSession, name),
+        "quality_profiles.profile_name_cant_be_blank");
   }
 
   @Test
@@ -114,7 +120,8 @@ public class QProfileFactoryImplIT {
     underTest.checkAndCreateCustom(dbSession, name);
     dbSession.commit();
 
-    expectBadRequestException(() -> underTest.checkAndCreateCustom(dbSession, name), "Quality profile already exists: xoo/P1");
+    expectBadRequestException(() -> underTest.checkAndCreateCustom(dbSession, name),
+        "Quality profile already exists: xoo/P1");
   }
 
   @Test
@@ -173,7 +180,8 @@ public class QProfileFactoryImplIT {
     ProjectDto project = db.components().insertPrivateProject().getProjectDto();
     QProfileDto profile = associateBuiltInProfile(builtInProfile);
     db.qualityProfiles().associateWithProject(project, profile);
-    assertThat(db.getDbClient().qualityProfileDao().selectAssociatedToProjectAndLanguage(dbSession, project, profile.getLanguage())).isNotNull();
+    assertThat(db.getDbClient().qualityProfileDao().selectAssociatedToProjectAndLanguage(dbSession, project,
+        profile.getLanguage())).isNotNull();
 
     underTest.delete(dbSession, asList(profile));
 
@@ -181,7 +189,8 @@ public class QProfileFactoryImplIT {
 
     // remove only from org_qprofiles and project_qprofiles
     assertThat(db.getDbClient().qualityProfileDao().selectAll(dbSession)).isEmpty();
-    assertThat(db.getDbClient().qualityProfileDao().selectAssociatedToProjectAndLanguage(dbSession, project, profile.getLanguage())).isNull();
+    assertThat(db.getDbClient().qualityProfileDao().selectAssociatedToProjectAndLanguage(dbSession, project,
+        profile.getLanguage())).isNull();
     assertThatRulesProfileExists(builtInProfile);
   }
 
@@ -230,40 +239,40 @@ public class QProfileFactoryImplIT {
     ActiveRuleDto activeRuleDto = db.qualityProfiles().activateRule(profile, rule);
 
     ActiveRuleParamDto activeRuleParam = new ActiveRuleParamDto()
-      .setRulesParameterUuid(ruleParam.getUuid())
-      .setKey("foo")
-      .setValue("bar");
+        .setRulesParameterUuid(ruleParam.getUuid())
+        .setKey("foo")
+        .setValue("bar");
     db.getDbClient().activeRuleDao().insertParam(dbSession, activeRuleDto, activeRuleParam);
 
     db.getDbClient().qProfileChangeDao().insert(dbSession, new QProfileChangeDto()
-      .setChangeType(ActiveRuleChange.Type.ACTIVATED.name())
-      .setRulesProfileUuid(profile.getRulesProfileUuid()));
+        .setChangeType(ActiveRuleChange.Type.ACTIVATED.name())
+        .setRulesProfileUuid(profile.getRulesProfileUuid()));
     db.commit();
     return profile;
   }
 
   private RulesProfileDto createBuiltInProfile() {
     RulesProfileDto rulesProfileDto = new RulesProfileDto()
-      .setIsBuiltIn(true)
-      .setUuid(Uuids.createFast())
-      .setLanguage("xoo")
-      .setName("Sonar way");
+        .setIsBuiltIn(true)
+        .setUuid(Uuids.create())
+        .setLanguage("xoo")
+        .setName("Sonar way");
     db.getDbClient().qualityProfileDao().insert(dbSession, rulesProfileDto);
     ActiveRuleDto activeRuleDto = new ActiveRuleDto()
-      .setProfileUuid(rulesProfileDto.getUuid())
-      .setRuleUuid(rule.getUuid())
-      .setSeverity(Severity.BLOCKER);
+        .setProfileUuid(rulesProfileDto.getUuid())
+        .setRuleUuid(rule.getUuid())
+        .setSeverity(Severity.BLOCKER);
     db.getDbClient().activeRuleDao().insert(dbSession, activeRuleDto);
 
     ActiveRuleParamDto activeRuleParam = new ActiveRuleParamDto()
-      .setRulesParameterUuid(ruleParam.getUuid())
-      .setKey("foo")
-      .setValue("bar");
+        .setRulesParameterUuid(ruleParam.getUuid())
+        .setKey("foo")
+        .setValue("bar");
     db.getDbClient().activeRuleDao().insertParam(dbSession, activeRuleDto, activeRuleParam);
 
     db.getDbClient().qProfileChangeDao().insert(dbSession, new QProfileChangeDto()
-      .setChangeType(ActiveRuleChange.Type.ACTIVATED.name())
-      .setRulesProfileUuid(rulesProfileDto.getUuid()));
+        .setChangeType(ActiveRuleChange.Type.ACTIVATED.name())
+        .setRulesProfileUuid(rulesProfileDto.getUuid()));
 
     db.commit();
     return rulesProfileDto;
@@ -271,8 +280,8 @@ public class QProfileFactoryImplIT {
 
   private QProfileDto associateBuiltInProfile(RulesProfileDto rulesProfile) {
     OrgQProfileDto orgQProfileDto = new OrgQProfileDto()
-      .setUuid(Uuids.createFast())
-      .setRulesProfileUuid(rulesProfile.getUuid());
+        .setUuid(Uuids.create())
+        .setRulesProfileUuid(rulesProfile.getUuid());
 
     db.getDbClient().qualityProfileDao().insert(dbSession, orgQProfileDto);
     db.commit();
@@ -292,38 +301,53 @@ public class QProfileFactoryImplIT {
     verify(activeRuleIndexer).commitDeletionOfProfiles(any(DbSession.class), collectionCaptor.capture());
 
     assertThat(collectionCaptor.getValue())
-      .extracting(QProfileDto::getKee)
-      .containsExactlyInAnyOrder(expectedRuleProfileUuids);
+        .extracting(QProfileDto::getKee)
+        .containsExactlyInAnyOrder(expectedRuleProfileUuids);
   }
 
   private void assertThatRulesProfileExists(RulesProfileDto rulesProfile) {
     assertThat(db.getDbClient().qualityProfileDao().selectBuiltInRuleProfiles(dbSession))
-      .extracting(RulesProfileDto::getUuid)
-      .containsExactly(rulesProfile.getUuid());
+        .extracting(RulesProfileDto::getUuid)
+        .containsExactly(rulesProfile.getUuid());
     assertThat(db.countRowsOfTable(dbSession, "active_rules")).isPositive();
     assertThat(db.countRowsOfTable(dbSession, "active_rule_parameters")).isPositive();
     assertThat(db.countRowsOfTable(dbSession, "qprofile_changes")).isPositive();
   }
 
   private void assertThatCustomProfileDoesNotExist(QProfileDto profile) {
-    assertThat(db.countSql(dbSession, "select count(*) from org_qprofiles where uuid = '" + profile.getKee() + "'")).isZero();
-    assertThat(db.countSql(dbSession, "select count(*) from project_qprofiles where profile_key = '" + profile.getKee() + "'")).isZero();
-    assertThat(db.countSql(dbSession, "select count(*) from default_qprofiles where qprofile_uuid = '" + profile.getKee() + "'")).isZero();
-    assertThat(db.countSql(dbSession, "select count(*) from rules_profiles where uuid = '" + profile.getRulesProfileUuid() + "'")).isZero();
-    assertThat(db.countSql(dbSession, "select count(*) from active_rules where profile_uuid = '" + profile.getRulesProfileUuid() + "'")).isZero();
-    assertThat(db.countSql(dbSession, "select count(*) from qprofile_changes where rules_profile_uuid = '" + profile.getRulesProfileUuid() + "'")).isZero();
+    assertThat(db.countSql(dbSession, "select count(*) from org_qprofiles where uuid = '" + profile.getKee() + "'"))
+        .isZero();
+    assertThat(
+        db.countSql(dbSession, "select count(*) from project_qprofiles where profile_key = '" + profile.getKee() + "'"))
+        .isZero();
+    assertThat(db.countSql(dbSession,
+        "select count(*) from default_qprofiles where qprofile_uuid = '" + profile.getKee() + "'")).isZero();
+    assertThat(db.countSql(dbSession,
+        "select count(*) from rules_profiles where uuid = '" + profile.getRulesProfileUuid() + "'")).isZero();
+    assertThat(db.countSql(dbSession,
+        "select count(*) from active_rules where profile_uuid = '" + profile.getRulesProfileUuid() + "'")).isZero();
+    assertThat(db.countSql(dbSession,
+        "select count(*) from qprofile_changes where rules_profile_uuid = '" + profile.getRulesProfileUuid() + "'"))
+        .isZero();
     // TODO active_rule_parameters
   }
 
   private void assertThatCustomProfileExists(QProfileDto profile) {
-    assertThat(db.countSql(dbSession, "select count(*) from org_qprofiles where uuid = '" + profile.getKee() + "'")).isPositive();
-    // assertThat(db.countSql(dbSession, "select count(*) from project_qprofiles where profile_key = '" + profile.getKee() +
+    assertThat(db.countSql(dbSession, "select count(*) from org_qprofiles where uuid = '" + profile.getKee() + "'"))
+        .isPositive();
+    // assertThat(db.countSql(dbSession, "select count(*) from project_qprofiles
+    // where profile_key = '" + profile.getKee() +
     // "'")).isPositive();
-    // assertThat(db.countSql(dbSession, "select count(*) from default_qprofiles where qprofile_uuid = '" + profile.getKee() +
+    // assertThat(db.countSql(dbSession, "select count(*) from default_qprofiles
+    // where qprofile_uuid = '" + profile.getKee() +
     // "'")).isPositive();
-    assertThat(db.countSql(dbSession, "select count(*) from rules_profiles where uuid = '" + profile.getRulesProfileUuid() + "'")).isOne();
-    assertThat(db.countSql(dbSession, "select count(*) from active_rules where profile_uuid = '" + profile.getRulesProfileUuid() + "'")).isPositive();
-    assertThat(db.countSql(dbSession, "select count(*) from qprofile_changes where rules_profile_uuid = '" + profile.getRulesProfileUuid() + "'")).isPositive();
+    assertThat(db.countSql(dbSession,
+        "select count(*) from rules_profiles where uuid = '" + profile.getRulesProfileUuid() + "'")).isOne();
+    assertThat(db.countSql(dbSession,
+        "select count(*) from active_rules where profile_uuid = '" + profile.getRulesProfileUuid() + "'")).isPositive();
+    assertThat(db.countSql(dbSession,
+        "select count(*) from qprofile_changes where rules_profile_uuid = '" + profile.getRulesProfileUuid() + "'"))
+        .isPositive();
     // TODO active_rule_parameters
   }
 
@@ -337,7 +361,7 @@ public class QProfileFactoryImplIT {
 
   private void expectBadRequestException(ThrowingCallable callback, String message) {
     assertThatThrownBy(callback)
-      .isInstanceOf(BadRequestException.class)
-      .hasMessage(message);
+        .isInstanceOf(BadRequestException.class)
+        .hasMessage(message);
   }
 }

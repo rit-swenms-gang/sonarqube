@@ -58,7 +58,8 @@ public class AddProjectCreatorToTemplateActionIT extends BasePermissionWsIT<AddP
 
   @Override
   protected AddProjectCreatorToTemplateAction buildWsAction() {
-    return new AddProjectCreatorToTemplateAction(db.getDbClient(), newPermissionWsSupport(), userSession, system, wsParameters, requestValidator);
+    return new AddProjectCreatorToTemplateAction(db.getDbClient(), newPermissionWsSupport(), userSession, system,
+        wsParameters, requestValidator);
   }
 
   @Before
@@ -72,9 +73,9 @@ public class AddProjectCreatorToTemplateActionIT extends BasePermissionWsIT<AddP
     loginAsAdmin();
 
     newRequest()
-      .setParam(PARAM_PERMISSION, ProjectPermission.ADMIN.getKey())
-      .setParam(PARAM_TEMPLATE_ID, template.getUuid())
-      .execute();
+        .setParam(PARAM_PERMISSION, ProjectPermission.ADMIN.getKey())
+        .setParam(PARAM_TEMPLATE_ID, template.getUuid())
+        .execute();
 
     assertThatProjectCreatorIsPresentFor(ProjectPermission.ADMIN, template.getUuid());
   }
@@ -82,22 +83,23 @@ public class AddProjectCreatorToTemplateActionIT extends BasePermissionWsIT<AddP
   @Test
   public void update_row_when_existing_template_permission() {
     loginAsAdmin();
-    PermissionTemplateCharacteristicDto characteristic = db.getDbClient().permissionTemplateCharacteristicDao().insert(db.getSession(),
-      new PermissionTemplateCharacteristicDto()
-        .setUuid(Uuids.createFast())
-        .setTemplateUuid(template.getUuid())
-        .setPermission(ProjectPermission.USER)
-        .setWithProjectCreator(false)
-        .setCreatedAt(1_000_000_000L)
-        .setUpdatedAt(1_000_000_000L),
-      template.getName());
+    PermissionTemplateCharacteristicDto characteristic = db.getDbClient().permissionTemplateCharacteristicDao().insert(
+        db.getSession(),
+        new PermissionTemplateCharacteristicDto()
+            .setUuid(Uuids.create())
+            .setTemplateUuid(template.getUuid())
+            .setPermission(ProjectPermission.USER)
+            .setWithProjectCreator(false)
+            .setCreatedAt(1_000_000_000L)
+            .setUpdatedAt(1_000_000_000L),
+        template.getName());
     db.commit();
     when(system.now()).thenReturn(3_000_000_000L);
 
     newRequest()
-      .setParam(PARAM_PERMISSION, ProjectPermission.USER.getKey())
-      .setParam(PARAM_TEMPLATE_NAME, template.getName())
-      .execute();
+        .setParam(PARAM_PERMISSION, ProjectPermission.USER.getKey())
+        .setParam(PARAM_TEMPLATE_NAME, template.getName())
+        .execute();
 
     assertThatProjectCreatorIsPresentFor(ProjectPermission.USER, template.getUuid());
     PermissionTemplateCharacteristicDto reloaded = reload(characteristic);
@@ -111,11 +113,11 @@ public class AddProjectCreatorToTemplateActionIT extends BasePermissionWsIT<AddP
 
     assertThatThrownBy(() -> {
       newRequest()
-        .setParam(PARAM_PERMISSION, ProjectPermission.ADMIN.getKey())
-        .setParam(PARAM_TEMPLATE_ID, "42")
-        .execute();
+          .setParam(PARAM_PERMISSION, ProjectPermission.ADMIN.getKey())
+          .setParam(PARAM_TEMPLATE_ID, "42")
+          .execute();
     })
-      .isInstanceOf(NotFoundException.class);
+        .isInstanceOf(NotFoundException.class);
   }
 
   @Test
@@ -124,11 +126,11 @@ public class AddProjectCreatorToTemplateActionIT extends BasePermissionWsIT<AddP
 
     assertThatThrownBy(() -> {
       newRequest()
-        .setParam(PARAM_PERMISSION, ADMINISTER_QUALITY_GATES.getKey())
-        .setParam(PARAM_TEMPLATE_ID, template.getUuid())
-        .execute();
+          .setParam(PARAM_PERMISSION, ADMINISTER_QUALITY_GATES.getKey())
+          .setParam(PARAM_TEMPLATE_ID, template.getUuid())
+          .execute();
     })
-      .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test
@@ -137,23 +139,26 @@ public class AddProjectCreatorToTemplateActionIT extends BasePermissionWsIT<AddP
 
     assertThatThrownBy(() -> {
       newRequest()
-        .setParam(PARAM_PERMISSION, ProjectPermission.ADMIN.getKey())
-        .setParam(PARAM_TEMPLATE_ID, template.getUuid())
-        .execute();
+          .setParam(PARAM_PERMISSION, ProjectPermission.ADMIN.getKey())
+          .setParam(PARAM_TEMPLATE_ID, template.getUuid())
+          .execute();
     })
-      .isInstanceOf(ForbiddenException.class);
+        .isInstanceOf(ForbiddenException.class);
   }
 
   private void assertThatProjectCreatorIsPresentFor(ProjectPermission permission, String templateUuid) {
-    Optional<PermissionTemplateCharacteristicDto> templatePermission = db.getDbClient().permissionTemplateCharacteristicDao().selectByPermissionAndTemplateId(db.getSession(),
-      permission,
-      templateUuid);
+    Optional<PermissionTemplateCharacteristicDto> templatePermission = db.getDbClient()
+        .permissionTemplateCharacteristicDao().selectByPermissionAndTemplateId(db.getSession(),
+            permission,
+            templateUuid);
     assertThat(templatePermission).isPresent();
     assertThat(templatePermission.get().getWithProjectCreator()).isTrue();
   }
 
   private PermissionTemplateCharacteristicDto reload(PermissionTemplateCharacteristicDto characteristic) {
-    return db.getDbClient().permissionTemplateCharacteristicDao().selectByPermissionAndTemplateId(db.getSession(), characteristic.getPermission(), characteristic.getTemplateUuid())
-      .get();
+    return db.getDbClient().permissionTemplateCharacteristicDao()
+        .selectByPermissionAndTemplateId(db.getSession(), characteristic.getPermission(),
+            characteristic.getTemplateUuid())
+        .get();
   }
 }

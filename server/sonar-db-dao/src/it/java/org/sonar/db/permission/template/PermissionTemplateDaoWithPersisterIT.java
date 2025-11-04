@@ -19,7 +19,17 @@
  */
 package org.sonar.db.permission.template;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.sonar.db.permission.ProjectPermission.ADMIN;
+import static org.sonar.db.permission.template.PermissionTemplateTesting.newPermissionTemplateDto;
+import static org.sonar.db.user.GroupTesting.newGroupDto;
+
 import java.util.Date;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.mockito.ArgumentCaptor;
@@ -31,15 +41,6 @@ import org.sonar.db.audit.model.PermissionTemplateNewValue;
 import org.sonar.db.user.GroupDto;
 import org.sonar.db.user.UserDto;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.sonar.db.permission.ProjectPermission.ADMIN;
-import static org.sonar.db.permission.template.PermissionTemplateTesting.newPermissionTemplateDto;
-import static org.sonar.db.user.GroupTesting.newGroupDto;
-
 class PermissionTemplateDaoWithPersisterIT {
   private final AuditPersister auditPersister = mock(AuditPersister.class);
 
@@ -50,7 +51,8 @@ class PermissionTemplateDaoWithPersisterIT {
   private final DbTester db = DbTester.create(auditPersister);
   private final DbSession session = db.getSession();
 
-  private final ArgumentCaptor<PermissionTemplateNewValue> newValueCaptor = ArgumentCaptor.forClass(PermissionTemplateNewValue.class);
+  private final ArgumentCaptor<PermissionTemplateNewValue> newValueCaptor = ArgumentCaptor
+      .forClass(PermissionTemplateNewValue.class);
   private final PermissionTemplateDao underTest = db.getDbClient().permissionTemplateDao();
 
   @Test
@@ -60,8 +62,8 @@ class PermissionTemplateDaoWithPersisterIT {
     verify(auditPersister).addPermissionTemplate(eq(session), newValueCaptor.capture());
     PermissionTemplateNewValue newValue = newValueCaptor.getValue();
     assertThat(newValue)
-      .extracting(PermissionTemplateNewValue::getTemplateUuid, PermissionTemplateNewValue::getName)
-      .containsExactly(dto.getUuid(), dto.getName());
+        .extracting(PermissionTemplateNewValue::getTemplateUuid, PermissionTemplateNewValue::getName)
+        .containsExactly(dto.getUuid(), dto.getName());
     assertThat(newValue.toString()).doesNotContain("keyPattern");
   }
 
@@ -73,9 +75,9 @@ class PermissionTemplateDaoWithPersisterIT {
     verify(auditPersister).updatePermissionTemplate(eq(session), newValueCaptor.capture());
     PermissionTemplateNewValue newValue = newValueCaptor.getValue();
     assertThat(newValue)
-      .extracting(PermissionTemplateNewValue::getTemplateUuid, PermissionTemplateNewValue::getName,
-        PermissionTemplateNewValue::getDescription, PermissionTemplateNewValue::getKeyPattern)
-      .containsExactly(dto.getUuid(), dto.getName(), dto.getDescription(), dto.getKeyPattern());
+        .extracting(PermissionTemplateNewValue::getTemplateUuid, PermissionTemplateNewValue::getName,
+            PermissionTemplateNewValue::getDescription, PermissionTemplateNewValue::getKeyPattern)
+        .containsExactly(dto.getUuid(), dto.getName(), dto.getDescription(), dto.getKeyPattern());
     assertThat(newValue.toString()).contains("keyPattern");
   }
 
@@ -87,8 +89,8 @@ class PermissionTemplateDaoWithPersisterIT {
     verify(auditPersister).deletePermissionTemplate(eq(session), newValueCaptor.capture());
     PermissionTemplateNewValue newValue = newValueCaptor.getValue();
     assertThat(newValue)
-      .extracting(PermissionTemplateNewValue::getTemplateUuid, PermissionTemplateNewValue::getName)
-      .containsExactly(dto.getUuid(), dto.getName());
+        .extracting(PermissionTemplateNewValue::getTemplateUuid, PermissionTemplateNewValue::getName)
+        .containsExactly(dto.getUuid(), dto.getName());
     assertThat(newValue.toString()).doesNotContain("keyPattern");
   }
 
@@ -108,9 +110,10 @@ class PermissionTemplateDaoWithPersisterIT {
     verify(auditPersister).addUserToPermissionTemplate(eq(session), newValueCaptor.capture());
     PermissionTemplateNewValue newValue = newValueCaptor.getValue();
     assertThat(newValue)
-      .extracting(PermissionTemplateNewValue::getTemplateUuid, PermissionTemplateNewValue::getName,
-        PermissionTemplateNewValue::getPermission, PermissionTemplateNewValue::getUserUuid, PermissionTemplateNewValue::getUserLogin)
-      .containsExactly(dto.getUuid(), dto.getName(), ADMIN.getKey(), user.getUuid(), user.getLogin());
+        .extracting(PermissionTemplateNewValue::getName,
+            PermissionTemplateNewValue::getPermission,
+            PermissionTemplateNewValue::getUserLogin)
+        .containsExactly(dto.getUuid(), dto.getName(), ADMIN.getKey(), user.getUuid(), user.getLogin());
     assertThat(newValue.toString()).doesNotContain("groupUuid");
 
     underTest.deleteUserPermission(session, dto.getUuid(), user.getUuid(), ADMIN, dto.getName(), user.getLogin());
@@ -118,16 +121,17 @@ class PermissionTemplateDaoWithPersisterIT {
     verify(auditPersister).deleteUserFromPermissionTemplate(eq(session), newValueCaptor.capture());
     newValue = newValueCaptor.getValue();
     assertThat(newValue)
-      .extracting(PermissionTemplateNewValue::getTemplateUuid, PermissionTemplateNewValue::getName,
-        PermissionTemplateNewValue::getPermission, PermissionTemplateNewValue::getUserUuid, PermissionTemplateNewValue::getUserLogin)
-      .containsExactly(dto.getUuid(), dto.getName(), ADMIN.getKey(), user.getUuid(), user.getLogin());
+        .extracting(PermissionTemplateNewValue::getName,
+            PermissionTemplateNewValue::getPermission,
+            PermissionTemplateNewValue::getUserLogin)
+        .containsExactly(dto.getUuid(), dto.getName(), ADMIN.getKey(), user.getUuid(), user.getLogin());
     assertThat(newValue.toString()).doesNotContain("groupUuid");
   }
 
   @Test
   void deleteUserPermissionToTemplateWithoutAffectedRowsIsNotPersisted() {
     underTest.deleteUserPermission(session, "template-uuid", "user-uuid", ADMIN,
-      "template-name", "user-login");
+        "template-name", "user-login");
 
     verifyNoInteractions(auditPersister);
   }
@@ -142,9 +146,10 @@ class PermissionTemplateDaoWithPersisterIT {
     verify(auditPersister).deleteUserFromPermissionTemplate(eq(session), newValueCaptor.capture());
     PermissionTemplateNewValue newValue = newValueCaptor.getValue();
     assertThat(newValue)
-      .extracting(PermissionTemplateNewValue::getTemplateUuid, PermissionTemplateNewValue::getName,
-        PermissionTemplateNewValue::getPermission, PermissionTemplateNewValue::getUserUuid, PermissionTemplateNewValue::getUserLogin)
-      .containsExactly(null, null, null, user.getUuid(), user.getLogin());
+        .extracting(PermissionTemplateNewValue::getName,
+            PermissionTemplateNewValue::getPermission,
+            PermissionTemplateNewValue::getUserLogin)
+        .containsExactly(null, null, null, user.getUuid(), user.getLogin());
     assertThat(newValue.toString()).doesNotContain("groupUuid");
   }
 
@@ -164,9 +169,10 @@ class PermissionTemplateDaoWithPersisterIT {
     verify(auditPersister).addGroupToPermissionTemplate(eq(session), newValueCaptor.capture());
     PermissionTemplateNewValue newValue = newValueCaptor.getValue();
     assertThat(newValue)
-      .extracting(PermissionTemplateNewValue::getTemplateUuid, PermissionTemplateNewValue::getName,
-        PermissionTemplateNewValue::getPermission, PermissionTemplateNewValue::getGroupUuid, PermissionTemplateNewValue::getGroupName)
-      .containsExactly(dto.getUuid(), dto.getName(), ADMIN.getKey(), group.getUuid(), group.getName());
+        .extracting(PermissionTemplateNewValue::getName,
+            PermissionTemplateNewValue::getPermission,
+            PermissionTemplateNewValue::getGroupName)
+        .containsExactly(dto.getUuid(), dto.getName(), ADMIN.getKey(), group.getUuid(), group.getName());
     assertThat(newValue.toString()).contains("groupUuid");
 
     underTest.deleteGroupPermission(session, dto.getUuid(), group.getUuid(), ADMIN, dto.getName(), group.getName());
@@ -174,16 +180,17 @@ class PermissionTemplateDaoWithPersisterIT {
     verify(auditPersister).deleteGroupFromPermissionTemplate(eq(session), newValueCaptor.capture());
     newValue = newValueCaptor.getValue();
     assertThat(newValue)
-      .extracting(PermissionTemplateNewValue::getTemplateUuid, PermissionTemplateNewValue::getName,
-        PermissionTemplateNewValue::getPermission, PermissionTemplateNewValue::getGroupUuid, PermissionTemplateNewValue::getGroupName)
-      .containsExactly(dto.getUuid(), dto.getName(), ADMIN.getKey(), group.getUuid(), group.getName());
+        .extracting(PermissionTemplateNewValue::getName,
+            PermissionTemplateNewValue::getPermission,
+            PermissionTemplateNewValue::getGroupName)
+        .containsExactly(dto.getUuid(), dto.getName(), ADMIN.getKey(), group.getUuid(), group.getName());
     assertThat(newValue.toString()).contains("groupUuid");
   }
 
   @Test
   void deleteGroupPermissionToTemplateWithoutAffectedRowsIsNotPersisted() {
     underTest.deleteGroupPermission(session, "template-uuid", "group-uuid", ADMIN,
-      "template-name", "group-name");
+        "template-name", "group-name");
 
     verifyNoInteractions(auditPersister);
   }
@@ -192,22 +199,23 @@ class PermissionTemplateDaoWithPersisterIT {
   void insertAndDeleteGroupPermissionByGroupUuidToTemplateIsPersisted() {
     PermissionTemplateDto templateDto = insertPermissionTemplate();
     PermissionTemplateGroupDto templateGroupDto = new PermissionTemplateGroupDto()
-      .setUuid(Uuids.createFast())
-      .setGroupName("group")
-      .setGroupUuid("group-id")
-      .setPermission(ADMIN)
-      .setTemplateUuid(templateDto.getUuid())
-      .setCreatedAt(new Date())
-      .setUpdatedAt(new Date());
+        .setUuid(Uuids.create())
+        .setGroupName("group")
+        .setGroupUuid("group-id")
+        .setPermission(ADMIN)
+        .setTemplateUuid(templateDto.getUuid())
+        .setCreatedAt(new Date())
+        .setUpdatedAt(new Date());
     underTest.insertGroupPermission(session, templateGroupDto, templateDto.getName());
 
     verify(auditPersister).addGroupToPermissionTemplate(eq(session), newValueCaptor.capture());
     PermissionTemplateNewValue newValue = newValueCaptor.getValue();
     assertThat(newValue)
-      .extracting(PermissionTemplateNewValue::getTemplateUuid, PermissionTemplateNewValue::getName,
-        PermissionTemplateNewValue::getPermission, PermissionTemplateNewValue::getGroupUuid, PermissionTemplateNewValue::getGroupName)
-      .containsExactly(templateDto.getUuid(), templateDto.getName(), ADMIN.getKey(), templateGroupDto.getGroupUuid(),
-        templateGroupDto.getGroupName());
+        .extracting(PermissionTemplateNewValue::getName,
+            PermissionTemplateNewValue::getPermission,
+            PermissionTemplateNewValue::getGroupName)
+        .containsExactly(templateDto.getUuid(), templateDto.getName(), ADMIN.getKey(), templateGroupDto.getGroupUuid(),
+            templateGroupDto.getGroupName());
     assertThat(newValue.toString()).doesNotContain("userUuid");
 
     underTest.deleteByGroup(session, templateGroupDto.getGroupUuid(), templateGroupDto.getGroupName());
@@ -215,9 +223,10 @@ class PermissionTemplateDaoWithPersisterIT {
     verify(auditPersister).deleteGroupFromPermissionTemplate(eq(session), newValueCaptor.capture());
     newValue = newValueCaptor.getValue();
     assertThat(newValue)
-      .extracting(PermissionTemplateNewValue::getTemplateUuid, PermissionTemplateNewValue::getName,
-        PermissionTemplateNewValue::getPermission, PermissionTemplateNewValue::getGroupUuid, PermissionTemplateNewValue::getGroupName)
-      .containsExactly(null, null, null, templateGroupDto.getGroupUuid(), templateGroupDto.getGroupName());
+        .extracting(PermissionTemplateNewValue::getName,
+            PermissionTemplateNewValue::getPermission,
+            PermissionTemplateNewValue::getGroupName)
+        .containsExactly(null, null, null, templateGroupDto.getGroupUuid(), templateGroupDto.getGroupName());
     assertThat(newValue.toString()).doesNotContain("userUuid");
   }
 
@@ -230,11 +239,11 @@ class PermissionTemplateDaoWithPersisterIT {
 
   private PermissionTemplateDto insertPermissionTemplate() {
     return underTest.insert(session, newPermissionTemplateDto()
-      .setUuid("ABCD")
-      .setName("my template")
-      .setDescription("my description")
-      .setKeyPattern("myregexp")
-      .setCreatedAt(PAST)
-      .setUpdatedAt(NOW));
+        .setUuid("ABCD")
+        .setName("my template")
+        .setDescription("my description")
+        .setKeyPattern("myregexp")
+        .setCreatedAt(PAST)
+        .setUpdatedAt(NOW));
   }
 }

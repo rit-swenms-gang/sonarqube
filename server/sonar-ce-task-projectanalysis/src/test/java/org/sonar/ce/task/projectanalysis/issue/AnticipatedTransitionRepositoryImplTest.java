@@ -19,7 +19,12 @@
  */
 package org.sonar.ce.task.projectanalysis.issue;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.sonar.ce.task.projectanalysis.component.Component.Type.FILE;
+
 import java.util.Date;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -37,10 +42,6 @@ import org.sonar.db.issue.AnticipatedTransitionDto;
 import org.sonar.db.project.CreationMethod;
 import org.sonar.db.project.ProjectDto;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
-import static org.sonar.ce.task.projectanalysis.component.Component.Type.FILE;
-
 public class AnticipatedTransitionRepositoryImplTest {
 
   @Rule
@@ -57,7 +58,7 @@ public class AnticipatedTransitionRepositoryImplTest {
 
   @Test
   public void giveAnticipatedTransitionsForFile_shouldBeReturnedCorrectly() {
-    //given
+    // given
     String projectKey = "projectKey1";
     String projectUuid = "projectUuid1";
     dbClient.projectDao().insert(db.getSession(), getProjectDto(projectUuid, projectKey));
@@ -84,7 +85,7 @@ public class AnticipatedTransitionRepositoryImplTest {
 
   @Test
   public void giveProjectBranchAvailable_projectUuidShouldBeCalculatedFromThere() {
-    //given
+    // given
     String projectKey = "projectKey2";
     String projectUuid = "projectUuid2";
     String mainFile = "file1.js";
@@ -115,21 +116,20 @@ public class AnticipatedTransitionRepositoryImplTest {
   private ComponentDto getComponentDto(String componentKey, String branchUuid) {
     ComponentDto componentDto = new ComponentDto();
     componentDto.setQualifier("FIL")
-      .setUuid(Uuids.createFast())
-      .setKey(componentKey)
-      .setBranchUuid(branchUuid)
-      .setUuidPath(Uuids.createFast());
+        .setUuid(Uuids.create())
+        .setKey(componentKey)
+        .setBranchUuid(branchUuid)
+        .setUuidPath(Uuids.create());
     return componentDto;
   }
-
 
   private BranchDto getBranchDto(String projectUuid, String key) {
     BranchDto branchDto = new BranchDto();
     branchDto.setProjectUuid(projectUuid)
-      .setUuid(Uuids.createFast())
-      .setIsMain(true)
-      .setBranchType(BranchType.BRANCH)
-      .setKey(key);
+        .setUuid(Uuids.create())
+        .setIsMain(true)
+        .setBranchType(BranchType.BRANCH)
+        .setKey(key);
     return branchDto;
   }
 
@@ -145,16 +145,17 @@ public class AnticipatedTransitionRepositoryImplTest {
 
   private Component getFileComponent(String componenUuid, String projectKey, String filename) {
     return ComponentImpl.builder(FILE)
-      .setUuid(componenUuid)
-      .setKey(String.format("%s:%s", projectKey, filename))
-      .setName(filename)
-      .setStatus(Component.Status.ADDED)
-      .setShortName(filename)
-      .setReportAttributes(mock(ReportAttributes.class)).build();
+        .setUuid(componenUuid)
+        .setKey(String.format("%s:%s", projectKey, filename))
+        .setName(filename)
+        .setStatus(Component.Status.ADDED)
+        .setShortName(filename)
+        .setReportAttributes(mock(ReportAttributes.class)).build();
   }
 
   private AnticipatedTransitionDto getAnticipatedTransition(String projectUuid, String filename) {
-    return new AnticipatedTransitionDto(Uuids.createFast(), projectUuid, "admin", "wontfix", null, null, null, null, "rule:key", filename, (new Date()).getTime());
+    return new AnticipatedTransitionDto(Uuids.create(), projectUuid, "admin", "wontfix", null, null, null, null,
+        "rule:key", filename, (new Date()).getTime());
   }
 
 }

@@ -19,22 +19,23 @@
  */
 package org.sonar.db.rule;
 
-import java.util.Arrays;
-import java.util.Random;
-import java.util.function.Consumer;
-import org.sonar.api.rule.RuleKey;
-import org.sonar.core.rule.RuleType;
-import org.sonar.core.util.Uuids;
-import org.sonar.db.DbTester;
-
 import static java.util.Arrays.asList;
 import static org.sonar.core.rule.RuleType.SECURITY_HOTSPOT;
 import static org.sonar.db.rule.RuleTesting.newDeprecatedRuleKey;
 import static org.sonar.db.rule.RuleTesting.newRule;
 
+import java.util.Arrays;
+import java.util.Random;
+import java.util.function.Consumer;
+
+import org.sonar.api.rule.RuleKey;
+import org.sonar.core.rule.RuleType;
+import org.sonar.core.util.Uuids;
+import org.sonar.db.DbTester;
+
 public class RuleDbTester {
   private static final RuleType[] RULE_TYPES_EXCEPT_HOTSPOTS = Arrays.stream(RuleType.values())
-    .filter(ruleType -> SECURITY_HOTSPOT != ruleType).toArray(RuleType[]::new);
+      .filter(ruleType -> SECURITY_HOTSPOT != ruleType).toArray(RuleType[]::new);
 
   private final DbTester db;
 
@@ -109,7 +110,7 @@ public class RuleDbTester {
 
   public RuleDto insert(RuleDto rule) {
     if (rule.getUuid() == null) {
-      rule.setUuid(Uuids.createFast());
+      rule.setUuid(Uuids.create());
     }
 
     db.getDbClient().ruleDao().insert(db.getSession(), rule);
@@ -152,14 +153,15 @@ public class RuleDbTester {
     populateRuleDto.accept(ruleDto);
 
     if (ruleDto.getUuid() == null) {
-      ruleDto.setUuid(Uuids.createFast());
+      ruleDto.setUuid(Uuids.create());
     }
 
     return insert(ruleDto);
   }
 
   @SafeVarargs
-  public final DeprecatedRuleKeyDto insertDeprecatedKey(Consumer<DeprecatedRuleKeyDto>... deprecatedRuleKeyDtoConsumers) {
+  public final DeprecatedRuleKeyDto insertDeprecatedKey(
+      Consumer<DeprecatedRuleKeyDto>... deprecatedRuleKeyDtoConsumers) {
     DeprecatedRuleKeyDto deprecatedRuleKeyDto = newDeprecatedRuleKey();
     asList(deprecatedRuleKeyDtoConsumers).forEach(c -> c.accept(deprecatedRuleKeyDto));
     db.getDbClient().ruleDao().insert(db.getSession(), deprecatedRuleKeyDto);

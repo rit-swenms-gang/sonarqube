@@ -19,26 +19,6 @@
  */
 package org.sonar.server.duplication.ws;
 
-import java.util.function.Function;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.sonar.api.measures.CoreMetrics;
-import org.sonar.api.server.ws.WebService;
-import org.sonar.db.permission.ProjectPermission;
-import org.sonar.core.util.Uuids;
-import org.sonar.db.DbTester;
-import org.sonar.db.component.ComponentDto;
-import org.sonar.db.metric.MetricDto;
-import org.sonar.server.component.TestComponentFinder;
-import org.sonar.server.exceptions.ForbiddenException;
-import org.sonar.server.exceptions.NotFoundException;
-import org.sonar.server.metric.MetricToDto;
-import org.sonar.server.tester.UserSessionRule;
-import org.sonar.server.ws.TestRequest;
-import org.sonar.server.ws.TestResponse;
-import org.sonar.server.ws.WsActionTester;
-
 import static java.lang.String.format;
 import static org.apache.commons.lang3.RandomStringUtils.secure;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -47,6 +27,27 @@ import static org.sonar.db.component.BranchType.PULL_REQUEST;
 import static org.sonar.db.component.ComponentTesting.newFileDto;
 import static org.sonar.db.component.SnapshotTesting.newAnalysis;
 import static org.sonar.test.JsonAssert.assertJson;
+
+import java.util.function.Function;
+
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.sonar.api.measures.CoreMetrics;
+import org.sonar.api.server.ws.WebService;
+import org.sonar.core.util.Uuids;
+import org.sonar.db.DbTester;
+import org.sonar.db.component.ComponentDto;
+import org.sonar.db.metric.MetricDto;
+import org.sonar.db.permission.ProjectPermission;
+import org.sonar.server.component.TestComponentFinder;
+import org.sonar.server.exceptions.ForbiddenException;
+import org.sonar.server.exceptions.NotFoundException;
+import org.sonar.server.metric.MetricToDto;
+import org.sonar.server.tester.UserSessionRule;
+import org.sonar.server.ws.TestRequest;
+import org.sonar.server.ws.TestResponse;
+import org.sonar.server.ws.WsActionTester;
 
 public class ShowActionIT {
 
@@ -60,12 +61,13 @@ public class ShowActionIT {
   private final TestComponentFinder componentFinder = TestComponentFinder.from(db);
   private final DuplicationsParser parser = new DuplicationsParser(componentFinder);
   private final ShowResponseBuilder showResponseBuilder = new ShowResponseBuilder(db.getDbClient());
-  private final WsActionTester ws = new WsActionTester(new ShowAction(db.getDbClient(), parser, showResponseBuilder, userSessionRule,
-    TestComponentFinder.from(db)));
+  private final WsActionTester ws = new WsActionTester(
+      new ShowAction(db.getDbClient(), parser, showResponseBuilder, userSessionRule,
+          TestComponentFinder.from(db)));
 
   @Before
   public void setUp() {
-    dataMetric.setUuid(Uuids.createFast());
+    dataMetric.setUuid(Uuids.create());
     db.getDbClient().metricDao().insert(db.getSession(), dataMetric);
     db.commit();
   }
@@ -98,11 +100,11 @@ public class ShowActionIT {
     TestResponse result = newBaseRequest().setParam("key", file.getKey()).execute();
 
     assertJson(result.getInput()).isSimilarTo("""
-      {
-        "duplications": [],
-        "files": {}
-      }
-      """);
+        {
+          "duplications": [],
+          "files": {}
+        }
+        """);
   }
 
   @Test
@@ -114,51 +116,52 @@ public class ShowActionIT {
     userSessionRule.addProjectBranchMapping(project.uuid(), branch);
     ComponentDto file = db.components().insertComponent(newFileDto(branch, project.uuid()));
     db.measures().insertMeasure(file, m -> m.addValue(dataMetric.getKey(), format("""
-      <duplications>
-        <g>
-          <b s="31" l="5" r="%s"/>
-          <b s="20" l="5" r="%s"/>
-        </g>
-      </duplications>
-      """, file.getKey(), file.getKey())));
+        <duplications>
+          <g>
+            <b s="31" l="5" r="%s"/>
+            <b s="20" l="5" r="%s"/>
+          </g>
+        </duplications>
+        """, file.getKey(), file.getKey())));
 
     String result = ws.newRequest()
-      .setParam("key", file.getKey())
-      .setParam("branch", branchName)
-      .execute()
-      .getInput();
+        .setParam("key", file.getKey())
+        .setParam("branch", branchName)
+        .execute()
+        .getInput();
 
     assertJson(result).isSimilarTo(format("""
-      {
-        "duplications": [
-          {
-            "blocks": [
-              {
-                "from": 20,
-                "size": 5,
-                "_ref": "1"
-              },
-              {
-                "from": 31,
-                "size": 5,
-                "_ref": "1"
-              }
-            ]
-          }
-        ],
-        "files": {
-          "1": {
-            "key": "%s",
-            "name": "%s",
-            "uuid": "%s",
-            "project": "%s",
-            "projectUuid": "%s",
-            "projectName": "%s"
-            "branch": "%s"
+        {
+          "duplications": [
+            {
+              "blocks": [
+                {
+                  "from": 20,
+                  "size": 5,
+                  "_ref": "1"
+                },
+                {
+                  "from": 31,
+                  "size": 5,
+                  "_ref": "1"
+                }
+              ]
+            }
+          ],
+          "files": {
+            "1": {
+              "key": "%s",
+              "name": "%s",
+              "uuid": "%s",
+              "project": "%s",
+              "projectUuid": "%s",
+              "projectName": "%s"
+              "branch": "%s"
+            }
           }
         }
-      }
-      """, file.getKey(), file.longName(), file.uuid(), branch.getKey(), branch.uuid(), project.longName(), branchName));
+        """, file.getKey(), file.longName(), file.uuid(), branch.getKey(), branch.uuid(), project.longName(),
+        branchName));
   }
 
   @Test
@@ -166,55 +169,57 @@ public class ShowActionIT {
     ComponentDto project = db.components().insertPrivateProject().getMainBranchComponent();
     userSessionRule.addProjectPermission(ProjectPermission.CODEVIEWER, project);
     String pullRequestKey = secure().nextAlphanumeric(100);
-    ComponentDto pullRequest = db.components().insertProjectBranch(project, b -> b.setBranchType(PULL_REQUEST).setKey(pullRequestKey));
+    ComponentDto pullRequest = db.components().insertProjectBranch(project,
+        b -> b.setBranchType(PULL_REQUEST).setKey(pullRequestKey));
     userSessionRule.addProjectBranchMapping(project.uuid(), pullRequest);
     ComponentDto file = db.components().insertComponent(newFileDto(pullRequest, project.uuid()));
     db.measures().insertMeasure(file, m -> m.addValue(dataMetric.getKey(), format("""
-      <duplications>
-        <g>
-          <b s="31" l="5" r="%s"/>
-          <b s="20" l="5" r="%s"/>
-        </g>
-      </duplications>
-      """, file.getKey(), file.getKey())));
+        <duplications>
+          <g>
+            <b s="31" l="5" r="%s"/>
+            <b s="20" l="5" r="%s"/>
+          </g>
+        </duplications>
+        """, file.getKey(), file.getKey())));
 
     String result = ws.newRequest()
-      .setParam("key", file.getKey())
-      .setParam("pullRequest", pullRequestKey)
-      .execute()
-      .getInput();
+        .setParam("key", file.getKey())
+        .setParam("pullRequest", pullRequestKey)
+        .execute()
+        .getInput();
 
     assertJson(result).isSimilarTo(format("""
-      {
-        "duplications": [
-          {
-            "blocks": [
-              {
-                "from": 20,
-                "size": 5,
-                "_ref": "1"
-              },
-              {
-                "from": 31,
-                "size": 5,
-                "_ref": "1"
-              }
-            ]
-          }
-        ],
-        "files": {
-          "1": {
-            "key": "%s",
-            "name": "%s",
-            "uuid": "%s",
-            "project": "%s",
-            "projectUuid": "%s",
-            "projectName": "%s"
-            "pullRequest": "%s"
+        {
+          "duplications": [
+            {
+              "blocks": [
+                {
+                  "from": 20,
+                  "size": 5,
+                  "_ref": "1"
+                },
+                {
+                  "from": 31,
+                  "size": 5,
+                  "_ref": "1"
+                }
+              ]
+            }
+          ],
+          "files": {
+            "1": {
+              "key": "%s",
+              "name": "%s",
+              "uuid": "%s",
+              "project": "%s",
+              "projectUuid": "%s",
+              "projectName": "%s"
+              "pullRequest": "%s"
+            }
           }
         }
-      }
-      """, file.getKey(), file.longName(), file.uuid(), pullRequest.getKey(), pullRequest.uuid(), project.longName(), pullRequestKey));
+        """, file.getKey(), file.longName(), file.uuid(), pullRequest.getKey(), pullRequest.uuid(), project.longName(),
+        pullRequestKey));
   }
 
   @Test
@@ -222,7 +227,7 @@ public class ShowActionIT {
     TestRequest request = newBaseRequest().setParam("key", "missing");
 
     assertThatThrownBy(request::execute)
-      .isInstanceOf(NotFoundException.class);
+        .isInstanceOf(NotFoundException.class);
   }
 
   @Test
@@ -232,7 +237,7 @@ public class ShowActionIT {
     TestRequest request = newBaseRequest().setParam("key", file.getKey());
 
     assertThatThrownBy(request::execute)
-      .isInstanceOf(ForbiddenException.class);
+        .isInstanceOf(ForbiddenException.class);
   }
 
   @Test
@@ -240,8 +245,8 @@ public class ShowActionIT {
     TestRequest request = newBaseRequest();
 
     assertThatThrownBy(request::execute)
-      .isInstanceOf(IllegalArgumentException.class)
-      .hasMessage("The 'key' parameter is missing");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("The 'key' parameter is missing");
   }
 
   private TestRequest newBaseRequest() {
@@ -253,43 +258,43 @@ public class ShowActionIT {
     userSessionRule.addProjectPermission(ProjectPermission.CODEVIEWER, project);
     ComponentDto file = db.components().insertComponent(newFileDto(project).setKey("foo.js"));
     String xml = """
-      <duplications>
-        <g>
-          <b s="31" l="5" r="foo.js"/>
-          <b s="20" l="5" r="foo.js"/>
-        </g>
-      </duplications>
-      """;
+        <duplications>
+          <g>
+            <b s="31" l="5" r="foo.js"/>
+            <b s="20" l="5" r="foo.js"/>
+          </g>
+        </duplications>
+        """;
     db.measures().insertMeasure(file, m -> m.addValue(dataMetric.getKey(), xml));
 
     TestRequest request = requestFactory.apply(file);
     TestResponse result = request.execute();
 
     assertJson(result.getInput()).isSimilarTo(format("""
-      {
-        "duplications": [
-          {
-            "blocks": [
-              {
-                "from": 20,
-                "size": 5,
-                "_ref": "1"
-              },
-              {
-                "from": 31,
-                "size": 5,
-                "_ref": "1"
-              }
-            ]
-          }
-        ],
-        "files": {
-          "1": {
-            "key": "foo.js",
-            "uuid": "%s"
+        {
+          "duplications": [
+            {
+              "blocks": [
+                {
+                  "from": 20,
+                  "size": 5,
+                  "_ref": "1"
+                },
+                {
+                  "from": 31,
+                  "size": 5,
+                  "_ref": "1"
+                }
+              ]
+            }
+          ],
+          "files": {
+            "1": {
+              "key": "foo.js",
+              "uuid": "%s"
+            }
           }
         }
-      }
-      """, file.uuid()));
+        """, file.uuid()));
   }
 }

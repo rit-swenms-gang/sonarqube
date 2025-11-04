@@ -47,7 +47,6 @@ public class SourceServiceIT {
   @Rule
   public DbTester dbTester = DbTester.create(System2.INSTANCE);
 
-
   HtmlSourceDecorator htmlDecorator = mock(HtmlSourceDecorator.class);
 
   SourceService underTest = new SourceService(dbTester.getDbClient(), htmlDecorator);
@@ -55,7 +54,7 @@ public class SourceServiceIT {
   @Before
   public void injectFakeLines() {
     FileSourceDto dto = new FileSourceDto();
-    dto.setFileUuid(FILE_UUID).setUuid(Uuids.createFast()).setProjectUuid("PROJECT_UUID");
+    dto.setFileUuid(FILE_UUID).setUuid(Uuids.create()).setProjectUuid("PROJECT_UUID");
     dto.setSourceData(FileSourceTesting.newFakeData(10).build());
     dbTester.getDbClient().fileSourceDao().insert(dbTester.getSession(), dto);
     dbTester.commit();
@@ -107,15 +106,15 @@ public class SourceServiceIT {
   @Test
   public void getLines_fails_if_range_starts_at_zero() {
     assertThatThrownBy(() -> underTest.getLines(dbTester.getSession(), FILE_UUID, 0, 2))
-      .isInstanceOf(IllegalArgumentException.class)
-      .hasMessageContaining("Line number must start at 1, got 0");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Line number must start at 1, got 0");
   }
 
   @Test
   public void getLines_fails_if_range_upper_bound_less_than_lower_bound() {
     assertThatThrownBy(() -> underTest.getLines(dbTester.getSession(), FILE_UUID, 5, 4))
-      .isInstanceOf(IllegalArgumentException.class)
-      .hasMessageContaining("Line number must greater than or equal to 5, got 4");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Line number must greater than or equal to 5, got 4");
   }
 
   @Test
@@ -127,7 +126,8 @@ public class SourceServiceIT {
 
   @Test
   public void getLines_file_does_not_exist() {
-    Optional<Iterable<DbFileSources.Line>> lines = underTest.getLines(dbTester.getSession(), "FILE_DOES_NOT_EXIST", 1, 10);
+    Optional<Iterable<DbFileSources.Line>> lines = underTest.getLines(dbTester.getSession(), "FILE_DOES_NOT_EXIST", 1,
+        10);
     assertThat(lines).isEmpty();
   }
 

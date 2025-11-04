@@ -73,33 +73,34 @@ public class ComponentDbTester {
 
   public ProjectData insertPrivateProject() {
     return insertComponentAndBranchAndProject(ComponentTesting.newPrivateProjectDto(), true,
-      defaults(), defaults(), defaults());
+        defaults(), defaults(), defaults());
   }
 
   public ProjectData insertPrivateProjectWithCreationMethod(CreationMethod creationMethod) {
     return insertComponentAndBranchAndProject(ComponentTesting.newPrivateProjectDto(), true,
-      defaults(), defaults(), projectDto -> projectDto.setCreationMethod(creationMethod));
+        defaults(), defaults(), projectDto -> projectDto.setCreationMethod(creationMethod));
   }
 
   public BranchDto getBranchDto(ComponentDto branch) {
     return db.getDbClient().branchDao().selectByUuid(db.getSession(), branch.uuid())
-      .orElseThrow(() -> new IllegalStateException("Project has invalid configuration"));
+        .orElseThrow(() -> new IllegalStateException("Project has invalid configuration"));
   }
 
   public ProjectDto getProjectDtoByMainBranch(ComponentDto mainBranch) {
     return db.getDbClient().projectDao().selectByBranchUuid(db.getSession(), mainBranch.uuid())
-      .orElseThrow(() -> new IllegalStateException("Project has invalid configuration"));
+        .orElseThrow(() -> new IllegalStateException("Project has invalid configuration"));
   }
 
   public ComponentDto getComponentDto(ProjectDto project) {
-    BranchDto branchDto = db.getDbClient().branchDao().selectMainBranchByProjectUuid(db.getSession(), project.getUuid()).get();
+    BranchDto branchDto = db.getDbClient().branchDao().selectMainBranchByProjectUuid(db.getSession(), project.getUuid())
+        .get();
     return db.getDbClient().componentDao().selectByUuid(db.getSession(), branchDto.getUuid())
-      .orElseThrow(() -> new IllegalStateException("Can't find project"));
+        .orElseThrow(() -> new IllegalStateException("Can't find project"));
   }
 
   public ComponentDto getComponentDto(BranchDto branch) {
     return db.getDbClient().componentDao().selectByUuid(db.getSession(), branch.getUuid())
-      .orElseThrow(() -> new IllegalStateException("Can't find branch"));
+        .orElseThrow(() -> new IllegalStateException("Can't find branch"));
   }
 
   public ProjectData insertPrivateProject(ComponentDto componentDto) {
@@ -111,11 +112,13 @@ public class ComponentDbTester {
   }
 
   public ProjectData insertPublicProject(String uuid) {
-    return insertComponentAndBranchAndProject(ComponentTesting.newPublicProjectDto(), false, defaults(), defaults(), p -> p.setUuid(uuid));
+    return insertComponentAndBranchAndProject(ComponentTesting.newPublicProjectDto(), false, defaults(), defaults(),
+        p -> p.setUuid(uuid));
   }
 
   public ProjectData insertPublicProject(String uuid, Consumer<ComponentDto> dtoPopulator) {
-    return insertComponentAndBranchAndProject(ComponentTesting.newPublicProjectDto(), false, defaults(), dtoPopulator, p -> p.setUuid(uuid));
+    return insertComponentAndBranchAndProject(ComponentTesting.newPublicProjectDto(), false, defaults(), dtoPopulator,
+        p -> p.setUuid(uuid));
   }
 
   public ProjectData insertPublicProject(ComponentDto componentDto) {
@@ -123,7 +126,8 @@ public class ComponentDbTester {
   }
 
   public ProjectData insertPrivateProject(String projectUuid) {
-    return insertComponentAndBranchAndProject(ComponentTesting.newPrivateProjectDto(), true, defaults(), defaults(), p -> p.setUuid(projectUuid));
+    return insertComponentAndBranchAndProject(ComponentTesting.newPrivateProjectDto(), true, defaults(), defaults(),
+        p -> p.setUuid(projectUuid));
   }
 
   public ProjectData insertPrivateProject(String projectUuid, ComponentDto mainBranch) {
@@ -134,20 +138,24 @@ public class ComponentDbTester {
     return insertComponentAndBranchAndProject(ComponentTesting.newPrivateProjectDto(), true, defaults(), dtoPopulator);
   }
 
-  public final ProjectData insertPrivateProject(Consumer<ComponentDto> componentDtoPopulator, Consumer<ProjectDto> projectDtoPopulator) {
+  public final ProjectData insertPrivateProject(Consumer<ComponentDto> componentDtoPopulator,
+      Consumer<ProjectDto> projectDtoPopulator) {
     return insertComponentAndBranchAndProject(ComponentTesting.newPrivateProjectDto(),
-      true, defaults(), componentDtoPopulator, projectDtoPopulator);
+        true, defaults(), componentDtoPopulator, projectDtoPopulator);
   }
 
   public final ProjectData insertPublicProject(Consumer<ComponentDto> dtoPopulator) {
     return insertComponentAndBranchAndProject(ComponentTesting.newPublicProjectDto(), false, defaults(), dtoPopulator);
   }
 
-  public final ProjectData insertPublicProject(Consumer<ComponentDto> componentDtoPopulator, Consumer<ProjectDto> projectDtoPopulator) {
-    return insertComponentAndBranchAndProject(ComponentTesting.newPublicProjectDto(), false, defaults(), componentDtoPopulator, projectDtoPopulator);
+  public final ProjectData insertPublicProject(Consumer<ComponentDto> componentDtoPopulator,
+      Consumer<ProjectDto> projectDtoPopulator) {
+    return insertComponentAndBranchAndProject(ComponentTesting.newPublicProjectDto(), false, defaults(),
+        componentDtoPopulator, projectDtoPopulator);
   }
 
-  public ProjectData insertPrivateProject(Consumer<BranchDto> branchPopulator, Consumer<ComponentDto> componentDtoPopulator, Consumer<ProjectDto> projectDtoPopulator) {
+  public ProjectData insertPrivateProject(Consumer<BranchDto> branchPopulator,
+      Consumer<ComponentDto> componentDtoPopulator, Consumer<ProjectDto> projectDtoPopulator) {
     return insertPrivateProjectWithCustomBranch(branchPopulator, componentDtoPopulator, projectDtoPopulator);
   }
 
@@ -161,7 +169,8 @@ public class ComponentDbTester {
   }
 
   public final ProjectData insertPrivateProject(String uuid, Consumer<ComponentDto> dtoPopulator) {
-    return insertComponentAndBranchAndProject(ComponentTesting.newPrivateProjectDto(), true, defaults(), dtoPopulator, p -> p.setUuid(uuid));
+    return insertComponentAndBranchAndProject(ComponentTesting.newPrivateProjectDto(), true, defaults(), dtoPopulator,
+        p -> p.setUuid(uuid));
 
   }
 
@@ -169,38 +178,49 @@ public class ComponentDbTester {
     return insertPrivateProjectWithCustomBranch(b -> b.setBranchType(BRANCH).setKey(branchKey), defaults());
   }
 
-  public final ProjectData insertPrivateProjectWithCustomBranch(Consumer<BranchDto> branchPopulator, Consumer<ComponentDto> componentPopulator) {
-    return insertComponentAndBranchAndProject(ComponentTesting.newPrivateProjectDto(), true, branchPopulator, componentPopulator);
+  public final ProjectData insertPrivateProjectWithCustomBranch(Consumer<BranchDto> branchPopulator,
+      Consumer<ComponentDto> componentPopulator) {
+    return insertComponentAndBranchAndProject(ComponentTesting.newPrivateProjectDto(), true, branchPopulator,
+        componentPopulator);
   }
 
-  public final ProjectData insertPublicProjectWithCustomBranch(Consumer<BranchDto> branchPopulator, Consumer<ComponentDto> componentPopulator) {
-    return insertComponentAndBranchAndProject(ComponentTesting.newPublicProjectDto(), false, branchPopulator, componentPopulator);
+  public final ProjectData insertPublicProjectWithCustomBranch(Consumer<BranchDto> branchPopulator,
+      Consumer<ComponentDto> componentPopulator) {
+    return insertComponentAndBranchAndProject(ComponentTesting.newPublicProjectDto(), false, branchPopulator,
+        componentPopulator);
   }
 
-  public final ProjectData insertPrivateProjectWithCustomBranch(Consumer<BranchDto> branchPopulator, Consumer<ComponentDto> componentPopulator,
-    Consumer<ProjectDto> projectPopulator) {
-    return insertComponentAndBranchAndProject(ComponentTesting.newPrivateProjectDto(), true, branchPopulator, componentPopulator, projectPopulator);
+  public final ProjectData insertPrivateProjectWithCustomBranch(Consumer<BranchDto> branchPopulator,
+      Consumer<ComponentDto> componentPopulator,
+      Consumer<ProjectDto> projectPopulator) {
+    return insertComponentAndBranchAndProject(ComponentTesting.newPrivateProjectDto(), true, branchPopulator,
+        componentPopulator, projectPopulator);
   }
 
   public ProjectData insertProjectWithAiCode() {
-    return insertComponentAndBranchAndProject(ComponentTesting.newPrivateProjectDto(), true, defaults(), defaults(), p -> p.setContainsAiCode(true));
+    return insertComponentAndBranchAndProject(ComponentTesting.newPrivateProjectDto(), true, defaults(), defaults(),
+        p -> p.setContainsAiCode(true));
   }
 
-
   public final ComponentDto insertPublicPortfolio() {
-    return insertComponentAndPortfolio(ComponentTesting.newPortfolio().setPrivate(false), false, defaults(), defaults());
+    return insertComponentAndPortfolio(ComponentTesting.newPortfolio().setPrivate(false), false, defaults(),
+        defaults());
   }
 
   public final ComponentDto insertPublicPortfolio(String uuid, Consumer<ComponentDto> dtoPopulator) {
-    return insertComponentAndPortfolio(ComponentTesting.newPortfolio(uuid).setPrivate(false), false, dtoPopulator, defaults());
+    return insertComponentAndPortfolio(ComponentTesting.newPortfolio(uuid).setPrivate(false), false, dtoPopulator,
+        defaults());
   }
 
   public final ComponentDto insertPublicPortfolio(Consumer<ComponentDto> dtoPopulator) {
-    return insertComponentAndPortfolio(ComponentTesting.newPortfolio().setPrivate(false), false, dtoPopulator, defaults());
+    return insertComponentAndPortfolio(ComponentTesting.newPortfolio().setPrivate(false), false, dtoPopulator,
+        defaults());
   }
 
-  public final ComponentDto insertPublicPortfolio(Consumer<ComponentDto> dtoPopulator, Consumer<PortfolioDto> portfolioPopulator) {
-    return insertComponentAndPortfolio(ComponentTesting.newPortfolio().setPrivate(false), false, dtoPopulator, portfolioPopulator);
+  public final ComponentDto insertPublicPortfolio(Consumer<ComponentDto> dtoPopulator,
+      Consumer<PortfolioDto> portfolioPopulator) {
+    return insertComponentAndPortfolio(ComponentTesting.newPortfolio().setPrivate(false), false, dtoPopulator,
+        portfolioPopulator);
   }
 
   public final PortfolioDto insertPublicPortfolioDto() {
@@ -208,74 +228,89 @@ public class ComponentDbTester {
   }
 
   public final PortfolioDto insertPublicPortfolioDto(Consumer<ComponentDto> dtoPopulator) {
-    ComponentDto component = insertComponentAndPortfolio(ComponentTesting.newPortfolio().setPrivate(false), false, dtoPopulator, defaults());
+    ComponentDto component = insertComponentAndPortfolio(ComponentTesting.newPortfolio().setPrivate(false), false,
+        dtoPopulator, defaults());
     return getPortfolioDto(component);
   }
 
   public final PortfolioDto insertPrivatePortfolioDto(String uuid) {
-    ComponentDto component = insertComponentAndPortfolio(ComponentTesting.newPortfolio(uuid).setPrivate(true), true, defaults(), defaults());
+    ComponentDto component = insertComponentAndPortfolio(ComponentTesting.newPortfolio(uuid).setPrivate(true), true,
+        defaults(), defaults());
     return getPortfolioDto(component);
   }
 
   public final PortfolioDto insertPrivatePortfolioDto(String uuid, Consumer<PortfolioDto> portfolioPopulator) {
-    ComponentDto component = insertComponentAndPortfolio(ComponentTesting.newPortfolio(uuid).setPrivate(true), true, defaults(), portfolioPopulator);
+    ComponentDto component = insertComponentAndPortfolio(ComponentTesting.newPortfolio(uuid).setPrivate(true), true,
+        defaults(), portfolioPopulator);
     return getPortfolioDto(component);
   }
 
   public final PortfolioDto insertPrivatePortfolioDto() {
-    ComponentDto component = insertComponentAndPortfolio(ComponentTesting.newPortfolio().setPrivate(true), true, defaults(), defaults());
+    ComponentDto component = insertComponentAndPortfolio(ComponentTesting.newPortfolio().setPrivate(true), true,
+        defaults(), defaults());
     return getPortfolioDto(component);
   }
 
   public final PortfolioData insertPrivatePortfolioData() {
-    ComponentDto component = insertComponentAndPortfolio(ComponentTesting.newPortfolio().setPrivate(true), true, defaults(), defaults());
+    ComponentDto component = insertComponentAndPortfolio(ComponentTesting.newPortfolio().setPrivate(true), true,
+        defaults(), defaults());
     PortfolioDto portfolioDto = getPortfolioDto(component);
     return new PortfolioData(portfolioDto, component);
   }
 
   public final PortfolioData insertPrivatePortfolioData(Consumer<ComponentDto> dtoPopulator) {
-    ComponentDto component = insertComponentAndPortfolio(ComponentTesting.newPortfolio().setPrivate(true), true, dtoPopulator, defaults());
+    ComponentDto component = insertComponentAndPortfolio(ComponentTesting.newPortfolio().setPrivate(true), true,
+        dtoPopulator, defaults());
     PortfolioDto portfolioDto = getPortfolioDto(component);
     return new PortfolioData(portfolioDto, component);
   }
 
   public final PortfolioDto insertPrivatePortfolioDto(Consumer<ComponentDto> dtoPopulator) {
-    ComponentDto component = insertComponentAndPortfolio(ComponentTesting.newPortfolio().setPrivate(true), true, dtoPopulator, defaults());
+    ComponentDto component = insertComponentAndPortfolio(ComponentTesting.newPortfolio().setPrivate(true), true,
+        dtoPopulator, defaults());
     return getPortfolioDto(component);
   }
 
-  public final PortfolioDto insertPrivatePortfolioDto(Consumer<ComponentDto> dtoPopulator, Consumer<PortfolioDto> portfolioPopulator) {
-    ComponentDto component = insertComponentAndPortfolio(ComponentTesting.newPortfolio().setPrivate(true), true, dtoPopulator, portfolioPopulator);
+  public final PortfolioDto insertPrivatePortfolioDto(Consumer<ComponentDto> dtoPopulator,
+      Consumer<PortfolioDto> portfolioPopulator) {
+    ComponentDto component = insertComponentAndPortfolio(ComponentTesting.newPortfolio().setPrivate(true), true,
+        dtoPopulator, portfolioPopulator);
     return getPortfolioDto(component);
   }
 
   public final PortfolioDto insertPublicPortfolioDto(String uuid, Consumer<ComponentDto> dtoPopulator) {
-    ComponentDto component = insertComponentAndPortfolio(ComponentTesting.newPortfolio(uuid).setPrivate(false), false, dtoPopulator, defaults());
+    ComponentDto component = insertComponentAndPortfolio(ComponentTesting.newPortfolio(uuid).setPrivate(false), false,
+        dtoPopulator, defaults());
     return getPortfolioDto(component);
   }
 
-  public final PortfolioDto insertPublicPortfolioDto(String uuid, Consumer<ComponentDto> dtoPopulator, Consumer<PortfolioDto> portfolioPopulator) {
-    ComponentDto component = insertComponentAndPortfolio(ComponentTesting.newPortfolio(uuid).setPrivate(false), false, dtoPopulator, portfolioPopulator);
+  public final PortfolioDto insertPublicPortfolioDto(String uuid, Consumer<ComponentDto> dtoPopulator,
+      Consumer<PortfolioDto> portfolioPopulator) {
+    ComponentDto component = insertComponentAndPortfolio(ComponentTesting.newPortfolio(uuid).setPrivate(false), false,
+        dtoPopulator, portfolioPopulator);
     return getPortfolioDto(component);
   }
 
-  public final PortfolioDto insertPublicPortfolioDto(Consumer<ComponentDto> dtoPopulator, Consumer<PortfolioDto> portfolioPopulator) {
-    ComponentDto component = insertComponentAndPortfolio(ComponentTesting.newPortfolio().setPrivate(false), false, dtoPopulator, portfolioPopulator);
+  public final PortfolioDto insertPublicPortfolioDto(Consumer<ComponentDto> dtoPopulator,
+      Consumer<PortfolioDto> portfolioPopulator) {
+    ComponentDto component = insertComponentAndPortfolio(ComponentTesting.newPortfolio().setPrivate(false), false,
+        dtoPopulator, portfolioPopulator);
     return getPortfolioDto(component);
   }
 
   public PortfolioDto getPortfolioDto(ComponentDto portfolio) {
     return db.getDbClient().portfolioDao().selectByUuid(db.getSession(), portfolio.uuid())
-      .orElseThrow(() -> new IllegalStateException("Portfolio has invalid configuration"));
+        .orElseThrow(() -> new IllegalStateException("Portfolio has invalid configuration"));
   }
 
   public PortfolioDto getPortfolioDto(PortfolioDto portfolio) {
     return db.getDbClient().portfolioDao().selectByUuid(db.getSession(), portfolio.getUuid())
-      .orElseThrow(() -> new IllegalStateException("Portfolio has invalid configuration"));
+        .orElseThrow(() -> new IllegalStateException("Portfolio has invalid configuration"));
   }
 
-  public ComponentDto insertComponentAndPortfolio(ComponentDto componentDto, boolean isPrivate, Consumer<ComponentDto> componentPopulator,
-    Consumer<PortfolioDto> portfolioPopulator) {
+  public ComponentDto insertComponentAndPortfolio(ComponentDto componentDto, boolean isPrivate,
+      Consumer<ComponentDto> componentPopulator,
+      Consumer<PortfolioDto> portfolioPopulator) {
     insertComponentImpl(componentDto, isPrivate, componentPopulator);
 
     PortfolioDto portfolioDto = toPortfolioDto(componentDto, System2.INSTANCE.now());
@@ -290,15 +325,19 @@ public class ComponentDbTester {
   }
 
   public final ComponentDto insertPrivatePortfolio(String uuid, Consumer<ComponentDto> dtoPopulator) {
-    return insertComponentAndPortfolio(ComponentTesting.newPortfolio(uuid).setPrivate(true), true, dtoPopulator, defaults());
+    return insertComponentAndPortfolio(ComponentTesting.newPortfolio(uuid).setPrivate(true), true, dtoPopulator,
+        defaults());
   }
 
   public final ComponentDto insertPrivatePortfolio(Consumer<ComponentDto> dtoPopulator) {
-    return insertComponentAndPortfolio(ComponentTesting.newPortfolio().setPrivate(true), true, dtoPopulator, defaults());
+    return insertComponentAndPortfolio(ComponentTesting.newPortfolio().setPrivate(true), true, dtoPopulator,
+        defaults());
   }
 
-  public final ComponentDto insertPrivatePortfolio(Consumer<ComponentDto> dtoPopulator, Consumer<PortfolioDto> portfolioPopulator) {
-    return insertComponentAndPortfolio(ComponentTesting.newPortfolio().setPrivate(true), true, dtoPopulator, portfolioPopulator);
+  public final ComponentDto insertPrivatePortfolio(Consumer<ComponentDto> dtoPopulator,
+      Consumer<PortfolioDto> portfolioPopulator) {
+    return insertComponentAndPortfolio(ComponentTesting.newPortfolio().setPrivate(true), true, dtoPopulator,
+        portfolioPopulator);
   }
 
   public final ComponentDto insertSubportfolio(ComponentDto parentPortfolio) {
@@ -313,11 +352,12 @@ public class ComponentDbTester {
   public void addPortfolioReference(String portfolioUuid, String... referencerUuids) {
     for (String uuid : referencerUuids) {
       EntityDto entityDto = dbClient.entityDao().selectByUuid(db.getSession(), uuid)
-        .orElseThrow();
+          .orElseThrow();
       switch (entityDto.getQualifier()) {
         case APP -> {
-          BranchDto appMainBranch = dbClient.branchDao().selectMainBranchByProjectUuid(db.getSession(), entityDto.getUuid())
-            .orElseThrow();
+          BranchDto appMainBranch = dbClient.branchDao()
+              .selectMainBranchByProjectUuid(db.getSession(), entityDto.getUuid())
+              .orElseThrow();
           dbClient.portfolioDao().addReferenceBranch(db.getSession(), portfolioUuid, uuid, appMainBranch.getUuid());
         }
         case VIEW, SUBVIEW -> dbClient.portfolioDao().addReference(db.getSession(), portfolioUuid, uuid);
@@ -358,7 +398,8 @@ public class ComponentDbTester {
   }
 
   public void addPortfolioProject(ComponentDto portfolio, ComponentDto... mainBranches) {
-    List<BranchDto> branchDtos = dbClient.branchDao().selectByUuids(db.getSession(), Arrays.stream(mainBranches).map(ComponentDto::uuid).toList());
+    List<BranchDto> branchDtos = dbClient.branchDao().selectByUuids(db.getSession(),
+        Arrays.stream(mainBranches).map(ComponentDto::uuid).toList());
     addPortfolioProject(portfolio, branchDtos.stream().map(BranchDto::getProjectUuid).toArray(String[]::new));
   }
 
@@ -378,7 +419,8 @@ public class ComponentDbTester {
   }
 
   public void addPortfolioProjectBranch(String portfolioUuid, String projectUuid, String branchUuid) {
-    PortfolioProjectDto portfolioProject = dbClient.portfolioDao().selectPortfolioProjectOrFail(db.getSession(), portfolioUuid, projectUuid);
+    PortfolioProjectDto portfolioProject = dbClient.portfolioDao().selectPortfolioProjectOrFail(db.getSession(),
+        portfolioUuid, projectUuid);
     dbClient.portfolioDao().addBranch(db.getSession(), portfolioProject.getUuid(), branchUuid);
     db.commit();
   }
@@ -388,7 +430,8 @@ public class ComponentDbTester {
   }
 
   public final ProjectData insertPublicApplication(Consumer<ComponentDto> dtoPopulator) {
-    return insertComponentAndBranchAndProject(ComponentTesting.newApplication().setPrivate(false), false, defaults(), dtoPopulator);
+    return insertComponentAndBranchAndProject(ComponentTesting.newApplication().setPrivate(false), false, defaults(),
+        dtoPopulator);
   }
 
   public final ProjectData insertPrivateApplication(String uuid, Consumer<ComponentDto> dtoPopulator) {
@@ -407,8 +450,10 @@ public class ComponentDbTester {
     return insertPrivateApplication(defaults(), defaults());
   }
 
-  public final ProjectData insertPrivateApplication(Consumer<ComponentDto> dtoPopulator, Consumer<ProjectDto> projectPopulator) {
-    return insertComponentAndBranchAndProject(ComponentTesting.newApplication().setPrivate(true), true, defaults(), dtoPopulator, projectPopulator);
+  public final ProjectData insertPrivateApplication(Consumer<ComponentDto> dtoPopulator,
+      Consumer<ProjectDto> projectPopulator) {
+    return insertComponentAndBranchAndProject(ComponentTesting.newApplication().setPrivate(true), true, defaults(),
+        dtoPopulator, projectPopulator);
   }
 
   public final ComponentDto insertSubView(ComponentDto view) {
@@ -417,7 +462,8 @@ public class ComponentDbTester {
 
   public final ComponentDto insertSubView(ComponentDto view, Consumer<ComponentDto> dtoPopulator) {
     ComponentDto subViewComponent = ComponentTesting.newSubPortfolio(view);
-    return insertComponentAndPortfolio(subViewComponent, view.isPrivate(), dtoPopulator, p -> p.setParentUuid(view.uuid()));
+    return insertComponentAndPortfolio(subViewComponent, view.isPrivate(), dtoPopulator,
+        p -> p.setParentUuid(view.uuid()));
   }
 
   public void addPortfolioApplicationBranch(String portfolioUuid, String applicationUuid, String branchUuid) {
@@ -425,8 +471,9 @@ public class ComponentDbTester {
     db.commit();
   }
 
-  private ProjectData insertComponentAndBranchAndProject(ComponentDto component, @Nullable Boolean isPrivate, Consumer<BranchDto> branchPopulator,
-    Consumer<ComponentDto> componentDtoPopulator, Consumer<ProjectDto> projectDtoPopulator) {
+  private ProjectData insertComponentAndBranchAndProject(ComponentDto component, @Nullable Boolean isPrivate,
+      Consumer<BranchDto> branchPopulator,
+      Consumer<ComponentDto> componentDtoPopulator, Consumer<ProjectDto> projectDtoPopulator) {
     insertComponentImpl(component, isPrivate, componentDtoPopulator);
 
     ProjectDto projectDto = toProjectDto(component, System2.INSTANCE.now());
@@ -452,14 +499,17 @@ public class ComponentDbTester {
 
   public void addApplicationProject(ProjectData application, ProjectData... projects) {
     for (ProjectData project : projects) {
-      dbClient.applicationProjectsDao().addProject(db.getSession(), application.getProjectDto().getUuid(), project.getProjectDto().getUuid());
+      dbClient.applicationProjectsDao().addProject(db.getSession(), application.getProjectDto().getUuid(),
+          project.getProjectDto().getUuid());
     }
     db.commit();
   }
 
-  public void addProjectBranchToApplicationBranch(ComponentDto applicationBranchComponent, ComponentDto... projectBranchesComponent) {
+  public void addProjectBranchToApplicationBranch(ComponentDto applicationBranchComponent,
+      ComponentDto... projectBranchesComponent) {
     BranchDto applicationBranch = getBranchDto(applicationBranchComponent);
-    BranchDto[] componentDtos = Arrays.stream(projectBranchesComponent).map(this::getBranchDto).toArray(BranchDto[]::new);
+    BranchDto[] componentDtos = Arrays.stream(projectBranchesComponent).map(this::getBranchDto)
+        .toArray(BranchDto[]::new);
 
     addProjectBranchToApplicationBranch(applicationBranch, componentDtos);
   }
@@ -471,12 +521,14 @@ public class ComponentDbTester {
     db.commit();
   }
 
-  private ProjectData insertComponentAndBranchAndProject(ComponentDto component, @Nullable Boolean isPrivate, Consumer<BranchDto> branchPopulator,
-    Consumer<ComponentDto> componentDtoPopulator) {
+  private ProjectData insertComponentAndBranchAndProject(ComponentDto component, @Nullable Boolean isPrivate,
+      Consumer<BranchDto> branchPopulator,
+      Consumer<ComponentDto> componentDtoPopulator) {
     return insertComponentAndBranchAndProject(component, isPrivate, branchPopulator, componentDtoPopulator, defaults());
   }
 
-  private ProjectData insertComponentAndBranchAndProject(ComponentDto component, @Nullable Boolean isPrivate, Consumer<BranchDto> branchPopulator) {
+  private ProjectData insertComponentAndBranchAndProject(ComponentDto component, @Nullable Boolean isPrivate,
+      Consumer<BranchDto> branchPopulator) {
     return insertComponentAndBranchAndProject(component, isPrivate, branchPopulator, defaults());
   }
 
@@ -484,7 +536,8 @@ public class ComponentDbTester {
     return insertComponentAndBranchAndProject(component, isPrivate, defaults());
   }
 
-  private ComponentDto insertComponentImpl(ComponentDto component, @Nullable Boolean isPrivate, Consumer<ComponentDto> dtoPopulator) {
+  private ComponentDto insertComponentImpl(ComponentDto component, @Nullable Boolean isPrivate,
+      Consumer<ComponentDto> dtoPopulator) {
     dtoPopulator.accept(component);
     checkState(isPrivate == null || component.isPrivate() == isPrivate, "Illegal modification of private flag");
     dbClient.componentDao().insert(db.getSession(), component, true);
@@ -528,11 +581,13 @@ public class ComponentDbTester {
 
   /**
    * Add a snapshot to the main branch of a project
-   * Should use insertSnapshot(org.sonar.db.component.BranchDto, java.util.function.Consumer<org.sonar.db.component.SnapshotDto>) instead
+   * Should use insertSnapshot(org.sonar.db.component.BranchDto,
+   * java.util.function.Consumer<org.sonar.db.component.SnapshotDto>) instead
    */
   @Deprecated
   public SnapshotDto insertSnapshot(ProjectDto project, Consumer<SnapshotDto> consumer) {
-    BranchDto mainBranchDto = db.getDbClient().branchDao().selectMainBranchByProjectUuid(db.getSession(), project.getUuid()).orElseThrow();
+    BranchDto mainBranchDto = db.getDbClient().branchDao()
+        .selectMainBranchByProjectUuid(db.getSession(), project.getUuid()).orElseThrow();
     SnapshotDto snapshotDto = SnapshotTesting.newAnalysis(mainBranchDto.getUuid());
     consumer.accept(snapshotDto);
     return insertSnapshot(snapshotDto);
@@ -555,8 +610,10 @@ public class ComponentDbTester {
   }
 
   @SafeVarargs
-  public final ComponentDto insertProjectBranch(ComponentDto mainBranchComponent, Consumer<BranchDto>... dtoPopulators) {
-    BranchDto mainBranch = dbClient.branchDao().selectByUuid(db.getSession(), mainBranchComponent.branchUuid()).orElseThrow(IllegalArgumentException::new);
+  public final ComponentDto insertProjectBranch(ComponentDto mainBranchComponent,
+      Consumer<BranchDto>... dtoPopulators) {
+    BranchDto mainBranch = dbClient.branchDao().selectByUuid(db.getSession(), mainBranchComponent.branchUuid())
+        .orElseThrow(IllegalArgumentException::new);
     BranchDto branchDto = ComponentTesting.newBranchDto(mainBranch.getProjectUuid(), BRANCH);
     Arrays.stream(dtoPopulators).forEach(dtoPopulator -> dtoPopulator.accept(branchDto));
     return insertProjectBranch(mainBranchComponent, branchDto);
@@ -589,28 +646,28 @@ public class ComponentDbTester {
 
   public static ProjectDto toProjectDto(ComponentDto componentDto, long createTime) {
     return new ProjectDto()
-      .setUuid(Uuids.createFast())
-      .setKey(componentDto.getKey())
-      .setQualifier(componentDto.qualifier() != null ? componentDto.qualifier() : ComponentQualifiers.PROJECT)
-      .setCreatedAt(createTime)
-      .setUpdatedAt(createTime)
-      .setPrivate(componentDto.isPrivate())
-      .setDescription(componentDto.description())
-      .setName(componentDto.name())
-      .setCreationMethod(CreationMethod.LOCAL_API);
+        .setUuid(Uuids.create())
+        .setKey(componentDto.getKey())
+        .setQualifier(componentDto.qualifier() != null ? componentDto.qualifier() : ComponentQualifiers.PROJECT)
+        .setCreatedAt(createTime)
+        .setUpdatedAt(createTime)
+        .setPrivate(componentDto.isPrivate())
+        .setDescription(componentDto.description())
+        .setName(componentDto.name())
+        .setCreationMethod(CreationMethod.LOCAL_API);
   }
 
   public static PortfolioDto toPortfolioDto(ComponentDto componentDto, long createTime) {
     return new PortfolioDto()
-      .setUuid(componentDto.uuid())
-      .setKey(componentDto.getKey())
-      .setRootUuid(componentDto.branchUuid())
-      .setSelectionMode(NONE.name())
-      .setCreatedAt(createTime)
-      .setUpdatedAt(createTime)
-      .setPrivate(componentDto.isPrivate())
-      .setDescription(componentDto.description())
-      .setName(componentDto.name());
+        .setUuid(componentDto.uuid())
+        .setKey(componentDto.getKey())
+        .setRootUuid(componentDto.branchUuid())
+        .setSelectionMode(NONE.name())
+        .setCreatedAt(createTime)
+        .setUpdatedAt(createTime)
+        .setPrivate(componentDto.isPrivate())
+        .setDescription(componentDto.description())
+        .setName(componentDto.name());
   }
 
   public static <T> Consumer<T> defaults() {

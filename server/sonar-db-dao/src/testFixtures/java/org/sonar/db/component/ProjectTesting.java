@@ -25,7 +25,7 @@ import org.sonar.db.project.ProjectDto;
 
 public class ProjectTesting {
   public static ProjectDto newPrivateProjectDto() {
-    return newProjectDto(Uuids.createFast(), true);
+    return newProjectDto(Uuids.create(), true);
   }
 
   public static ProjectDto newPrivateProjectDto(String uuid) {
@@ -33,7 +33,7 @@ public class ProjectTesting {
   }
 
   public static ProjectDto newPublicProjectDto() {
-    return newProjectDto(Uuids.createFast(), false);
+    return newProjectDto(Uuids.create(), false);
   }
 
   public static ProjectDto newPublicProjectDto(String uuid) {
@@ -42,13 +42,13 @@ public class ProjectTesting {
 
   private static ProjectDto newProjectDto(String uuid, boolean isPrivate) {
     return new ProjectDto()
-      .setUuid(uuid)
-      .setKey("KEY_" + uuid)
-      .setName("NAME_" + uuid)
-      .setDescription("DESCRIPTION_" + uuid)
-      .setQualifier(ComponentQualifiers.PROJECT)
-      .setCreationMethod(CreationMethod.LOCAL_API)
-      .setPrivate(isPrivate);
+        .setUuid(uuid)
+        .setKey("KEY_" + uuid)
+        .setName("NAME_" + uuid)
+        .setDescription("DESCRIPTION_" + uuid)
+        .setQualifier(ComponentQualifiers.PROJECT)
+        .setCreationMethod(CreationMethod.LOCAL_API)
+        .setPrivate(isPrivate);
   }
 
 }

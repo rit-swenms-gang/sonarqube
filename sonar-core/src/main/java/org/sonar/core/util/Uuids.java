@@ -38,15 +38,13 @@ public class Uuids {
   }
 
   /**
-   * Create a universally unique identifier. It's recommended to use the non-static way
+   * Create a universally unique identifier. It's recommended to use the
+   * non-static way
    * through {@link UuidFactory} which is available in IoC container.
+   * 
    * @see UuidFactory#create()
    */
   public static String create() {
     return UuidFactoryImpl.INSTANCE.create();
-  }
-
-  public static String createFast() {
-    return UuidFactoryFast.getInstance().create();
   }
 }
