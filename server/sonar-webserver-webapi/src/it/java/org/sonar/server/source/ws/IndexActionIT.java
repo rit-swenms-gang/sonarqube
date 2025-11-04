@@ -50,7 +50,8 @@ public class IndexActionIT {
   public DbTester db = DbTester.create(System2.INSTANCE);
 
   WsActionTester tester = new WsActionTester(
-    new IndexAction(db.getDbClient(), new SourceService(db.getDbClient(), new HtmlSourceDecorator()), userSession, TestComponentFinder.from(db)));
+      new IndexAction(db.getDbClient(), new SourceService(db.getDbClient(), new HtmlSourceDecorator()), userSession,
+          TestComponentFinder.from(db)));
 
   @Test
   public void get_json() throws Exception {
@@ -60,16 +61,16 @@ public class IndexActionIT {
     insertFileWithData(file, newData("public class HelloWorld {", "}"));
 
     TestResponse request = tester.newRequest()
-      .setParam("resource", file.getKey())
-      .execute();
+        .setParam("resource", file.getKey())
+        .execute();
 
     assertJson(request.getInput()).isSimilarTo("""
-      [
-        {
-          "1": "public class HelloWorld {",
-          "2": "}"
-        }
-      ]""");
+        [
+          {
+            "1": "public class HelloWorld {",
+            "2": "}"
+          }
+        ]""");
   }
 
   @Test
@@ -80,18 +81,18 @@ public class IndexActionIT {
     insertFileWithData(file, newData("/**", " */", "public class HelloWorld {", "}", "", "foo"));
 
     TestResponse request = tester.newRequest()
-      .setParam("resource", file.getKey())
-      .setParam("from", "3")
-      .setParam("to", "5")
-      .execute();
+        .setParam("resource", file.getKey())
+        .setParam("from", "3")
+        .setParam("to", "5")
+        .execute();
 
     assertJson(request.getInput()).isSimilarTo("""
-      [
-        {
-          "3": "public class HelloWorld {",
-          "4": "}"
-        }
-      ]""");
+        [
+          {
+            "3": "public class HelloWorld {",
+            "4": "}"
+          }
+        ]""");
   }
 
   @Test
@@ -101,16 +102,16 @@ public class IndexActionIT {
     ComponentDto file = db.components().insertComponent(newFileDto(project));
 
     assertThatThrownBy(() -> tester.newRequest()
-      .setParam("resource", file.getKey())
-      .execute())
+        .setParam("resource", file.getKey())
+        .execute())
         .isInstanceOf(ForbiddenException.class);
   }
 
   @Test
   public void fail_when_component_does_not_exist() {
     assertThatThrownBy(() -> tester.newRequest()
-      .setParam("resource", "unknown")
-      .execute())
+        .setParam("resource", "unknown")
+        .execute())
         .isInstanceOf(NotFoundException.class);
   }
 
@@ -118,19 +119,19 @@ public class IndexActionIT {
     DbFileSources.Data.Builder dataBuilder = DbFileSources.Data.newBuilder();
     for (int i = 1; i <= lines.length; i++) {
       dataBuilder.addLinesBuilder()
-        .setLine(i)
-        .setSource(lines[i - 1])
-        .build();
+          .setLine(i)
+          .setSource(lines[i - 1])
+          .build();
     }
     return dataBuilder.build();
   }
 
   private void insertFileWithData(ComponentDto file, DbFileSources.Data fileData) {
     db.getDbClient().fileSourceDao().insert(db.getSession(), new FileSourceDto()
-      .setUuid(Uuids.createFast())
-      .setProjectUuid(file.branchUuid())
-      .setFileUuid(file.uuid())
-      .setSourceData(fileData));
+        .setUuid(Uuids.create())
+        .setProjectUuid(file.branchUuid())
+        .setFileUuid(file.uuid())
+        .setSourceData(fileData));
     db.commit();
   }
 

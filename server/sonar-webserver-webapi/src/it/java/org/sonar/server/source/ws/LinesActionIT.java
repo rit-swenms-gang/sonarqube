@@ -70,25 +70,27 @@ public class LinesActionIT {
   private final HtmlSourceDecorator htmlSourceDecorator = mock(HtmlSourceDecorator.class);
   private final SourceService sourceService = new SourceService(db.getDbClient(), htmlSourceDecorator);
   private final LinesJsonWriter linesJsonWriter = new LinesJsonWriter(htmlSourceDecorator);
-  private final LinesAction underTest = new LinesAction(TestComponentFinder.from(db), db.getDbClient(), sourceService, linesJsonWriter,
-    userSession);
+  private final LinesAction underTest = new LinesAction(TestComponentFinder.from(db), db.getDbClient(), sourceService,
+      linesJsonWriter,
+      userSession);
   private final WsActionTester tester = new WsActionTester(underTest);
 
   @Before
   public void setUp() {
     when(htmlSourceDecorator.getDecoratedSourceAsHtml(anyString(), anyString(), anyString()))
-      .then((Answer<String>) invocationOnMock -> "<p>" + invocationOnMock.getArguments()[0] + "</p>");
+        .then((Answer<String>) invocationOnMock -> "<p>" + invocationOnMock.getArguments()[0] + "</p>");
   }
 
   @Test
   public void show_source() {
     ProjectData privateProject = db.components().insertPrivateProject();
-    ComponentDto file = insertFileWithData(FileSourceTesting.newFakeData(3).build(), privateProject.getMainBranchComponent());
+    ComponentDto file = insertFileWithData(FileSourceTesting.newFakeData(3).build(),
+        privateProject.getMainBranchComponent());
     setUserWithValidPermission(privateProject);
 
     TestResponse response = tester.newRequest()
-      .setParam("uuid", file.uuid())
-      .execute();
+        .setParam("uuid", file.uuid())
+        .execute();
 
     response.assertJson(getClass(), "show_source.json");
   }
@@ -100,25 +102,26 @@ public class LinesActionIT {
     setUserWithValidPermission(privateProject);
 
     TestRequest request = tester.newRequest()
-      .setParam("uuid", file.uuid());
+        .setParam("uuid", file.uuid());
 
     assertThatThrownBy(request::execute)
-      .isInstanceOf(NotFoundException.class);
+        .isInstanceOf(NotFoundException.class);
   }
 
   @Test
   public void show_paginated_lines() {
     ProjectData privateProject = db.components().insertPrivateProject();
-    ComponentDto file = insertFileWithData(FileSourceTesting.newFakeData(3).build(), privateProject.getMainBranchComponent());
+    ComponentDto file = insertFileWithData(FileSourceTesting.newFakeData(3).build(),
+        privateProject.getMainBranchComponent());
     setUserWithValidPermission(privateProject);
 
     tester
-      .newRequest()
-      .setParam("uuid", file.uuid())
-      .setParam("from", "3")
-      .setParam("to", "3")
-      .execute()
-      .assertJson(getClass(), "show_paginated_lines.json");
+        .newRequest()
+        .setParam("uuid", file.uuid())
+        .setParam("from", "3")
+        .setParam("to", "3")
+        .execute()
+        .assertJson(getClass(), "show_paginated_lines.json");
   }
 
   @Test
@@ -126,25 +129,26 @@ public class LinesActionIT {
     ProjectData project = db.components().insertPrivateProject();
 
     String branchName = secure().nextAlphanumeric(248);
-    ComponentDto branch = db.components().insertProjectBranch(project.getMainBranchComponent(), b -> b.setKey(branchName));
+    ComponentDto branch = db.components().insertProjectBranch(project.getMainBranchComponent(),
+        b -> b.setKey(branchName));
     ComponentDto file = db.components().insertComponent(newFileDto(branch, project.mainBranchUuid()));
     db.getDbClient().fileSourceDao().insert(db.getSession(), new FileSourceDto()
-      .setUuid(Uuids.createFast())
-      .setProjectUuid(branch.uuid())
-      .setFileUuid(file.uuid())
-      .setSourceData(FileSourceTesting.newFakeData(3).build()));
+        .setUuid(Uuids.create())
+        .setProjectUuid(branch.uuid())
+        .setFileUuid(file.uuid())
+        .setSourceData(FileSourceTesting.newFakeData(3).build()));
     db.commit();
 
     userSession.logIn("login")
-      .addProjectPermission(ProjectPermission.USER, project.getProjectDto())
-      .addProjectBranchMapping(project.projectUuid(), branch)
-      .addProjectPermission(ProjectPermission.CODEVIEWER, project.getProjectDto());
+        .addProjectPermission(ProjectPermission.USER, project.getProjectDto())
+        .addProjectBranchMapping(project.projectUuid(), branch)
+        .addProjectPermission(ProjectPermission.CODEVIEWER, project.getProjectDto());
 
     tester.newRequest()
-      .setParam("key", file.getKey())
-      .setParam("branch", branchName)
-      .execute()
-      .assertJson(getClass(), "show_source.json");
+        .setParam("key", file.getKey())
+        .setParam("branch", branchName)
+        .execute()
+        .assertJson(getClass(), "show_source.json");
   }
 
   @Test
@@ -152,46 +156,47 @@ public class LinesActionIT {
     ProjectData projectData = db.components().insertPrivateProject();
     ComponentDto mainBranch = projectData.getMainBranchComponent();
     String pullRequestKey = secure().nextAlphanumeric(100);
-    ComponentDto branch = db.components().insertProjectBranch(mainBranch, b -> b.setBranchType(PULL_REQUEST).setKey(pullRequestKey));
+    ComponentDto branch = db.components().insertProjectBranch(mainBranch,
+        b -> b.setBranchType(PULL_REQUEST).setKey(pullRequestKey));
     ComponentDto file = db.components().insertComponent(newFileDto(branch, mainBranch.uuid()));
     db.getDbClient().fileSourceDao().insert(db.getSession(), new FileSourceDto()
-      .setUuid(Uuids.createFast())
-      .setProjectUuid(branch.uuid())
-      .setFileUuid(file.uuid())
-      .setSourceData(FileSourceTesting.newFakeData(3).build()));
+        .setUuid(Uuids.create())
+        .setProjectUuid(branch.uuid())
+        .setFileUuid(file.uuid())
+        .setSourceData(FileSourceTesting.newFakeData(3).build()));
     db.commit();
 
     userSession.logIn("login")
-      .addProjectPermission(ProjectPermission.USER, projectData.getProjectDto())
-      .addProjectPermission(ProjectPermission.CODEVIEWER, projectData.getProjectDto())
-      .addProjectBranchMapping(projectData.projectUuid(), branch);
+        .addProjectPermission(ProjectPermission.USER, projectData.getProjectDto())
+        .addProjectPermission(ProjectPermission.CODEVIEWER, projectData.getProjectDto())
+        .addProjectBranchMapping(projectData.projectUuid(), branch);
 
     tester.newRequest()
-      .setParam("key", file.getKey())
-      .setParam("pullRequest", pullRequestKey)
-      .execute()
-      .assertJson(getClass(), "show_source.json");
+        .setParam("key", file.getKey())
+        .setParam("pullRequest", pullRequestKey)
+        .execute()
+        .assertJson(getClass(), "show_source.json");
   }
 
   @Test
   public void fail_when_no_uuid_or_key_param() {
     assertThatThrownBy(() -> tester.newRequest().execute())
-      .isInstanceOf(IllegalArgumentException.class)
-      .hasMessageContaining("Either 'uuid' or 'key' must be provided");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Either 'uuid' or 'key' must be provided");
   }
 
   @Test
   public void fail_when_file_key_does_not_exist() {
     assertThatThrownBy(() -> tester.newRequest().setParam("key", "Foo.java").execute())
-      .isInstanceOf(NotFoundException.class)
-      .hasMessageContaining("Component key 'Foo.java' not found");
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining("Component key 'Foo.java' not found");
   }
 
   @Test
   public void fail_when_file_uuid_does_not_exist() {
     assertThatThrownBy(() -> tester.newRequest().setParam("uuid", "ABCD").execute())
-      .isInstanceOf(NotFoundException.class)
-      .hasMessageContaining("Component id 'ABCD' not found");
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining("Component id 'ABCD' not found");
   }
 
   @Test
@@ -202,8 +207,8 @@ public class LinesActionIT {
     setUserWithValidPermission(privateProject);
 
     assertThatThrownBy(() -> tester.newRequest().setParam("key", "file-key").execute())
-      .isInstanceOf(NotFoundException.class)
-      .hasMessageContaining("Component key 'file-key' not found");
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining("Component key 'file-key' not found");
   }
 
   @Test
@@ -215,22 +220,23 @@ public class LinesActionIT {
 
     assertThatThrownBy(() -> {
       tester.newRequest()
-        .setParam("uuid", file.uuid())
-        .execute();
+          .setParam("uuid", file.uuid())
+          .execute();
     })
-      .isInstanceOf(ForbiddenException.class);
+        .isInstanceOf(ForbiddenException.class);
   }
 
   @Test
   public void display_deprecated_fields() {
     ProjectData privateProject = db.components().insertPrivateProject();
-    ComponentDto file = insertFileWithData(FileSourceTesting.newFakeData(1).build(), privateProject.getMainBranchComponent());
+    ComponentDto file = insertFileWithData(FileSourceTesting.newFakeData(1).build(),
+        privateProject.getMainBranchComponent());
     setUserWithValidPermission(privateProject);
 
     tester.newRequest()
-      .setParam("uuid", file.uuid())
-      .execute()
-      .assertJson(getClass(), "display_deprecated_fields.json");
+        .setParam("uuid", file.uuid())
+        .execute()
+        .assertJson(getClass(), "display_deprecated_fields.json");
   }
 
   @Test
@@ -246,9 +252,9 @@ public class LinesActionIT {
     setUserWithValidPermission(project);
 
     tester.newRequest()
-      .setParam("uuid", file.uuid())
-      .execute()
-      .assertJson(getClass(), "generated_isNew.json");
+        .setParam("uuid", file.uuid())
+        .execute()
+        .assertJson(getClass(), "generated_isNew.json");
   }
 
   @Test
@@ -256,21 +262,21 @@ public class LinesActionIT {
     ProjectData privateProject = db.components().insertPrivateProject();
     DbFileSources.Data.Builder dataBuilder = DbFileSources.Data.newBuilder();
     ComponentDto file = insertFileWithData(dataBuilder.addLines(newLineBuilder()
-      .setDeprecatedOverallLineHits(1)
-      .setDeprecatedOverallConditions(2)
-      .setDeprecatedOverallCoveredConditions(3)
-      .setDeprecatedUtLineHits(1)
-      .setDeprecatedUtConditions(2)
-      .setDeprecatedUtCoveredConditions(3)
-      .setDeprecatedItLineHits(1)
-      .setDeprecatedItConditions(2)
-      .setDeprecatedItCoveredConditions(3)).build(), privateProject.getMainBranchComponent());
+        .setDeprecatedOverallLineHits(1)
+        .setDeprecatedOverallConditions(2)
+        .setDeprecatedOverallCoveredConditions(3)
+        .setDeprecatedUtLineHits(1)
+        .setDeprecatedUtConditions(2)
+        .setDeprecatedUtCoveredConditions(3)
+        .setDeprecatedItLineHits(1)
+        .setDeprecatedItConditions(2)
+        .setDeprecatedItCoveredConditions(3)).build(), privateProject.getMainBranchComponent());
     setUserWithValidPermission(privateProject);
 
     tester.newRequest()
-      .setParam("uuid", file.uuid())
-      .execute()
-      .assertJson(getClass(), "convert_deprecated_data.json");
+        .setParam("uuid", file.uuid())
+        .execute()
+        .assertJson(getClass(), "convert_deprecated_data.json");
   }
 
   @Test
@@ -278,18 +284,18 @@ public class LinesActionIT {
     ProjectData privateProject = db.components().insertPrivateProject();
     DbFileSources.Data.Builder dataBuilder = DbFileSources.Data.newBuilder();
     ComponentDto file = insertFileWithData(dataBuilder.addLines(newLineBuilder()
-      .setDeprecatedUtLineHits(1)
-      .setDeprecatedUtConditions(2)
-      .setDeprecatedUtCoveredConditions(3)
-      .setDeprecatedItLineHits(1)
-      .setDeprecatedItConditions(2)
-      .setDeprecatedItCoveredConditions(3)).build(), privateProject.getMainBranchComponent());
+        .setDeprecatedUtLineHits(1)
+        .setDeprecatedUtConditions(2)
+        .setDeprecatedUtCoveredConditions(3)
+        .setDeprecatedItLineHits(1)
+        .setDeprecatedItConditions(2)
+        .setDeprecatedItCoveredConditions(3)).build(), privateProject.getMainBranchComponent());
     setUserWithValidPermission(privateProject);
 
     tester.newRequest()
-      .setParam("uuid", file.uuid())
-      .execute()
-      .assertJson(getClass(), "convert_deprecated_data.json");
+        .setParam("uuid", file.uuid())
+        .execute()
+        .assertJson(getClass(), "convert_deprecated_data.json");
   }
 
   @Test
@@ -297,15 +303,15 @@ public class LinesActionIT {
     ProjectData privateProject = db.components().insertPrivateProject();
     DbFileSources.Data.Builder dataBuilder = DbFileSources.Data.newBuilder();
     ComponentDto file = insertFileWithData(dataBuilder.addLines(newLineBuilder()
-      .setDeprecatedItLineHits(1)
-      .setDeprecatedItConditions(2)
-      .setDeprecatedItCoveredConditions(3)).build(), privateProject.getMainBranchComponent());
+        .setDeprecatedItLineHits(1)
+        .setDeprecatedItConditions(2)
+        .setDeprecatedItCoveredConditions(3)).build(), privateProject.getMainBranchComponent());
     setUserWithValidPermission(privateProject);
 
     tester.newRequest()
-      .setParam("uuid", file.uuid())
-      .execute()
-      .assertJson(getClass(), "convert_deprecated_data.json");
+        .setParam("uuid", file.uuid())
+        .execute()
+        .assertJson(getClass(), "convert_deprecated_data.json");
   }
 
   @Test
@@ -316,11 +322,12 @@ public class LinesActionIT {
     db.components().insertProjectBranch(project.getProjectDto(), b -> b.setKey("my_branch"));
 
     assertThatThrownBy(() -> tester.newRequest()
-      .setParam("key", file.getKey())
-      .setParam("branch", "another_branch")
-      .execute())
+        .setParam("key", file.getKey())
+        .setParam("branch", "another_branch")
+        .execute())
         .isInstanceOf(NotFoundException.class)
-        .hasMessageContaining(String.format("Component '%s' on branch '%s' not found", file.getKey(), "another_branch"));
+        .hasMessageContaining(
+            String.format("Component '%s' on branch '%s' not found", file.getKey(), "another_branch"));
   }
 
   @Test
@@ -331,9 +338,9 @@ public class LinesActionIT {
     db.components().insertProjectBranch(project.getProjectDto(), b -> b.setKey("my_branch"));
 
     assertThatThrownBy(() -> tester.newRequest()
-      .setParam("uuid", file.uuid())
-      .setParam("branch", "another_branch")
-      .execute())
+        .setParam("uuid", file.uuid())
+        .setParam("branch", "another_branch")
+        .execute())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Parameter 'uuid' cannot be used at the same time as 'branch' or 'pullRequest'");
   }
@@ -345,8 +352,8 @@ public class LinesActionIT {
     userSession.addProjectPermission(ProjectPermission.USER, project.getProjectDto());
 
     assertThatThrownBy(() -> tester.newRequest()
-      .setParam("uuid", branch.getUuid())
-      .execute())
+        .setParam("uuid", branch.getUuid())
+        .execute())
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining(format("Component id '%s' not found", branch.getUuid()));
   }
@@ -360,15 +367,15 @@ public class LinesActionIT {
     userSession.addProjectBranchMapping(projectData.projectUuid(), mainBranch);
 
     DbFileSources.Data data = DbFileSources.Data.newBuilder()
-      .addLines(newLineBuilder().setScmAuthor("isaac@asimov.com"))
-      .build();
+        .addLines(newLineBuilder().setScmAuthor("isaac@asimov.com"))
+        .build();
 
     ComponentDto file = insertFileWithData(data, mainBranch);
 
     String response = tester.newRequest()
-      .setParam("uuid", file.uuid())
-      .execute()
-      .getInput();
+        .setParam("uuid", file.uuid())
+        .execute()
+        .getInput();
 
     assertThat(response).doesNotContain("isaac@asimov.com");
   }
@@ -382,32 +389,32 @@ public class LinesActionIT {
     userSession.addProjectBranchMapping(projectData.projectUuid(), mainBranch);
 
     DbFileSources.Data data = DbFileSources.Data.newBuilder()
-      .addLines(newLineBuilder().setScmAuthor("isaac@asimov.com"))
-      .build();
+        .addLines(newLineBuilder().setScmAuthor("isaac@asimov.com"))
+        .build();
 
     ComponentDto file = insertFileWithData(data, mainBranch);
 
     tester.newRequest()
-      .setParam("uuid", file.uuid())
-      .execute()
-      .assertJson(getClass(), "show_scmAuthors.json");
+        .setParam("uuid", file.uuid())
+        .execute()
+        .assertJson(getClass(), "show_scmAuthors.json");
   }
 
   private ComponentDto insertFileWithData(DbFileSources.Data fileData, ComponentDto project) {
     ComponentDto file = insertFile(project);
     db.getDbClient().fileSourceDao().insert(db.getSession(), new FileSourceDto()
-      .setUuid(Uuids.createFast())
-      .setProjectUuid(project.branchUuid())
-      .setFileUuid(file.uuid())
-      .setSourceData(fileData));
+        .setUuid(Uuids.create())
+        .setProjectUuid(project.branchUuid())
+        .setFileUuid(file.uuid())
+        .setSourceData(fileData));
     db.commit();
     return file;
   }
 
   private void setUserWithValidPermission(ProjectData privateProject) {
     userSession.logIn("login")
-      .addProjectPermission(ProjectPermission.CODEVIEWER, privateProject.getProjectDto())
-      .registerBranches(privateProject.getMainBranchDto());
+        .addProjectPermission(ProjectPermission.CODEVIEWER, privateProject.getProjectDto())
+        .registerBranches(privateProject.getMainBranchDto());
   }
 
   private ComponentDto insertFile(ComponentDto project) {
@@ -419,11 +426,11 @@ public class LinesActionIT {
 
   private DbFileSources.Line.Builder newLineBuilder() {
     return DbFileSources.Line.newBuilder()
-      .setLine(1)
-      .setScmRevision("REVISION_" + 1)
-      .setScmAuthor("AUTHOR_" + 1)
-      .setScmDate(1_500_000_000_00L)
-      .setSource("SOURCE_" + 1);
+        .setLine(1)
+        .setScmRevision("REVISION_" + 1)
+        .setScmAuthor("AUTHOR_" + 1)
+        .setScmDate(1_500_000_000_00L)
+        .setSource("SOURCE_" + 1);
   }
 
   private void insertPeriod(ComponentDto componentDto, long date) {

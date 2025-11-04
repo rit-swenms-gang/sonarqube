@@ -19,38 +19,40 @@
  */
 package org.sonar.server.issue;
 
+import static org.apache.commons.lang3.RandomStringUtils.secure;
+import static org.sonar.api.issue.Issue.STATUS_OPEN;
+
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Random;
-import org.sonar.db.component.ComponentScopes;
+
 import org.sonar.api.rule.Severity;
 import org.sonar.core.rule.RuleType;
 import org.sonar.core.util.Uuids;
 import org.sonar.db.component.ComponentDto;
+import org.sonar.db.component.ComponentScopes;
 import org.sonar.server.issue.index.IssueDoc;
 import org.sonar.server.issue.index.IssueScope;
-
-import static org.apache.commons.lang3.RandomStringUtils.secure;
-import static org.sonar.api.issue.Issue.STATUS_OPEN;
 
 public class IssueDocTesting {
 
   private static final Random RANDOM = new SecureRandom();
 
   public static IssueDoc newDoc(ComponentDto componentDto, String projectUuid) {
-    return newDoc(Uuids.createFast(), projectUuid, componentDto);
+    return newDoc(Uuids.create(), projectUuid, componentDto);
   }
 
   public static IssueDoc newDocForProject(ComponentDto project) {
-    return newDocForProject(Uuids.createFast(), project);
+    return newDocForProject(Uuids.create(), project);
   }
 
   /**
    * main branch definition should not be done based on main branch uuid.
-   * Use org.sonar.server.issue.IssueDocTesting#newDoc(java.lang.String, java.lang.String, boolean, org.sonar.db.component.ComponentDto) instead.
+   * Use org.sonar.server.issue.IssueDocTesting#newDoc(java.lang.String,
+   * java.lang.String, boolean, org.sonar.db.component.ComponentDto) instead.
    */
   @Deprecated
   public static IssueDoc newDoc(String key, String projectUuid, ComponentDto componentDto) {
@@ -59,41 +61,41 @@ public class IssueDocTesting {
 
   public static IssueDoc newDoc(String key, String projectUuid, boolean isMainBranch, ComponentDto componentDto) {
     return newDoc()
-      .setKey(key)
-      .setBranchUuid(componentDto.branchUuid())
-      .setComponentUuid(componentDto.uuid())
-      .setProjectUuid(projectUuid)
-      // File path make no sens on modules and projects
-      .setFilePath(!componentDto.scope().equals(ComponentScopes.PROJECT) ? componentDto.path() : null)
-      .setIsMainBranch(isMainBranch)
-      .setFuncCreationDate(Date.from(LocalDateTime.of(1970, 1, 1, 1, 1).toInstant(ZoneOffset.UTC)));
+        .setKey(key)
+        .setBranchUuid(componentDto.branchUuid())
+        .setComponentUuid(componentDto.uuid())
+        .setProjectUuid(projectUuid)
+        // File path make no sens on modules and projects
+        .setFilePath(!componentDto.scope().equals(ComponentScopes.PROJECT) ? componentDto.path() : null)
+        .setIsMainBranch(isMainBranch)
+        .setFuncCreationDate(Date.from(LocalDateTime.of(1970, 1, 1, 1, 1).toInstant(ZoneOffset.UTC)));
   }
 
   public static IssueDoc newDocForProject(String key, ComponentDto project) {
     return newDoc()
-      .setKey(key)
-      .setBranchUuid(project.branchUuid())
-      .setComponentUuid(project.uuid())
-      .setProjectUuid(project.branchUuid())
-      // File path make no sens on modules and projects
-      .setFilePath(!project.scope().equals(ComponentScopes.PROJECT) ? project.path() : null)
-      .setIsMainBranch(true)
-      .setFuncCreationDate(Date.from(LocalDateTime.of(1970, 1, 1, 1, 1).toInstant(ZoneOffset.UTC)));
+        .setKey(key)
+        .setBranchUuid(project.branchUuid())
+        .setComponentUuid(project.uuid())
+        .setProjectUuid(project.branchUuid())
+        // File path make no sens on modules and projects
+        .setFilePath(!project.scope().equals(ComponentScopes.PROJECT) ? project.path() : null)
+        .setIsMainBranch(true)
+        .setFuncCreationDate(Date.from(LocalDateTime.of(1970, 1, 1, 1, 1).toInstant(ZoneOffset.UTC)));
   }
 
   public static IssueDoc newDoc() {
     IssueDoc doc = new IssueDoc(new HashMap<>());
-    doc.setKey(Uuids.createFast());
-    doc.setRuleUuid(Uuids.createFast());
+    doc.setKey(Uuids.create());
+    doc.setRuleUuid(Uuids.create());
     doc.setType(RuleType.CODE_SMELL);
     doc.setAssigneeUuid("assignee_uuid_" + secure().nextAlphabetic(26));
     doc.setAuthorLogin("author_" + secure().nextAlphabetic(5));
     doc.setScope(IssueScope.MAIN);
     doc.setLanguage("language_" + secure().nextAlphabetic(5));
-    doc.setComponentUuid(Uuids.createFast());
+    doc.setComponentUuid(Uuids.create());
     doc.setFilePath("filePath_" + secure().nextAlphabetic(5));
     doc.setDirectoryPath("directory_" + secure().nextAlphabetic(5));
-    doc.setProjectUuid(Uuids.createFast());
+    doc.setProjectUuid(Uuids.create());
     doc.setLine(RANDOM.nextInt(1_000) + 1);
     doc.setStatus(STATUS_OPEN);
     doc.setResolution(null);

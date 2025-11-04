@@ -19,13 +19,14 @@
  */
 package org.sonar.db.qualityprofile;
 
+import static java.util.Arrays.stream;
+import static org.apache.commons.lang3.RandomStringUtils.secure;
+
 import java.security.SecureRandom;
 import java.util.Random;
 import java.util.function.Consumer;
-import org.sonar.core.util.Uuids;
 
-import static java.util.Arrays.stream;
-import static org.apache.commons.lang3.RandomStringUtils.secure;
+import org.sonar.core.util.Uuids;
 
 public class QualityProfileTesting {
 
@@ -36,40 +37,41 @@ public class QualityProfileTesting {
   }
 
   /**
-   * Create an instance of {@link  QProfileDto} with random field values.
+   * Create an instance of {@link QProfileDto} with random field values.
    */
   public static QProfileDto newQualityProfileDto() {
-    String uuid = Uuids.createFast();
+    String uuid = Uuids.create();
     return new QProfileDto()
-      .setKee(uuid)
-      .setRulesProfileUuid(Uuids.createFast())
-      .setName(uuid)
-      .setLanguage(secure().nextAlphanumeric(20))
-      .setLastUsed(RANDOM.nextLong(Long.MAX_VALUE));
+        .setKee(uuid)
+        .setRulesProfileUuid(Uuids.create())
+        .setName(uuid)
+        .setLanguage(secure().nextAlphanumeric(20))
+        .setLastUsed(RANDOM.nextLong(Long.MAX_VALUE));
   }
 
   /**
-   * Create an instance of {@link  QProfileChangeDto} with random field values,
+   * Create an instance of {@link QProfileChangeDto} with random field values,
    * except changeType which is always {@code "ACTIVATED"}.
    */
   public static QProfileChangeDto newQProfileChangeDto() {
     return new QProfileChangeDto()
-      .setUuid(secure().nextAlphanumeric(40))
-      .setRulesProfileUuid(secure().nextAlphanumeric(40))
-      .setCreatedAt(RANDOM.nextLong(Long.MAX_VALUE))
-      .setChangeType("ACTIVATED")
-      .setUserUuid("userUuid_" + secure().nextAlphanumeric(10));
+        .setUuid(secure().nextAlphanumeric(40))
+        .setRulesProfileUuid(secure().nextAlphanumeric(40))
+        .setCreatedAt(RANDOM.nextLong(Long.MAX_VALUE))
+        .setChangeType("ACTIVATED")
+        .setUserUuid("userUuid_" + secure().nextAlphanumeric(10));
   }
 
   /**
-   * Create an instance of {@link  RulesProfileDto} with most of random field values.
+   * Create an instance of {@link RulesProfileDto} with most of random field
+   * values.
    */
   public static RulesProfileDto newRuleProfileDto(Consumer<RulesProfileDto>... populators) {
     RulesProfileDto dto = new RulesProfileDto()
-      .setUuid("uuid" + secure().nextAlphabetic(10))
-      .setName("name" + secure().nextAlphabetic(10))
-      .setLanguage("lang" + secure().nextAlphabetic(5))
-      .setIsBuiltIn(false);
+        .setUuid("uuid" + secure().nextAlphabetic(10))
+        .setName("name" + secure().nextAlphabetic(10))
+        .setLanguage("lang" + secure().nextAlphabetic(5))
+        .setIsBuiltIn(false);
     stream(populators).forEach(p -> p.accept(dto));
     return dto;
   }

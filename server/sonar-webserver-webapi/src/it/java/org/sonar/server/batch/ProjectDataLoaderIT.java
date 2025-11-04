@@ -19,6 +19,13 @@
  */
 package org.sonar.server.batch;
 
+import static com.google.common.collect.ImmutableList.of;
+import static java.lang.String.format;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.sonar.db.component.ComponentTesting.newFileDto;
+import static org.sonar.db.permission.ProjectPermission.SCAN;
+
 import org.junit.Rule;
 import org.junit.Test;
 import org.sonar.core.util.Uuids;
@@ -39,13 +46,6 @@ import org.sonar.server.exceptions.ForbiddenException;
 import org.sonar.server.exceptions.NotFoundException;
 import org.sonar.server.tester.UserSessionRule;
 
-import static com.google.common.collect.ImmutableList.of;
-import static java.lang.String.format;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.sonar.db.component.ComponentTesting.newFileDto;
-import static org.sonar.db.permission.ProjectPermission.SCAN;
-
 public class ProjectDataLoaderIT {
   @Rule
   public DbTester db = DbTester.create();
@@ -54,23 +54,25 @@ public class ProjectDataLoaderIT {
 
   private final DbClient dbClient = db.getDbClient();
   private final DbSession dbSession = db.getSession();
-  private final ComponentTypesRule resourceTypes = new ComponentTypesRule().setRootQualifiers(ComponentQualifiers.PROJECT);
-  private final ProjectDataLoader underTest = new ProjectDataLoader(dbClient, userSession, new ComponentFinder(dbClient, resourceTypes));
+  private final ComponentTypesRule resourceTypes = new ComponentTypesRule()
+      .setRootQualifiers(ComponentQualifiers.PROJECT);
+  private final ProjectDataLoader underTest = new ProjectDataLoader(dbClient, userSession,
+      new ComponentFinder(dbClient, resourceTypes));
 
   @Test
   public void throws_NotFoundException_when_branch_does_not_exist() {
     ProjectData projectData = db.components().insertPrivateProject();
     ProjectDto project = projectData.getProjectDto();
     userSession.logIn().addProjectPermission(SCAN, project)
-      .registerBranches(projectData.getMainBranchDto());
+        .registerBranches(projectData.getMainBranchDto());
 
     assertThatThrownBy(() -> {
       underTest.load(ProjectDataQuery.create()
-        .setProjectKey(project.getKey())
-        .setBranch("unknown_branch"));
+          .setProjectKey(project.getKey())
+          .setBranch("unknown_branch"));
     })
-      .isInstanceOf(NotFoundException.class)
-      .hasMessage(format("Component '%s' on branch '%s' not found", project.getKey(), "unknown_branch"));
+        .isInstanceOf(NotFoundException.class)
+        .hasMessage(format("Component '%s' on branch '%s' not found", project.getKey(), "unknown_branch"));
   }
 
   @Test
@@ -78,7 +80,7 @@ public class ProjectDataLoaderIT {
     ProjectData projectData = db.components().insertPrivateProject();
     ProjectDto project = projectData.getProjectDto();
     userSession.logIn().addProjectPermission(SCAN, project)
-      .registerBranches(projectData.getMainBranchDto());
+        .registerBranches(projectData.getMainBranchDto());
     ComponentDto file = db.components().insertComponent(newFileDto(projectData.getMainBranchComponent()));
     dbClient.fileSourceDao().insert(dbSession, newFileSourceDto(file).setSrcHash("123456"));
     db.commit();
@@ -96,16 +98,16 @@ public class ProjectDataLoaderIT {
     ComponentDto mainBranch = projectData.getMainBranchComponent();
     ComponentDto branch = db.components().insertProjectBranch(mainBranch, b -> b.setKey("my_branch"));
     userSession.logIn().addProjectPermission(SCAN, projectData.getProjectDto())
-      .registerBranches(projectData.getMainBranchDto())
-      .addProjectBranchMapping(projectData.projectUuid(), branch);
+        .registerBranches(projectData.getMainBranchDto())
+        .addProjectBranchMapping(projectData.projectUuid(), branch);
     // File on branch
     ComponentDto projectFile = db.components().insertComponent(newFileDto(branch, mainBranch.uuid()));
     dbClient.fileSourceDao().insert(dbSession, newFileSourceDto(projectFile).setSrcHash("123456"));
     dbSession.commit();
 
     ProjectRepositories ref = underTest.load(ProjectDataQuery.create()
-      .setProjectKey(mainBranch.getKey())
-      .setBranch("my_branch"));
+        .setProjectKey(mainBranch.getKey())
+        .setBranch("my_branch"));
 
     assertThat(ref.fileDataByPath(projectFile.path()).hash()).isEqualTo("123456");
   }
@@ -113,14 +115,14 @@ public class ProjectDataLoaderIT {
   @Test
   public void fails_with_NPE_if_query_is_null() {
     assertThatThrownBy(() -> underTest.load(null))
-      .isInstanceOf(NullPointerException.class);
+        .isInstanceOf(NullPointerException.class);
   }
 
   @Test
   public void fails_with_NFE_if_query_is_empty() {
     assertThatThrownBy(() -> underTest.load(ProjectDataQuery.create()))
-      .isInstanceOf(NotFoundException.class)
-      .hasMessage("Component key 'null' not found");
+        .isInstanceOf(NotFoundException.class)
+        .hasMessage("Component key 'null' not found");
   }
 
   @Test
@@ -128,8 +130,8 @@ public class ProjectDataLoaderIT {
     String key = "theKey";
 
     assertThatThrownBy(() -> underTest.load(ProjectDataQuery.create().setProjectKey(key)))
-      .isInstanceOf(NotFoundException.class)
-      .hasMessage("Component key 'theKey' not found");
+        .isInstanceOf(NotFoundException.class)
+        .hasMessage("Component key 'theKey' not found");
   }
 
   @Test
@@ -137,17 +139,17 @@ public class ProjectDataLoaderIT {
     String uuid = "uuid";
     String key = "key";
     dbClient.componentDao().insertWithAudit(dbSession, new ComponentDto()
-      .setUuid(uuid)
-      .setUuidPath(uuid + ".")
-      .setBranchUuid("branchUuid")
-      .setScope(ComponentScopes.PROJECT)
-      .setKey("key"));
+        .setUuid(uuid)
+        .setUuidPath(uuid + ".")
+        .setBranchUuid("branchUuid")
+        .setScope(ComponentScopes.PROJECT)
+        .setKey("key"));
     dbSession.commit();
 
     ProjectDataQuery query = ProjectDataQuery.create().setProjectKey(key);
     assertThatThrownBy(() -> underTest.load(query))
-      .isInstanceOf(NotFoundException.class)
-      .hasMessage("Component key '" + key + "' not found");
+        .isInstanceOf(NotFoundException.class)
+        .hasMessage("Component key '" + key + "' not found");
   }
 
   @Test
@@ -156,20 +158,21 @@ public class ProjectDataLoaderIT {
     userSession.logIn();
 
     assertThatThrownBy(() -> underTest.load(ProjectDataQuery.create().setProjectKey(project.getKey())))
-      .isInstanceOf(ForbiddenException.class)
-      .hasMessage("You're not authorized to push analysis results to the SonarQube server. Please contact your SonarQube administrator.");
+        .isInstanceOf(ForbiddenException.class)
+        .hasMessage(
+            "You're not authorized to push analysis results to the SonarQube server. Please contact your SonarQube administrator.");
   }
 
   private static FileSourceDto newFileSourceDto(ComponentDto file) {
     return new FileSourceDto()
-      .setUuid(Uuids.createFast())
-      .setFileUuid(file.uuid())
-      .setProjectUuid(file.branchUuid())
-      .setDataHash("0263047cd758c68c27683625f072f010")
-      .setLineHashes(of("8d7b3d6b83c0a517eac07e1aac94b773"))
-      .setCreatedAt(System.currentTimeMillis())
-      .setUpdatedAt(System.currentTimeMillis())
-      .setRevision("123456789")
-      .setSrcHash("123456");
+        .setUuid(Uuids.create())
+        .setFileUuid(file.uuid())
+        .setProjectUuid(file.branchUuid())
+        .setDataHash("0263047cd758c68c27683625f072f010")
+        .setLineHashes(of("8d7b3d6b83c0a517eac07e1aac94b773"))
+        .setCreatedAt(System.currentTimeMillis())
+        .setUpdatedAt(System.currentTimeMillis())
+        .setRevision("123456789")
+        .setSrcHash("123456");
   }
 }

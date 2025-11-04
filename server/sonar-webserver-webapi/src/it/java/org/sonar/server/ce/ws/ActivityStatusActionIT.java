@@ -19,12 +19,20 @@
  */
 package org.sonar.server.ce.ws;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.sonar.db.ce.CeQueueTesting.newCeQueueDto;
+import static org.sonar.server.ce.ws.CeWsParameters.PARAM_COMPONENT;
+import static org.sonar.test.JsonAssert.assertJson;
+
 import javax.annotation.Nullable;
+
 import org.junit.Rule;
 import org.junit.Test;
 import org.sonar.api.server.ws.WebService;
 import org.sonar.api.utils.System2;
-import org.sonar.db.permission.ProjectPermission;
 import org.sonar.core.util.Uuids;
 import org.sonar.db.DbClient;
 import org.sonar.db.DbSession;
@@ -33,6 +41,7 @@ import org.sonar.db.ce.CeActivityDto;
 import org.sonar.db.ce.CeQueueDto;
 import org.sonar.db.component.ComponentDto;
 import org.sonar.db.component.ProjectData;
+import org.sonar.db.permission.ProjectPermission;
 import org.sonar.server.component.TestComponentFinder;
 import org.sonar.server.exceptions.ForbiddenException;
 import org.sonar.server.exceptions.NotFoundException;
@@ -40,14 +49,6 @@ import org.sonar.server.tester.UserSessionRule;
 import org.sonar.server.ws.TestRequest;
 import org.sonar.server.ws.WsActionTester;
 import org.sonarqube.ws.Ce;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-import static org.sonar.db.ce.CeQueueTesting.newCeQueueDto;
-import static org.sonar.server.ce.ws.CeWsParameters.PARAM_COMPONENT;
-import static org.sonar.test.JsonAssert.assertJson;
 
 public class ActivityStatusActionIT {
 
@@ -59,7 +60,8 @@ public class ActivityStatusActionIT {
   private final System2 system2 = mock(System2.class);
   private final DbClient dbClient = db.getDbClient();
   private final DbSession dbSession = db.getSession();
-  private final WsActionTester ws = new WsActionTester(new ActivityStatusAction(userSession, dbClient, TestComponentFinder.from(db), system2));
+  private final WsActionTester ws = new WsActionTester(
+      new ActivityStatusAction(userSession, dbClient, TestComponentFinder.from(db), system2));
 
   @Test
   public void test_definition() {
@@ -73,12 +75,13 @@ public class ActivityStatusActionIT {
   @Test
   public void json_example() {
     when(system2.now()).thenReturn(200123L);
-    dbClient.ceQueueDao().insert(dbSession, newCeQueueDto("ce-queue-uuid-1").setStatus(CeQueueDto.Status.PENDING).setCreatedAt(100000));
+    dbClient.ceQueueDao().insert(dbSession,
+        newCeQueueDto("ce-queue-uuid-1").setStatus(CeQueueDto.Status.PENDING).setCreatedAt(100000));
     dbClient.ceQueueDao().insert(dbSession, newCeQueueDto("ce-queue-uuid-2").setStatus(CeQueueDto.Status.PENDING));
     dbClient.ceQueueDao().insert(dbSession, newCeQueueDto("ce-queue-uuid-3").setStatus(CeQueueDto.Status.IN_PROGRESS));
     for (int i = 0; i < 5; i++) {
       dbClient.ceActivityDao().insert(dbSession, new CeActivityDto(newCeQueueDto("ce-activity-uuid-" + i))
-        .setStatus(CeActivityDto.Status.FAILED));
+          .setStatus(CeActivityDto.Status.FAILED));
     }
     db.commit();
 
@@ -126,7 +129,7 @@ public class ActivityStatusActionIT {
 
     assertThat(result).extracting(Ce.ActivityStatusWsResponse::getPending, Ce.ActivityStatusWsResponse::getFailing,
         Ce.ActivityStatusWsResponse::getInProgress, Ce.ActivityStatusWsResponse::getPendingTime)
-      .containsOnly(1, 0, 0, 1000L);
+        .containsOnly(1, 0, 0, 1000L);
   }
 
   @Test
@@ -140,7 +143,7 @@ public class ActivityStatusActionIT {
   @Test
   public void fail_if_component_key_is_unknown() {
     assertThatThrownBy(() -> callByComponentKey("unknown-key"))
-      .isInstanceOf(NotFoundException.class);
+        .isInstanceOf(NotFoundException.class);
   }
 
   @Test
@@ -148,8 +151,8 @@ public class ActivityStatusActionIT {
     userSession.logIn();
 
     assertThatThrownBy(this::call)
-      .isInstanceOf(ForbiddenException.class)
-      .hasMessage("Insufficient privileges");
+        .isInstanceOf(ForbiddenException.class)
+        .hasMessage("Insufficient privileges");
   }
 
   @Test
@@ -159,8 +162,8 @@ public class ActivityStatusActionIT {
 
     String dbKey = project.getKey();
     assertThatThrownBy(() -> callByComponentKey(dbKey))
-      .isInstanceOf(ForbiddenException.class)
-      .hasMessage("Insufficient privileges");
+        .isInstanceOf(ForbiddenException.class)
+        .hasMessage("Insufficient privileges");
   }
 
   private void insertInQueue(CeQueueDto.Status status, @Nullable ProjectData projectData) {
@@ -168,11 +171,11 @@ public class ActivityStatusActionIT {
   }
 
   private void insertInQueue(CeQueueDto.Status status, @Nullable ProjectData projectData, @Nullable Long createdAt) {
-    CeQueueDto ceQueueDto = newCeQueueDto(Uuids.createFast())
-      .setStatus(status);
-    if(projectData != null) {
+    CeQueueDto ceQueueDto = newCeQueueDto(Uuids.create())
+        .setStatus(status);
+    if (projectData != null) {
       ceQueueDto.setComponentUuid(projectData.getMainBranchComponent().uuid())
-        .setEntityUuid(projectData.projectUuid());
+          .setEntityUuid(projectData.projectUuid());
     }
     if (createdAt != null) {
       ceQueueDto.setCreatedAt(createdAt);
@@ -182,11 +185,11 @@ public class ActivityStatusActionIT {
   }
 
   private void insertActivity(CeActivityDto.Status status, ProjectData dto) {
-    CeQueueDto ceQueueDto = newCeQueueDto(Uuids.createFast());
+    CeQueueDto ceQueueDto = newCeQueueDto(Uuids.create());
     ceQueueDto.setComponentUuid(dto.getMainBranchComponent().uuid());
     ceQueueDto.setEntityUuid(dto.projectUuid());
     dbClient.ceActivityDao().insert(dbSession, new CeActivityDto(ceQueueDto)
-      .setStatus(status));
+        .setStatus(status));
     db.commit();
   }
 

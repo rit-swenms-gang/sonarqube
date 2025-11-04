@@ -19,11 +19,12 @@
  */
 package org.sonar.db.plugin;
 
+import static org.apache.commons.lang3.RandomStringUtils.secure;
+
 import java.security.SecureRandom;
 import java.util.Random;
-import org.sonar.core.util.Uuids;
 
-import static org.apache.commons.lang3.RandomStringUtils.secure;
+import org.sonar.core.util.Uuids;
 
 public class PluginTesting {
 
@@ -34,16 +35,16 @@ public class PluginTesting {
   }
 
   /**
-   * Create an instance of {@link  PluginDto} with random field values.
+   * Create an instance of {@link PluginDto} with random field values.
    */
   public static PluginDto newPluginDto() {
-    String uuid = Uuids.createFast();
+    String uuid = Uuids.create();
     return new PluginDto()
-      .setUuid(uuid)
-      .setKee(uuid)
-      .setFileHash(secure().nextAlphanumeric(32))
-      .setCreatedAt(RANDOM.nextLong(Long.MAX_VALUE))
-      .setUpdatedAt(RANDOM.nextLong(Long.MAX_VALUE));
+        .setUuid(uuid)
+        .setKee(uuid)
+        .setFileHash(secure().nextAlphanumeric(32))
+        .setCreatedAt(RANDOM.nextLong(Long.MAX_VALUE))
+        .setUpdatedAt(RANDOM.nextLong(Long.MAX_VALUE));
   }
 
 }

@@ -19,8 +19,16 @@
  */
 package org.sonar.db.measure;
 
+import static java.util.Collections.singletonList;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.sonar.api.utils.DateUtils.parseDate;
+import static org.sonar.db.component.ComponentTesting.newDirectory;
+import static org.sonar.db.component.ComponentTesting.newFileDto;
+import static org.sonar.db.component.SnapshotTesting.newAnalysis;
+
 import java.util.List;
 import java.util.Optional;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -33,13 +41,6 @@ import org.sonar.db.component.ComponentDto;
 import org.sonar.db.component.SnapshotDto;
 import org.sonar.db.component.SnapshotTesting;
 import org.sonar.db.metric.MetricDto;
-
-import static java.util.Collections.singletonList;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.sonar.api.utils.DateUtils.parseDate;
-import static org.sonar.db.component.ComponentTesting.newDirectory;
-import static org.sonar.db.component.ComponentTesting.newFileDto;
-import static org.sonar.db.component.SnapshotTesting.newAnalysis;
 
 class ProjectMeasureDaoIT {
 
@@ -96,13 +97,14 @@ class ProjectMeasureDaoIT {
     underTest.insert(db.getSession(), lastMeasure);
 
     assertThat(underTest.selectMeasure(db.getSession(), lastAnalysis.getUuid(), file.uuid(), metric.getKey()).get())
-      .isEqualToComparingFieldByField(lastMeasure);
+        .isEqualToComparingFieldByField(lastMeasure);
 
     assertThat(underTest.selectMeasure(db.getSession(), pastAnalysis.getUuid(), file.uuid(), metric.getKey()).get())
-      .isEqualToComparingFieldByField(pastMeasure);
+        .isEqualToComparingFieldByField(pastMeasure);
 
     assertThat(underTest.selectMeasure(db.getSession(), "_missing_", file.uuid(), metric.getKey())).isEmpty();
-    assertThat(underTest.selectMeasure(db.getSession(), pastAnalysis.getUuid(), "_missing_", metric.getKey())).isEmpty();
+    assertThat(underTest.selectMeasure(db.getSession(), pastAnalysis.getUuid(), "_missing_", metric.getKey()))
+        .isEmpty();
     assertThat(underTest.selectMeasure(db.getSession(), pastAnalysis.getUuid(), file.uuid(), "_missing_")).isEmpty();
   }
 
@@ -166,9 +168,10 @@ class ProjectMeasureDaoIT {
     long lastAnalysisDate = parseDate("2017-01-25").getTime();
     long previousAnalysisDate = lastAnalysisDate - 10_000_000_000L;
     long oldAnalysisDate = lastAnalysisDate - 100_000_000_000L;
-    SnapshotDto lastAnalysis = dbClient.snapshotDao().insert(dbSession, newAnalysis(project).setCreatedAt(lastAnalysisDate));
+    SnapshotDto lastAnalysis = dbClient.snapshotDao().insert(dbSession,
+        newAnalysis(project).setCreatedAt(lastAnalysisDate));
     SnapshotDto pastAnalysis = dbClient.snapshotDao().insert(dbSession,
-      newAnalysis(project).setCreatedAt(previousAnalysisDate).setLast(false));
+        newAnalysis(project).setCreatedAt(previousAnalysisDate).setLast(false));
     dbClient.snapshotDao().insert(dbSession, newAnalysis(project).setCreatedAt(oldAnalysisDate).setLast(false));
     db.commit();
 
@@ -180,13 +183,15 @@ class ProjectMeasureDaoIT {
 
     // Measures of project for last and previous analyses
     List<ProjectMeasureDto> result = underTest.selectPastMeasures(db.getSession(),
-      new PastMeasureQuery(project.uuid(), singletonList(ncloc.getUuid()), previousAnalysisDate, lastAnalysisDate + 1_000L));
+        new PastMeasureQuery(project.uuid(), singletonList(ncloc.getUuid()), previousAnalysisDate,
+            lastAnalysisDate + 1_000L));
 
     assertThat(result).hasSize(2).extracting(ProjectMeasureDto::getData).containsOnly("PROJECT_M1", "PROJECT_M2");
   }
 
   private void verifyMeasure(String componentUuid, String metricKey, String analysisUuid, String value) {
-    Optional<ProjectMeasureDto> measure = underTest.selectMeasure(db.getSession(), analysisUuid, componentUuid, metricKey);
+    Optional<ProjectMeasureDto> measure = underTest.selectMeasure(db.getSession(), analysisUuid, componentUuid,
+        metricKey);
     assertThat(measure.map(ProjectMeasureDto::getData)).contains(value);
     assertThat(measure.map(ProjectMeasureDto::getUuid)).isNotEmpty();
   }
@@ -207,20 +212,20 @@ class ProjectMeasureDaoIT {
 
   private void insertMeasure(String value, String analysisUuid, String componentUuid, String metricUuid) {
     ProjectMeasureDto measure = MeasureTesting.newProjectMeasure()
-      .setAnalysisUuid(analysisUuid)
-      .setComponentUuid(componentUuid)
-      .setMetricUuid(metricUuid)
-      // as ids can't be forced when inserting measures, the field "data"
-      // is used to store a virtual value. It is used then in assertions.
-      .setData(value);
+        .setAnalysisUuid(analysisUuid)
+        .setComponentUuid(componentUuid)
+        .setMetricUuid(metricUuid)
+        // as ids can't be forced when inserting measures, the field "data"
+        // is used to store a virtual value. It is used then in assertions.
+        .setData(value);
     db.getDbClient().projectMeasureDao().insert(db.getSession(), measure);
   }
 
   private SnapshotDto insertAnalysis(String projectUuid, boolean isLast) {
     return db.getDbClient().snapshotDao().insert(db.getSession(), SnapshotTesting.newSnapshot()
-      .setUuid(Uuids.createFast())
-      .setRootComponentUuid(projectUuid)
-      .setLast(isLast));
+        .setUuid(Uuids.create())
+        .setRootComponentUuid(projectUuid)
+        .setLast(isLast));
   }
 
 }

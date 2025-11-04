@@ -19,11 +19,15 @@
  */
 package org.sonar.db.qualityprofile;
 
+import static com.google.common.base.Preconditions.checkArgument;
+import static org.sonar.db.qualityprofile.ActiveRuleDto.createFor;
+
 import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.Random;
 import java.util.function.Consumer;
+
 import org.sonar.api.rule.Severity;
 import org.sonar.core.util.Uuids;
 import org.sonar.db.DbClient;
@@ -32,9 +36,6 @@ import org.sonar.db.project.ProjectDto;
 import org.sonar.db.rule.RuleDto;
 import org.sonar.db.user.GroupDto;
 import org.sonar.db.user.UserDto;
-
-import static com.google.common.base.Preconditions.checkArgument;
-import static org.sonar.db.qualityprofile.ActiveRuleDto.createFor;
 
 public class QualityProfileDbTester {
   private final Random random = new SecureRandom();
@@ -58,7 +59,6 @@ public class QualityProfileDbTester {
     });
   }
 
-
   /**
    * Create a profile with random field values
    */
@@ -78,7 +78,8 @@ public class QualityProfileDbTester {
     return this;
   }
 
-  public QualityProfileDbTester associateWithProject(ProjectDto project, QProfileDto profile, QProfileDto... otherProfiles) {
+  public QualityProfileDbTester associateWithProject(ProjectDto project, QProfileDto profile,
+      QProfileDto... otherProfiles) {
     dbClient.qualityProfileDao().insertProjectProfileAssociation(db.getSession(), project, profile);
     for (QProfileDto p : otherProfiles) {
       dbClient.qualityProfileDao().insertProjectProfileAssociation(db.getSession(), project, p);
@@ -94,11 +95,11 @@ public class QualityProfileDbTester {
 
   public ActiveRuleDto activateRule(QProfileDto profile, RuleDto rule, Consumer<ActiveRuleDto> consumer) {
     ActiveRuleDto activeRule = createFor(profile, rule)
-      .setSeverity(Severity.ALL.get(random.nextInt(Severity.ALL.size())))
-      .setImpacts(rule.getDefaultImpactsMap())
-      .setPrioritizedRule(random.nextBoolean())
-      .setCreatedAt(random.nextLong(Long.MAX_VALUE))
-      .setUpdatedAt(random.nextLong(Long.MAX_VALUE));
+        .setSeverity(Severity.ALL.get(random.nextInt(Severity.ALL.size())))
+        .setImpacts(rule.getDefaultImpactsMap())
+        .setPrioritizedRule(random.nextBoolean())
+        .setCreatedAt(random.nextLong(Long.MAX_VALUE))
+        .setUpdatedAt(random.nextLong(Long.MAX_VALUE));
     consumer.accept(activeRule);
     dbClient.activeRuleDao().insert(db.getSession(), activeRule);
     db.commit();
@@ -117,21 +118,20 @@ public class QualityProfileDbTester {
   public void addUserPermission(QProfileDto profile, UserDto user) {
     checkArgument(!profile.isBuiltIn(), "Built-In profile cannot be used");
     dbClient.qProfileEditUsersDao().insert(db.getSession(), new QProfileEditUsersDto()
-        .setUuid(Uuids.createFast())
+        .setUuid(Uuids.create())
         .setUserUuid(user.getUuid())
         .setQProfileUuid(profile.getKee()),
-      profile.getName(), user.getLogin()
-    );
+        profile.getName(), user.getLogin());
     db.commit();
   }
 
   public void addGroupPermission(QProfileDto profile, GroupDto group) {
     checkArgument(!profile.isBuiltIn(), "Built-In profile cannot be used");
     dbClient.qProfileEditGroupsDao().insert(db.getSession(), new QProfileEditGroupsDto()
-        .setUuid(Uuids.createFast())
+        .setUuid(Uuids.create())
         .setGroupUuid(group.getUuid())
         .setQProfileUuid(profile.getKee()),
-      profile.getName(), group.getName());
+        profile.getName(), group.getName());
     db.commit();
   }
 }

@@ -19,26 +19,6 @@
  */
 package org.sonar.db.qualityprofile;
 
-import com.google.common.collect.Sets;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.IntStream;
-import org.assertj.core.data.MapEntry;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.RegisterExtension;
-import org.sonar.api.utils.System2;
-import org.sonar.core.util.UtcDateUtils;
-import org.sonar.core.util.Uuids;
-import org.sonar.db.DbSession;
-import org.sonar.db.DbTester;
-import org.sonar.db.project.ProjectDto;
-import org.sonar.db.rule.RuleDto;
-
 import static com.google.common.collect.ImmutableList.of;
 import static com.google.common.collect.Lists.newArrayList;
 import static java.util.Arrays.asList;
@@ -52,6 +32,28 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.sonar.db.qualityprofile.QualityProfileTesting.newQualityProfileDto;
 import static org.sonar.db.qualityprofile.QualityProfileTesting.newRuleProfileDto;
+
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.IntStream;
+
+import org.assertj.core.data.MapEntry;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
+import org.sonar.api.utils.System2;
+import org.sonar.core.util.UtcDateUtils;
+import org.sonar.core.util.Uuids;
+import org.sonar.db.DbSession;
+import org.sonar.db.DbTester;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.db.rule.RuleDto;
+
+import com.google.common.collect.Sets;
 
 class QualityProfileDaoIT {
 
@@ -75,15 +77,15 @@ class QualityProfileDaoIT {
   @Test
   void test_insert() {
     QProfileDto dto = new QProfileDto()
-      .setKee("theUuid")
-      .setRulesProfileUuid("theRulesProfileUuid")
-      .setName("theName")
-      .setLanguage("theLang")
-      .setLastUsed(1_000L)
-      .setParentKee("theParentUuid")
-      .setUserUpdatedAt(2_000L)
-      .setRulesUpdatedAt("2017-05-31")
-      .setIsBuiltIn(true);
+        .setKee("theUuid")
+        .setRulesProfileUuid("theRulesProfileUuid")
+        .setName("theName")
+        .setLanguage("theLang")
+        .setLastUsed(1_000L)
+        .setParentKee("theParentUuid")
+        .setUserUpdatedAt(2_000L)
+        .setRulesUpdatedAt("2017-05-31")
+        .setIsBuiltIn(true);
 
     underTest.insert(dbSession, dto);
 
@@ -102,27 +104,27 @@ class QualityProfileDaoIT {
   @Test
   void test_update() {
     QProfileDto initial = new QProfileDto()
-      .setKee("theUuid")
-      .setRulesProfileUuid("theRulesProfileUuid")
-      .setName("theName")
-      .setLanguage("theLang")
-      .setLastUsed(1_000L)
-      .setParentKee("theParentUuid")
-      .setUserUpdatedAt(2_000L)
-      .setRulesUpdatedAt("2017-05-31")
-      .setIsBuiltIn(true);
+        .setKee("theUuid")
+        .setRulesProfileUuid("theRulesProfileUuid")
+        .setName("theName")
+        .setLanguage("theLang")
+        .setLastUsed(1_000L)
+        .setParentKee("theParentUuid")
+        .setUserUpdatedAt(2_000L)
+        .setRulesUpdatedAt("2017-05-31")
+        .setIsBuiltIn(true);
     underTest.insert(dbSession, initial);
 
     QProfileDto update = new QProfileDto()
-      .setKee(initial.getKee())
-      .setRulesProfileUuid(initial.getRulesProfileUuid())
-      .setName("theNewName")
-      .setLanguage("theNewLang")
-      .setLastUsed(11_000L)
-      .setParentKee("theNewParentUuid")
-      .setUserUpdatedAt(12_000L)
-      .setRulesUpdatedAt("2017-06-01")
-      .setIsBuiltIn(false);
+        .setKee(initial.getKee())
+        .setRulesProfileUuid(initial.getRulesProfileUuid())
+        .setName("theNewName")
+        .setLanguage("theNewLang")
+        .setLastUsed(11_000L)
+        .setParentKee("theNewParentUuid")
+        .setUserUpdatedAt(12_000L)
+        .setRulesUpdatedAt("2017-06-01")
+        .setIsBuiltIn(false);
     underTest.update(dbSession, update);
 
     QProfileDto reloaded = underTest.selectByUuid(dbSession, initial.getKee());
@@ -141,7 +143,7 @@ class QualityProfileDaoIT {
   @Test
   void test_updateLastUsedDate_if_never_been_set_yet() {
     QProfileDto initial = QualityProfileTesting.newQualityProfileDto()
-      .setLastUsed(null);
+        .setLastUsed(null);
     underTest.insert(dbSession, initial);
 
     int count = underTest.updateLastUsedDate(dbSession, initial, 15_000L);
@@ -155,7 +157,7 @@ class QualityProfileDaoIT {
   @Test
   void test_updateLastUsedDate_if_more_recent() {
     QProfileDto initial = QualityProfileTesting.newQualityProfileDto()
-      .setLastUsed(10_000L);
+        .setLastUsed(10_000L);
     underTest.insert(dbSession, initial);
 
     int count = underTest.updateLastUsedDate(dbSession, initial, 15_000L);
@@ -169,7 +171,7 @@ class QualityProfileDaoIT {
   @Test
   void updateLastUsedDate_does_not_touch_row_if_last_used_is_more_recent() {
     QProfileDto initial = QualityProfileTesting.newQualityProfileDto()
-      .setLastUsed(10_000L);
+        .setLastUsed(10_000L);
     underTest.insert(dbSession, initial);
 
     int count = underTest.updateLastUsedDate(dbSession, initial, 8_000L);
@@ -184,7 +186,8 @@ class QualityProfileDaoIT {
   void selectRuleProfile() {
     RulesProfileDto rp = insertRulesProfile();
 
-    assertThat(underTest.selectRuleProfile(dbSession, rp.getUuid())).extracting(RulesProfileDto::getName).isEqualTo(rp.getName());
+    assertThat(underTest.selectRuleProfile(dbSession, rp.getUuid())).extracting(RulesProfileDto::getName)
+        .isEqualTo(rp.getName());
     assertThat(underTest.selectRuleProfile(dbSession, "missing")).isNull();
   }
 
@@ -220,10 +223,10 @@ class QualityProfileDaoIT {
 
   private RulesProfileDto insertRulesProfile() {
     RulesProfileDto dto = new RulesProfileDto()
-      .setName(secure().nextAlphanumeric(10))
-      .setLanguage(secure().nextAlphanumeric(3))
-      .setUuid(Uuids.createFast())
-      .setIsBuiltIn(false);
+        .setName(secure().nextAlphanumeric(10))
+        .setLanguage(secure().nextAlphanumeric(3))
+        .setUuid(Uuids.create())
+        .setIsBuiltIn(false);
     db.getDbClient().qualityProfileDao().insert(dbSession, dto);
     return dto;
   }
@@ -242,8 +245,9 @@ class QualityProfileDaoIT {
 
     underTest.deleteProjectAssociationsByProfileUuids(dbSession, asList(profile1.getKee(), "does_not_exist"));
 
-    List<Map<String, Object>> rows = db.select(dbSession, "select project_uuid as \"projectUuid\", profile_key as \"profileKey\" from " +
-      "project_qprofiles");
+    List<Map<String, Object>> rows = db.select(dbSession,
+        "select project_uuid as \"projectUuid\", profile_key as \"profileKey\" from " +
+            "project_qprofiles");
     assertThat(rows).hasSize(1);
     assertThat(rows.get(0)).containsEntry("projectUuid", project3.getUuid());
     assertThat(rows.get(0)).containsEntry("profileKey", profile2.getKee());
@@ -269,56 +273,56 @@ class QualityProfileDaoIT {
     assertThat(reloadeds).hasSize(sharedData.size());
 
     IntStream.range(1, reloadeds.size())
-      .forEach(
-        i -> {
-          QProfileDto reloaded = reloadeds.get(i - 1);
-          QProfileDto original = sharedData.get(i - 1);
+        .forEach(
+            i -> {
+              QProfileDto reloaded = reloadeds.get(i - 1);
+              QProfileDto original = sharedData.get(i - 1);
 
-          assertThat(reloaded.getRulesProfileUuid()).isEqualTo(original.getRulesProfileUuid());
-          assertThat(reloaded.getName()).isEqualTo(original.getName());
-          assertThat(reloaded.getKee()).isEqualTo(original.getKee());
-          assertThat(reloaded.getLanguage()).isEqualTo(original.getLanguage());
-          assertThat(reloaded.getParentKee()).isEqualTo(original.getParentKee());
-          assertThat(reloaded.getRulesUpdatedAt()).isEqualTo(original.getRulesUpdatedAt());
-          assertThat(reloaded.getLastUsed()).isEqualTo(original.getLastUsed());
-          assertThat(reloaded.getUserUpdatedAt()).isEqualTo(original.getUserUpdatedAt());
-          assertThat(reloaded.isBuiltIn()).isEqualTo(original.isBuiltIn());
-        });
+              assertThat(reloaded.getRulesProfileUuid()).isEqualTo(original.getRulesProfileUuid());
+              assertThat(reloaded.getName()).isEqualTo(original.getName());
+              assertThat(reloaded.getKee()).isEqualTo(original.getKee());
+              assertThat(reloaded.getLanguage()).isEqualTo(original.getLanguage());
+              assertThat(reloaded.getParentKee()).isEqualTo(original.getParentKee());
+              assertThat(reloaded.getRulesUpdatedAt()).isEqualTo(original.getRulesUpdatedAt());
+              assertThat(reloaded.getLastUsed()).isEqualTo(original.getLastUsed());
+              assertThat(reloaded.getUserUpdatedAt()).isEqualTo(original.getUserUpdatedAt());
+              assertThat(reloaded.isBuiltIn()).isEqualTo(original.isBuiltIn());
+            });
   }
 
   @Test
   void selectAll_is_sorted_by_profile_name() {
     QProfileDto dto1 = new QProfileDto()
-      .setKee("js_first")
-      .setRulesProfileUuid("rp-js_first")
-      .setName("First")
-      .setLanguage("js")
-      .setLastUsed(1_000L)
-      .setUserUpdatedAt(2_000L)
-      .setRulesUpdatedAt("2017-05-31")
-      .setIsBuiltIn(false);
+        .setKee("js_first")
+        .setRulesProfileUuid("rp-js_first")
+        .setName("First")
+        .setLanguage("js")
+        .setLastUsed(1_000L)
+        .setUserUpdatedAt(2_000L)
+        .setRulesUpdatedAt("2017-05-31")
+        .setIsBuiltIn(false);
     underTest.insert(dbSession, dto1);
 
     QProfileDto dto2 = new QProfileDto()
-      .setKee("js_second")
-      .setRulesProfileUuid("rp-js_second")
-      .setName("Second")
-      .setLanguage("js")
-      .setLastUsed(1_000L)
-      .setUserUpdatedAt(2_000L)
-      .setRulesUpdatedAt("2017-05-31")
-      .setIsBuiltIn(false);
+        .setKee("js_second")
+        .setRulesProfileUuid("rp-js_second")
+        .setName("Second")
+        .setLanguage("js")
+        .setLastUsed(1_000L)
+        .setUserUpdatedAt(2_000L)
+        .setRulesUpdatedAt("2017-05-31")
+        .setIsBuiltIn(false);
     underTest.insert(dbSession, dto2);
 
     QProfileDto dto3 = new QProfileDto()
-      .setKee("js_third")
-      .setRulesProfileUuid("rp-js_third")
-      .setName("Third")
-      .setLanguage("js")
-      .setLastUsed(1_000L)
-      .setUserUpdatedAt(2_000L)
-      .setRulesUpdatedAt("2017-05-31")
-      .setIsBuiltIn(false);
+        .setKee("js_third")
+        .setRulesProfileUuid("rp-js_third")
+        .setName("Third")
+        .setLanguage("js")
+        .setLastUsed(1_000L)
+        .setUserUpdatedAt(2_000L)
+        .setRulesUpdatedAt("2017-05-31")
+        .setIsBuiltIn(false);
     underTest.insert(dbSession, dto3);
 
     List<QProfileDto> dtos = underTest.selectAll(dbSession);
@@ -356,8 +360,10 @@ class QualityProfileDaoIT {
     assertThat(java).extracting(QProfileDto::getKee).containsOnly("java_sonar_way");
 
     assertThat(underTest.selectDefaultProfiles(dbSession, singletonList("js"))).isEmpty();
-    assertThat(underTest.selectDefaultProfiles(dbSession, of("java", "js"))).extracting(QProfileDto::getKee).containsOnly("java_sonar_way");
-    assertThat(underTest.selectDefaultProfiles(dbSession, of("js", "java"))).extracting(QProfileDto::getKee).containsOnly("java_sonar_way");
+    assertThat(underTest.selectDefaultProfiles(dbSession, List.of("java", "js"))).extracting(QProfileDto::getKee)
+        .containsOnly("java_sonar_way");
+    assertThat(underTest.selectDefaultProfiles(dbSession, List.of("js", "java"))).extracting(QProfileDto::getKee)
+        .containsOnly("java_sonar_way");
     assertThat(underTest.selectDefaultProfiles(dbSession, Collections.emptyList())).isEmpty();
   }
 
@@ -388,7 +394,7 @@ class QualityProfileDaoIT {
 
     assertThat(underTest.selectByNameAndLanguages(dbSession, "Sonar Way", singletonList("unknown"))).isEmpty();
     assertThat(underTest.selectByNameAndLanguages(dbSession, "Sonar Way", of("java", "unknown")))
-      .extracting(QProfileDto::getKee).containsOnly(dto.getKee());
+        .extracting(QProfileDto::getKee).containsOnly(dto.getKee());
   }
 
   @Test
@@ -418,73 +424,73 @@ class QualityProfileDaoIT {
   @Test
   void selectChildren() {
     QProfileDto original1 = new QProfileDto()
-      .setKee("java_child1")
-      .setRulesProfileUuid("rp-java_child1")
-      .setName("Child1")
-      .setLanguage("java")
-      .setLastUsed(1_000L)
-      .setParentKee("java_parent")
-      .setUserUpdatedAt(2_000L)
-      .setRulesUpdatedAt("2017-05-31")
-      .setIsBuiltIn(false);
+        .setKee("java_child1")
+        .setRulesProfileUuid("rp-java_child1")
+        .setName("Child1")
+        .setLanguage("java")
+        .setLastUsed(1_000L)
+        .setParentKee("java_parent")
+        .setUserUpdatedAt(2_000L)
+        .setRulesUpdatedAt("2017-05-31")
+        .setIsBuiltIn(false);
     underTest.insert(dbSession, original1);
 
     QProfileDto original2 = new QProfileDto()
-      .setKee("java_child2")
-      .setRulesProfileUuid("rp-java_child2")
-      .setName("Child2")
-      .setLanguage("java")
-      .setLastUsed(1_000L)
-      .setParentKee("java_parent")
-      .setUserUpdatedAt(2_000L)
-      .setRulesUpdatedAt("2017-05-31")
-      .setIsBuiltIn(false);
+        .setKee("java_child2")
+        .setRulesProfileUuid("rp-java_child2")
+        .setName("Child2")
+        .setLanguage("java")
+        .setLastUsed(1_000L)
+        .setParentKee("java_parent")
+        .setUserUpdatedAt(2_000L)
+        .setRulesUpdatedAt("2017-05-31")
+        .setIsBuiltIn(false);
     underTest.insert(dbSession, original2);
 
     QProfileDto original3 = new QProfileDto()
-      .setKee("java_parent")
-      .setRulesProfileUuid("rp-java_parent")
-      .setName("Parent")
-      .setLanguage("java")
-      .setLastUsed(1_000L)
-      .setUserUpdatedAt(2_000L)
-      .setRulesUpdatedAt("2017-05-31")
-      .setIsBuiltIn(false);
+        .setKee("java_parent")
+        .setRulesProfileUuid("rp-java_parent")
+        .setName("Parent")
+        .setLanguage("java")
+        .setLastUsed(1_000L)
+        .setUserUpdatedAt(2_000L)
+        .setRulesUpdatedAt("2017-05-31")
+        .setIsBuiltIn(false);
     underTest.insert(dbSession, original3);
 
     QProfileDto original4 = new QProfileDto()
-      .setKee("js_child1")
-      .setRulesProfileUuid("rp-js_child1")
-      .setName("Child1")
-      .setLanguage("js")
-      .setLastUsed(1_000L)
-      .setParentKee("js_parent")
-      .setUserUpdatedAt(2_000L)
-      .setRulesUpdatedAt("2017-05-31")
-      .setIsBuiltIn(false);
+        .setKee("js_child1")
+        .setRulesProfileUuid("rp-js_child1")
+        .setName("Child1")
+        .setLanguage("js")
+        .setLastUsed(1_000L)
+        .setParentKee("js_parent")
+        .setUserUpdatedAt(2_000L)
+        .setRulesUpdatedAt("2017-05-31")
+        .setIsBuiltIn(false);
     underTest.insert(dbSession, original4);
 
     QProfileDto original5 = new QProfileDto()
-      .setKee("js_child2")
-      .setRulesProfileUuid("rp-js_child2")
-      .setName("Child2")
-      .setLanguage("js")
-      .setLastUsed(1_000L)
-      .setParentKee("js_parent")
-      .setUserUpdatedAt(2_000L)
-      .setRulesUpdatedAt("2017-05-31")
-      .setIsBuiltIn(false);
+        .setKee("js_child2")
+        .setRulesProfileUuid("rp-js_child2")
+        .setName("Child2")
+        .setLanguage("js")
+        .setLastUsed(1_000L)
+        .setParentKee("js_parent")
+        .setUserUpdatedAt(2_000L)
+        .setRulesUpdatedAt("2017-05-31")
+        .setIsBuiltIn(false);
     underTest.insert(dbSession, original5);
 
     QProfileDto original6 = new QProfileDto()
-      .setKee("js_parent")
-      .setRulesProfileUuid("rp-js_parent")
-      .setName("Parent")
-      .setLanguage("js")
-      .setLastUsed(1_000L)
-      .setUserUpdatedAt(2_000L)
-      .setRulesUpdatedAt("2017-05-31")
-      .setIsBuiltIn(false);
+        .setKee("js_parent")
+        .setRulesProfileUuid("rp-js_parent")
+        .setName("Parent")
+        .setLanguage("js")
+        .setLastUsed(1_000L)
+        .setUserUpdatedAt(2_000L)
+        .setRulesUpdatedAt("2017-05-31")
+        .setIsBuiltIn(false);
     underTest.insert(dbSession, original6);
 
     List<QProfileDto> dtos = underTest.selectChildren(dbSession, singleton(original3));
@@ -519,7 +525,7 @@ class QualityProfileDaoIT {
 
     List<RulesProfileDto> rulesProfileDtos = underTest.selectBuiltInRuleProfilesWithActiveRules(dbSession);
     assertThat(rulesProfileDtos).extracting(RulesProfileDto::getName)
-      .containsOnly(builtInQPWithActiveRules.getName());
+        .containsOnly(builtInQPWithActiveRules.getName());
   }
 
   @Test
@@ -531,11 +537,11 @@ class QualityProfileDaoIT {
     dbSession.commit();
 
     assertThat(underTest.selectByRuleProfileUuid(dbSession, qprofile1.getRulesProfileUuid()))
-      .extracting(QProfileDto::getName)
-      .isEqualTo(qprofile1.getName());
+        .extracting(QProfileDto::getName)
+        .isEqualTo(qprofile1.getName());
 
     assertThat(underTest.selectByRuleProfileUuid(dbSession, "A"))
-      .isNull();
+        .isNull();
   }
 
   @Test
@@ -559,33 +565,33 @@ class QualityProfileDaoIT {
     dbSession.commit();
 
     assertThat(underTest.selectDefaultProfilesWithoutActiveRules(dbSession, Sets.newHashSet("java", "cpp"), true))
-      .extracting(QProfileDto::getName)
-      .containsOnly(javaQPWithoutActiveRules.getName(), cppQPWithoutActiveRules.getName());
+        .extracting(QProfileDto::getName)
+        .containsOnly(javaQPWithoutActiveRules.getName(), cppQPWithoutActiveRules.getName());
 
     assertThat(underTest.selectDefaultProfilesWithoutActiveRules(dbSession, Sets.newHashSet("java"), true))
-      .extracting(QProfileDto::getName)
-      .containsOnly(javaQPWithoutActiveRules.getName());
+        .extracting(QProfileDto::getName)
+        .containsOnly(javaQPWithoutActiveRules.getName());
 
     assertThat(underTest.selectDefaultProfilesWithoutActiveRules(dbSession, Sets.newHashSet("cobol"), true))
-      .isEmpty();
+        .isEmpty();
 
     assertThat(underTest.selectDefaultProfilesWithoutActiveRules(dbSession, Sets.newHashSet(), true))
-      .isEmpty();
+        .isEmpty();
   }
 
   @Test
   void selectDefaultProfilesWithoutActiveRules_whenNotBuiltIn_shouldReturnNotBuiltInOnly() {
     // a quality profile without active rules but not builtin
-    QProfileDto customJavaQpWithoutActiveRules = db.qualityProfiles().insert(qp -> qp.setIsBuiltIn(false).setLanguage("java"));
+    QProfileDto customJavaQpWithoutActiveRules = db.qualityProfiles()
+        .insert(qp -> qp.setIsBuiltIn(false).setLanguage("java"));
     db.qualityProfiles().setAsDefault(customJavaQpWithoutActiveRules);
 
     // a built-in quality profile without active rules
     db.qualityProfiles().insert(qp -> qp.setIsBuiltIn(true).setLanguage("java"));
 
-
     assertThat(underTest.selectDefaultProfilesWithoutActiveRules(dbSession, Sets.newHashSet("java"), false))
-      .extracting(QProfileDto::getName)
-      .containsOnly(customJavaQpWithoutActiveRules.getName());
+        .extracting(QProfileDto::getName)
+        .containsOnly(customJavaQpWithoutActiveRules.getName());
   }
 
   @Test
@@ -599,7 +605,8 @@ class QualityProfileDaoIT {
 
   @Test
   void selectDescendants_returns_profile_does_not_exist() {
-    Collection<QProfileDto> descendants = underTest.selectDescendants(dbSession, singleton(new QProfileDto().setKee("unknown")));
+    Collection<QProfileDto> descendants = underTest.selectDescendants(dbSession,
+        singleton(new QProfileDto().setKee("unknown")));
 
     assertThat(descendants).isEmpty();
   }
@@ -622,8 +629,10 @@ class QualityProfileDaoIT {
     verifyDescendants(singleton(grandChildOfBase1), emptyList());
 
     // descendants of a multiple base profiles
-    verifyDescendants(asList(base1, base2), asList(child1OfBase1, child2OfBase1, grandChildOfBase1, childOfBase2, grandChildOfBase2));
-    verifyDescendants(asList(base1, childOfBase2), asList(child1OfBase1, child2OfBase1, grandChildOfBase1, grandChildOfBase2));
+    verifyDescendants(asList(base1, base2),
+        asList(child1OfBase1, child2OfBase1, grandChildOfBase1, childOfBase2, grandChildOfBase2));
+    verifyDescendants(asList(base1, childOfBase2),
+        asList(child1OfBase1, child2OfBase1, grandChildOfBase1, grandChildOfBase2));
     verifyDescendants(asList(child1OfBase1, grandChildOfBase2), singletonList(grandChildOfBase1));
     verifyDescendants(asList(other, base2), asList(childOfBase2, grandChildOfBase2));
 
@@ -633,8 +642,8 @@ class QualityProfileDaoIT {
     Collection<QProfileDto> descendants = underTest.selectDescendants(dbSession, baseProfiles);
     String[] expectedUuids = expectedDescendants.stream().map(QProfileDto::getKee).toArray(String[]::new);
     assertThat(descendants)
-      .extracting(QProfileDto::getKee)
-      .containsExactlyInAnyOrder(expectedUuids);
+        .extracting(QProfileDto::getKee)
+        .containsExactlyInAnyOrder(expectedUuids);
   }
 
   @Test
@@ -647,8 +656,9 @@ class QualityProfileDaoIT {
     db.qualityProfiles().associateWithProject(project1, profileWithProjects);
     db.qualityProfiles().associateWithProject(project2, profileWithProjects);
 
-    assertThat(underTest.countProjectsByProfiles(dbSession, asList(profileWithoutProjects, profileWithProjects))).containsOnly(
-      MapEntry.entry(profileWithProjects.getKee(), 2L));
+    assertThat(underTest.countProjectsByProfiles(dbSession, asList(profileWithoutProjects, profileWithProjects)))
+        .containsOnly(
+            MapEntry.entry(profileWithProjects.getKee(), 2L));
     assertThat(underTest.countProjectsByProfiles(dbSession, Collections.emptyList())).isEmpty();
   }
 
@@ -660,8 +670,10 @@ class QualityProfileDaoIT {
     QProfileDto jsProfile = db.qualityProfiles().insert(p -> p.setLanguage("js"));
     db.qualityProfiles().associateWithProject(project1, javaProfile, jsProfile);
 
-    assertThat(underTest.selectAssociatedToProjectAndLanguage(dbSession, project1, "java")).extracting(QProfileDto::getKee).isEqualTo(javaProfile.getKee());
-    assertThat(underTest.selectAssociatedToProjectAndLanguage(dbSession, project1, "js")).extracting(QProfileDto::getKee).isEqualTo(jsProfile.getKee());
+    assertThat(underTest.selectAssociatedToProjectAndLanguage(dbSession, project1, "java"))
+        .extracting(QProfileDto::getKee).isEqualTo(javaProfile.getKee());
+    assertThat(underTest.selectAssociatedToProjectAndLanguage(dbSession, project1, "js"))
+        .extracting(QProfileDto::getKee).isEqualTo(jsProfile.getKee());
     assertThat(underTest.selectAssociatedToProjectAndLanguage(dbSession, project1, "cobol")).isNull();
     assertThat(underTest.selectAssociatedToProjectAndLanguage(dbSession, project2, "java")).isNull();
   }
@@ -675,17 +687,17 @@ class QualityProfileDaoIT {
     db.qualityProfiles().associateWithProject(project1, javaProfile, jsProfile);
 
     assertThat(underTest.selectAssociatedToProjectAndLanguages(dbSession, project1, singletonList("java")))
-      .extracting(QProfileDto::getKee).containsOnly(javaProfile.getKee());
+        .extracting(QProfileDto::getKee).containsOnly(javaProfile.getKee());
     assertThat(underTest.selectAssociatedToProjectAndLanguages(dbSession, project1, singletonList("unknown")))
-      .isEmpty();
+        .isEmpty();
     assertThat(underTest.selectAssociatedToProjectAndLanguages(dbSession, project1, of("java", "unknown")))
-      .extracting(QProfileDto::getKee).containsExactly(javaProfile.getKee());
+        .extracting(QProfileDto::getKee).containsExactly(javaProfile.getKee());
     assertThat(underTest.selectAssociatedToProjectAndLanguages(dbSession, project1, of("java", "js")))
-      .extracting(QProfileDto::getKee).containsExactlyInAnyOrder(javaProfile.getKee(), jsProfile.getKee());
+        .extracting(QProfileDto::getKee).containsExactlyInAnyOrder(javaProfile.getKee(), jsProfile.getKee());
     assertThat(underTest.selectAssociatedToProjectAndLanguages(dbSession, project2, singletonList("java")))
-      .isEmpty();
+        .isEmpty();
     assertThat(underTest.selectAssociatedToProjectAndLanguages(dbSession, project2, Collections.emptyList()))
-      .isEmpty();
+        .isEmpty();
   }
 
   @Test
@@ -700,13 +712,13 @@ class QualityProfileDaoIT {
     db.qualityProfiles().associateWithProject(project2, jsProfile);
 
     assertThat(underTest.selectQProfilesByProjectUuid(dbSession, project1.getUuid()))
-      .containsExactlyInAnyOrder(javaProfile, cProfile);
+        .containsExactlyInAnyOrder(javaProfile, cProfile);
 
     assertThat(underTest.selectQProfilesByProjectUuid(dbSession, project2.getUuid()))
-      .containsExactly(jsProfile);
+        .containsExactly(jsProfile);
 
     assertThat(underTest.selectQProfilesByProjectUuid(dbSession, project3.getUuid()))
-      .isEmpty();
+        .isEmpty();
   }
 
   @Test
@@ -719,21 +731,23 @@ class QualityProfileDaoIT {
 
     underTest.updateProjectProfileAssociation(dbSession, project, javaProfile2.getKee(), javaProfile1.getKee());
 
-    assertThat(underTest.selectAssociatedToProjectAndLanguage(dbSession, project, "java")).extracting(QProfileDto::getKee).isEqualTo(javaProfile2.getKee());
-    assertThat(underTest.selectAssociatedToProjectAndLanguage(dbSession, project, "js")).extracting(QProfileDto::getKee).isEqualTo(jsProfile.getKee());
+    assertThat(underTest.selectAssociatedToProjectAndLanguage(dbSession, project, "java"))
+        .extracting(QProfileDto::getKee).isEqualTo(javaProfile2.getKee());
+    assertThat(underTest.selectAssociatedToProjectAndLanguage(dbSession, project, "js")).extracting(QProfileDto::getKee)
+        .isEqualTo(jsProfile.getKee());
   }
 
   @Test
   void selectByKeys() {
     db.qualityProfiles().insert(newQualityProfileDto().setKee("qp-key-1"), newQualityProfileDto().setKee("qp-key-2"),
-      newQualityProfileDto().setKee("qp-key-3"));
+        newQualityProfileDto().setKee("qp-key-3"));
 
     assertThat(underTest.selectOrFailByUuid(dbSession, "qp-key-1")).isNotNull();
     assertThat(underTest.selectByUuid(dbSession, "qp-key-1")).isNotNull();
     assertThat(underTest.selectByUuid(dbSession, "qp-key-42")).isNull();
     assertThat(underTest.selectByUuids(dbSession, newArrayList("qp-key-1", "qp-key-3", "qp-key-42")))
-      .hasSize(2)
-      .extracting(QProfileDto::getKee).containsOnlyOnce("qp-key-1", "qp-key-3");
+        .hasSize(2)
+        .extracting(QProfileDto::getKee).containsOnlyOnce("qp-key-1", "qp-key-3");
     assertThat(underTest.selectByUuids(dbSession, emptyList())).isEmpty();
   }
 
@@ -756,10 +770,10 @@ class QualityProfileDaoIT {
     QProfileDto profile3 = newQualityProfileDto();
 
     assertThat(underTest.selectSelectedProjects(dbSession, profile1, null))
-      .extracting("projectUuid", "projectKey", "projectName", "profileKey")
-      .containsOnly(
-        tuple(project1.getUuid(), project1.getKey(), project1.getName(), profile1.getKee()),
-        tuple(project2.getUuid(), project2.getKey(), project2.getName(), profile1.getKee()));
+        .extracting("projectUuid", "projectKey", "projectName", "profileKey")
+        .containsOnly(
+            tuple(project1.getUuid(), project1.getKey(), project1.getName(), profile1.getKee()),
+            tuple(project2.getUuid(), project2.getKey(), project2.getName(), profile1.getKee()));
 
     assertThat(underTest.selectSelectedProjects(dbSession, profile1, "ect1")).hasSize(1);
     assertThat(underTest.selectSelectedProjects(dbSession, profile3, null)).isEmpty();
@@ -781,10 +795,10 @@ class QualityProfileDaoIT {
     QProfileDto profile3 = newQualityProfileDto();
 
     assertThat(underTest.selectDeselectedProjects(dbSession, profile1, null))
-      .extracting("projectUuid", "projectKey", "projectName", "profileKey")
-      .containsExactly(
-        tuple(project2.getUuid(), project2.getKey(), project2.getName(), null),
-        tuple(project3.getUuid(), project3.getKey(), project3.getName(), null));
+        .extracting("projectUuid", "projectKey", "projectName", "profileKey")
+        .containsExactly(
+            tuple(project2.getUuid(), project2.getKey(), project2.getName(), null),
+            tuple(project3.getUuid(), project3.getKey(), project3.getName(), null));
 
     assertThat(underTest.selectDeselectedProjects(dbSession, profile1, "ect2")).hasSize(1);
     assertThat(underTest.selectDeselectedProjects(dbSession, profile3, null)).hasSize(3);
@@ -807,11 +821,11 @@ class QualityProfileDaoIT {
     QProfileDto profile3 = newQualityProfileDto();
 
     assertThat(underTest.selectProjectAssociations(dbSession, profile1, null))
-      .extracting("projectUuid", "projectKey", "projectName", "profileKey")
-      .containsOnly(
-        tuple(project1.getUuid(), project1.getKey(), project1.getName(), profile1.getKee()),
-        tuple(project2.getUuid(), project2.getKey(), project2.getName(), null),
-        tuple(project3.getUuid(), project3.getKey(), project3.getName(), null));
+        .extracting("projectUuid", "projectKey", "projectName", "profileKey")
+        .containsOnly(
+            tuple(project1.getUuid(), project1.getKey(), project1.getName(), profile1.getKee()),
+            tuple(project2.getUuid(), project2.getKey(), project2.getName(), null),
+            tuple(project3.getUuid(), project3.getKey(), project3.getName(), null));
 
     assertThat(underTest.selectProjectAssociations(dbSession, profile1, "ect2")).hasSize(1);
     assertThat(underTest.selectProjectAssociations(dbSession, profile3, null)).hasSize(3);
@@ -834,10 +848,10 @@ class QualityProfileDaoIT {
     QProfileDto profile3 = newQualityProfileDto();
 
     assertThat(underTest.selectAllProjectAssociations(dbSession))
-      .extracting("projectUuid", "profileKey", "language")
-      .containsExactlyInAnyOrder(
-        tuple(project1.getUuid(), profile1.getKee(), profile1.getLanguage()),
-        tuple(project2.getUuid(), profile2.getKee(), profile2.getLanguage()));
+        .extracting("projectUuid", "profileKey", "language")
+        .containsExactlyInAnyOrder(
+            tuple(project1.getUuid(), profile1.getKee(), profile1.getLanguage()),
+            tuple(project2.getUuid(), profile2.getKee(), profile2.getLanguage()));
   }
 
   @Test
@@ -855,15 +869,16 @@ class QualityProfileDaoIT {
     db.qualityProfiles().setAsDefault(defaultProfile1, defaultProfile2);
 
     assertThat(underTest.selectAllDefaultProfiles(dbSession))
-      .extracting("kee", "name", "language")
-      .containsExactlyInAnyOrder(
-        tuple(defaultProfile1.getKee(), defaultProfile1.getName(), defaultProfile1.getLanguage()),
-        tuple(defaultProfile2.getKee(), defaultProfile2.getName(), defaultProfile2.getLanguage()));
+        .extracting("kee", "name", "language")
+        .containsExactlyInAnyOrder(
+            tuple(defaultProfile1.getKee(), defaultProfile1.getName(), defaultProfile1.getLanguage()),
+            tuple(defaultProfile2.getKee(), defaultProfile2.getName(), defaultProfile2.getLanguage()));
   }
 
   @Test
   void selectUuidsOfCustomRulesProfiles_returns_the_custom_profiles_with_specified_name() {
-    QProfileDto outdatedProfile1 = db.qualityProfiles().insert(p -> p.setIsBuiltIn(false).setLanguage("java").setName("foo"));
+    QProfileDto outdatedProfile1 = db.qualityProfiles()
+        .insert(p -> p.setIsBuiltIn(false).setLanguage("java").setName("foo"));
     db.qualityProfiles().insert(p -> p.setIsBuiltIn(false).setLanguage("cobol").setName("foo"));
     db.qualityProfiles().insert(p -> p.setIsBuiltIn(false).setLanguage("java").setName("bar"));
 
@@ -899,18 +914,20 @@ class QualityProfileDaoIT {
   @Test
   void selectQProfilesByRuleProfileUuid() {
     RulesProfileDto ruleProfile1 = newRuleProfileDto();
-    OrgQProfileDto profile1InOrg1 = new OrgQProfileDto().setRulesProfileUuid(ruleProfile1.getUuid()).setUuid(Uuids.create());
+    OrgQProfileDto profile1InOrg1 = new OrgQProfileDto().setRulesProfileUuid(ruleProfile1.getUuid())
+        .setUuid(Uuids.create());
     db.getDbClient().qualityProfileDao().insert(db.getSession(), ruleProfile1);
     db.getDbClient().qualityProfileDao().insert(db.getSession(), profile1InOrg1);
 
-    List<QProfileDto> result = db.getDbClient().qualityProfileDao().selectQProfilesByRuleProfile(db.getSession(), ruleProfile1);
+    List<QProfileDto> result = db.getDbClient().qualityProfileDao().selectQProfilesByRuleProfile(db.getSession(),
+        ruleProfile1);
     assertThat(result).extracting(QProfileDto::getKee).containsExactlyInAnyOrder(profile1InOrg1.getUuid());
   }
 
   @Test
   void selectQProfilesByRuleProfileUuid_returns_empty_list_if_rule_profile_does_not_exist() {
     List<QProfileDto> result = db.getDbClient().qualityProfileDao().selectQProfilesByRuleProfile(db.getSession(),
-      new RulesProfileDto().setUuid("unknown"));
+        new RulesProfileDto().setUuid("unknown"));
 
     assertThat(result).isEmpty();
   }
@@ -918,58 +935,61 @@ class QualityProfileDaoIT {
   @Test
   void selectProjectAssociations_shouldFindResult_whenQueryMatchingKey() {
     ProjectDto privateProject = db.components().insertPrivateProject(project -> project.setName("project name"),
-      project -> project.setKey("project_key")).getProjectDto();
+        project -> project.setKey("project_key")).getProjectDto();
     QProfileDto qProfileDto = db.qualityProfiles().insert();
 
     List<ProjectQprofileAssociationDto> results = underTest.selectProjectAssociations(dbSession, qProfileDto, "key");
 
-    assertThat(results).extracting(ProjectQprofileAssociationDto::getProjectUuid).containsOnly(privateProject.getUuid());
+    assertThat(results).extracting(ProjectQprofileAssociationDto::getProjectUuid)
+        .containsOnly(privateProject.getUuid());
   }
 
   @Test
   void selectSelectedProjects_shouldFindResult_whenQueryMatchingKey() {
     ProjectDto privateProject = db.components().insertPrivateProject(project -> project.setName("project name"),
-      project -> project.setKey("project_key")).getProjectDto();
+        project -> project.setKey("project_key")).getProjectDto();
     QProfileDto qProfileDto = db.qualityProfiles().insert();
     db.qualityProfiles().associateWithProject(privateProject, qProfileDto);
 
     List<ProjectQprofileAssociationDto> results = underTest.selectSelectedProjects(dbSession, qProfileDto, "key");
 
-    assertThat(results).extracting(ProjectQprofileAssociationDto::getProjectUuid).containsOnly(privateProject.getUuid());
+    assertThat(results).extracting(ProjectQprofileAssociationDto::getProjectUuid)
+        .containsOnly(privateProject.getUuid());
   }
 
   @Test
   void selectDeselectedProjects_shouldFindResult_whenQueryMatchingKey() {
     ProjectDto privateProject = db.components().insertPrivateProject(project -> project.setName("project name"),
-      project -> project.setKey("project_key")).getProjectDto();
+        project -> project.setKey("project_key")).getProjectDto();
     QProfileDto qProfileDto = db.qualityProfiles().insert();
 
     List<ProjectQprofileAssociationDto> results = underTest.selectDeselectedProjects(dbSession, qProfileDto, "key");
 
-    assertThat(results).extracting(ProjectQprofileAssociationDto::getProjectUuid).containsOnly(privateProject.getUuid());
+    assertThat(results).extracting(ProjectQprofileAssociationDto::getProjectUuid)
+        .containsOnly(privateProject.getUuid());
   }
 
   private List<QProfileDto> createSharedData() {
     QProfileDto dto1 = new QProfileDto()
-      .setKee("java_sonar_way")
-      .setRulesProfileUuid("rp-java_sonar_way")
-      .setName("Sonar Way")
-      .setLanguage("java")
-      .setLastUsed(1_000L)
-      .setUserUpdatedAt(2_000L)
-      .setRulesUpdatedAt("2017-05-31")
-      .setIsBuiltIn(true);
+        .setKee("java_sonar_way")
+        .setRulesProfileUuid("rp-java_sonar_way")
+        .setName("Sonar Way")
+        .setLanguage("java")
+        .setLastUsed(1_000L)
+        .setUserUpdatedAt(2_000L)
+        .setRulesUpdatedAt("2017-05-31")
+        .setIsBuiltIn(true);
     underTest.insert(dbSession, dto1);
 
     QProfileDto dto2 = new QProfileDto()
-      .setKee("js_sonar_way")
-      .setRulesProfileUuid("rp-js_sonar_way")
-      .setName("Sonar Way")
-      .setLanguage("js")
-      .setLastUsed(1_000L)
-      .setUserUpdatedAt(2_000L)
-      .setRulesUpdatedAt("2017-05-31")
-      .setIsBuiltIn(true);
+        .setKee("js_sonar_way")
+        .setRulesProfileUuid("rp-js_sonar_way")
+        .setName("Sonar Way")
+        .setLanguage("js")
+        .setLastUsed(1_000L)
+        .setUserUpdatedAt(2_000L)
+        .setRulesUpdatedAt("2017-05-31")
+        .setIsBuiltIn(true);
     underTest.insert(dbSession, dto2);
 
     db.getDbClient().defaultQProfileDao().insertOrUpdate(dbSession, DefaultQProfileDto.from(dto1));

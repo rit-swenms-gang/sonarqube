@@ -19,6 +19,15 @@
  */
 package org.sonar.ce.task.projectanalysis.filemove;
 
+import static java.util.Arrays.stream;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.sonar.ce.task.projectanalysis.component.ReportComponent.builder;
+import static org.sonar.ce.task.projectanalysis.filemove.FileMoveDetectionStep.MIN_REQUIRED_SCORE;
+import static org.sonar.db.component.BranchType.BRANCH;
+import static org.sonar.db.component.BranchType.PULL_REQUEST;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -28,8 +37,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.IntStream;
+
 import javax.annotation.CheckForNull;
 import javax.annotation.Nullable;
+
 import org.apache.commons.io.FileUtils;
 import org.junit.Before;
 import org.junit.Rule;
@@ -54,164 +65,155 @@ import org.sonar.db.component.ComponentDto;
 import org.sonar.db.component.ComponentTesting;
 import org.sonar.db.source.FileSourceDto;
 
-import static java.util.Arrays.stream;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-import static org.sonar.ce.task.projectanalysis.component.ReportComponent.builder;
-import static org.sonar.ce.task.projectanalysis.filemove.FileMoveDetectionStep.MIN_REQUIRED_SCORE;
-import static org.sonar.db.component.BranchType.BRANCH;
-import static org.sonar.db.component.BranchType.PULL_REQUEST;
-
 public class FileMoveDetectionStepIT {
 
   private static final String SNAPSHOT_UUID = "uuid_1";
   private static final Analysis ANALYSIS = new Analysis.Builder()
-    .setUuid(SNAPSHOT_UUID)
-    .setCreatedAt(86521)
-    .build();
+      .setUuid(SNAPSHOT_UUID)
+      .setCreatedAt(86521)
+      .build();
   private static final int ROOT_REF = 1;
   private static final int FILE_1_REF = 2;
   private static final int FILE_2_REF = 3;
   private static final int FILE_3_REF = 4;
   private static final String[] CONTENT1 = {
-    "package org.sonar.ce.task.projectanalysis.filemove;",
-    "",
-    "public class Foo {",
-    "  public String bar() {",
-    "    return \"Doh!\";",
-    "  }",
-    "}"
+      "package org.sonar.ce.task.projectanalysis.filemove;",
+      "",
+      "public class Foo {",
+      "  public String bar() {",
+      "    return \"Doh!\";",
+      "  }",
+      "}"
   };
 
   private static final String[] LESS_CONTENT1 = {
-    "package org.sonar.ce.task.projectanalysis.filemove;",
-    "",
-    "public class Foo {",
-    "  public String foo() {",
-    "    return \"Donut!\";",
-    "  }",
-    "}"
+      "package org.sonar.ce.task.projectanalysis.filemove;",
+      "",
+      "public class Foo {",
+      "  public String foo() {",
+      "    return \"Donut!\";",
+      "  }",
+      "}"
   };
   private static final String[] CONTENT_EMPTY = {
-    ""
+      ""
   };
   private static final String[] CONTENT2 = {
-    "package org.sonar.ce.queue;",
-    "",
-    "import com.google.common.base.MoreObjects;",
-    "import javax.annotation.CheckForNull;",
-    "import javax.annotation.Nullable;",
-    "import javax.annotation.concurrent.Immutable;",
-    "",
-    "import static com.google.common.base.Strings.emptyToNull;",
-    "import static java.util.Objects.requireNonNull;",
-    "",
-    "@Immutable",
-    "public class CeTask {",
-    "",
-    ",  private final String type;",
-    ",  private final String uuid;",
-    ",  private final String componentUuid;",
-    ",  private final String componentKey;",
-    ",  private final String componentName;",
-    ",  private final String submitterLogin;",
-    "",
-    ",  private CeTask(Builder builder) {",
-    ",    this.uuid = requireNonNull(emptyToNull(builder.uuid));",
-    ",    this.type = requireNonNull(emptyToNull(builder.type));",
-    ",    this.componentUuid = emptyToNull(builder.componentUuid);",
-    ",    this.componentKey = emptyToNull(builder.componentKey);",
-    ",    this.componentName = emptyToNull(builder.componentName);",
-    ",    this.submitterLogin = emptyToNull(builder.submitterLogin);",
-    ",  }",
-    "",
-    ",  public String getUuid() {",
-    ",    return uuid;",
-    ",  }",
-    "",
-    ",  public String getType() {",
-    ",    return type;",
-    ",  }",
-    "",
-    ",  @CheckForNull",
-    ",  public String getComponentUuid() {",
-    ",    return componentUuid;",
-    ",  }",
-    "",
-    ",  @CheckForNull",
-    ",  public String getComponentKey() {",
-    ",    return componentKey;",
-    ",  }",
-    "",
-    ",  @CheckForNull",
-    ",  public String getComponentName() {",
-    ",    return componentName;",
-    ",  }",
-    "",
-    ",  @CheckForNull",
-    ",  public String getSubmitterLogin() {",
-    ",    return submitterLogin;",
-    ",  }",
-    ",}",
+      "package org.sonar.ce.queue;",
+      "",
+      "import com.google.common.base.MoreObjects;",
+      "import javax.annotation.CheckForNull;",
+      "import javax.annotation.Nullable;",
+      "import javax.annotation.concurrent.Immutable;",
+      "",
+      "import static com.google.common.base.Strings.emptyToNull;",
+      "import static java.util.Objects.requireNonNull;",
+      "",
+      "@Immutable",
+      "public class CeTask {",
+      "",
+      ",  private final String type;",
+      ",  private final String uuid;",
+      ",  private final String componentUuid;",
+      ",  private final String componentKey;",
+      ",  private final String componentName;",
+      ",  private final String submitterLogin;",
+      "",
+      ",  private CeTask(Builder builder) {",
+      ",    this.uuid = requireNonNull(emptyToNull(builder.uuid));",
+      ",    this.type = requireNonNull(emptyToNull(builder.type));",
+      ",    this.componentUuid = emptyToNull(builder.componentUuid);",
+      ",    this.componentKey = emptyToNull(builder.componentKey);",
+      ",    this.componentName = emptyToNull(builder.componentName);",
+      ",    this.submitterLogin = emptyToNull(builder.submitterLogin);",
+      ",  }",
+      "",
+      ",  public String getUuid() {",
+      ",    return uuid;",
+      ",  }",
+      "",
+      ",  public String getType() {",
+      ",    return type;",
+      ",  }",
+      "",
+      ",  @CheckForNull",
+      ",  public String getComponentUuid() {",
+      ",    return componentUuid;",
+      ",  }",
+      "",
+      ",  @CheckForNull",
+      ",  public String getComponentKey() {",
+      ",    return componentKey;",
+      ",  }",
+      "",
+      ",  @CheckForNull",
+      ",  public String getComponentName() {",
+      ",    return componentName;",
+      ",  }",
+      "",
+      ",  @CheckForNull",
+      ",  public String getSubmitterLogin() {",
+      ",    return submitterLogin;",
+      ",  }",
+      ",}",
   };
   // removed immutable annotation
   private static final String[] LESS_CONTENT2 = {
-    "package org.sonar.ce.queue;",
-    "",
-    "import com.google.common.base.MoreObjects;",
-    "import javax.annotation.CheckForNull;",
-    "import javax.annotation.Nullable;",
-    "",
-    "import static com.google.common.base.Strings.emptyToNull;",
-    "import static java.util.Objects.requireNonNull;",
-    "",
-    "public class CeTask {",
-    "",
-    ",  private final String type;",
-    ",  private final String uuid;",
-    ",  private final String componentUuid;",
-    ",  private final String componentKey;",
-    ",  private final String componentName;",
-    ",  private final String submitterLogin;",
-    "",
-    ",  private CeTask(Builder builder) {",
-    ",    this.uuid = requireNonNull(emptyToNull(builder.uuid));",
-    ",    this.type = requireNonNull(emptyToNull(builder.type));",
-    ",    this.componentUuid = emptyToNull(builder.componentUuid);",
-    ",    this.componentKey = emptyToNull(builder.componentKey);",
-    ",    this.componentName = emptyToNull(builder.componentName);",
-    ",    this.submitterLogin = emptyToNull(builder.submitterLogin);",
-    ",  }",
-    "",
-    ",  public String getUuid() {",
-    ",    return uuid;",
-    ",  }",
-    "",
-    ",  public String getType() {",
-    ",    return type;",
-    ",  }",
-    "",
-    ",  @CheckForNull",
-    ",  public String getComponentUuid() {",
-    ",    return componentUuid;",
-    ",  }",
-    "",
-    ",  @CheckForNull",
-    ",  public String getComponentKey() {",
-    ",    return componentKey;",
-    ",  }",
-    "",
-    ",  @CheckForNull",
-    ",  public String getComponentName() {",
-    ",    return componentName;",
-    ",  }",
-    "",
-    ",  @CheckForNull",
-    ",  public String getSubmitterLogin() {",
-    ",    return submitterLogin;",
-    ",  }",
-    ",}",
+      "package org.sonar.ce.queue;",
+      "",
+      "import com.google.common.base.MoreObjects;",
+      "import javax.annotation.CheckForNull;",
+      "import javax.annotation.Nullable;",
+      "",
+      "import static com.google.common.base.Strings.emptyToNull;",
+      "import static java.util.Objects.requireNonNull;",
+      "",
+      "public class CeTask {",
+      "",
+      ",  private final String type;",
+      ",  private final String uuid;",
+      ",  private final String componentUuid;",
+      ",  private final String componentKey;",
+      ",  private final String componentName;",
+      ",  private final String submitterLogin;",
+      "",
+      ",  private CeTask(Builder builder) {",
+      ",    this.uuid = requireNonNull(emptyToNull(builder.uuid));",
+      ",    this.type = requireNonNull(emptyToNull(builder.type));",
+      ",    this.componentUuid = emptyToNull(builder.componentUuid);",
+      ",    this.componentKey = emptyToNull(builder.componentKey);",
+      ",    this.componentName = emptyToNull(builder.componentName);",
+      ",    this.submitterLogin = emptyToNull(builder.submitterLogin);",
+      ",  }",
+      "",
+      ",  public String getUuid() {",
+      ",    return uuid;",
+      ",  }",
+      "",
+      ",  public String getType() {",
+      ",    return type;",
+      ",  }",
+      "",
+      ",  @CheckForNull",
+      ",  public String getComponentUuid() {",
+      ",    return componentUuid;",
+      ",  }",
+      "",
+      ",  @CheckForNull",
+      ",  public String getComponentKey() {",
+      ",    return componentKey;",
+      ",  }",
+      "",
+      ",  @CheckForNull",
+      ",  public String getComponentName() {",
+      ",    return componentName;",
+      ",  }",
+      "",
+      ",  @CheckForNull",
+      ",  public String getSubmitterLogin() {",
+      ",    return submitterLogin;",
+      ",  }",
+      ",}",
   };
 
   @Rule
@@ -232,8 +234,9 @@ public class FileMoveDetectionStepIT {
   private final CapturingScoreMatrixDumper scoreMatrixDumper = new CapturingScoreMatrixDumper();
   private final RecordingMutableAddedFileRepository addedFileRepository = new RecordingMutableAddedFileRepository();
 
-  private final FileMoveDetectionStep underTest = new FileMoveDetectionStep(analysisMetadataHolder, treeRootHolder, dbClient,
-    fileSimilarity, movedFilesRepository, sourceLinesHash, scoreMatrixDumper, addedFileRepository);
+  private final FileMoveDetectionStep underTest = new FileMoveDetectionStep(analysisMetadataHolder, treeRootHolder,
+      dbClient,
+      fileSimilarity, movedFilesRepository, sourceLinesHash, scoreMatrixDumper, addedFileRepository);
 
   @Before
   public void setUp() throws Exception {
@@ -362,8 +365,8 @@ public class FileMoveDetectionStepIT {
 
     assertThat(movedFilesRepository.getComponentsWithOriginal()).isEmpty();
     assertThat(scoreMatrixDumper.scoreMatrix.getMaxScore())
-      .isPositive()
-      .isLessThan(MIN_REQUIRED_SCORE);
+        .isPositive()
+        .isLessThan(MIN_REQUIRED_SCORE);
     assertThat(addedFileRepository.getComponents()).contains(file2);
     verifyStatistics(context, 1, 1, 1, 0);
   }
@@ -420,7 +423,8 @@ public class FileMoveDetectionStepIT {
     assertThat(scoreMatrixDumper.scoreMatrix.getMaxScore()).isZero();
     assertThat(addedFileRepository.getComponents()).contains(file2);
     verifyStatistics(context, 1, 1, 1, 0);
-    assertThat(logTester.logs(Level.DEBUG)).contains("max score in matrix is less than min required score (85). Do nothing.");
+    assertThat(logTester.logs(Level.DEBUG))
+        .contains("max score in matrix is less than min required score (85). Do nothing.");
   }
 
   @Test
@@ -492,13 +496,13 @@ public class FileMoveDetectionStepIT {
     Component file1 = fileComponent(FILE_1_REF, null);
     Component file2 = fileComponent(FILE_2_REF, null);
     Component file3 = fileComponent(FILE_3_REF, CONTENT1);
-    Component file4 = fileComponent(5, new String[] {"a", "b"});
+    Component file4 = fileComponent(5, new String[] { "a", "b" });
     Component file5 = fileComponent(6, null);
     Component file6 = fileComponent(7, LESS_CONTENT2);
     ComponentDto[] dtos = insertFiles(file1.getUuid(), file2.getUuid(), file4.getUuid(), file5.getUuid());
     insertContentOfFileInDb(file1.getUuid(), CONTENT1);
     insertContentOfFileInDb(file2.getUuid(), LESS_CONTENT1);
-    insertContentOfFileInDb(file4.getUuid(), new String[] {"e", "f", "g", "h", "i"});
+    insertContentOfFileInDb(file4.getUuid(), new String[] { "e", "f", "g", "h", "i" });
     insertContentOfFileInDb(file5.getUuid(), CONTENT2);
     setFilesInReport(file3, file4, file6);
 
@@ -538,33 +542,39 @@ public class FileMoveDetectionStepIT {
   }
 
   /**
-   * Creates an array of {@code numberOfElements} int values as String, starting with zero.
+   * Creates an array of {@code numberOfElements} int values as String, starting
+   * with zero.
    */
   private static String[] arrayOf(int numberOfElements) {
     return IntStream.range(0, numberOfElements).mapToObj(String::valueOf).toArray(String[]::new);
   }
 
   /**
-   * JH: A bug was encountered in the algorithm and I didn't manage to forge a simpler test case.
+   * JH: A bug was encountered in the algorithm and I didn't manage to forge a
+   * simpler test case.
    */
   @Test
   public void real_life_use_case() throws Exception {
     prepareBranchAnalysis(ANALYSIS);
-    for (File f : FileUtils.listFiles(new File("src/it/resources/org/sonar/ce/task/projectanalysis/filemove/FileMoveDetectionStepIT/v1"), null, false)) {
+    for (File f : FileUtils.listFiles(
+        new File("src/it/resources/org/sonar/ce/task/projectanalysis/filemove/FileMoveDetectionStepIT/v1"), null,
+        false)) {
       insertFiles("uuid_" + f.getName().hashCode());
       insertContentOfFileInDb("uuid_" + f.getName().hashCode(), readLines(f));
     }
 
     Map<String, Component> comps = new HashMap<>();
     int i = 1;
-    for (File f : FileUtils.listFiles(new File("src/it/resources/org/sonar/ce/task/projectanalysis/filemove/FileMoveDetectionStepIT/v2"), null, false)) {
+    for (File f : FileUtils.listFiles(
+        new File("src/it/resources/org/sonar/ce/task/projectanalysis/filemove/FileMoveDetectionStepIT/v2"), null,
+        false)) {
       String[] lines = readLines(f);
       Component c = builder(Component.Type.FILE, i++)
-        .setUuid("uuid_" + f.getName().hashCode())
-        .setKey(f.getName())
-        .setName(f.getName())
-        .setFileAttributes(new FileAttributes(false, null, lines.length))
-        .build();
+          .setUuid("uuid_" + f.getName().hashCode())
+          .setKey(f.getName())
+          .setName(f.getName())
+          .setFileAttributes(new FileAttributes(false, null, lines.length))
+          .build();
 
       comps.put(f.getName(), c);
       setFileLineHashesInReport(c, lines);
@@ -575,53 +585,58 @@ public class FileMoveDetectionStepIT {
     TestComputationStepContext context = new TestComputationStepContext();
     underTest.execute(context);
 
-    Component makeComponentUuidAndAnalysisUuidNotNullOnDuplicationsIndex = comps.get("MakeComponentUuidAndAnalysisUuidNotNullOnDuplicationsIndex.java");
-    Component migrationRb1238 = comps.get("1238_make_component_uuid_and_analysis_uuid_not_null_on_duplications_index.rb");
-    Component addComponentUuidAndAnalysisUuidColumnToDuplicationsIndex = comps.get("AddComponentUuidAndAnalysisUuidColumnToDuplicationsIndex.java");
+    Component makeComponentUuidAndAnalysisUuidNotNullOnDuplicationsIndex = comps
+        .get("MakeComponentUuidAndAnalysisUuidNotNullOnDuplicationsIndex.java");
+    Component migrationRb1238 = comps
+        .get("1238_make_component_uuid_and_analysis_uuid_not_null_on_duplications_index.rb");
+    Component addComponentUuidAndAnalysisUuidColumnToDuplicationsIndex = comps
+        .get("AddComponentUuidAndAnalysisUuidColumnToDuplicationsIndex.java");
     assertThat(movedFilesRepository.getComponentsWithOriginal()).containsOnly(
-      makeComponentUuidAndAnalysisUuidNotNullOnDuplicationsIndex,
-      migrationRb1238,
-      addComponentUuidAndAnalysisUuidColumnToDuplicationsIndex);
+        makeComponentUuidAndAnalysisUuidNotNullOnDuplicationsIndex,
+        migrationRb1238,
+        addComponentUuidAndAnalysisUuidColumnToDuplicationsIndex);
 
-    assertThat(movedFilesRepository.getOriginalFile(makeComponentUuidAndAnalysisUuidNotNullOnDuplicationsIndex).get().uuid())
-      .isEqualTo("uuid_" + "MakeComponentUuidNotNullOnDuplicationsIndex.java".hashCode());
+    assertThat(
+        movedFilesRepository.getOriginalFile(makeComponentUuidAndAnalysisUuidNotNullOnDuplicationsIndex).get().uuid())
+        .isEqualTo("uuid_" + "MakeComponentUuidNotNullOnDuplicationsIndex.java".hashCode());
     assertThat(movedFilesRepository.getOriginalFile(migrationRb1238).get().uuid())
-      .isEqualTo("uuid_" + "1242_make_analysis_uuid_not_null_on_duplications_index.rb".hashCode());
-    assertThat(movedFilesRepository.getOriginalFile(addComponentUuidAndAnalysisUuidColumnToDuplicationsIndex).get().uuid())
-      .isEqualTo("uuid_" + "AddComponentUuidColumnToDuplicationsIndex.java".hashCode());
+        .isEqualTo("uuid_" + "1242_make_analysis_uuid_not_null_on_duplications_index.rb".hashCode());
+    assertThat(
+        movedFilesRepository.getOriginalFile(addComponentUuidAndAnalysisUuidColumnToDuplicationsIndex).get().uuid())
+        .isEqualTo("uuid_" + "AddComponentUuidColumnToDuplicationsIndex.java".hashCode());
     verifyStatistics(context, comps.values().size(), 12, 6, 3);
   }
 
   private String[] readLines(File filename) throws IOException {
     return FileUtils
-      .readLines(filename, StandardCharsets.UTF_8)
-      .toArray(new String[0]);
+        .readLines(filename, StandardCharsets.UTF_8)
+        .toArray(new String[0]);
   }
 
   @CheckForNull
   private FileSourceDto insertContentOfFileInDb(String uuid, @Nullable String[] content) {
     return dbTester.getDbClient().componentDao().selectByUuid(dbTester.getSession(), uuid)
-      .map(file -> {
-        SourceLineHashesComputer linesHashesComputer = new SourceLineHashesComputer();
-        if (content != null) {
-          stream(content).forEach(linesHashesComputer::addLine);
-        }
-        FileSourceDto fileSourceDto = new FileSourceDto()
-          .setUuid(Uuids.createFast())
-          .setFileUuid(file.uuid())
-          .setProjectUuid(file.branchUuid())
-          .setLineHashes(linesHashesComputer.getLineHashes());
-        dbTester.getDbClient().fileSourceDao().insert(dbTester.getSession(), fileSourceDto);
-        dbTester.commit();
-        return fileSourceDto;
-      }).orElse(null);
+        .map(file -> {
+          SourceLineHashesComputer linesHashesComputer = new SourceLineHashesComputer();
+          if (content != null) {
+            stream(content).forEach(linesHashesComputer::addLine);
+          }
+          FileSourceDto fileSourceDto = new FileSourceDto()
+              .setUuid(Uuids.create())
+              .setFileUuid(file.uuid())
+              .setProjectUuid(file.branchUuid())
+              .setLineHashes(linesHashesComputer.getLineHashes());
+          dbTester.getDbClient().fileSourceDao().insert(dbTester.getSession(), fileSourceDto);
+          dbTester.commit();
+          return fileSourceDto;
+        }).orElse(null);
   }
 
   private void setFilesInReport(Component... files) {
     treeRootHolder.setRoot(builder(Component.Type.PROJECT, ROOT_REF)
-      .setUuid(project.uuid())
-      .addChildren(files)
-      .build());
+        .setUuid(project.uuid())
+        .addChildren(files)
+        .build());
   }
 
   private ComponentDto[] insertFiles(String... uuids) {
@@ -630,23 +645,23 @@ public class FileMoveDetectionStepIT {
 
   private ComponentDto[] insertFiles(Function<String, ComponentDto> newComponentDto, String... uuids) {
     return stream(uuids)
-      .map(newComponentDto)
-      .map(dto -> dbTester.components().insertComponent(dto))
-      .toArray(ComponentDto[]::new);
+        .map(newComponentDto)
+        .map(dto -> dbTester.components().insertComponent(dto))
+        .toArray(ComponentDto[]::new);
   }
 
   private ComponentDto newComponentDto(String uuid) {
     return ComponentTesting.newFileDto(project)
-      .setKey("key_" + uuid)
-      .setUuid(uuid)
-      .setPath("path_" + uuid);
+        .setKey("key_" + uuid)
+        .setUuid(uuid)
+        .setPath("path_" + uuid);
   }
 
   private Component fileComponent(int ref, @Nullable String[] content) {
     ReportComponent component = builder(Component.Type.FILE, ref)
-      .setName("report_path" + ref)
-      .setFileAttributes(new FileAttributes(false, null, content == null ? 1 : content.length))
-      .build();
+        .setName("report_path" + ref)
+        .setFileAttributes(new FileAttributes(false, null, content == null ? 1 : content.length))
+        .build();
     if (content != null) {
       setFileLineHashesInReport(component, content);
     }
@@ -684,8 +699,8 @@ public class FileMoveDetectionStepIT {
   }
 
   public static void verifyStatistics(TestComputationStepContext context,
-    @Nullable Integer expectedReportFiles, @Nullable Integer expectedDbFiles,
-    @Nullable Integer expectedAddedFiles, @Nullable Integer expectedMovedFiles) {
+      @Nullable Integer expectedReportFiles, @Nullable Integer expectedDbFiles,
+      @Nullable Integer expectedAddedFiles, @Nullable Integer expectedMovedFiles) {
     context.getStatistics().assertValue("reportFiles", expectedReportFiles);
     context.getStatistics().assertValue("dbFiles", expectedDbFiles);
     context.getStatistics().assertValue("addedFiles", expectedAddedFiles);

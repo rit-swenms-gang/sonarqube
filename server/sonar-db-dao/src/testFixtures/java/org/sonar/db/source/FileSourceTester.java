@@ -19,18 +19,19 @@
  */
 package org.sonar.db.source;
 
+import static org.apache.commons.lang3.RandomStringUtils.secure;
+
 import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.Random;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
+
 import org.sonar.core.util.Uuids;
 import org.sonar.db.DbTester;
 import org.sonar.db.component.ComponentDto;
 import org.sonar.db.protobuf.DbFileSources;
-
-import static org.apache.commons.lang3.RandomStringUtils.secure;
 
 public class FileSourceTester {
 
@@ -45,16 +46,16 @@ public class FileSourceTester {
   @SafeVarargs
   public final FileSourceDto insertFileSource(ComponentDto file, Consumer<FileSourceDto>... dtoPopulators) {
     FileSourceDto dto = new FileSourceDto()
-      .setUuid(Uuids.createFast())
-      .setProjectUuid(file.branchUuid())
-      .setFileUuid(file.uuid())
-      .setSrcHash(secure().nextAlphanumeric(50))
-      .setDataHash(secure().nextAlphanumeric(50))
-      .setLineHashes(IntStream.range(0, RANDOM.nextInt(21)).mapToObj(String::valueOf).toList())
-      .setRevision(secure().nextAlphanumeric(100))
-      .setSourceData(newRandomData(3).build())
-      .setCreatedAt(new Date().getTime())
-      .setUpdatedAt(new Date().getTime());
+        .setUuid(Uuids.create())
+        .setProjectUuid(file.branchUuid())
+        .setFileUuid(file.uuid())
+        .setSrcHash(secure().nextAlphanumeric(50))
+        .setDataHash(secure().nextAlphanumeric(50))
+        .setLineHashes(IntStream.range(0, RANDOM.nextInt(21)).mapToObj(String::valueOf).toList())
+        .setRevision(secure().nextAlphanumeric(100))
+        .setSourceData(newRandomData(3).build())
+        .setCreatedAt(new Date().getTime())
+        .setUpdatedAt(new Date().getTime());
     Arrays.stream(dtoPopulators).forEach(c -> c.accept(dto));
     db.getDbClient().fileSourceDao().insert(db.getSession(), dto);
     db.commit();
@@ -63,18 +64,19 @@ public class FileSourceTester {
   }
 
   @SafeVarargs
-  public final FileSourceDto insertFileSource(ComponentDto file, int numLines, Consumer<FileSourceDto>... dtoPopulators) {
+  public final FileSourceDto insertFileSource(ComponentDto file, int numLines,
+      Consumer<FileSourceDto>... dtoPopulators) {
     FileSourceDto dto = new FileSourceDto()
-      .setUuid(Uuids.createFast())
-      .setProjectUuid(file.branchUuid())
-      .setFileUuid(file.uuid())
-      .setSrcHash(secure().nextAlphanumeric(50))
-      .setDataHash(secure().nextAlphanumeric(50))
-      .setLineHashes(IntStream.range(0, numLines).mapToObj(String::valueOf).toList())
-      .setRevision(secure().nextAlphanumeric(100))
-      .setSourceData(newRandomData(numLines).build())
-      .setCreatedAt(new Date().getTime())
-      .setUpdatedAt(new Date().getTime());
+        .setUuid(Uuids.create())
+        .setProjectUuid(file.branchUuid())
+        .setFileUuid(file.uuid())
+        .setSrcHash(secure().nextAlphanumeric(50))
+        .setDataHash(secure().nextAlphanumeric(50))
+        .setLineHashes(IntStream.range(0, numLines).mapToObj(String::valueOf).toList())
+        .setRevision(secure().nextAlphanumeric(100))
+        .setSourceData(newRandomData(numLines).build())
+        .setCreatedAt(new Date().getTime())
+        .setUpdatedAt(new Date().getTime());
     Arrays.stream(dtoPopulators).forEach(c -> c.accept(dto));
     db.getDbClient().fileSourceDao().insert(db.getSession(), dto);
     db.commit();
@@ -85,16 +87,16 @@ public class FileSourceTester {
     DbFileSources.Data.Builder dataBuilder = DbFileSources.Data.newBuilder();
     for (int i = 1; i <= numberOfLines; i++) {
       dataBuilder.addLinesBuilder()
-        .setLine(i)
-        .setScmRevision(secure().nextAlphanumeric(15))
-        .setScmAuthor(secure().nextAlphanumeric(10))
-        .setScmDate(RANDOM.nextLong(Long.MAX_VALUE))
-        .setSource(secure().nextAlphanumeric(20))
-        .setLineHits(RANDOM.nextInt(4))
-        .setConditions(RANDOM.nextInt(4))
-        .setCoveredConditions(RANDOM.nextInt(4))
-        .addAllDuplication(Arrays.asList(RANDOM.nextInt(200), RANDOM.nextInt(200)))
-        .build();
+          .setLine(i)
+          .setScmRevision(secure().nextAlphanumeric(15))
+          .setScmAuthor(secure().nextAlphanumeric(10))
+          .setScmDate(RANDOM.nextLong(Long.MAX_VALUE))
+          .setSource(secure().nextAlphanumeric(20))
+          .setLineHits(RANDOM.nextInt(4))
+          .setConditions(RANDOM.nextInt(4))
+          .setCoveredConditions(RANDOM.nextInt(4))
+          .addAllDuplication(Arrays.asList(RANDOM.nextInt(200), RANDOM.nextInt(200)))
+          .build();
     }
     return dataBuilder;
   }

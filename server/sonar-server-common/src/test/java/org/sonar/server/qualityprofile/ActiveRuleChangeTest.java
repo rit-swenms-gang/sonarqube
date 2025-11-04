@@ -19,9 +19,15 @@
  */
 package org.sonar.server.qualityprofile;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.sonar.db.qualityprofile.QualityProfileTesting.newQualityProfileDto;
+import static org.sonar.server.qualityprofile.ActiveRuleChange.Type.ACTIVATED;
+import static org.sonar.server.qualityprofile.ActiveRuleChange.Type.UPDATED;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
 import org.junit.jupiter.api.Test;
 import org.sonar.api.issue.impact.Severity;
 import org.sonar.api.issue.impact.SoftwareQuality;
@@ -34,11 +40,6 @@ import org.sonar.db.qualityprofile.QProfileDto;
 import org.sonar.db.rule.RuleDto;
 import org.sonar.db.rule.RuleImpactChangeDto;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.sonar.db.qualityprofile.QualityProfileTesting.newQualityProfileDto;
-import static org.sonar.server.qualityprofile.ActiveRuleChange.Type.ACTIVATED;
-import static org.sonar.server.qualityprofile.ActiveRuleChange.Type.UPDATED;
-
 class ActiveRuleChangeTest {
 
   private static final String A_USER_UUID = "A_USER_UUID";
@@ -47,12 +48,15 @@ class ActiveRuleChangeTest {
   void toDto() {
     QProfileDto profile = newQualityProfileDto();
     ActiveRuleKey key = ActiveRuleKey.of(profile, RuleKey.of("P1", "R1"));
-    String ruleUuid = Uuids.createFast();
+    String ruleUuid = Uuids.create();
     ActiveRuleChange underTest = new ActiveRuleChange(UPDATED, key, new RuleDto().setUuid(ruleUuid));
     underTest.setRule(
-      new RuleDto().replaceAllDefaultImpacts(List.of(new ImpactDto(SoftwareQuality.RELIABILITY, Severity.LOW), new ImpactDto(SoftwareQuality.MAINTAINABILITY, Severity.HIGH))));
-    underTest.setOldImpacts(Map.of(SoftwareQuality.SECURITY, Severity.LOW, SoftwareQuality.MAINTAINABILITY, Severity.HIGH));
-    underTest.setNewImpacts(Map.of(SoftwareQuality.RELIABILITY, Severity.HIGH, SoftwareQuality.MAINTAINABILITY, Severity.BLOCKER));
+        new RuleDto().replaceAllDefaultImpacts(List.of(new ImpactDto(SoftwareQuality.RELIABILITY, Severity.LOW),
+            new ImpactDto(SoftwareQuality.MAINTAINABILITY, Severity.HIGH))));
+    underTest
+        .setOldImpacts(Map.of(SoftwareQuality.SECURITY, Severity.LOW, SoftwareQuality.MAINTAINABILITY, Severity.HIGH));
+    underTest.setNewImpacts(
+        Map.of(SoftwareQuality.RELIABILITY, Severity.HIGH, SoftwareQuality.MAINTAINABILITY, Severity.BLOCKER));
     underTest.setPrioritizedRule(true);
 
     QProfileChangeDto result = underTest.toDto(A_USER_UUID);
@@ -66,21 +70,26 @@ class ActiveRuleChangeTest {
     Set<RuleImpactChangeDto> ruleImpactChanges = result.getRuleChange().getRuleImpactChanges();
 
     assertThat(ruleImpactChanges)
-      .hasSize(2)
-      .containsExactlyInAnyOrder(
-        new RuleImpactChangeDto(SoftwareQuality.MAINTAINABILITY, SoftwareQuality.MAINTAINABILITY, Severity.BLOCKER, Severity.HIGH),
-        new RuleImpactChangeDto(SoftwareQuality.RELIABILITY, SoftwareQuality.RELIABILITY, Severity.HIGH, Severity.LOW));
+        .hasSize(2)
+        .containsExactlyInAnyOrder(
+            new RuleImpactChangeDto(SoftwareQuality.MAINTAINABILITY, SoftwareQuality.MAINTAINABILITY, Severity.BLOCKER,
+                Severity.HIGH),
+            new RuleImpactChangeDto(SoftwareQuality.RELIABILITY, SoftwareQuality.RELIABILITY, Severity.HIGH,
+                Severity.LOW));
   }
 
   @Test
   void toDto_whenIdenticalImpacts_shouldNotReturnImpactChanges() {
     QProfileDto profile = newQualityProfileDto();
     ActiveRuleKey key = ActiveRuleKey.of(profile, RuleKey.of("P1", "R1"));
-    String ruleUuid = Uuids.createFast();
+    String ruleUuid = Uuids.create();
     ActiveRuleChange underTest = new ActiveRuleChange(UPDATED, key, new RuleDto().setUuid(ruleUuid));
-    underTest.setRule(new RuleDto().replaceAllDefaultImpacts(List.of(new ImpactDto(SoftwareQuality.MAINTAINABILITY, Severity.HIGH))));
-    underTest.setOldImpacts(Map.of(SoftwareQuality.SECURITY, Severity.LOW, SoftwareQuality.MAINTAINABILITY, Severity.BLOCKER));
-    underTest.setNewImpacts(Map.of(SoftwareQuality.SECURITY, Severity.LOW, SoftwareQuality.MAINTAINABILITY, Severity.BLOCKER));
+    underTest.setRule(
+        new RuleDto().replaceAllDefaultImpacts(List.of(new ImpactDto(SoftwareQuality.MAINTAINABILITY, Severity.HIGH))));
+    underTest.setOldImpacts(
+        Map.of(SoftwareQuality.SECURITY, Severity.LOW, SoftwareQuality.MAINTAINABILITY, Severity.BLOCKER));
+    underTest.setNewImpacts(
+        Map.of(SoftwareQuality.SECURITY, Severity.LOW, SoftwareQuality.MAINTAINABILITY, Severity.BLOCKER));
 
     QProfileChangeDto result = underTest.toDto(A_USER_UUID);
 
@@ -92,29 +101,36 @@ class ActiveRuleChangeTest {
   void toDto_whenRuleChangeDtoIsActivated_shouldNotReturnImpactChanges() {
     QProfileDto profile = newQualityProfileDto();
     ActiveRuleKey key = ActiveRuleKey.of(profile, RuleKey.of("P1", "R1"));
-    String ruleUuid = Uuids.createFast();
+    String ruleUuid = Uuids.create();
     ActiveRuleChange underTest = new ActiveRuleChange(ACTIVATED, key, new RuleDto().setUuid(ruleUuid));
-    underTest.setRule(new RuleDto().replaceAllDefaultImpacts(List.of(new ImpactDto(SoftwareQuality.MAINTAINABILITY, Severity.HIGH))));
-    underTest.setOldImpacts(Map.of(SoftwareQuality.SECURITY, Severity.LOW, SoftwareQuality.MAINTAINABILITY, Severity.BLOCKER));
-    underTest.setNewImpacts(Map.of(SoftwareQuality.SECURITY, Severity.LOW, SoftwareQuality.MAINTAINABILITY, Severity.INFO));
+    underTest.setRule(
+        new RuleDto().replaceAllDefaultImpacts(List.of(new ImpactDto(SoftwareQuality.MAINTAINABILITY, Severity.HIGH))));
+    underTest.setOldImpacts(
+        Map.of(SoftwareQuality.SECURITY, Severity.LOW, SoftwareQuality.MAINTAINABILITY, Severity.BLOCKER));
+    underTest
+        .setNewImpacts(Map.of(SoftwareQuality.SECURITY, Severity.LOW, SoftwareQuality.MAINTAINABILITY, Severity.INFO));
 
     QProfileChangeDto result = underTest.toDto(A_USER_UUID);
 
     assertThat(result.getRuleChange().getRuleImpactChanges())
-      .hasSize(1)
-      .containsExactlyInAnyOrder(
-        new RuleImpactChangeDto(SoftwareQuality.MAINTAINABILITY, SoftwareQuality.MAINTAINABILITY, Severity.INFO, Severity.BLOCKER));
+        .hasSize(1)
+        .containsExactlyInAnyOrder(
+            new RuleImpactChangeDto(SoftwareQuality.MAINTAINABILITY, SoftwareQuality.MAINTAINABILITY, Severity.INFO,
+                Severity.BLOCKER));
   }
 
   @Test
   void toDto_whenRuleChangeDtoIsActivatedAndSameImpacts_shouldNotReturnImpactChanges() {
     QProfileDto profile = newQualityProfileDto();
     ActiveRuleKey key = ActiveRuleKey.of(profile, RuleKey.of("P1", "R1"));
-    String ruleUuid = Uuids.createFast();
+    String ruleUuid = Uuids.create();
     ActiveRuleChange underTest = new ActiveRuleChange(ACTIVATED, key, new RuleDto().setUuid(ruleUuid));
-    underTest.setRule(new RuleDto().replaceAllDefaultImpacts(List.of(new ImpactDto(SoftwareQuality.MAINTAINABILITY, Severity.HIGH))));
-    underTest.setOldImpacts(Map.of(SoftwareQuality.SECURITY, Severity.LOW, SoftwareQuality.MAINTAINABILITY, Severity.BLOCKER));
-    underTest.setNewImpacts(Map.of(SoftwareQuality.SECURITY, Severity.LOW, SoftwareQuality.MAINTAINABILITY, Severity.BLOCKER));
+    underTest.setRule(
+        new RuleDto().replaceAllDefaultImpacts(List.of(new ImpactDto(SoftwareQuality.MAINTAINABILITY, Severity.HIGH))));
+    underTest.setOldImpacts(
+        Map.of(SoftwareQuality.SECURITY, Severity.LOW, SoftwareQuality.MAINTAINABILITY, Severity.BLOCKER));
+    underTest.setNewImpacts(
+        Map.of(SoftwareQuality.SECURITY, Severity.LOW, SoftwareQuality.MAINTAINABILITY, Severity.BLOCKER));
 
     QProfileChangeDto result = underTest.toDto(A_USER_UUID);
 

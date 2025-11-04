@@ -19,8 +19,15 @@
  */
 package org.sonar.db.source;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
+import static com.google.common.collect.ImmutableList.of;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptySet;
+import static java.util.Collections.singletonList;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
+import static org.assertj.core.api.Assertions.fail;
+import static org.sonar.db.component.ComponentTesting.newFileDto;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -28,6 +35,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
 import org.apache.ibatis.session.ResultContext;
 import org.apache.ibatis.session.ResultHandler;
 import org.junit.jupiter.api.Test;
@@ -40,14 +48,8 @@ import org.sonar.db.DbSession;
 import org.sonar.db.DbTester;
 import org.sonar.db.component.ComponentDto;
 
-import static com.google.common.collect.ImmutableList.of;
-import static java.util.Collections.emptyList;
-import static java.util.Collections.emptySet;
-import static java.util.Collections.singletonList;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatNoException;
-import static org.assertj.core.api.Assertions.fail;
-import static org.sonar.db.component.ComponentTesting.newFileDto;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 
 class FileSourceDaoIT {
 
@@ -80,17 +82,17 @@ class FileSourceDaoIT {
   @Test
   void insert() {
     FileSourceDto expected = new FileSourceDto()
-      .setUuid(Uuids.createFast())
-      .setProjectUuid("PRJ_UUID")
-      .setFileUuid("FILE2_UUID")
-      .setBinaryData("FILE2_BINARY_DATA".getBytes())
-      .setDataHash("FILE2_DATA_HASH")
-      .setLineHashes(of("LINE1_HASH", "LINE2_HASH"))
-      .setSrcHash("FILE2_HASH")
-      .setCreatedAt(1500000000000L)
-      .setUpdatedAt(1500000000001L)
-      .setLineHashesVersion(1)
-      .setRevision("123456789");
+        .setUuid(Uuids.create())
+        .setProjectUuid("PRJ_UUID")
+        .setFileUuid("FILE2_UUID")
+        .setBinaryData("FILE2_BINARY_DATA".getBytes())
+        .setDataHash("FILE2_DATA_HASH")
+        .setLineHashes(of("LINE1_HASH", "LINE2_HASH"))
+        .setSrcHash("FILE2_HASH")
+        .setCreatedAt(1500000000000L)
+        .setUpdatedAt(1500000000001L)
+        .setLineHashesVersion(1)
+        .setRevision("123456789");
     underTest.insert(dbSession, expected);
     dbSession.commit();
 
@@ -112,11 +114,11 @@ class FileSourceDaoIT {
   @Test
   void insert_does_not_fail_on_FileSourceDto_with_only_non_nullable_data() {
     FileSourceDto fileSourceDto = new FileSourceDto()
-      .setUuid(Uuids.createFast())
-      .setProjectUuid("Foo")
-      .setFileUuid("Bar")
-      .setCreatedAt(1500000000000L)
-      .setUpdatedAt(1500000000001L);
+        .setUuid(Uuids.create())
+        .setProjectUuid("Foo")
+        .setFileUuid("Bar")
+        .setCreatedAt(1500000000000L)
+        .setUpdatedAt(1500000000001L);
     underTest.insert(dbSession, fileSourceDto);
     assertThatNoException().isThrownBy(dbSession::commit);
   }
@@ -124,11 +126,11 @@ class FileSourceDaoIT {
   @Test
   void selectSourceByFileUuid_reads_source_without_line_hashes() {
     FileSourceDto fileSourceDto = new FileSourceDto()
-      .setUuid(Uuids.createFast())
-      .setProjectUuid("Foo")
-      .setFileUuid("Bar")
-      .setCreatedAt(1500000000000L)
-      .setUpdatedAt(1500000000001L);
+        .setUuid(Uuids.create())
+        .setProjectUuid("Foo")
+        .setFileUuid("Bar")
+        .setCreatedAt(1500000000000L)
+        .setUpdatedAt(1500000000001L);
     underTest.insert(dbSession, fileSourceDto);
     dbSession.commit();
 
@@ -141,15 +143,15 @@ class FileSourceDaoIT {
   @Test
   void selectLineHashes_does_not_fail_when_lineshashes_is_null() {
     underTest.insert(dbSession, new FileSourceDto()
-      .setUuid(Uuids.createFast())
-      .setProjectUuid("PRJ_UUID")
-      .setFileUuid("FILE2_UUID")
-      .setBinaryData("FILE2_BINARY_DATA".getBytes())
-      .setDataHash("FILE2_DATA_HASH")
-      .setSrcHash("FILE2_HASH")
-      .setCreatedAt(1500000000000L)
-      .setUpdatedAt(1500000000001L)
-      .setRevision("123456789"));
+        .setUuid(Uuids.create())
+        .setProjectUuid("PRJ_UUID")
+        .setFileUuid("FILE2_UUID")
+        .setBinaryData("FILE2_BINARY_DATA".getBytes())
+        .setDataHash("FILE2_DATA_HASH")
+        .setSrcHash("FILE2_HASH")
+        .setCreatedAt(1500000000000L)
+        .setUpdatedAt(1500000000001L)
+        .setRevision("123456789"));
     dbSession.commit();
 
     assertThat(underTest.selectLineHashes(dbSession, "FILE2_UUID")).isEmpty();
@@ -158,38 +160,40 @@ class FileSourceDaoIT {
   @Test
   void selectLineHashesVersion_returns_without_significant_code_by_default() {
     underTest.insert(dbSession, new FileSourceDto()
-      .setUuid(Uuids.createFast())
-      .setProjectUuid("PRJ_UUID")
-      .setFileUuid("FILE2_UUID")
-      .setBinaryData("FILE2_BINARY_DATA".getBytes())
-      .setDataHash("FILE2_DATA_HASH")
-      .setLineHashes(singletonList("hashes"))
-      .setSrcHash("FILE2_HASH")
-      .setCreatedAt(1500000000000L)
-      .setUpdatedAt(1500000000001L)
-      .setRevision("123456789"));
+        .setUuid(Uuids.create())
+        .setProjectUuid("PRJ_UUID")
+        .setFileUuid("FILE2_UUID")
+        .setBinaryData("FILE2_BINARY_DATA".getBytes())
+        .setDataHash("FILE2_DATA_HASH")
+        .setLineHashes(singletonList("hashes"))
+        .setSrcHash("FILE2_HASH")
+        .setCreatedAt(1500000000000L)
+        .setUpdatedAt(1500000000001L)
+        .setRevision("123456789"));
     dbSession.commit();
 
-    assertThat(underTest.selectLineHashesVersion(dbSession, "FILE2_UUID")).isEqualTo(LineHashVersion.WITHOUT_SIGNIFICANT_CODE);
+    assertThat(underTest.selectLineHashesVersion(dbSession, "FILE2_UUID"))
+        .isEqualTo(LineHashVersion.WITHOUT_SIGNIFICANT_CODE);
   }
 
   @Test
   void selectLineHashesVersion_succeeds() {
     underTest.insert(dbSession, new FileSourceDto()
-      .setUuid(Uuids.createFast())
-      .setProjectUuid("PRJ_UUID")
-      .setFileUuid("FILE2_UUID")
-      .setBinaryData("FILE2_BINARY_DATA".getBytes())
-      .setDataHash("FILE2_DATA_HASH")
-      .setLineHashes(singletonList("hashes"))
-      .setSrcHash("FILE2_HASH")
-      .setCreatedAt(1500000000000L)
-      .setUpdatedAt(1500000000001L)
-      .setLineHashesVersion(1)
-      .setRevision("123456789"));
+        .setUuid(Uuids.create())
+        .setProjectUuid("PRJ_UUID")
+        .setFileUuid("FILE2_UUID")
+        .setBinaryData("FILE2_BINARY_DATA".getBytes())
+        .setDataHash("FILE2_DATA_HASH")
+        .setLineHashes(singletonList("hashes"))
+        .setSrcHash("FILE2_HASH")
+        .setCreatedAt(1500000000000L)
+        .setUpdatedAt(1500000000001L)
+        .setLineHashesVersion(1)
+        .setRevision("123456789"));
     dbSession.commit();
 
-    assertThat(underTest.selectLineHashesVersion(dbSession, "FILE2_UUID")).isEqualTo(LineHashVersion.WITH_SIGNIFICANT_CODE);
+    assertThat(underTest.selectLineHashesVersion(dbSession, "FILE2_UUID"))
+        .isEqualTo(LineHashVersion.WITH_SIGNIFICANT_CODE);
   }
 
   @Test
@@ -198,10 +202,10 @@ class FileSourceDaoIT {
   }
 
   @ParameterizedTest
-  @ValueSource(booleans = {true, false})
+  @ValueSource(booleans = { true, false })
   void scrollLineHashes_scrolls_hashes_of_specific_keys(boolean isPrivate) {
-    ComponentDto project = isPrivate ? dbTester.components().insertPrivateProject().getMainBranchComponent() :
-      dbTester.components().insertPublicProject().getMainBranchComponent();
+    ComponentDto project = isPrivate ? dbTester.components().insertPrivateProject().getMainBranchComponent()
+        : dbTester.components().insertPublicProject().getMainBranchComponent();
     ComponentDto file1 = dbTester.components().insertComponent(newFileDto(project));
     FileSourceDto fileSource1 = dbTester.fileSources().insertFileSource(file1);
     ComponentDto file2 = dbTester.components().insertComponent(newFileDto(project));
@@ -225,10 +229,10 @@ class FileSourceDaoIT {
   }
 
   @ParameterizedTest
-  @ValueSource(booleans = {true, false})
+  @ValueSource(booleans = { true, false })
   void scrollLineHashes_does_not_scroll_hashes_of_component_without_path(boolean isPrivate) {
-    ComponentDto project = isPrivate ? dbTester.components().insertPrivateProject().getMainBranchComponent() :
-      dbTester.components().insertPublicProject().getMainBranchComponent();
+    ComponentDto project = isPrivate ? dbTester.components().insertPrivateProject().getMainBranchComponent()
+        : dbTester.components().insertPublicProject().getMainBranchComponent();
     ComponentDto file1 = dbTester.components().insertComponent(newFileDto(project));
     FileSourceDto fileSource1 = dbTester.fileSources().insertFileSource(file1);
     ComponentDto file2 = dbTester.components().insertComponent(newFileDto(project).setPath(null));
@@ -243,16 +247,16 @@ class FileSourceDaoIT {
   void scrollFileHashes_handles_scrolling_more_than_1000_files() {
     ComponentDto project = dbTester.components().insertPrivateProject().getMainBranchComponent();
     List<ComponentDto> files = IntStream.range(0, 1005)
-      .mapToObj(i -> {
-        ComponentDto file = dbTester.components().insertComponent(newFileDto(project));
-        dbTester.fileSources().insertFileSource(file);
-        return file;
-      })
-      .toList();
+        .mapToObj(i -> {
+          ComponentDto file = dbTester.components().insertComponent(newFileDto(project));
+          dbTester.fileSources().insertFileSource(file);
+          return file;
+        })
+        .toList();
 
     Map<String, FileHashesDto> fileSourcesByUuid = new HashMap<>();
     underTest.scrollFileHashesByProjectUuid(dbSession, project.branchUuid(),
-      result -> fileSourcesByUuid.put(result.getResultObject().getFileUuid(), result.getResultObject()));
+        result -> fileSourcesByUuid.put(result.getResultObject().getFileUuid(), result.getResultObject()));
 
     assertThat(fileSourcesByUuid).hasSize(files.size());
     files.forEach(t -> assertThat(fileSourcesByUuid).containsKey(t.uuid()));
@@ -265,7 +269,8 @@ class FileSourceDaoIT {
     FileSourceDto inserted = dbTester.fileSources().insertFileSource(file);
 
     List<FileHashesDto> fileSources = new ArrayList<>(1);
-    underTest.scrollFileHashesByProjectUuid(dbSession, project.branchUuid(), result -> fileSources.add(result.getResultObject()));
+    underTest.scrollFileHashesByProjectUuid(dbSession, project.branchUuid(),
+        result -> fileSources.add(result.getResultObject()));
 
     assertThat(fileSources).hasSize(1);
     FileHashesDto fileSource = fileSources.iterator().next();
@@ -278,17 +283,17 @@ class FileSourceDaoIT {
   }
 
   @ParameterizedTest
-  @ValueSource(booleans = {true, false})
+  @ValueSource(booleans = { true, false })
   void scrollLineHashes_handles_scrolling_more_than_1000_files(boolean isPrivate) {
-    ComponentDto project = isPrivate ? dbTester.components().insertPrivateProject().getMainBranchComponent() :
-      dbTester.components().insertPublicProject().getMainBranchComponent();
+    ComponentDto project = isPrivate ? dbTester.components().insertPrivateProject().getMainBranchComponent()
+        : dbTester.components().insertPublicProject().getMainBranchComponent();
     List<ComponentDto> files = IntStream.range(0, 1005)
-      .mapToObj(i -> {
-        ComponentDto file = dbTester.components().insertComponent(newFileDto(project));
-        dbTester.fileSources().insertFileSource(file);
-        return file;
-      })
-      .toList();
+        .mapToObj(i -> {
+          ComponentDto file = dbTester.components().insertComponent(newFileDto(project));
+          dbTester.fileSources().insertFileSource(file);
+          return file;
+        })
+        .toList();
 
     LineHashesWithKeyDtoHandler handler = new LineHashesWithKeyDtoHandler();
     underTest.scrollLineHashes(dbSession, files.stream().map(ComponentDto::uuid).collect(Collectors.toSet()), handler);
@@ -303,7 +308,8 @@ class FileSourceDaoIT {
     return handler;
   }
 
-  private static void verifyLinesHashes(LineHashesWithKeyDtoHandler handler, ComponentDto file, FileSourceDto fileSource) {
+  private static void verifyLinesHashes(LineHashesWithKeyDtoHandler handler, ComponentDto file,
+      FileSourceDto fileSource) {
     LineHashesWithUuidDto dto = handler.getByUuid(file.uuid()).get();
     assertThat(dto.getPath()).isEqualTo(file.path());
     assertThat(dto.getRawLineHashes()).isEqualTo(fileSource.getRawLineHashes());
@@ -320,8 +326,8 @@ class FileSourceDaoIT {
 
     public Optional<LineHashesWithUuidDto> getByUuid(String uuid) {
       return dtos.stream()
-        .filter(t -> uuid.equals(t.getUuid()))
-        .findAny();
+          .filter(t -> uuid.equals(t.getUuid()))
+          .findAny();
     }
   }
 
@@ -332,16 +338,16 @@ class FileSourceDaoIT {
     FileSourceDto expected = dbTester.fileSources().insertFileSource(file);
 
     underTest.update(dbSession, new FileSourceDto()
-      .setUuid(expected.getUuid())
-      .setProjectUuid("PRJ_UUID")
-      .setFileUuid("FILE1_UUID")
-      .setBinaryData("updated data".getBytes())
-      .setDataHash("NEW_DATA_HASH")
-      .setSrcHash("NEW_FILE_HASH")
-      .setLineHashes(singletonList("NEW_LINE_HASHES"))
-      .setUpdatedAt(1500000000002L)
-      .setLineHashesVersion(1)
-      .setRevision("987654321"));
+        .setUuid(expected.getUuid())
+        .setProjectUuid("PRJ_UUID")
+        .setFileUuid("FILE1_UUID")
+        .setBinaryData("updated data".getBytes())
+        .setDataHash("NEW_DATA_HASH")
+        .setSrcHash("NEW_FILE_HASH")
+        .setLineHashes(singletonList("NEW_LINE_HASHES"))
+        .setUpdatedAt(1500000000002L)
+        .setLineHashesVersion(1)
+        .setRevision("987654321"));
     dbSession.commit();
 
     FileSourceDto fileSourceDto = underTest.selectByFileUuid(dbSession, file.uuid());
@@ -363,12 +369,12 @@ class FileSourceDaoIT {
   void update_to_no_line_hashes() {
     ImmutableList<String> lineHashes = of("a", "b", "c");
     FileSourceDto fileSourceDto = new FileSourceDto()
-      .setUuid(Uuids.createFast())
-      .setProjectUuid("Foo")
-      .setFileUuid("Bar")
-      .setLineHashes(lineHashes)
-      .setCreatedAt(1500000000000L)
-      .setUpdatedAt(1500000000001L);
+        .setUuid(Uuids.create())
+        .setProjectUuid("Foo")
+        .setFileUuid("Bar")
+        .setLineHashes(lineHashes)
+        .setCreatedAt(1500000000000L)
+        .setUpdatedAt(1500000000001L);
     underTest.insert(dbSession, fileSourceDto);
     dbSession.commit();
 

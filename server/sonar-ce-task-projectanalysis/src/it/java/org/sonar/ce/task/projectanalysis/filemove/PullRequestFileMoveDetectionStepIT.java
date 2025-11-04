@@ -19,37 +19,6 @@
  */
 package org.sonar.ce.task.projectanalysis.filemove;
 
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import javax.annotation.CheckForNull;
-import javax.annotation.Nullable;
-import javax.annotation.concurrent.Immutable;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.sonar.api.utils.System2;
-import org.sonar.api.testfixtures.log.LogTester;
-import org.sonar.ce.task.projectanalysis.analysis.Analysis;
-import org.sonar.ce.task.projectanalysis.analysis.AnalysisMetadataHolderRule;
-import org.sonar.ce.task.projectanalysis.analysis.Branch;
-import org.sonar.ce.task.projectanalysis.component.Component;
-import org.sonar.ce.task.projectanalysis.component.FileAttributes;
-import org.sonar.ce.task.projectanalysis.component.TreeRootHolderRule;
-import org.sonar.ce.task.projectanalysis.filemove.FileMoveDetectionStepIT.RecordingMutableAddedFileRepository;
-import org.sonar.ce.task.projectanalysis.filemove.MovedFilesRepository.OriginalFile;
-import org.sonar.ce.task.step.TestComputationStepContext;
-import org.sonar.core.util.Uuids;
-import org.sonar.db.DbClient;
-import org.sonar.db.DbTester;
-import org.sonar.db.component.BranchType;
-import org.sonar.db.component.ComponentDto;
-import org.sonar.db.component.ComponentTesting;
-import org.sonar.db.component.ProjectData;
-import org.sonar.db.project.ProjectDto;
-import org.sonar.db.source.FileSourceDto;
-import org.sonar.server.project.Project;
-
 import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toSet;
@@ -62,6 +31,39 @@ import static org.sonar.ce.task.projectanalysis.component.ReportComponent.builde
 import static org.sonar.ce.task.projectanalysis.filemove.FileMoveDetectionStepIT.verifyStatistics;
 import static org.sonar.db.component.BranchType.BRANCH;
 import static org.sonar.db.component.BranchType.PULL_REQUEST;
+
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
+
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.sonar.api.testfixtures.log.LogTester;
+import org.sonar.api.utils.System2;
+import org.sonar.ce.task.projectanalysis.analysis.Analysis;
+import org.sonar.ce.task.projectanalysis.analysis.AnalysisMetadataHolderRule;
+import org.sonar.ce.task.projectanalysis.analysis.Branch;
+import org.sonar.ce.task.projectanalysis.component.Component;
+import org.sonar.ce.task.projectanalysis.component.FileAttributes;
+import org.sonar.ce.task.projectanalysis.component.TreeRootHolderRule;
+import org.sonar.ce.task.projectanalysis.filemove.MovedFilesRepository.OriginalFile;
+import org.sonar.ce.task.projectanalysis.filemove.FileMoveDetectionStepIT.RecordingMutableAddedFileRepository;
+import org.sonar.ce.task.step.TestComputationStepContext;
+import org.sonar.core.util.Uuids;
+import org.sonar.db.DbClient;
+import org.sonar.db.DbTester;
+import org.sonar.db.component.BranchType;
+import org.sonar.db.component.ComponentDto;
+import org.sonar.db.component.ComponentTesting;
+import org.sonar.db.component.ProjectData;
+import org.sonar.db.project.ProjectDto;
+import org.sonar.db.source.FileSourceDto;
+import org.sonar.server.project.Project;
 
 public class PullRequestFileMoveDetectionStepIT {
   private static final String ROOT_REF = "0";
@@ -77,9 +79,9 @@ public class PullRequestFileMoveDetectionStepIT {
   private static final String SNAPSHOT_UUID = "uuid_1";
 
   private static final Analysis ANALYSIS = new Analysis.Builder()
-    .setUuid(SNAPSHOT_UUID)
-    .setCreatedAt(86521)
-    .build();
+      .setUuid(SNAPSHOT_UUID)
+      .setCreatedAt(86521)
+      .build();
 
   @Rule
   public TreeRootHolderRule treeRootHolder = new TreeRootHolderRule();
@@ -97,15 +99,18 @@ public class PullRequestFileMoveDetectionStepIT {
   private final DbClient dbClient = dbTester.getDbClient();
   private final AnalysisMetadataHolderRule analysisMetadataHolder = mock(AnalysisMetadataHolderRule.class);
   private final RecordingMutableAddedFileRepository addedFileRepository = new RecordingMutableAddedFileRepository();
-  private final PullRequestFileMoveDetectionStep underTest = new PullRequestFileMoveDetectionStep(analysisMetadataHolder, treeRootHolder, dbClient, movedFilesRepository, addedFileRepository);
+  private final PullRequestFileMoveDetectionStep underTest = new PullRequestFileMoveDetectionStep(
+      analysisMetadataHolder, treeRootHolder, dbClient, movedFilesRepository, addedFileRepository);
 
   @Before
   public void setUp() throws Exception {
     ProjectData projectData = dbTester.components().insertPrivateProject();
     mainBranch = projectData.getMainBranchComponent();
     project = projectData.getProjectDto();
-    branch = dbTester.components().insertProjectBranch(mainBranch, branchDto -> branchDto.setUuid(BRANCH_UUID).setKey(TARGET_BRANCH));
-    treeRootHolder.setRoot(builder(Component.Type.PROJECT, Integer.parseInt(ROOT_REF)).setUuid(mainBranch.uuid()).build());
+    branch = dbTester.components().insertProjectBranch(mainBranch,
+        branchDto -> branchDto.setUuid(BRANCH_UUID).setKey(TARGET_BRANCH));
+    treeRootHolder
+        .setRoot(builder(Component.Type.PROJECT, Integer.parseInt(ROOT_REF)).setUuid(mainBranch.uuid()).build());
   }
 
   @Test
@@ -209,16 +214,16 @@ public class PullRequestFileMoveDetectionStepIT {
     preparePullRequestAnalysis(ANALYSIS);
 
     Set<FileReference> reportFileReferences = Set.of(
-      FileReference.of(FILE_3_REF, FILE_1_REF),
-      FileReference.of(FILE_4_REF),
-      FileReference.of(FILE_6_REF, FILE_5_REF),
-      FileReference.of(FILE_7_REF));
+        FileReference.of(FILE_3_REF, FILE_1_REF),
+        FileReference.of(FILE_4_REF),
+        FileReference.of(FILE_6_REF, FILE_5_REF),
+        FileReference.of(FILE_7_REF));
 
     Set<FileReference> databaseFileReferences = Set.of(
-      FileReference.of(FILE_1_REF),
-      FileReference.of(FILE_2_REF),
-      FileReference.of(FILE_4_REF),
-      FileReference.of(FILE_5_REF));
+        FileReference.of(FILE_1_REF),
+        FileReference.of(FILE_2_REF),
+        FileReference.of(FILE_4_REF),
+        FileReference.of(FILE_5_REF));
 
     Map<String, Component> reportFilesByUuid = initializeAnalysisReportComponents(reportFileReferences);
     Map<String, Component> databaseFilesByUuid = initializeTargetBranchDatabaseComponents(databaseFileReferences);
@@ -234,15 +239,17 @@ public class PullRequestFileMoveDetectionStepIT {
     verifyStatistics(context, 4, 4, 1, 2);
   }
 
-  private void assertThatFileAdditionHasBeenDetected(Map<String, Component> reportFilesByUuid, String fileInReportReference) {
+  private void assertThatFileAdditionHasBeenDetected(Map<String, Component> reportFilesByUuid,
+      String fileInReportReference) {
     Component fileInReport = reportFilesByUuid.get(fileInReportReference);
 
     assertThat(addedFileRepository.getComponents()).contains(fileInReport);
     assertThat(movedFilesRepository.getOriginalPullRequestFile(fileInReport)).isEmpty();
   }
 
-
-  private void assertThatFileRenameHasBeenDetected(Map<String, Component> reportFilesByUuid, Map<String, Component> databaseFilesByUuid, String fileInReportReference, String originalFileInDatabaseReference) {
+  private void assertThatFileRenameHasBeenDetected(Map<String, Component> reportFilesByUuid,
+      Map<String, Component> databaseFilesByUuid, String fileInReportReference,
+      String originalFileInDatabaseReference) {
     Component fileInReport = reportFilesByUuid.get(fileInReportReference);
     Component originalFileInDatabase = databaseFilesByUuid.get(originalFileInDatabaseReference);
 
@@ -268,41 +275,42 @@ public class PullRequestFileMoveDetectionStepIT {
 
   private Map<String, Component> toFileComponentsByUuidMap(Set<Component> fileComponents) {
     return fileComponents
-      .stream()
-      .collect(toMap(Component::getUuid, identity()));
+        .stream()
+        .collect(toMap(Component::getUuid, identity()));
   }
 
   private static Set<Component> createFileComponents(Set<FileReference> references) {
     return references
-      .stream()
-      .map(PullRequestFileMoveDetectionStepIT::createReportFileComponent)
-      .collect(toSet());
+        .stream()
+        .map(PullRequestFileMoveDetectionStepIT::createReportFileComponent)
+        .collect(toSet());
   }
 
   private static Component createReportFileComponent(FileReference fileReference) {
     return builder(FILE, Integer.parseInt(fileReference.getReference()))
-      .setUuid(fileReference.getReference())
-      .setName("report_path" + fileReference.getReference())
-      .setFileAttributes(new FileAttributes(false, null, 1, false, composeComponentPath(fileReference.getPastReference())))
-      .build();
+        .setUuid(fileReference.getReference())
+        .setName("report_path" + fileReference.getReference())
+        .setFileAttributes(
+            new FileAttributes(false, null, 1, false, composeComponentPath(fileReference.getPastReference())))
+        .build();
   }
 
   private void insertFileComponentsInReport(Set<Component> files) {
     treeRootHolder
-      .setRoot(builder(PROJECT, Integer.parseInt(ROOT_REF))
-      .setUuid(mainBranch.uuid())
-      .addChildren(files.toArray(Component[]::new))
-      .build());
+        .setRoot(builder(PROJECT, Integer.parseInt(ROOT_REF))
+            .setUuid(mainBranch.uuid())
+            .addChildren(files.toArray(Component[]::new))
+            .build());
   }
 
   private Set<ComponentDto> insertFileComponentsInDatabase(Set<Component> files) {
     return files
-      .stream()
-      .map(Component::getUuid)
-      .map(this::composeComponentDto)
-      .peek(this::insertComponentDto)
-      .peek(this::insertContentOfFileInDatabase)
-      .collect(toSet());
+        .stream()
+        .map(Component::getUuid)
+        .map(this::composeComponentDto)
+        .peek(this::insertComponentDto)
+        .peek(this::insertContentOfFileInDatabase)
+        .collect(toSet());
   }
 
   private void insertComponentDto(ComponentDto component) {
@@ -311,18 +319,18 @@ public class PullRequestFileMoveDetectionStepIT {
 
   private ComponentDto composeComponentDto(String uuid) {
     return ComponentTesting
-      .newFileDto(mainBranch)
-      .setBranchUuid(branch.uuid())
-      .setKey("key_" + uuid)
-      .setUuid(uuid)
-      .setPath(composeComponentPath(uuid));
+        .newFileDto(mainBranch)
+        .setBranchUuid(branch.uuid())
+        .setKey("key_" + uuid)
+        .setUuid(uuid)
+        .setPath(composeComponentPath(uuid));
   }
 
   @CheckForNull
   private static String composeComponentPath(@Nullable String reference) {
     return Optional.ofNullable(reference)
-      .map(r -> String.join("_", "path", r))
-      .orElse(null);
+        .map(r -> String.join("_", "path", r))
+        .orElse(null);
   }
 
   private FileSourceDto insertContentOfFileInDatabase(ComponentDto file) {
@@ -333,9 +341,9 @@ public class PullRequestFileMoveDetectionStepIT {
 
   private static FileSourceDto composeFileSourceDto(ComponentDto file) {
     return new FileSourceDto()
-      .setUuid(Uuids.createFast())
-      .setFileUuid(file.uuid())
-      .setProjectUuid(file.branchUuid());
+        .setUuid(Uuids.create())
+        .setFileUuid(file.uuid())
+        .setProjectUuid(file.branchUuid());
   }
 
   private void persistFileSourceDto(FileSourceDto fileSourceDto) {

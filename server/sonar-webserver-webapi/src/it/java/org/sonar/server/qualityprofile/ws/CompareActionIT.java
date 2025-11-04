@@ -69,7 +69,8 @@ class CompareActionIT {
   private final DbSession session = db.getSession();
 
   private final WsActionTester ws = new WsActionTester(
-    new CompareAction(db.getDbClient(), new QProfileComparison(db.getDbClient()), new Languages(LanguageTesting.newLanguage("xoo", "Xoo"))));
+      new CompareAction(db.getDbClient(), new QProfileComparison(db.getDbClient()),
+          new Languages(LanguageTesting.newLanguage("xoo", "Xoo"))));
 
   @Test
   void compare_nominal() {
@@ -114,9 +115,9 @@ class CompareActionIT {
     session.commit();
 
     ws.newRequest()
-      .setParam("leftKey", profile1.getKee())
-      .setParam("rightKey", profile2.getKee())
-      .execute().assertJson(this.getClass(), "compare_nominal.json");
+        .setParam("leftKey", profile1.getKee())
+        .setParam("rightKey", profile2.getKee())
+        .execute().assertJson(this.getClass(), "compare_nominal.json");
   }
 
   @Test
@@ -134,9 +135,9 @@ class CompareActionIT {
     session.commit();
 
     ws.newRequest()
-      .setParam("leftKey", profile1.getKee())
-      .setParam("rightKey", profile2.getKee())
-      .execute().assertJson(this.getClass(), "compare_hotspot.json");
+        .setParam("leftKey", profile1.getKee())
+        .setParam("rightKey", profile2.getKee())
+        .execute().assertJson(this.getClass(), "compare_hotspot.json");
   }
 
   @Test
@@ -150,9 +151,9 @@ class CompareActionIT {
     session.commit();
 
     ws.newRequest()
-      .setParam("leftKey", profile1.getKee())
-      .setParam("rightKey", profile2.getKee())
-      .execute().assertJson(this.getClass(), "compare_param_on_left.json");
+        .setParam("leftKey", profile1.getKee())
+        .setParam("rightKey", profile2.getKee())
+        .execute().assertJson(this.getClass(), "compare_param_on_left.json");
   }
 
   @Test
@@ -166,9 +167,9 @@ class CompareActionIT {
     session.commit();
 
     ws.newRequest()
-      .setParam("leftKey", profile1.getKee())
-      .setParam("rightKey", profile2.getKee())
-      .execute().assertJson(this.getClass(), "compare_param_on_right.json");
+        .setParam("leftKey", profile1.getKee())
+        .setParam("rightKey", profile2.getKee())
+        .execute().assertJson(this.getClass(), "compare_param_on_right.json");
   }
 
   @Test
@@ -182,9 +183,9 @@ class CompareActionIT {
     session.commit();
 
     ws.newRequest()
-      .setParam("leftKey", profile1.getKee())
-      .setParam("rightKey", profile2.getKee())
-      .execute().assertJson(this.getClass(), "compare_impacts.json");
+        .setParam("leftKey", profile1.getKee())
+        .setParam("rightKey", profile2.getKee())
+        .execute().assertJson(this.getClass(), "compare_impacts.json");
   }
 
   @Test
@@ -197,29 +198,29 @@ class CompareActionIT {
     session.commit();
 
     ws.newRequest()
-      .setParam("leftKey", profile1.getKee())
-      .setParam("rightKey", profile2.getKee())
-      .execute().assertJson(this.getClass(), "compare_impacts_left_only.json");
+        .setParam("leftKey", profile1.getKee())
+        .setParam("rightKey", profile2.getKee())
+        .execute().assertJson(this.getClass(), "compare_impacts_left_only.json");
   }
 
   @Test
   void fail_on_missing_left_param() {
     assertThatThrownBy(() -> {
       ws.newRequest()
-        .setParam("rightKey", "polop")
-        .execute();
+          .setParam("rightKey", "polop")
+          .execute();
     })
-      .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test
   void fail_on_missing_right_param() {
     assertThatThrownBy(() -> {
       ws.newRequest()
-        .setParam("leftKey", "polop")
-        .execute();
+          .setParam("leftKey", "polop")
+          .execute();
     })
-      .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test
@@ -228,11 +229,11 @@ class CompareActionIT {
 
     assertThatThrownBy(() -> {
       ws.newRequest()
-        .setParam("leftKey", "polop")
-        .setParam("rightKey", "xoo-right-12345")
-        .execute();
+          .setParam("leftKey", "polop")
+          .setParam("rightKey", "xoo-right-12345")
+          .execute();
     })
-      .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test
@@ -241,11 +242,11 @@ class CompareActionIT {
 
     assertThatThrownBy(() -> {
       ws.newRequest()
-        .setParam("leftKey", "xoo-left-12345")
-        .setParam("rightKey", "polop")
-        .execute();
+          .setParam("leftKey", "xoo-left-12345")
+          .setParam("rightKey", "polop")
+          .execute();
     })
-      .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test
@@ -255,7 +256,7 @@ class CompareActionIT {
     assertThat(definition.isPost()).isFalse();
     assertThat(definition.isInternal()).isTrue();
     assertThat(definition.params()).hasSize(2).extracting("key").containsOnly(
-      "leftKey", "rightKey");
+        "leftKey", "rightKey");
     assertThat(definition.responseExampleAsString()).isNotEmpty();
   }
 
@@ -265,14 +266,14 @@ class CompareActionIT {
 
   private RuleDto createRule(String lang, String id) {
     RuleDto rule = createFor(RuleKey.of("blah", id))
-      .setUuid(Uuids.createFast())
-      .setName(StringUtils.capitalize(id))
-      .setLanguage(lang)
-      .setSeverity(Severity.BLOCKER)
-      .setScope(Scope.MAIN)
-      .setStatus(RuleStatus.READY)
-      .setCleanCodeAttribute(CleanCodeAttribute.EFFICIENT)
-      .addDefaultImpact(new ImpactDto(SoftwareQuality.RELIABILITY, HIGH));
+        .setUuid(Uuids.create())
+        .setName(StringUtils.capitalize(id))
+        .setLanguage(lang)
+        .setSeverity(Severity.BLOCKER)
+        .setScope(Scope.MAIN)
+        .setStatus(RuleStatus.READY)
+        .setCleanCodeAttribute(CleanCodeAttribute.EFFICIENT)
+        .addDefaultImpact(new ImpactDto(SoftwareQuality.RELIABILITY, HIGH));
     RuleDto ruleDto = rule;
     dbClient.ruleDao().insert(session, ruleDto);
     return ruleDto;
@@ -280,14 +281,14 @@ class CompareActionIT {
 
   private RuleDto createRuleWithImpacts(String lang, String id, Collection<ImpactDto> impacts) {
     RuleDto rule = createFor(RuleKey.of("blah", id))
-      .setUuid(Uuids.createFast())
-      .setName(StringUtils.capitalize(id))
-      .setLanguage(lang)
-      .setSeverity(Severity.BLOCKER)
-      .setScope(Scope.MAIN)
-      .setStatus(RuleStatus.READY)
-      .setCleanCodeAttribute(CleanCodeAttribute.EFFICIENT)
-      .replaceAllDefaultImpacts(impacts);
+        .setUuid(Uuids.create())
+        .setName(StringUtils.capitalize(id))
+        .setLanguage(lang)
+        .setSeverity(Severity.BLOCKER)
+        .setScope(Scope.MAIN)
+        .setStatus(RuleStatus.READY)
+        .setCleanCodeAttribute(CleanCodeAttribute.EFFICIENT)
+        .replaceAllDefaultImpacts(impacts);
     RuleDto ruleDto = rule;
     dbClient.ruleDao().insert(session, ruleDto);
     return ruleDto;
@@ -295,45 +296,45 @@ class CompareActionIT {
 
   private RuleDto createSecurityHotspot(String lang, String id) {
     RuleDto rule = createFor(RuleKey.of("blah", id))
-      .setUuid(Uuids.createFast())
-      .setName(StringUtils.capitalize(id))
-      .setLanguage(lang)
-      .setSeverity(Severity.BLOCKER)
-      .setScope(Scope.MAIN)
-      .setStatus(RuleStatus.READY)
-      .setType(RuleType.SECURITY_HOTSPOT);
+        .setUuid(Uuids.create())
+        .setName(StringUtils.capitalize(id))
+        .setLanguage(lang)
+        .setSeverity(Severity.BLOCKER)
+        .setScope(Scope.MAIN)
+        .setStatus(RuleStatus.READY)
+        .setType(RuleType.SECURITY_HOTSPOT);
     dbClient.ruleDao().insert(session, rule);
     return rule;
   }
 
   private static RuleDto createFor(RuleKey key) {
     return new RuleDto()
-      .setRepositoryKey(key.repository())
-      .setRuleKey(key.rule());
+        .setRepositoryKey(key.repository())
+        .setRuleKey(key.rule());
   }
 
   private RuleDto createRuleWithParam(String lang, String id) {
     RuleDto rule = createRule(lang, id);
     RuleParamDto param = RuleParamDto.createFor(rule)
-      .setName("param_" + id)
-      .setType(RuleParamType.STRING.toString());
+        .setName("param_" + id)
+        .setType(RuleParamType.STRING.toString());
     dbClient.ruleDao().insertRuleParam(session, rule, param);
     return rule;
   }
 
   private ActiveRuleDto createActiveRule(RuleDto rule, QProfileDto profile) {
     ActiveRuleDto activeRule = ActiveRuleDto.createFor(profile, rule)
-      .setSeverity(rule.getSeverityString())
-      .setImpacts(rule.getDefaultImpactsMap());
+        .setSeverity(rule.getSeverityString())
+        .setImpacts(rule.getDefaultImpactsMap());
     dbClient.activeRuleDao().insert(session, activeRule);
     return activeRule;
   }
 
-  private ActiveRuleDto createActiveRuleWithImpacts(RuleDto rule, QProfileDto profile, Map<SoftwareQuality,
-    org.sonar.api.issue.impact.Severity> impacts) {
+  private ActiveRuleDto createActiveRuleWithImpacts(RuleDto rule, QProfileDto profile,
+      Map<SoftwareQuality, org.sonar.api.issue.impact.Severity> impacts) {
     ActiveRuleDto activeRule = ActiveRuleDto.createFor(profile, rule)
-      .setSeverity(rule.getSeverityString())
-      .setImpacts(impacts);
+        .setSeverity(rule.getSeverityString())
+        .setImpacts(impacts);
     dbClient.activeRuleDao().insert(session, activeRule);
     return activeRule;
   }
@@ -348,8 +349,8 @@ class CompareActionIT {
 
   private ActiveRuleDto createActiveRuleWithSeverity(RuleDto rule, QProfileDto profile, String severity) {
     ActiveRuleDto activeRule = ActiveRuleDto.createFor(profile, rule)
-      .setSeverity(severity)
-      .setImpacts(rule.getDefaultImpactsMap());
+        .setSeverity(severity)
+        .setImpacts(rule.getDefaultImpactsMap());
     dbClient.activeRuleDao().insert(session, activeRule);
     return activeRule;
   }

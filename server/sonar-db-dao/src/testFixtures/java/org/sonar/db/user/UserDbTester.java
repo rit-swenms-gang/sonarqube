@@ -19,6 +19,14 @@
  */
 package org.sonar.db.user;
 
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.util.Arrays.stream;
+import static java.util.stream.Collectors.toSet;
+import static org.apache.commons.lang3.RandomStringUtils.secure;
+import static org.sonar.db.permission.GlobalPermission.ADMINISTER;
+import static org.sonar.db.permission.ProjectPermission.PUBLIC_PERMISSIONS;
+import static org.sonar.db.user.GroupTesting.newGroupDto;
+
 import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.List;
@@ -26,8 +34,10 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.function.Consumer;
+
 import javax.annotation.CheckForNull;
 import javax.annotation.Nullable;
+
 import org.sonar.api.security.DefaultGroups;
 import org.sonar.core.util.Uuids;
 import org.sonar.db.DbClient;
@@ -45,14 +55,6 @@ import org.sonar.db.project.ProjectDto;
 import org.sonar.db.provisioning.GithubOrganizationGroupDto;
 import org.sonar.db.scim.ScimGroupDto;
 import org.sonar.db.scim.ScimUserDto;
-
-import static com.google.common.base.Preconditions.checkArgument;
-import static java.util.Arrays.stream;
-import static java.util.stream.Collectors.toSet;
-import static org.apache.commons.lang3.RandomStringUtils.secure;
-import static org.sonar.db.permission.GlobalPermission.ADMINISTER;
-import static org.sonar.db.permission.ProjectPermission.PUBLIC_PERMISSIONS;
-import static org.sonar.db.user.GroupTesting.newGroupDto;
 
 public class UserDbTester {
   public static final String PERMISSIONS_CANT_BE_GRANTED_ON_BRANCHES = "Permissions can't be granted on branches";
@@ -127,7 +129,8 @@ public class UserDbTester {
   }
 
   public UserDto updateSonarLintLastConnectionDate(UserDto user, long sonarLintLastConnectionDate) {
-    db.getDbClient().userDao().update(db.getSession(), user.setLastSonarlintConnectionDate(sonarLintLastConnectionDate));
+    db.getDbClient().userDao().update(db.getSession(),
+        user.setLastSonarlintConnectionDate(sonarLintLastConnectionDate));
     db.getSession().commit();
     return user;
   }
@@ -145,7 +148,8 @@ public class UserDbTester {
   }
 
   public Optional<UserDto> selectUserByExternalIdAndIdentityProvider(String externalId, String identityProvider) {
-    return Optional.ofNullable(dbClient.userDao().selectByExternalIdAndIdentityProvider(db.getSession(), externalId, identityProvider));
+    return Optional.ofNullable(
+        dbClient.userDao().selectByExternalIdAndIdentityProvider(db.getSession(), externalId, identityProvider));
   }
 
   // GROUPS
@@ -169,7 +173,8 @@ public class UserDbTester {
   }
 
   public void markGroupAsGithubManaged(String groupUuid) {
-    db.getDbClient().externalGroupDao().insert(db.getSession(), new ExternalGroupDto(groupUuid, secure().nextAlphanumeric(20), "github"));
+    db.getDbClient().externalGroupDao().insert(db.getSession(),
+        new ExternalGroupDto(groupUuid, secure().nextAlphanumeric(20), "github"));
     db.commit();
   }
 
@@ -193,7 +198,8 @@ public class UserDbTester {
   }
 
   public GroupDto insertDefaultGroup() {
-    GroupDto dto = db.getDbClient().groupDao().insert(db.getSession(), newGroupDto().setName(DefaultGroups.USERS).setDescription("Users"));
+    GroupDto dto = db.getDbClient().groupDao().insert(db.getSession(),
+        newGroupDto().setName(DefaultGroups.USERS).setDescription("Users"));
     db.commit();
     return dto;
   }
@@ -233,7 +239,8 @@ public class UserDbTester {
   }
 
   public List<UserDto> findMembers(GroupDto group) {
-    Set<String> userUuidsInGroup = db.getDbClient().userGroupDao().selectUserUuidsInGroup(db.getSession(), group.getUuid());
+    Set<String> userUuidsInGroup = db.getDbClient().userGroupDao().selectUserUuidsInGroup(db.getSession(),
+        group.getUuid());
     return db.getDbClient().userDao().selectByUuids(db.getSession(), userUuidsInGroup);
   }
 
@@ -245,9 +252,9 @@ public class UserDbTester {
 
   public GroupPermissionDto insertPermissionOnAnyone(String permission) {
     GroupPermissionDto dto = new GroupPermissionDto()
-      .setUuid(Uuids.createFast())
-      .setGroupUuid(null)
-      .setRole(permission);
+        .setUuid(Uuids.create())
+        .setGroupUuid(null)
+        .setRole(permission);
     db.getDbClient().groupPermissionDao().insert(db.getSession(), dto, null, null);
     db.commit();
     return dto;
@@ -267,15 +274,15 @@ public class UserDbTester {
 
   public Set<GroupPermissionDto> insertPermissionsOnGroup(GroupDto group, String... permissions) {
     return stream(permissions)
-      .map(p -> insertPermissionOnGroup(group, p))
-      .collect(toSet());
+        .map(p -> insertPermissionOnGroup(group, p))
+        .collect(toSet());
   }
 
   public GroupPermissionDto insertPermissionOnGroup(GroupDto group, String permission) {
     GroupPermissionDto dto = new GroupPermissionDto()
-      .setUuid(Uuids.createFast())
-      .setGroupUuid(group.getUuid())
-      .setRole(permission);
+        .setUuid(Uuids.create())
+        .setGroupUuid(group.getUuid())
+        .setRole(permission);
     db.getDbClient().groupPermissionDao().insert(db.getSession(), dto, null, null);
     db.commit();
     return dto;
@@ -292,16 +299,16 @@ public class UserDbTester {
   public GroupPermissionDto insertProjectPermissionOnAnyone(String permission, ComponentDto project) {
     checkArgument(!project.isPrivate(), "No permission to group AnyOne can be granted on a private project");
     checkArgument(!PUBLIC_PERMISSIONS.stream().map(ProjectPermission::getKey).collect(toSet()).contains(permission),
-      "permission %s can't be granted on a public project", permission);
+        "permission %s can't be granted on a public project", permission);
     Optional<BranchDto> branchDto = db.getDbClient().branchDao().selectByUuid(db.getSession(), project.branchUuid());
     // I don't know if this check is worth it
     branchDto.ifPresent(dto -> checkArgument(dto.isMain(), PERMISSIONS_CANT_BE_GRANTED_ON_BRANCHES));
     GroupPermissionDto dto = new GroupPermissionDto()
-      .setUuid(Uuids.createFast())
-      .setGroupUuid(null)
-      .setRole(permission)
-      .setEntityUuid(project.uuid())
-      .setEntityName(project.name());
+        .setUuid(Uuids.create())
+        .setGroupUuid(null)
+        .setRole(permission)
+        .setEntityUuid(project.uuid())
+        .setEntityName(project.name());
 
     // TODO, will be removed later
     ProjectDto projectDto = new ProjectDto();
@@ -319,13 +326,13 @@ public class UserDbTester {
   public GroupPermissionDto insertEntityPermissionOnAnyone(String permission, EntityDto entity) {
     checkArgument(!entity.isPrivate(), "No permission to group AnyOne can be granted on a private entity");
     checkArgument(!PUBLIC_PERMISSIONS.stream().map(ProjectPermission::getKey).collect(toSet()).contains(permission),
-      "permission %s can't be granted on a public entity", permission);
+        "permission %s can't be granted on a public entity", permission);
     GroupPermissionDto dto = new GroupPermissionDto()
-      .setUuid(Uuids.createFast())
-      .setGroupUuid(null)
-      .setRole(permission)
-      .setEntityUuid(entity.getUuid())
-      .setEntityName(entity.getName());
+        .setUuid(Uuids.create())
+        .setGroupUuid(null)
+        .setRole(permission)
+        .setEntityUuid(entity.getUuid())
+        .setEntityName(entity.getName());
     db.getDbClient().groupPermissionDao().insert(db.getSession(), dto, entity, null);
     db.commit();
     return dto;
@@ -336,23 +343,26 @@ public class UserDbTester {
     db.commit();
   }
 
-  public GroupPermissionDto insertProjectPermissionOnGroup(GroupDto group, ProjectPermission permission, ComponentDto project) {
+  public GroupPermissionDto insertProjectPermissionOnGroup(GroupDto group, ProjectPermission permission,
+      ComponentDto project) {
     return insertProjectPermissionOnGroup(group, permission.getKey(), project);
   }
 
   public GroupPermissionDto insertProjectPermissionOnGroup(GroupDto group, String permission, ComponentDto project) {
-    checkArgument(project.isPrivate() || !PUBLIC_PERMISSIONS.stream().map(ProjectPermission::getKey).collect(toSet()).contains(permission),
-      "%s can't be granted on a public project", permission);
+    checkArgument(
+        project.isPrivate()
+            || !PUBLIC_PERMISSIONS.stream().map(ProjectPermission::getKey).collect(toSet()).contains(permission),
+        "%s can't be granted on a public project", permission);
     Optional<BranchDto> branchDto = db.getDbClient().branchDao().selectByUuid(db.getSession(), project.branchUuid());
     // I don't know if this check is worth it
     branchDto.ifPresent(dto -> checkArgument(dto.isMain(), PERMISSIONS_CANT_BE_GRANTED_ON_BRANCHES));
     GroupPermissionDto dto = new GroupPermissionDto()
-      .setUuid(Uuids.createFast())
-      .setGroupUuid(group.getUuid())
-      .setGroupName(group.getName())
-      .setRole(permission)
-      .setEntityUuid(project.uuid())
-      .setEntityName(project.name());
+        .setUuid(Uuids.create())
+        .setGroupUuid(group.getUuid())
+        .setGroupName(group.getName())
+        .setRole(permission)
+        .setEntityUuid(project.uuid())
+        .setEntityName(project.name());
 
     // TODO, will be removed later
     ProjectDto projectDto = new ProjectDto();
@@ -363,33 +373,37 @@ public class UserDbTester {
     return dto;
   }
 
-  public Set<GroupPermissionDto> insertEntityPermissionsOnGroup(GroupDto group, EntityDto entity, ProjectPermission... permissions) {
-    return insertEntityPermissionsOnGroup(group, entity, stream(permissions).map(ProjectPermission::getKey).toArray(String[]::new));
+  public Set<GroupPermissionDto> insertEntityPermissionsOnGroup(GroupDto group, EntityDto entity,
+      ProjectPermission... permissions) {
+    return insertEntityPermissionsOnGroup(group, entity,
+        stream(permissions).map(ProjectPermission::getKey).toArray(String[]::new));
   }
 
-  public Set<GroupPermissionDto> insertEntityPermissionsOnGroup(GroupDto group, EntityDto entity, String... permissions) {
+  public Set<GroupPermissionDto> insertEntityPermissionsOnGroup(GroupDto group, EntityDto entity,
+      String... permissions) {
     return stream(permissions)
-      .map(permission -> insertEntityPermissionOnGroup(group, permission, entity))
-      .collect(toSet());
+        .map(permission -> insertEntityPermissionOnGroup(group, permission, entity))
+        .collect(toSet());
   }
 
-  public GroupPermissionDto insertEntityPermissionOnGroup(GroupDto group, ProjectPermission permission, EntityDto entity) {
+  public GroupPermissionDto insertEntityPermissionOnGroup(GroupDto group, ProjectPermission permission,
+      EntityDto entity) {
     return insertEntityPermissionOnGroup(group, permission.getKey(), entity);
   }
 
   public GroupPermissionDto insertEntityPermissionOnGroup(GroupDto group, String permission, EntityDto entity) {
     checkArgument(entity.isPrivate() || !PUBLIC_PERMISSIONS.contains(permission),
-      "%s can't be granted on a public entity (project or portfolio)", permission);
+        "%s can't be granted on a public entity (project or portfolio)", permission);
     Optional<BranchDto> branchDto = db.getDbClient().branchDao().selectByUuid(db.getSession(), entity.getUuid());
     // I don't know if this check is worth it
     branchDto.ifPresent(dto -> checkArgument(dto.isMain(), PERMISSIONS_CANT_BE_GRANTED_ON_BRANCHES));
     GroupPermissionDto dto = new GroupPermissionDto()
-      .setUuid(Uuids.createFast())
-      .setGroupUuid(group.getUuid())
-      .setGroupName(group.getName())
-      .setRole(permission)
-      .setEntityUuid(entity.getUuid())
-      .setEntityName(entity.getName());
+        .setUuid(Uuids.create())
+        .setGroupUuid(group.getUuid())
+        .setGroupName(group.getName())
+        .setRole(permission)
+        .setEntityUuid(entity.getUuid())
+        .setEntityName(entity.getName());
     db.getDbClient().groupPermissionDao().insert(db.getSession(), dto, entity, null);
     db.commit();
     return dto;
@@ -399,7 +413,8 @@ public class UserDbTester {
     if (entity == null) {
       return db.getDbClient().groupPermissionDao().selectGlobalPermissionsOfGroup(db.getSession(), group.getUuid());
     }
-    return db.getDbClient().groupPermissionDao().selectEntityPermissionsOfGroup(db.getSession(), group.getUuid(), entity.getUuid());
+    return db.getDbClient().groupPermissionDao().selectEntityPermissionsOfGroup(db.getSession(), group.getUuid(),
+        entity.getUuid());
   }
 
   public List<String> selectAnyonePermissions(@Nullable String entityUuid) {
@@ -441,25 +456,29 @@ public class UserDbTester {
   /**
    * Grant permission on given project
    */
-  public UserPermissionDto insertProjectPermissionOnUser(UserDto user, ProjectPermission permission, ComponentDto project) {
+  public UserPermissionDto insertProjectPermissionOnUser(UserDto user, ProjectPermission permission,
+      ComponentDto project) {
     return insertProjectPermissionOnUser(user, permission.getKey(), project);
   }
 
   public UserPermissionDto insertProjectPermissionOnUser(UserDto user, String permission, ComponentDto project) {
-    checkArgument(project.isPrivate() || !PUBLIC_PERMISSIONS.stream().map(ProjectPermission::getKey).collect(toSet()).contains(permission),
-      "%s can't be granted on a public project", permission);
+    checkArgument(
+        project.isPrivate()
+            || !PUBLIC_PERMISSIONS.stream().map(ProjectPermission::getKey).collect(toSet()).contains(permission),
+        "%s can't be granted on a public project", permission);
     EntityDto entityDto;
-    if (project.qualifier().equals(ComponentQualifiers.VIEW) || project.qualifier().equals(ComponentQualifiers.SUBVIEW)) {
+    if (project.qualifier().equals(ComponentQualifiers.VIEW)
+        || project.qualifier().equals(ComponentQualifiers.SUBVIEW)) {
       entityDto = db.getDbClient().portfolioDao().selectByUuid(db.getSession(), project.uuid())
-        .orElseThrow();
+          .orElseThrow();
     } else {
       BranchDto branchDto = db.getDbClient().branchDao().selectByUuid(db.getSession(), project.branchUuid())
-        .orElseThrow();
+          .orElseThrow();
       // I don't know if this check is worth it
       checkArgument(branchDto.isMain(), PERMISSIONS_CANT_BE_GRANTED_ON_BRANCHES);
 
       entityDto = dbClient.projectDao().selectByBranchUuid(db.getSession(), branchDto.getUuid())
-        .orElseThrow();
+          .orElseThrow();
     }
 
     UserPermissionDto dto = new UserPermissionDto(Uuids.create(), permission, user.getUuid(), entityDto.getUuid());
@@ -468,13 +487,14 @@ public class UserDbTester {
     return dto;
   }
 
-  public UserPermissionDto insertProjectPermissionOnUser(UserDto user, ProjectPermission permission, EntityDto project) {
+  public UserPermissionDto insertProjectPermissionOnUser(UserDto user, ProjectPermission permission,
+      EntityDto project) {
     return insertProjectPermissionOnUser(user, permission.getKey(), project);
   }
 
   public UserPermissionDto insertProjectPermissionOnUser(UserDto user, String permission, EntityDto project) {
     checkArgument(project.isPrivate() || !ProjectPermission.isPublic(permission),
-      "%s can't be granted on a public project", permission);
+        "%s can't be granted on a public project", permission);
     UserPermissionDto dto = new UserPermissionDto(Uuids.create(), permission, user.getUuid(), project.getUuid());
     db.getDbClient().userPermissionDao().insert(db.getSession(), dto, project, user, null);
     db.commit();
@@ -483,18 +503,19 @@ public class UserDbTester {
 
   public List<GlobalPermission> selectPermissionsOfUser(UserDto user) {
     return toListOfGlobalPermissions(db.getDbClient().userPermissionDao()
-      .selectGlobalPermissionsOfUser(db.getSession(), user.getUuid()));
+        .selectGlobalPermissionsOfUser(db.getSession(), user.getUuid()));
   }
 
   public List<String> selectEntityPermissionOfUser(UserDto user, String entityUuid) {
-    return db.getDbClient().userPermissionDao().selectEntityPermissionsOfUser(db.getSession(), user.getUuid(), entityUuid);
+    return db.getDbClient().userPermissionDao().selectEntityPermissionsOfUser(db.getSession(), user.getUuid(),
+        entityUuid);
   }
 
   private static List<GlobalPermission> toListOfGlobalPermissions(List<String> keys) {
     return keys
-      .stream()
-      .map(GlobalPermission::fromKey)
-      .toList();
+        .stream()
+        .map(GlobalPermission::fromKey)
+        .toList();
   }
 
   // USER TOKEN
@@ -524,20 +545,21 @@ public class UserDbTester {
   @SafeVarargs
   public final SessionTokenDto insertSessionToken(UserDto user, Consumer<SessionTokenDto>... populators) {
     SessionTokenDto dto = new SessionTokenDto()
-      .setUserUuid(user.getUuid())
-      .setExpirationDate(random.nextLong(Long.MAX_VALUE));
+        .setUserUuid(user.getUuid())
+        .setExpirationDate(random.nextLong(Long.MAX_VALUE));
     stream(populators).forEach(p -> p.accept(dto));
     db.getDbClient().sessionTokensDao().insert(db.getSession(), dto);
     db.commit();
     return dto;
   }
 
-  public final UserDismissedMessageDto insertUserDismissedMessageOnProject(UserDto userDto, ProjectDto projectDto, MessageType messageType) {
+  public final UserDismissedMessageDto insertUserDismissedMessageOnProject(UserDto userDto, ProjectDto projectDto,
+      MessageType messageType) {
     UserDismissedMessageDto dto = new UserDismissedMessageDto()
-      .setUuid(Uuids.create())
-      .setUserUuid(userDto.getUuid())
-      .setProjectUuid(projectDto.getUuid())
-      .setMessageType(messageType);
+        .setUuid(Uuids.create())
+        .setUserUuid(userDto.getUuid())
+        .setProjectUuid(projectDto.getUuid())
+        .setMessageType(messageType);
     db.getDbClient().userDismissedMessagesDao().insert(db.getSession(), dto);
     db.commit();
     return dto;
@@ -545,9 +567,9 @@ public class UserDbTester {
 
   public final UserDismissedMessageDto insertUserDismissedMessageOnInstance(UserDto userDto, MessageType messageType) {
     UserDismissedMessageDto dto = new UserDismissedMessageDto()
-      .setUuid(Uuids.create())
-      .setUserUuid(userDto.getUuid())
-      .setMessageType(messageType);
+        .setUuid(Uuids.create())
+        .setUserUuid(userDto.getUuid())
+        .setMessageType(messageType);
     db.getDbClient().userDismissedMessagesDao().insert(db.getSession(), dto);
     db.commit();
     return dto;

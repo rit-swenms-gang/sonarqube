@@ -19,14 +19,15 @@
  */
 package org.sonar.db.webhook;
 
+import static org.apache.commons.lang3.RandomStringUtils.secure;
+
 import java.security.SecureRandom;
 import java.util.List;
 import java.util.Random;
+
 import org.sonar.core.util.Uuids;
 import org.sonar.db.DbSession;
 import org.sonar.db.DbTester;
-
-import static org.apache.commons.lang3.RandomStringUtils.secure;
 
 public class WebhookDeliveryTesting {
 
@@ -42,32 +43,32 @@ public class WebhookDeliveryTesting {
    */
   public static WebhookDeliveryDto newDto(String uuid, String webhookUuid, String projectUuid, String ceTaskUuid) {
     return newDto()
-      .setUuid(uuid)
-      .setWebhookUuid(webhookUuid)
-      .setProjectUuid(projectUuid)
-      .setCeTaskUuid(ceTaskUuid);
+        .setUuid(uuid)
+        .setWebhookUuid(webhookUuid)
+        .setProjectUuid(projectUuid)
+        .setCeTaskUuid(ceTaskUuid);
   }
 
   public static WebhookDeliveryDto newDto() {
     return new WebhookDeliveryDto()
-      .setUuid(Uuids.createFast())
-      .setWebhookUuid(secure().nextAlphanumeric(40))
-      .setProjectUuid(secure().nextAlphanumeric(40))
-      .setCeTaskUuid(secure().nextAlphanumeric(40))
-      .setAnalysisUuid(secure().nextAlphanumeric(40))
-      .setName(secure().nextAlphanumeric(10))
-      .setUrl(secure().nextAlphanumeric(10))
-      .setDurationMs(RANDOM.nextInt(Integer.MAX_VALUE))
-      .setHttpStatus(RANDOM.nextInt(Integer.MAX_VALUE))
-      .setSuccess(RANDOM.nextBoolean())
-      .setPayload(secure().nextAlphanumeric(10))
-      .setCreatedAt(RANDOM.nextLong(Long.MAX_VALUE));
+        .setUuid(Uuids.create())
+        .setWebhookUuid(secure().nextAlphanumeric(40))
+        .setProjectUuid(secure().nextAlphanumeric(40))
+        .setCeTaskUuid(secure().nextAlphanumeric(40))
+        .setAnalysisUuid(secure().nextAlphanumeric(40))
+        .setName(secure().nextAlphanumeric(10))
+        .setUrl(secure().nextAlphanumeric(10))
+        .setDurationMs(RANDOM.nextInt(Integer.MAX_VALUE))
+        .setHttpStatus(RANDOM.nextInt(Integer.MAX_VALUE))
+        .setSuccess(RANDOM.nextBoolean())
+        .setPayload(secure().nextAlphanumeric(10))
+        .setCreatedAt(RANDOM.nextLong(Long.MAX_VALUE));
   }
 
   public static List<String> selectAllDeliveryUuids(DbTester dbTester, DbSession dbSession) {
     return dbTester.select(dbSession, "select uuid as \"uuid\" from webhook_deliveries")
-      .stream()
-      .map(columns -> (String) columns.get("uuid"))
-      .toList();
+        .stream()
+        .map(columns -> (String) columns.get("uuid"))
+        .toList();
   }
 }

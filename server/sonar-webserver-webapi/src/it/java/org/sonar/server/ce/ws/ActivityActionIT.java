@@ -19,47 +19,6 @@
  */
 package org.sonar.server.ce.ws;
 
-import java.util.Date;
-import java.util.List;
-import java.util.stream.IntStream;
-import javax.annotation.Nullable;
-import org.apache.commons.lang3.RandomStringUtils;
-import org.junit.Rule;
-import org.junit.Test;
-import org.sonar.api.server.ws.WebService.Param;
-import org.sonar.api.utils.System2;
-import org.sonar.db.permission.ProjectPermission;
-import org.sonar.ce.task.taskprocessor.CeTaskProcessor;
-import org.sonar.core.ce.CeTaskCharacteristics;
-import org.sonar.core.util.Uuids;
-import org.sonar.db.DbTester;
-import org.sonar.db.ce.CeActivityDto;
-import org.sonar.db.ce.CeActivityDto.Status;
-import org.sonar.db.ce.CeQueueDto;
-import org.sonar.db.ce.CeTaskCharacteristicDto;
-import org.sonar.db.ce.CeTaskMessageDto;
-import org.sonar.db.ce.CeTaskTypes;
-import org.sonar.db.component.BranchType;
-import org.sonar.db.component.ComponentDto;
-import org.sonar.db.component.PortfolioData;
-import org.sonar.db.component.ProjectData;
-import org.sonar.db.component.SnapshotDto;
-import org.sonar.db.dismissmessage.MessageType;
-import org.sonar.server.exceptions.BadRequestException;
-import org.sonar.server.exceptions.ForbiddenException;
-import org.sonar.server.exceptions.NotFoundException;
-import org.sonar.server.exceptions.UnauthorizedException;
-import org.sonar.server.tester.UserSessionRule;
-import org.sonar.server.ws.TestRequest;
-import org.sonar.server.ws.TestResponse;
-import org.sonar.server.ws.WsActionTester;
-import org.sonar.test.JsonAssert;
-import org.sonarqube.ws.Ce;
-import org.sonarqube.ws.Ce.ActivityResponse;
-import org.sonarqube.ws.Ce.Task;
-import org.sonarqube.ws.Common;
-import org.sonarqube.ws.MediaTypes;
-
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -82,6 +41,49 @@ import static org.sonar.server.ce.ws.CeWsParameters.PARAM_MAX_EXECUTED_AT;
 import static org.sonar.server.ce.ws.CeWsParameters.PARAM_MIN_SUBMITTED_AT;
 import static org.sonar.server.ce.ws.CeWsParameters.PARAM_STATUS;
 
+import java.util.Date;
+import java.util.List;
+import java.util.stream.IntStream;
+
+import javax.annotation.Nullable;
+
+import org.apache.commons.lang3.RandomStringUtils;
+import org.junit.Rule;
+import org.junit.Test;
+import org.sonar.api.server.ws.WebService.Param;
+import org.sonar.api.utils.System2;
+import org.sonar.ce.task.taskprocessor.CeTaskProcessor;
+import org.sonar.core.ce.CeTaskCharacteristics;
+import org.sonar.core.util.Uuids;
+import org.sonar.db.DbTester;
+import org.sonar.db.ce.CeActivityDto;
+import org.sonar.db.ce.CeActivityDto.Status;
+import org.sonar.db.ce.CeQueueDto;
+import org.sonar.db.ce.CeTaskCharacteristicDto;
+import org.sonar.db.ce.CeTaskMessageDto;
+import org.sonar.db.ce.CeTaskTypes;
+import org.sonar.db.component.BranchType;
+import org.sonar.db.component.ComponentDto;
+import org.sonar.db.component.PortfolioData;
+import org.sonar.db.component.ProjectData;
+import org.sonar.db.component.SnapshotDto;
+import org.sonar.db.dismissmessage.MessageType;
+import org.sonar.db.permission.ProjectPermission;
+import org.sonar.server.exceptions.BadRequestException;
+import org.sonar.server.exceptions.ForbiddenException;
+import org.sonar.server.exceptions.NotFoundException;
+import org.sonar.server.exceptions.UnauthorizedException;
+import org.sonar.server.tester.UserSessionRule;
+import org.sonar.server.ws.TestRequest;
+import org.sonar.server.ws.TestResponse;
+import org.sonar.server.ws.WsActionTester;
+import org.sonar.test.JsonAssert;
+import org.sonarqube.ws.Ce;
+import org.sonarqube.ws.Ce.ActivityResponse;
+import org.sonarqube.ws.Ce.Task;
+import org.sonarqube.ws.Common;
+import org.sonarqube.ws.MediaTypes;
+
 public class ActivityActionIT {
 
   private static final long EXECUTED_AT = System2.INSTANCE.now();
@@ -93,7 +95,8 @@ public class ActivityActionIT {
   public DbTester db = DbTester.create(System2.INSTANCE);
 
   private final TaskFormatter formatter = new TaskFormatter(db.getDbClient(), System2.INSTANCE);
-  private final ActivityAction underTest = new ActivityAction(userSession, db.getDbClient(), formatter, new CeTaskProcessor[]{mock(CeTaskProcessor.class)});
+  private final ActivityAction underTest = new ActivityAction(userSession, db.getDbClient(), formatter,
+      new CeTaskProcessor[] { mock(CeTaskProcessor.class) });
   private final WsActionTester ws = new WsActionTester(underTest);
 
   @Test
@@ -106,7 +109,7 @@ public class ActivityActionIT {
     insertActivity("T2", project2.projectUuid(), project2.mainBranchUuid(), FAILED, null);
 
     ActivityResponse activityResponse = call(ws.newRequest()
-      .setParam(PARAM_MAX_EXECUTED_AT, formatDateTime(EXECUTED_AT + 2_000)));
+        .setParam(PARAM_MAX_EXECUTED_AT, formatDateTime(EXECUTED_AT + 2_000)));
 
     assertThat(activityResponse.getTasksCount()).isEqualTo(2);
     // chronological order, from newest to oldest
@@ -137,7 +140,7 @@ public class ActivityActionIT {
     insertQueue("T3", project1, IN_PROGRESS);
 
     ActivityResponse activityResponse = call(ws.newRequest()
-      .setParam("status", "FAILED,IN_PROGRESS"));
+        .setParam("status", "FAILED,IN_PROGRESS"));
 
     assertThat(activityResponse.getTasksCount()).isEqualTo(2);
     assertThat(activityResponse.getTasks(0).getId()).isEqualTo("T3");
@@ -154,8 +157,8 @@ public class ActivityActionIT {
     insertQueue("T3", project1, IN_PROGRESS);
 
     ActivityResponse activityResponse = call(ws.newRequest()
-      .setParam("status", "FAILED,IN_PROGRESS,SUCCESS")
-      .setParam(PARAM_MAX_EXECUTED_AT, "2016-02-15"));
+        .setParam("status", "FAILED,IN_PROGRESS,SUCCESS")
+        .setParam(PARAM_MAX_EXECUTED_AT, "2016-02-15"));
 
     assertThat(activityResponse.getTasksCount()).isZero();
   }
@@ -168,8 +171,8 @@ public class ActivityActionIT {
     String today = formatDate(new Date(EXECUTED_AT));
 
     ActivityResponse activityResponse = call(ws.newRequest()
-      .setParam(PARAM_MIN_SUBMITTED_AT, today)
-      .setParam(PARAM_MAX_EXECUTED_AT, today));
+        .setParam(PARAM_MIN_SUBMITTED_AT, today)
+        .setParam(PARAM_MAX_EXECUTED_AT, today));
 
     assertThat(activityResponse.getTasksCount()).isOne();
   }
@@ -184,8 +187,8 @@ public class ActivityActionIT {
     insertQueue("T3", project, PENDING);
 
     ActivityResponse activityResponse = call(
-      ws.newRequest()
-        .setParam("onlyCurrents", "true"));
+        ws.newRequest()
+            .setParam("onlyCurrents", "true"));
 
     assertThat(activityResponse.getTasksCount()).isOne();
     assertThat(activityResponse.getTasks(0).getId()).isEqualTo("T2");
@@ -197,7 +200,7 @@ public class ActivityActionIT {
     insertQueue("T3", null, PENDING);
 
     ActivityResponse activityResponse = call(ws.newRequest()
-      .setParam("status", "PENDING"));
+        .setParam("status", "PENDING"));
 
     assertThat(activityResponse.getTasksList()).hasSize(1);
   }
@@ -233,13 +236,13 @@ public class ActivityActionIT {
     insertQueue("T1", project1, IN_PROGRESS);
 
     ActivityResponse activityResponse = call(ws.newRequest()
-      .setParam(Param.PAGE_SIZE, Integer.toString(10))
-      .setParam(PARAM_STATUS, "SUCCESS,FAILED,CANCELED,IN_PROGRESS,PENDING"));
+        .setParam(Param.PAGE_SIZE, Integer.toString(10))
+        .setParam(PARAM_STATUS, "SUCCESS,FAILED,CANCELED,IN_PROGRESS,PENDING"));
 
     assertThat(activityResponse.getTasksList())
-      .extracting(Task::getId, Ce.Task::getStatus)
-      .containsExactlyInAnyOrder(
-        tuple("T1", Ce.TaskStatus.SUCCESS));
+        .extracting(Task::getId, Ce.Task::getStatus)
+        .containsExactlyInAnyOrder(
+            tuple("T1", Ce.TaskStatus.SUCCESS));
   }
 
   @Test
@@ -250,16 +253,17 @@ public class ActivityActionIT {
     insertActivity("T1", project1, SUCCESS);
     insertActivity("T2", project2, FAILED);
     insertQueue("T3", project1, IN_PROGRESS);
-    List<String> messagesT1 = insertMessages(MessageType.GENERIC,"T1", 2);
-    List<String> messagesT2 = insertMessages(MessageType.GENERIC,"T2", 1);
-    insertMessages(MessageType.GENERIC,"T3", 5);
+    List<String> messagesT1 = insertMessages(MessageType.GENERIC, "T1", 2);
+    List<String> messagesT2 = insertMessages(MessageType.GENERIC, "T2", 1);
+    insertMessages(MessageType.GENERIC, "T3", 5);
 
     ActivityResponse activityResponse = call(ws.newRequest()
-      .setParam(Param.PAGE_SIZE, Integer.toString(10))
-      .setParam(PARAM_STATUS, "SUCCESS,FAILED,CANCELED,IN_PROGRESS,PENDING"));
+        .setParam(Param.PAGE_SIZE, Integer.toString(10))
+        .setParam(PARAM_STATUS, "SUCCESS,FAILED,CANCELED,IN_PROGRESS,PENDING"));
     assertThat(activityResponse.getTasksList())
-      .extracting(Task::getId, Task::getWarningCount, Task::getWarningsList)
-      .containsOnly(tuple("T1", messagesT1.size(), messagesT1), tuple("T2", messagesT2.size(), messagesT2), tuple("T3", 0, emptyList()));
+        .extracting(Task::getId, Task::getWarningCount, Task::getWarningsList)
+        .containsOnly(tuple("T1", messagesT1.size(), messagesT1), tuple("T2", messagesT2.size(), messagesT2),
+            tuple("T3", 0, emptyList()));
   }
 
   @Test
@@ -270,29 +274,30 @@ public class ActivityActionIT {
     insertActivity("T1", project1, SUCCESS);
     insertActivity("T2", project2, FAILED);
     insertQueue("T3", project1, IN_PROGRESS);
-    List<String> messagesT1 = insertMessages(MessageType.INFO,"T1", 2);
-    List<String> messagesT2 = insertMessages(MessageType.INFO,"T2", 1);
-    insertMessages(MessageType.INFO,"T3", 5);
+    List<String> messagesT1 = insertMessages(MessageType.INFO, "T1", 2);
+    List<String> messagesT2 = insertMessages(MessageType.INFO, "T2", 1);
+    insertMessages(MessageType.INFO, "T3", 5);
 
     ActivityResponse activityResponse = call(ws.newRequest()
-      .setParam(Param.PAGE_SIZE, Integer.toString(10))
-      .setParam(PARAM_STATUS, "SUCCESS,FAILED,CANCELED,IN_PROGRESS,PENDING"));
+        .setParam(Param.PAGE_SIZE, Integer.toString(10))
+        .setParam(PARAM_STATUS, "SUCCESS,FAILED,CANCELED,IN_PROGRESS,PENDING"));
     assertThat(activityResponse.getTasksList())
-      .extracting(Task::getId, Task::getInfoMessagesList)
-      .containsOnly(tuple("T1",  messagesT1), tuple("T2",  messagesT2), tuple("T3",  emptyList()));
+        .extracting(Task::getId, Task::getInfoMessagesList)
+        .containsOnly(tuple("T1", messagesT1), tuple("T2", messagesT2), tuple("T3", emptyList()));
   }
 
   private List<String> insertMessages(MessageType messageType, String taskUuid, int messageCount) {
     List<CeTaskMessageDto> ceTaskMessageDtos = IntStream.range(0, messageCount)
-      .mapToObj(i -> new CeTaskMessageDto()
-        .setUuid("uuid_" + taskUuid + "_" + i)
-        .setTaskUuid(taskUuid)
-        .setMessage("m_" + taskUuid + "_" + i)
-        .setType(messageType)
-        .setCreatedAt(taskUuid.hashCode() + i))
-      .toList();
+        .mapToObj(i -> new CeTaskMessageDto()
+            .setUuid("uuid_" + taskUuid + "_" + i)
+            .setTaskUuid(taskUuid)
+            .setMessage("m_" + taskUuid + "_" + i)
+            .setType(messageType)
+            .setCreatedAt(taskUuid.hashCode() + i))
+        .toList();
 
-    ceTaskMessageDtos.forEach(ceTaskMessageDto -> db.getDbClient().ceTaskMessageDao().insert(db.getSession(), ceTaskMessageDto));
+    ceTaskMessageDtos
+        .forEach(ceTaskMessageDto -> db.getDbClient().ceTaskMessageDao().insert(db.getSession(), ceTaskMessageDto));
     db.commit();
     return ceTaskMessageDtos.stream().map(CeTaskMessageDto::getMessage).toList();
   }
@@ -321,8 +326,8 @@ public class ActivityActionIT {
 
     TestRequest request = ws.newRequest().setParam("componentId", project.projectUuid());
     assertThatThrownBy(() -> call(request))
-      .isInstanceOf(UnauthorizedException.class)
-      .hasMessage("Authentication is required");
+        .isInstanceOf(UnauthorizedException.class)
+        .hasMessage("Authentication is required");
   }
 
   @Test
@@ -374,9 +379,9 @@ public class ActivityActionIT {
     insertQueue("T1", project, IN_PROGRESS);
 
     ActivityResponse result = call(
-      ws.newRequest()
-        .setParam(Param.TEXT_QUERY, "T1")
-        .setParam(PARAM_STATUS, PENDING.name()));
+        ws.newRequest()
+            .setParam(Param.TEXT_QUERY, "T1")
+            .setParam(PARAM_STATUS, PENDING.name()));
 
     assertThat(result.getTasksCount()).isOne();
     assertThat(result.getTasks(0).getId()).isEqualTo("T1");
@@ -405,8 +410,8 @@ public class ActivityActionIT {
 
     TestRequest request = ws.newRequest().setParam(TEXT_QUERY, "T1");
     assertThatThrownBy(() -> call(request))
-      .isInstanceOf(ForbiddenException.class)
-      .hasMessage("Insufficient privileges");
+        .isInstanceOf(ForbiddenException.class)
+        .hasMessage("Insufficient privileges");
   }
 
   @Test
@@ -415,7 +420,8 @@ public class ActivityActionIT {
     ProjectData project = db.components().insertPrivateProject();
     userSession.addProjectPermission(ProjectPermission.USER, project.getProjectDto());
     String branchName = "branch1";
-    ComponentDto branch = db.components().insertProjectBranch(project.getMainBranchComponent(), b -> b.setBranchType(BRANCH).setKey(branchName));
+    ComponentDto branch = db.components().insertProjectBranch(project.getMainBranchComponent(),
+        b -> b.setBranchType(BRANCH).setKey(branchName));
     SnapshotDto analysis = db.components().insertSnapshot(branch);
     CeActivityDto activity = insertActivity("T1", project.projectUuid(), project.mainBranchUuid(), SUCCESS, analysis);
     insertCharacteristic(activity, CeTaskCharacteristics.BRANCH, branchName);
@@ -424,9 +430,10 @@ public class ActivityActionIT {
     ActivityResponse response = ws.newRequest().executeProtobuf(ActivityResponse.class);
 
     assertThat(response.getTasksList())
-      .extracting(Task::getId, Ce.Task::getBranch, Ce.Task::getBranchType, Ce.Task::getStatus, Ce.Task::getComponentKey)
-      .containsExactlyInAnyOrder(
-        tuple("T1", branchName, Common.BranchType.BRANCH, Ce.TaskStatus.SUCCESS, branch.getKey()));
+        .extracting(Task::getId, Ce.Task::getBranch, Ce.Task::getBranchType, Ce.Task::getStatus,
+            Ce.Task::getComponentKey)
+        .containsExactlyInAnyOrder(
+            tuple("T1", branchName, Common.BranchType.BRANCH, Ce.TaskStatus.SUCCESS, branch.getKey()));
   }
 
   @Test
@@ -441,14 +448,14 @@ public class ActivityActionIT {
     insertCharacteristic(queue2, BRANCH_TYPE, BRANCH.name());
 
     ActivityResponse response = ws.newRequest()
-      .setParam("status", "FAILED,IN_PROGRESS,PENDING")
-      .executeProtobuf(ActivityResponse.class);
+        .setParam("status", "FAILED,IN_PROGRESS,PENDING")
+        .executeProtobuf(ActivityResponse.class);
 
     assertThat(response.getTasksList())
-      .extracting(Task::getId, Ce.Task::getBranch, Ce.Task::getBranchType, Ce.Task::getStatus)
-      .containsExactlyInAnyOrder(
-        tuple("T1", branch, Common.BranchType.BRANCH, Ce.TaskStatus.IN_PROGRESS),
-        tuple("T2", branch, Common.BranchType.BRANCH, Ce.TaskStatus.PENDING));
+        .extracting(Task::getId, Ce.Task::getBranch, Ce.Task::getBranchType, Ce.Task::getStatus)
+        .containsExactlyInAnyOrder(
+            tuple("T1", branch, Common.BranchType.BRANCH, Ce.TaskStatus.IN_PROGRESS),
+            tuple("T2", branch, Common.BranchType.BRANCH, Ce.TaskStatus.PENDING));
   }
 
   @Test
@@ -457,18 +464,21 @@ public class ActivityActionIT {
     ProjectData project = db.components().insertPrivateProject();
     userSession.addProjectPermission(ProjectPermission.USER, project.getProjectDto());
     String pullRequestKey = RandomStringUtils.secure().nextAlphanumeric(100);
-    ComponentDto pullRequest = db.components().insertProjectBranch(project.getMainBranchComponent(), b -> b.setBranchType(BranchType.PULL_REQUEST).setKey(pullRequestKey));
+    ComponentDto pullRequest = db.components().insertProjectBranch(project.getMainBranchComponent(),
+        b -> b.setBranchType(BranchType.PULL_REQUEST).setKey(pullRequestKey));
     SnapshotDto analysis = db.components().insertSnapshot(pullRequest);
-    CeActivityDto activity = insertActivity("T1", project.projectUuid(), project.getMainBranchComponent().uuid(), SUCCESS, analysis);
+    CeActivityDto activity = insertActivity("T1", project.projectUuid(), project.getMainBranchComponent().uuid(),
+        SUCCESS, analysis);
     insertCharacteristic(activity, PULL_REQUEST, pullRequestKey);
 
     ActivityResponse response = ws.newRequest().executeProtobuf(ActivityResponse.class);
 
     assertThat(response.getTasksList())
-      .extracting(Task::getId, Ce.Task::getPullRequest, Ce.Task::hasPullRequestTitle, Ce.Task::getStatus, Ce.Task::getComponentKey)
-      .containsExactlyInAnyOrder(
-        // TODO the pull request title must be loaded from db
-        tuple("T1", pullRequestKey, false, Ce.TaskStatus.SUCCESS, pullRequest.getKey()));
+        .extracting(Task::getId, Ce.Task::getPullRequest, Ce.Task::hasPullRequestTitle, Ce.Task::getStatus,
+            Ce.Task::getComponentKey)
+        .containsExactlyInAnyOrder(
+            // TODO the pull request title must be loaded from db
+            tuple("T1", pullRequestKey, false, Ce.TaskStatus.SUCCESS, pullRequest.getKey()));
   }
 
   @Test
@@ -481,35 +491,35 @@ public class ActivityActionIT {
     insertCharacteristic(queue2, PULL_REQUEST, branch);
 
     ActivityResponse response = ws.newRequest()
-      .setParam("status", "FAILED,IN_PROGRESS,PENDING")
-      .executeProtobuf(ActivityResponse.class);
+        .setParam("status", "FAILED,IN_PROGRESS,PENDING")
+        .executeProtobuf(ActivityResponse.class);
 
     assertThat(response.getTasksList())
-      .extracting(Task::getId, Ce.Task::getPullRequest, Ce.Task::hasPullRequestTitle, Ce.Task::getStatus)
-      .containsExactlyInAnyOrder(
-        tuple("T1", branch, false, Ce.TaskStatus.IN_PROGRESS),
-        tuple("T2", branch, false, Ce.TaskStatus.PENDING));
+        .extracting(Task::getId, Ce.Task::getPullRequest, Ce.Task::hasPullRequestTitle, Ce.Task::getStatus)
+        .containsExactlyInAnyOrder(
+            tuple("T1", branch, false, Ce.TaskStatus.IN_PROGRESS),
+            tuple("T2", branch, false, Ce.TaskStatus.PENDING));
   }
 
   @Test
   public void fail_if_both_filters_on_component_key_and_name() {
     TestRequest request = ws.newRequest()
-      .setParam("q", "apache")
-      .setParam("component", "apache")
-      .setMediaType(MediaTypes.PROTOBUF);
+        .setParam("q", "apache")
+        .setParam("component", "apache")
+        .setMediaType(MediaTypes.PROTOBUF);
     assertThatThrownBy(request::execute)
-      .isInstanceOf(BadRequestException.class)
-      .hasMessage("component and q must not be set at the same time");
+        .isInstanceOf(BadRequestException.class)
+        .hasMessage("component and q must not be set at the same time");
   }
 
   @Test
   public void fail_if_page_size_greater_than_1000() {
     TestRequest request = ws.newRequest()
-      .setParam(Param.PAGE_SIZE, "1001");
+        .setParam(Param.PAGE_SIZE, "1001");
 
     assertThatThrownBy(request::execute)
-      .isInstanceOf(IllegalArgumentException.class)
-      .hasMessage("'ps' value (1001) must be less than 1000");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("'ps' value (1001) must be less than 1000");
   }
 
   @Test
@@ -517,23 +527,23 @@ public class ActivityActionIT {
     logInAsSystemAdministrator();
 
     TestRequest request = ws.newRequest()
-      .setParam(PARAM_MAX_EXECUTED_AT, "ill-formatted-date");
+        .setParam(PARAM_MAX_EXECUTED_AT, "ill-formatted-date");
 
     assertThatThrownBy(request::execute)
-      .isInstanceOf(IllegalArgumentException.class)
-      .hasMessage("Date 'ill-formatted-date' cannot be parsed as either a date or date+time");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Date 'ill-formatted-date' cannot be parsed as either a date or date+time");
   }
 
   @Test
   public void throws_IAE_if_pageSize_is_0() {
     logInAsSystemAdministrator();
     TestRequest request = ws.newRequest()
-      .setParam(Param.PAGE, Integer.toString(1))
-      .setParam(Param.PAGE_SIZE, Integer.toString(0))
-      .setParam(PARAM_STATUS, "SUCCESS,FAILED,CANCELED,IN_PROGRESS,PENDING");
+        .setParam(Param.PAGE, Integer.toString(1))
+        .setParam(Param.PAGE_SIZE, Integer.toString(0))
+        .setParam(PARAM_STATUS, "SUCCESS,FAILED,CANCELED,IN_PROGRESS,PENDING");
     assertThatThrownBy(() -> call(request))
-      .isInstanceOf(IllegalArgumentException.class)
-      .hasMessage("page size must be >= 1");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("page size must be >= 1");
 
   }
 
@@ -541,13 +551,13 @@ public class ActivityActionIT {
   public void throws_IAE_if_page_is_0() {
     logInAsSystemAdministrator();
     TestRequest request = ws.newRequest()
-      .setParam(Param.PAGE, Integer.toString(0))
-      .setParam(Param.PAGE_SIZE, Integer.toString(1))
-      .setParam(PARAM_STATUS, "SUCCESS,FAILED,CANCELED,IN_PROGRESS,PENDING");
+        .setParam(Param.PAGE, Integer.toString(0))
+        .setParam(Param.PAGE_SIZE, Integer.toString(1))
+        .setParam(PARAM_STATUS, "SUCCESS,FAILED,CANCELED,IN_PROGRESS,PENDING");
 
     assertThatThrownBy(() -> call(request))
-      .isInstanceOf(IllegalArgumentException.class)
-      .hasMessage("page index must be >= 1");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("page index must be >= 1");
   }
 
   @Test
@@ -560,13 +570,13 @@ public class ActivityActionIT {
     insertActivity("T3", project1, SUCCESS);
 
     TestRequest request = ws.newRequest()
-      .setParam(Param.PAGE, Integer.toString(2))
-      .setParam(Param.PAGE_SIZE, Integer.toString(3))
-      .setParam(PARAM_STATUS, "SUCCESS,FAILED,CANCELED,IN_PROGRESS,PENDING");
+        .setParam(Param.PAGE, Integer.toString(2))
+        .setParam(Param.PAGE_SIZE, Integer.toString(3))
+        .setParam(PARAM_STATUS, "SUCCESS,FAILED,CANCELED,IN_PROGRESS,PENDING");
 
     assertThatThrownBy(() -> call(request))
-      .isInstanceOf(IllegalArgumentException.class)
-      .hasMessage("Can return only the first 3 results. 4th result asked.");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Can return only the first 3 results. 4th result asked.");
   }
 
   @Test
@@ -575,15 +585,15 @@ public class ActivityActionIT {
 
     TestRequest request = ws.newRequest().setParam(PARAM_COMPONENT, "unknown");
     assertThatThrownBy(request::execute)
-      .isInstanceOf(NotFoundException.class)
-      .hasMessage("Component 'unknown' does not exist");
+        .isInstanceOf(NotFoundException.class)
+        .hasMessage("Component 'unknown' does not exist");
   }
 
   private void assertPage(int page, int pageSize, List<String> expectedOrderedTaskIds) {
     ActivityResponse activityResponse = call(ws.newRequest()
-      .setParam(Param.PAGE, Integer.toString(page))
-      .setParam(Param.PAGE_SIZE, Integer.toString(pageSize))
-      .setParam(PARAM_STATUS, "SUCCESS,FAILED,CANCELED,IN_PROGRESS,PENDING"));
+        .setParam(Param.PAGE, Integer.toString(page))
+        .setParam(Param.PAGE_SIZE, Integer.toString(pageSize))
+        .setParam(PARAM_STATUS, "SUCCESS,FAILED,CANCELED,IN_PROGRESS,PENDING"));
 
     assertThat(activityResponse.getPaging().getPageIndex()).isEqualTo(page);
     assertThat(activityResponse.getPaging().getPageSize()).isEqualTo(pageSize);
@@ -598,8 +608,8 @@ public class ActivityActionIT {
   public void support_json_response() {
     logInAsSystemAdministrator();
     TestResponse wsResponse = ws.newRequest()
-      .setMediaType(MediaTypes.JSON)
-      .execute();
+        .setMediaType(MediaTypes.JSON)
+        .execute();
 
     JsonAssert.assertJson(wsResponse.getInput()).isSimilarTo("{\"tasks\":[]}");
   }
@@ -615,11 +625,12 @@ public class ActivityActionIT {
     insertActivity("T1", project1, SUCCESS);
     insertActivity("T2", project2, SUCCESS);
 
-    ActivityResponse response = ws.newRequest().setParam("status", "FAILED,IN_PROGRESS,SUCCESS").executeProtobuf(ActivityResponse.class);
+    ActivityResponse response = ws.newRequest().setParam("status", "FAILED,IN_PROGRESS,SUCCESS")
+        .executeProtobuf(ActivityResponse.class);
 
     assertThat(response.getTasksList())
-      .extracting(Task::getId)
-      .containsExactlyInAnyOrder("T1", "T2", "T3");
+        .extracting(Task::getId)
+        .containsExactlyInAnyOrder("T1", "T2", "T3");
   }
 
   private void logInAsSystemAdministrator() {
@@ -641,14 +652,17 @@ public class ActivityActionIT {
   }
 
   private CeActivityDto insertActivity(String taskUuid, ProjectData project, Status status) {
-    return insertActivity(taskUuid, project.projectUuid(), project.mainBranchUuid(), status, db.components().insertSnapshot(project.getMainBranchDto()));
+    return insertActivity(taskUuid, project.projectUuid(), project.mainBranchUuid(), status,
+        db.components().insertSnapshot(project.getMainBranchDto()));
   }
 
   private CeActivityDto insertActivity(String taskUuid, PortfolioData portfolio, Status status) {
-    return insertActivity(taskUuid, portfolio.portfolioUuid(), portfolio.rootComponentUuid(), status, db.components().insertSnapshot(portfolio.getPortfolioDto()));
+    return insertActivity(taskUuid, portfolio.portfolioUuid(), portfolio.rootComponentUuid(), status,
+        db.components().insertSnapshot(portfolio.getPortfolioDto()));
   }
 
-  private CeActivityDto insertActivity(String taskUuid, String entityUuid, String rootComponentUuid, Status status, @Nullable SnapshotDto analysis) {
+  private CeActivityDto insertActivity(String taskUuid, String entityUuid, String rootComponentUuid, Status status,
+      @Nullable SnapshotDto analysis) {
     CeQueueDto queueDto = new CeQueueDto();
     queueDto.setTaskType(CeTaskTypes.REPORT);
     queueDto.setComponentUuid(rootComponentUuid);
@@ -676,10 +690,10 @@ public class ActivityActionIT {
 
   private CeTaskCharacteristicDto insertCharacteristic(String taskUuid, String key, String value) {
     CeTaskCharacteristicDto dto = new CeTaskCharacteristicDto()
-      .setUuid(Uuids.createFast())
-      .setTaskUuid(taskUuid)
-      .setKey(key)
-      .setValue(value);
+        .setUuid(Uuids.create())
+        .setTaskUuid(taskUuid)
+        .setKey(key)
+        .setValue(value);
     db.getDbClient().ceTaskCharacteristicsDao().insert(db.getSession(), singletonList(dto));
     db.commit();
     return dto;

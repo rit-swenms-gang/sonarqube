@@ -19,10 +19,21 @@
  */
 package org.sonar.server.ce.ws;
 
+import static java.util.Collections.singleton;
+import static org.apache.commons.lang3.RandomStringUtils.secure;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.sonar.core.ce.CeTaskCharacteristics.BRANCH_TYPE;
+import static org.sonar.db.component.BranchType.BRANCH;
+import static org.sonar.db.permission.ProjectPermission.ADMIN;
+import static org.sonar.db.permission.ProjectPermission.SCAN;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.IntStream;
+
 import javax.annotation.Nullable;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -51,15 +62,6 @@ import org.sonar.server.ws.TestRequest;
 import org.sonar.server.ws.WsActionTester;
 import org.sonarqube.ws.Ce;
 import org.sonarqube.ws.Common;
-
-import static java.util.Collections.singleton;
-import static org.apache.commons.lang3.RandomStringUtils.secure;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.sonar.core.ce.CeTaskCharacteristics.BRANCH_TYPE;
-import static org.sonar.db.component.BranchType.BRANCH;
-import static org.sonar.db.permission.ProjectPermission.ADMIN;
-import static org.sonar.db.permission.ProjectPermission.SCAN;
 
 public class TaskActionIT {
 
@@ -105,8 +107,8 @@ public class TaskActionIT {
     persist(queueDto);
 
     Ce.TaskResponse taskResponse = ws.newRequest()
-      .setParam("id", SOME_TASK_UUID)
-      .executeProtobuf(Ce.TaskResponse.class);
+        .setParam("id", SOME_TASK_UUID)
+        .executeProtobuf(Ce.TaskResponse.class);
     assertThat(taskResponse.getTask().getId()).isEqualTo(SOME_TASK_UUID);
     assertThat(taskResponse.getTask().getStatus()).isEqualTo(Ce.TaskStatus.PENDING);
     assertThat(taskResponse.getTask().getSubmitterLogin()).isEqualTo(user.getLogin());
@@ -124,18 +126,18 @@ public class TaskActionIT {
     userSession.logIn(user).setSystemAdministrator();
     CeQueueDto queueDto = createAndPersistQueueTask(null, user);
     IntStream.range(0, 6)
-      .forEach(i -> db.getDbClient().ceTaskMessageDao().insert(db.getSession(),
-        new CeTaskMessageDto()
-          .setUuid("u_" + i)
-          .setTaskUuid(queueDto.getUuid())
-          .setMessage("m_" + i)
-          .setType(MessageType.GENERIC)
-          .setCreatedAt(queueDto.getUuid().hashCode() + i)));
+        .forEach(i -> db.getDbClient().ceTaskMessageDao().insert(db.getSession(),
+            new CeTaskMessageDto()
+                .setUuid("u_" + i)
+                .setTaskUuid(queueDto.getUuid())
+                .setMessage("m_" + i)
+                .setType(MessageType.GENERIC)
+                .setCreatedAt(queueDto.getUuid().hashCode() + i)));
     db.commit();
 
     Ce.TaskResponse taskResponse = ws.newRequest()
-      .setParam("id", SOME_TASK_UUID)
-      .executeProtobuf(Ce.TaskResponse.class);
+        .setParam("id", SOME_TASK_UUID)
+        .executeProtobuf(Ce.TaskResponse.class);
     Ce.Task task = taskResponse.getTask();
     assertThat(task.getWarningCount()).isZero();
     assertThat(task.getWarningsList()).isEmpty();
@@ -150,8 +152,8 @@ public class TaskActionIT {
     persist(activityDto);
 
     Ce.TaskResponse taskResponse = ws.newRequest()
-      .setParam("id", SOME_TASK_UUID)
-      .executeProtobuf(Ce.TaskResponse.class);
+        .setParam("id", SOME_TASK_UUID)
+        .executeProtobuf(Ce.TaskResponse.class);
     Ce.Task task = taskResponse.getTask();
     assertThat(task.getId()).isEqualTo(SOME_TASK_UUID);
     assertThat(task.getStatus()).isEqualTo(Ce.TaskStatus.FAILED);
@@ -171,19 +173,20 @@ public class TaskActionIT {
     ComponentDto mainBranch = projectData.getMainBranchComponent();
     userSession.addProjectPermission(ProjectPermission.USER, projectData.getProjectDto());
     String branchName = secure().nextAlphanumeric(248);
-    ComponentDto branch = db.components().insertProjectBranch(mainBranch, b -> b.setBranchType(BRANCH).setKey(branchName));
+    ComponentDto branch = db.components().insertProjectBranch(mainBranch,
+        b -> b.setBranchType(BRANCH).setKey(branchName));
     db.components().insertSnapshot(branch);
     CeActivityDto activity = createAndPersistArchivedTask(mainBranch);
     insertCharacteristic(activity, CeTaskCharacteristics.BRANCH, branchName);
     insertCharacteristic(activity, BRANCH_TYPE, BRANCH.name());
 
     Ce.TaskResponse taskResponse = ws.newRequest()
-      .setParam("id", SOME_TASK_UUID)
-      .executeProtobuf(Ce.TaskResponse.class);
+        .setParam("id", SOME_TASK_UUID)
+        .executeProtobuf(Ce.TaskResponse.class);
 
     assertThat(taskResponse.getTask())
-      .extracting(Ce.Task::getId, Ce.Task::getBranch, Ce.Task::getBranchType, Ce.Task::getComponentKey)
-      .containsExactlyInAnyOrder(SOME_TASK_UUID, branchName, Common.BranchType.BRANCH, branch.getKey());
+        .extracting(Ce.Task::getId, Ce.Task::getBranch, Ce.Task::getBranchType, Ce.Task::getComponentKey)
+        .containsExactlyInAnyOrder(SOME_TASK_UUID, branchName, Common.BranchType.BRANCH, branch.getKey());
   }
 
   @Test
@@ -197,12 +200,12 @@ public class TaskActionIT {
     insertCharacteristic(queueDto, BRANCH_TYPE, BRANCH.name());
 
     Ce.TaskResponse taskResponse = ws.newRequest()
-      .setParam("id", SOME_TASK_UUID)
-      .executeProtobuf(Ce.TaskResponse.class);
+        .setParam("id", SOME_TASK_UUID)
+        .executeProtobuf(Ce.TaskResponse.class);
 
     assertThat(taskResponse.getTask())
-      .extracting(Ce.Task::getId, Ce.Task::getBranch, Ce.Task::getBranchType, Ce.Task::hasComponentKey)
-      .containsExactlyInAnyOrder(SOME_TASK_UUID, branch, Common.BranchType.BRANCH, false);
+        .extracting(Ce.Task::getId, Ce.Task::getBranch, Ce.Task::getBranchType, Ce.Task::hasComponentKey)
+        .containsExactlyInAnyOrder(SOME_TASK_UUID, branch, Common.BranchType.BRANCH, false);
   }
 
   @Test
@@ -210,14 +213,14 @@ public class TaskActionIT {
     logInAsSystemAdministrator();
 
     CeActivityDto activityDto = createActivityDto(SOME_TASK_UUID)
-      .setErrorMessage("error msg")
-      .setErrorStacktrace("error stack");
+        .setErrorMessage("error msg")
+        .setErrorStacktrace("error stack");
     persist(activityDto);
 
     Ce.TaskResponse taskResponse = ws.newRequest()
-      .setParam("id", SOME_TASK_UUID)
-      .setParam("additionalFields", "stacktrace")
-      .executeProtobuf(Ce.TaskResponse.class);
+        .setParam("id", SOME_TASK_UUID)
+        .setParam("additionalFields", "stacktrace")
+        .executeProtobuf(Ce.TaskResponse.class);
     Ce.Task task = taskResponse.getTask();
     assertThat(task.getId()).isEqualTo(SOME_TASK_UUID);
     assertThat(task.getErrorMessage()).isEqualTo(activityDto.getErrorMessage());
@@ -230,13 +233,13 @@ public class TaskActionIT {
     logInAsSystemAdministrator();
 
     CeActivityDto activityDto = createActivityDto(SOME_TASK_UUID)
-      .setErrorMessage("error msg")
-      .setErrorStacktrace("error stack");
+        .setErrorMessage("error msg")
+        .setErrorStacktrace("error stack");
     persist(activityDto);
 
     Ce.TaskResponse taskResponse = ws.newRequest()
-      .setParam("id", SOME_TASK_UUID)
-      .executeProtobuf(Ce.TaskResponse.class);
+        .setParam("id", SOME_TASK_UUID)
+        .executeProtobuf(Ce.TaskResponse.class);
     Ce.Task task = taskResponse.getTask();
     assertThat(task.getId()).isEqualTo(SOME_TASK_UUID);
     assertThat(task.getErrorMessage()).isEqualTo(activityDto.getErrorMessage());
@@ -252,9 +255,9 @@ public class TaskActionIT {
     persistScannerContext(SOME_TASK_UUID, scannerContext);
 
     Ce.TaskResponse taskResponse = ws.newRequest()
-      .setParam("id", SOME_TASK_UUID)
-      .setParam("additionalFields", "scannerContext")
-      .executeProtobuf(Ce.TaskResponse.class);
+        .setParam("id", SOME_TASK_UUID)
+        .setParam("additionalFields", "scannerContext")
+        .executeProtobuf(Ce.TaskResponse.class);
     Ce.Task task = taskResponse.getTask();
     assertThat(task.getId()).isEqualTo(SOME_TASK_UUID);
     assertThat(task.getScannerContext()).isEqualTo(scannerContext);
@@ -269,9 +272,9 @@ public class TaskActionIT {
     persistScannerContext(SOME_TASK_UUID, scannerContext);
 
     Ce.TaskResponse taskResponse = ws.newRequest()
-      .setParam("id", SOME_TASK_UUID)
-      .setParam("additionalFields", "stacktrace")
-      .executeProtobuf(Ce.TaskResponse.class);
+        .setParam("id", SOME_TASK_UUID)
+        .setParam("additionalFields", "stacktrace")
+        .executeProtobuf(Ce.TaskResponse.class);
     Ce.Task task = taskResponse.getTask();
     assertThat(task.getId()).isEqualTo(SOME_TASK_UUID);
     assertThat(task.hasScannerContext()).isFalse();
@@ -282,12 +285,12 @@ public class TaskActionIT {
     logInAsSystemAdministrator();
 
     CeActivityDto activityDto = createActivityDto(SOME_TASK_UUID)
-      .setErrorMessage("error msg");
+        .setErrorMessage("error msg");
     persist(activityDto);
 
     Ce.TaskResponse taskResponse = ws.newRequest()
-      .setParam("id", SOME_TASK_UUID)
-      .executeProtobuf(Ce.TaskResponse.class);
+        .setParam("id", SOME_TASK_UUID)
+        .executeProtobuf(Ce.TaskResponse.class);
     Ce.Task task = taskResponse.getTask();
     assertThat(task.getId()).isEqualTo(SOME_TASK_UUID);
     assertThat(task.getErrorMessage()).isEqualTo(activityDto.getErrorMessage());
@@ -299,9 +302,9 @@ public class TaskActionIT {
     logInAsSystemAdministrator();
 
     TestRequest request = ws.newRequest()
-      .setParam("id", "DOES_NOT_EXIST");
+        .setParam("id", "DOES_NOT_EXIST");
     assertThatThrownBy(request::execute)
-      .isInstanceOf(NotFoundException.class);
+        .isInstanceOf(NotFoundException.class);
   }
 
   @Test
@@ -321,7 +324,7 @@ public class TaskActionIT {
 
     String uuid = task.getUuid();
     assertThatThrownBy(() -> call(uuid))
-      .isInstanceOf(ForbiddenException.class);
+        .isInstanceOf(ForbiddenException.class);
   }
 
   @Test
@@ -332,7 +335,7 @@ public class TaskActionIT {
 
     String uuid = task.getUuid();
     assertThatThrownBy(() -> call(uuid))
-      .isInstanceOf(ForbiddenException.class);
+        .isInstanceOf(ForbiddenException.class);
   }
 
   @Test
@@ -351,7 +354,7 @@ public class TaskActionIT {
       userSession.logIn();
     }
     userSession.addProjectPermission(permission, privateProject)
-      .addProjectBranchMapping(privateProject.getUuid(), privateProjectMainBranch);
+        .addProjectBranchMapping(privateProject.getUuid(), privateProjectMainBranch);
   }
 
   @Test
@@ -379,7 +382,7 @@ public class TaskActionIT {
 
     String uuid = task.getUuid();
     assertThatThrownBy(() -> call(uuid))
-      .isInstanceOf(ForbiddenException.class);
+        .isInstanceOf(ForbiddenException.class);
   }
 
   @Test
@@ -399,7 +402,7 @@ public class TaskActionIT {
 
     String uuid = task.getUuid();
     assertThatThrownBy(() -> call(uuid))
-      .isInstanceOf(ForbiddenException.class);
+        .isInstanceOf(ForbiddenException.class);
   }
 
   @Test
@@ -417,7 +420,7 @@ public class TaskActionIT {
 
     String uuid = task.getUuid();
     assertThatThrownBy(() -> call(uuid))
-      .isInstanceOf(ForbiddenException.class);
+        .isInstanceOf(ForbiddenException.class);
   }
 
   @Test
@@ -435,7 +438,7 @@ public class TaskActionIT {
 
     String uuid = task.getUuid();
     assertThatThrownBy(() -> call(uuid))
-      .isInstanceOf(ForbiddenException.class);
+        .isInstanceOf(ForbiddenException.class);
   }
 
   @Test
@@ -453,7 +456,7 @@ public class TaskActionIT {
 
     String uuid = task.getUuid();
     assertThatThrownBy(() -> call(uuid))
-      .isInstanceOf(ForbiddenException.class);
+        .isInstanceOf(ForbiddenException.class);
   }
 
   @Test
@@ -469,7 +472,7 @@ public class TaskActionIT {
 
     CeActivityDto persistArchivedTask = createAndPersistArchivedTask(publicProjectMainBranch);
     assertThatThrownBy(() -> insertWarningsCallEndpointAndAssertWarnings(persistArchivedTask))
-      .isInstanceOf(ForbiddenException.class);
+        .isInstanceOf(ForbiddenException.class);
   }
 
   @Test
@@ -478,7 +481,7 @@ public class TaskActionIT {
 
     CeActivityDto persistArchivedTask = createAndPersistArchivedTask(privateProjectMainBranch);
     assertThatThrownBy(() -> insertWarningsCallEndpointAndAssertWarnings(persistArchivedTask))
-      .isInstanceOf(ForbiddenException.class);
+        .isInstanceOf(ForbiddenException.class);
   }
 
   @Test
@@ -508,15 +511,16 @@ public class TaskActionIT {
 
   private void insertWarningsCallEndpointAndAssertWarnings(CeActivityDto task) {
     List<CeTaskMessageDto> warnings = IntStream.range(0, 6)
-      .mapToObj(i -> insertWarning(task, i))
-      .toList();
+        .mapToObj(i -> insertWarning(task, i))
+        .toList();
     callEndpointAndAssertWarnings(task, warnings);
   }
 
   private void callEndpointAndAssertWarnings(CeActivityDto task, List<CeTaskMessageDto> warnings) {
     Ce.Task taskWithWarnings = callWithWarnings(task.getUuid());
     assertThat(taskWithWarnings.getWarningCount()).isEqualTo(warnings.size());
-    assertThat(taskWithWarnings.getWarningsList()).isEqualTo(warnings.stream().map(CeTaskMessageDto::getMessage).toList());
+    assertThat(taskWithWarnings.getWarningsList())
+        .isEqualTo(warnings.stream().map(CeTaskMessageDto::getMessage).toList());
   }
 
   private CeTaskMessageDto insertWarning(CeActivityDto task, int i) {
@@ -525,11 +529,11 @@ public class TaskActionIT {
 
   private CeTaskMessageDto insertMessage(CeActivityDto task, int i, MessageType messageType) {
     CeTaskMessageDto res = new CeTaskMessageDto()
-      .setUuid(UuidFactoryFast.getInstance().create())
-      .setTaskUuid(task.getUuid())
-      .setMessage("msg_" + task.getUuid() + "_" + i)
-      .setType(messageType)
-      .setCreatedAt(task.getUuid().hashCode() + i);
+        .setUuid(UuidFactoryFast.getInstance().create())
+        .setTaskUuid(task.getUuid())
+        .setMessage("msg_" + task.getUuid() + "_" + i)
+        .setType(messageType)
+        .setCreatedAt(task.getUuid().hashCode() + i);
     db.getDbClient().ceTaskMessageDao().insert(db.getSession(), res);
     db.getSession().commit();
     return res;
@@ -590,10 +594,10 @@ public class TaskActionIT {
 
   private CeTaskCharacteristicDto insertCharacteristic(String taskUuid, String key, String value) {
     CeTaskCharacteristicDto dto = new CeTaskCharacteristicDto()
-      .setUuid(Uuids.createFast())
-      .setTaskUuid(taskUuid)
-      .setKey(key)
-      .setValue(value);
+        .setUuid(Uuids.create())
+        .setTaskUuid(taskUuid)
+        .setKey(key)
+        .setValue(value);
     db.getDbClient().ceTaskCharacteristicsDao().insert(db.getSession(), Collections.singletonList(dto));
     db.commit();
     return dto;
@@ -611,7 +615,8 @@ public class TaskActionIT {
   }
 
   private void persistScannerContext(String taskUuid, String scannerContext) {
-    db.getDbClient().ceScannerContextDao().insert(db.getSession(), taskUuid, CloseableIterator.from(singleton(scannerContext).iterator()));
+    db.getDbClient().ceScannerContextDao().insert(db.getSession(), taskUuid,
+        CloseableIterator.from(singleton(scannerContext).iterator()));
     db.commit();
   }
 
@@ -622,17 +627,17 @@ public class TaskActionIT {
 
   private void call(String taskUuid) {
     Ce.TaskResponse taskResponse = ws.newRequest()
-      .setParam("id", taskUuid)
-      .executeProtobuf(Ce.TaskResponse.class);
+        .setParam("id", taskUuid)
+        .executeProtobuf(Ce.TaskResponse.class);
     Ce.Task task = taskResponse.getTask();
     assertThat(task.getId()).isEqualTo(taskUuid);
   }
 
   private Ce.Task callWithWarnings(String taskUuid) {
     Ce.TaskResponse taskResponse = ws.newRequest()
-      .setParam("id", taskUuid)
-      .setParam("additionalFields", "warnings")
-      .executeProtobuf(Ce.TaskResponse.class);
+        .setParam("id", taskUuid)
+        .setParam("additionalFields", "warnings")
+        .executeProtobuf(Ce.TaskResponse.class);
     Ce.Task task = taskResponse.getTask();
     assertThat(task.getId()).isEqualTo(taskUuid);
     return task;
