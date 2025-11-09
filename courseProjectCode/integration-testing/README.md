@@ -2,8 +2,13 @@
 
 ## Overview
 
-[PLACEHOLDER - PROVIDE A BRIEF OVERVIEW OF TOOLS/FRAMEWORKS USED FOR INTEGRATION TESTING]
+For integration testing, we use the existing testing framework set up in the SonarQube project,
+which is primarily based on JUnit. Any mocked components are created using Mockito.
 
 ## How to Run
 
-[PLACEHOLDER - PROVIDE INSTRUCTIONS/COMMANDS TO EXECUTE INTEGRATION TESTS AND WHERE TO FIND REPORTS]
+As with running unit tests, integration tests can be executed using Gradle:
+
+```console
+./gradlew clean build test jacocoTestReport sonarqube
+```
