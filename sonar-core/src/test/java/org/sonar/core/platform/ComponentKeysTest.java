@@ -19,9 +19,6 @@
  */
 package org.sonar.core.platform;
 
-import org.junit.Test;
-import org.slf4j.Logger;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.startsWith;
@@ -29,6 +26,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+
+import org.junit.Test;
+import org.slf4j.Logger;
 
 public class ComponentKeysTest {
 
@@ -41,7 +41,8 @@ public class ComponentKeysTest {
 
   @Test
   public void generate_key_of_instance() {
-    assertThat((String) keys.of(new FakeComponent())).endsWith("-org.sonar.core.platform.ComponentKeysTest.FakeComponent-fake");
+    assertThat((String) keys.of(new FakeComponent()))
+        .endsWith("-org.sonar.core.platform.ComponentKeysTest.FakeComponent-fake");
   }
 
   @Test
@@ -84,5 +85,15 @@ public class ComponentKeysTest {
     public String toString() {
       return KEY;
     }
+  }
+
+  @Test
+  public void ofInstance_uses_object_toString_when_not_identity() {
+    ComponentKeys keys = new ComponentKeys();
+    Object component = new FakeComponent();
+
+    String actual = keys.ofInstance(component);
+    String expected = keys.ofClass(component.getClass()) + "-" + "fake";
+    assertThat(actual).isEqualTo(expected);
   }
 }

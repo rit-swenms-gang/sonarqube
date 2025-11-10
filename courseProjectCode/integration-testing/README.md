@@ -10,5 +10,8 @@ which is primarily based on JUnit. Any mocked components are created using Mocki
 As with running unit tests, integration tests can be executed using Gradle:
 
 ```console
-./gradlew clean build test jacocoTestReport sonarqube
+./gradlew build test
 ```
+
+The results of the tests will be displayed in the console output, and detailed reports can be found
+in the `build/reports/tests/test` directory of each submodule.

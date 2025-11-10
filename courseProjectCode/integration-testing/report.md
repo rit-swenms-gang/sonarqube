@@ -2,23 +2,23 @@
 
 ## Test Design
 
-[PLACEHOLDER - DESCRIBE WHICH MODULES WERE INTEGRATED AND WHAT INTERACTIONS WERE TESTED]
+* Integration between `ComponentKeys` and `Uuids` classes.
+  * `ofInstance_uses_object_toString_when_not_identity()` method in `ComponentKeysTest` was modified 
+  to mock the static method `Uuids.create()` to return a fixed UUID value.
 
 ## Test Data
 
-[PLACEHOLDER - DESCRIBE HOW TEST INPUT/OUTPUT WAS GENERATED OR COLLECTED]
+Test data in `ComponentKeysTest` uses an existing `FakeComponent` class instance to test the
+integration with a mock object.
 
 ## Results
 
-[PLACEHOLDER - SUMMARIZE THE RESULTS OF THE INTEGRATION TESTS, INCLUDING ANY FAILURES OR ISSUES FOUND]
-
-## Issues
-
-[PLACEHOLDER - DESCRIBE ANY ISSUES FOUND DURING INTEGRATION TESTING]
+The method `ofInstance_uses_object_toString_when_not_identity()` passed successfully, confirming that
+the integration between `ComponentKeys` and `Uuids` works as expected when generating component keys.
 
 ## Group Contributions
 
 | Member   | Task/Contribution               | Notes                                      |
 |----------|---------------------------------|--------------------------------------------|
-| Andrew   | [PLACEHOLDER - DESCRIBE TASK]   | [PLACEHOLDER - DESCRIBE NOTES]             |
+| Andrew   | Integration Tests 1   | Create integration tests for Uuids and Components Keys           |
 | Christian| [PLACEHOLDER - DESCRIBE TASK]   | [PLACEHOLDER - DESCRIBE NOTES]             |
