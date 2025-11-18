@@ -1,6 +1,7 @@
 plugins {
 	id 'java'
 	id 'jacoco'
+	id "org.sonarqube" version "6.3.1.5724"
 }
 
 repositories {
@@ -26,4 +27,14 @@ jacocoTestReport {
 	reports {
 		xml.required = true
 	}
+}
+
+apply plugin: 'org.sonarqube'
+sonar {
+  properties {
+    property 'sonar.projectName', projectName
+    property 'sonar.projectKey', projectKey
+    property 'sonar.projectVersion', "${version}-SNAPSHOT"
+    property 'sonar.buildString', version
+  }
 }

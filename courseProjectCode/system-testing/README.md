@@ -8,11 +8,23 @@ support.
 
 ## How to Run
 
-<details>
-  <summary>`dummy-project`</summary>
+Navigate to the `dummy-project` directory
 
-```bash
+```console
 cd courseProjectCode/system-testing/dummy-project
-./gradlew clean test
 ```
-</details>
+
+Follow the steps in the [SonarQube Setup Instructions](../Setup/README.md#sonarqube-analysis)
+to set up a local SonarQube server.
+Use the name `dummy-project` for the project name/key and `master` for the main branch.
+
+Run the tests and upload the results to SonarQube
+
+```console
+./gradlew clean build test sonar \
+  -Dsonar.token=<YOUR_SONARQUBE_TOKEN>
+```
+
+Replace `<YOUR_SONARQUBE_TOKEN>` with the token generated in the setup instructions.
+
+View the results in your local SonarQube instance at [http://localhost:9000/](http://localhost:9000/).
