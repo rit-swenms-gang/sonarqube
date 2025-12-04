@@ -928,6 +928,21 @@ task perfTest {
   description = 'Runs performance tests.'
 
   doLast {
+    // retrieve sonar token from project property, system property or environment variable
+    def sonarToken = project.findProperty('sonar.token') ?:
+                    System.getProperty('sonar.token') ?:
+                    System.getenv('SONAR_TOKEN') ?: 
+                    ''
+    
+    if (!sonarToken) {
+      println "Sonar token is required to run performance tests."
+      println "To add a SonarQube token, use:" 
+      println "\t-Psonar.token=YOUR_TOKEN"
+      println "\t-Dsonar.token=YOUR_TOKEN"
+      println "\tor set the SONAR_TOKEN environment variable."
+      throw new GradleException('Sonar token not provided. Please set sonar.token property or SONAR_TOKEN environment variable.')
+    }
+
     def jmeterHome = System.getenv('JMETER_HOME')
     if (!jmeterHome) {
       throw new GradleException('JMETER_HOME environment variable is not set.')
@@ -980,7 +995,7 @@ task perfTest {
         '-o', reportOutputDir,
         '-Jsonar.host=localhost',
         '-Jsonar.port=9000',
-        '-Jsonar.token=' + (System.getenv('DUMMY_SONAR_TOKEN') ?: '')
+        '-Jsonar.token=' + sonarToken
     }
 
     println "================================================"
