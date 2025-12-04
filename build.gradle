@@ -985,7 +985,8 @@ task perfTest {
 
     println "================================================"
     println "JMeter performance tests completed."
-    println "Test results available at: ${reportIndex}"
+    println "Test results available at: " +
+      "file:///${reportIndex.absolutePath.replace('\\', '/').replace(' ', '%20')}"
     println "================================================"
   }
 }
