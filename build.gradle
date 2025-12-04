@@ -922,3 +922,70 @@ task jacocoAggregateReport(type: JacocoReport) {
         html.required = true
     }
 }
+
+task perfTest {
+  group = 'verification'
+  description = 'Runs performance tests.'
+
+  doLast {
+    def jmeterHome = System.getenv('JMETER_HOME')
+    if (!jmeterHome) {
+      throw new GradleException('JMETER_HOME environment variable is not set.')
+    }
+
+    // check that jmater is a directory
+    def jmeterDir = new File(jmeterHome)
+    if (!jmeterDir.isDirectory()) {
+      throw new GradleException("JMETER_HOME (${jmeterHome}) is not a directory.")
+    }
+
+    // get jmeter executable name based on OS
+    def jmeterExecutableName = System.properties['os.name']
+      .toLowerCase().contains('windows') ? 'jmeter.bat' : 'jmeter'
+
+    def jmeterFile = new File(jmeterHome, "bin/${jmeterExecutableName}")
+    if(!jmeterFile.exists()) {
+      throw new GradleException("JMeter executable not found at ${jmeterFile}.")
+    }
+
+    def testPlan = file('courseProjectCode/performance-testing/jmeter/sonar-perf-test.jmx')
+    def resultsDir = file('courseProjectCode/performance-testing/jmeter/results')
+    resultsDir.mkdirs()
+
+    // marking the results with a timestamp since the results file and report directory
+    // must be unique for each test run
+    def timeStamp = new Date().format("yyyy-MM-dd-HHmmss")
+    def reportDir = new File(resultsDir, "report-${timeStamp}")
+    reportDir.mkdirs()
+
+    def resultsFile = new File(reportDir, "jmeter-results-${timeStamp}.jtl")
+    def logFile = new File(reportDir, "jmeter-log-${timeStamp}.jtl")
+    def reportOutputDir = new File(reportDir, "output")
+
+    def reportIndex = new File(reportOutputDir, "index.html")
+
+    println "Starting JMeter performance tests..."
+    println "Test plan: ${testPlan}"
+    println "Results file: ${resultsFile}"
+    println "Report directory: ${reportDir}"
+    println "------------------------------------------------"
+
+    exec {
+      commandLine jmeterFile,
+        '-n',
+        '-t', testPlan,
+        '-l', resultsFile,
+        // '-j', logFile, // optional log file for debugging purposes
+        '-e',
+        '-o', reportOutputDir,
+        '-Jsonar.host=localhost',
+        '-Jsonar.port=9000',
+        '-Jsonar.token=' + (System.getenv('DUMMY_SONAR_TOKEN') ?: '')
+    }
+
+    println "================================================"
+    println "JMeter performance tests completed."
+    println "Test results available at: ${reportIndex}"
+    println "================================================"
+  }
+}
