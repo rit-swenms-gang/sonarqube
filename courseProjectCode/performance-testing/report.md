@@ -22,4 +22,7 @@ Track response times, throughput, CPU/memory usage, etc.]
 | Member    | Task/Contribution       | Notes                       |
 |-----------|-------------------------|-----------------------------|
 | Andrew    | Document scaffolding    |                             |
+|           | JMeter test plan creation | Create and configure JMeter test plans for load testing |
+|           | JMeter Gradle integration | Make a Gradle task for running JMeter tests |
+|           | README documentation     | Write README instructions for performance testing |
 | Christian |  |       |
