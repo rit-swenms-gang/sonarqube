@@ -43,8 +43,7 @@ creating a large number of threads initially causes the program to run out of me
 
 | Member    | Task/Contribution       | Notes                       |
 |-----------|-------------------------|-----------------------------|
-| Andrew    | Document scaffolding    |                             |
-|           | JMeter test plan creation | Create and configure JMeter test plans for load testing |
+| Andrew    | JMeter test plan creation | Create and configure JMeter test plans for load testing |
 |           | JMeter Gradle integration | Make a Gradle task for running JMeter tests |
-|           | README documentation     | Write README instructions for performance testing |
+|           | README documentation      | Write README instructions for performance testing |
 | Christian | Creation/Deletion Test Scenario | Create test plan to stress app; reports |

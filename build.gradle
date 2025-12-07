@@ -923,7 +923,22 @@ task jacocoAggregateReport(type: JacocoReport) {
     }
 }
 
-def runJMeterTest(String testType, String testPlanName) {
+// helper method to show missing property error message
+def missingPropertyError(
+  String testType, 
+  String propertyName, 
+  String propertyDisplayName, 
+  String placeholderValue,
+  String envVarName) {
+  println "The property '${propertyDisplayName}' is required to run ${testType} tests."
+  println "To add it, use:" 
+  println "\t-P${propertyName}=${placeholderValue}"
+  println "\t-D${propertyName}=${placeholderValue}"
+  println "\tor set the ${envVarName} environment variable."
+  throw new GradleException("Property '${propertyDisplayName}' not provided. Please set ${propertyName} property or ${envVarName} environment variable.")
+}
+
+def runJMeterTest(String testType, String testPlanName, String sonarProjectKey = null) {
   // validate test type
   testType = testType.toLowerCase().trim()
   def validTestTypes = ['load', 'stress']
@@ -931,19 +946,21 @@ def runJMeterTest(String testType, String testPlanName) {
     throw new GradleException("Invalid test type: ${testType}. Must be one of: ${validTestTypes.join(', ')}")
   }
 
+  def userTokenPropertyName = 'sonar.token'
+  def userTokenEnvVarName = 'SONAR_TOKEN'
+
   // retrieve sonar token from project property, system property or environment variable
-  def sonarToken = project.findProperty('sonar.token') ?:
-                  System.getProperty('sonar.token') ?:
-                  System.getenv('SONAR_TOKEN') ?: 
+  def sonarToken = project.findProperty(userTokenPropertyName) ?:
+                  System.getProperty(userTokenPropertyName) ?:
+                  System.getenv(userTokenEnvVarName) ?: 
                   ''
   
   if (!sonarToken) {
-    println "Sonar token is required to run ${testType} tests."
-    println "To add a SonarQube token, use:" 
-    println "\t-Psonar.token=YOUR_TOKEN"
-    println "\t-Dsonar.token=YOUR_TOKEN"
-    println "\tor set the SONAR_TOKEN environment variable."
-    throw new GradleException('Sonar token not provided. Please set sonar.token property or SONAR_TOKEN environment variable.')
+    missingPropertyError(testType, 
+    userTokenPropertyName, 
+    'Sonar user token', 
+    'YOUR_SONAR_USER_TOKEN', 
+    userTokenEnvVarName)
   }
 
   // verify JMeter installation
@@ -1004,7 +1021,8 @@ def runJMeterTest(String testType, String testPlanName) {
       '-o', reportOutputDir,
       '-Jsonar.host=localhost',
       '-Jsonar.port=9000',
-      '-Jsonar.token=' + sonarToken
+      '-Jsonar.token=' + sonarToken,
+      '-Jsonar.projectKey=' + (sonarProjectKey ?: '') // only needed for load tests
   }
 
   println "================================================"
@@ -1019,7 +1037,24 @@ task loadTest {
   description = 'Runs load tests.'
 
   doLast {
-    runJMeterTest('load', 'sonar-load-test-plan')
+    def projectKeyPropertyName = 'sonar.projectKey'
+    def projectKeyEnvVarName = 'SONAR_PROJECT_KEY'
+
+    // retrieve sonar project key from project property, system property or environment variable
+    def sonarProjectKey = project.findProperty(projectKeyPropertyName) ?:
+                            System.getProperty(projectKeyPropertyName) ?:
+                            System.getenv(projectKeyEnvVarName) ?: 
+                            ''
+
+    if (!sonarProjectKey) {
+      missingPropertyError('load', 
+      projectKeyPropertyName,
+      'Sonar project key',
+      'YOUR_PROJECT_KEY',
+      projectKeyEnvVarName)
+    }
+
+    runJMeterTest('load', 'sonar-load-test-plan', sonarProjectKey)
   }
 }
 
@@ -1036,6 +1071,5 @@ task performanceTest {
   group = 'verification'
   description = 'Runs all performance tests (load and stress tests).'
 
-  dependsOn loadTest
-  dependsOn stressTest
+  dependsOn loadTest, stressTest
 }
