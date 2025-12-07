@@ -80,5 +80,6 @@
       "editor.autoIndent": "keep",
       "diffEditor.ignoreTrimWhitespace": false,
       "editor.formatOnSave": false
-    }
+    },
+    "java.configuration.updateBuildConfiguration": "interactive"
 }
