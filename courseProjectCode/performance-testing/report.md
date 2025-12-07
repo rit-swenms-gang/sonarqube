@@ -14,7 +14,7 @@ users create the test and then attempt to delete it.
 [Environment setup for the tests, like simulated users/requests, test duration, ramp-up, etc.]
 
 Creation/deletion tests:
-With JMeter, we used a script (assitance from ChatGPT) to create project names from a Java UUID.
+With JMeter, we used a script (assistance from ChatGPT) to create project names from a Java UUID.
 We ran this for 1,000 users to send POST requests to the create and delete project endpoints. The
 ramp-up time was 120 seconds.
 
@@ -24,10 +24,10 @@ ramp-up time was 120 seconds.
 Track response times, throughput, CPU/memory usage, etc.]
 
 Create/Delete Responses Over time
-![Graph showing largely linear relationship](./ResponsesOverTime.png)
+![Graph showing largely linear relationship](images/ResponsesOverTime.png)
 
 Create/Delete Hits per Second
-![Graph showing large dip](./Hits.png)
+![Graph showing large dip](images/Hits.png)
 
 ## Performance Findings
 
