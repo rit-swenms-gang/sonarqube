@@ -25,7 +25,8 @@ JMeter can be run directly from the command line using
   ```
 
 *It is not necessary to open the JMeter GUI for running the performance
-tests, as they are executed via Gradle.*
+tests, as they are executed via Gradle.
+In fact, running load tests through the GUI is not recommended due to potential performance overhead.*
 
 Run the load tests:
 
