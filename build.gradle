@@ -922,3 +922,154 @@ task jacocoAggregateReport(type: JacocoReport) {
         html.required = true
     }
 }
+
+// helper method to show missing property error message
+def missingPropertyError(
+  String testType, 
+  String propertyName, 
+  String propertyDisplayName, 
+  String placeholderValue,
+  String envVarName) {
+  println "The property '${propertyDisplayName}' is required to run ${testType} tests."
+  println "To add it, use:" 
+  println "\t-P${propertyName}=${placeholderValue}"
+  println "\t-D${propertyName}=${placeholderValue}"
+  println "\tor set the ${envVarName} environment variable."
+  throw new GradleException("Property '${propertyDisplayName}' not provided. Please set ${propertyName} property or ${envVarName} environment variable.")
+}
+
+def runJMeterTest(String testType, String testPlanName, String sonarProjectKey = null) {
+  // validate test type
+  testType = testType.toLowerCase().trim()
+  def validTestTypes = ['load', 'stress']
+  if (!validTestTypes.contains(testType)) {
+    throw new GradleException("Invalid test type: ${testType}. Must be one of: ${validTestTypes.join(', ')}")
+  }
+
+  def userTokenPropertyName = 'sonar.token'
+  def userTokenEnvVarName = 'SONAR_TOKEN'
+
+  // retrieve sonar token from project property, system property or environment variable
+  def sonarToken = project.findProperty(userTokenPropertyName) ?:
+                  System.getProperty(userTokenPropertyName) ?:
+                  System.getenv(userTokenEnvVarName) ?: 
+                  ''
+  
+  if (!sonarToken) {
+    missingPropertyError(testType, 
+    userTokenPropertyName, 
+    'Sonar user token', 
+    'YOUR_SONAR_USER_TOKEN', 
+    userTokenEnvVarName)
+  }
+
+  // verify JMeter installation
+  def jmeterHome = System.getenv('JMETER_HOME')
+  if (!jmeterHome) {
+    throw new GradleException('JMETER_HOME environment variable is not set.')
+  }
+
+    
+  def jmeterDir = new File(jmeterHome)
+  if (!jmeterDir.isDirectory()) {
+    throw new GradleException("JMETER_HOME (${jmeterHome}) is not a directory.")
+  }
+
+    // get jmeter executable name based on OS
+  def jmeterExecutableName = System.properties['os.name']
+    .toLowerCase().contains('windows') ? 'jmeter.bat' : 'jmeter'
+
+  def jmeterFile = new File(jmeterHome, "bin/${jmeterExecutableName}")
+  if (!jmeterFile.exists()) {
+    throw new GradleException("JMeter executable not found at ${jmeterFile}.")
+  }
+
+  // define test plan and results directory
+  def testPlan = file("courseProjectCode/performance-testing/jmeter/test-plans/${testPlanName}.jmx")
+  if (!testPlan.exists()) {
+    throw new GradleException("Test plan file not found at ${testPlan}.")
+  }
+
+  def resultsDir = file("courseProjectCode/performance-testing/jmeter/${testType}-results")
+  resultsDir.mkdirs()
+
+  // marking the results with a timestamp since the results file and report directory
+  // must be unique for each test run
+  def timeStamp = new Date().format("yyyy-MM-dd-HHmmss")
+  def reportDir = new File(resultsDir, "report-${timeStamp}")
+  reportDir.mkdirs()
+
+  def resultsFile = new File(reportDir, "jmeter-results-${timeStamp}.jtl")
+  def logFile = new File(reportDir, "jmeter-log-${timeStamp}.jtl")
+  def reportOutputDir = new File(reportDir, "output")
+
+  def reportIndex = new File(reportOutputDir, "index.html")
+
+  println "Starting JMeter ${testType} tests..."
+  println "Test plan: ${testPlan}"
+  println "Results file: ${resultsFile}"
+  println "Report directory: ${reportDir}"
+  println "------------------------------------------------"
+
+  exec {
+    commandLine jmeterFile,
+      '-n',
+      '-t', testPlan,
+      '-l', resultsFile,
+      // '-j', logFile, // optional log file for debugging purposes
+      '-e',
+      '-o', reportOutputDir,
+      '-Jsonar.host=localhost',
+      '-Jsonar.port=9000',
+      '-Jsonar.token=' + sonarToken,
+      '-Jsonar.projectKey=' + (sonarProjectKey ?: '') // only needed for load tests
+  }
+
+  println "================================================"
+  println "JMeter ${testType} tests completed."
+  println "Test results available at: " +
+    "file:///${reportIndex.absolutePath.replace('\\', '/').replace(' ', '%20')}"
+  println "================================================"
+}
+
+task loadTest {
+  group = 'verification'
+  description = 'Runs load tests.'
+
+  doLast {
+    def projectKeyPropertyName = 'sonar.projectKey'
+    def projectKeyEnvVarName = 'SONAR_PROJECT_KEY'
+
+    // retrieve sonar project key from project property, system property or environment variable
+    def sonarProjectKey = project.findProperty(projectKeyPropertyName) ?:
+                            System.getProperty(projectKeyPropertyName) ?:
+                            System.getenv(projectKeyEnvVarName) ?: 
+                            ''
+
+    if (!sonarProjectKey) {
+      missingPropertyError('load', 
+      projectKeyPropertyName,
+      'Sonar project key',
+      'YOUR_PROJECT_KEY',
+      projectKeyEnvVarName)
+    }
+
+    runJMeterTest('load', 'sonar-load-test-plan', sonarProjectKey)
+  }
+}
+
+task stressTest {
+  group = 'verification'
+  description = 'Runs stress tests.'
+
+  doLast {
+    runJMeterTest('stress', 'sonar-stress-test-plan')
+  }
+}
+
+task performanceTest {
+  group = 'verification'
+  description = 'Runs all performance tests (load and stress tests).'
+
+  dependsOn loadTest, stressTest
+}
